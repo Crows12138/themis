@@ -33,7 +33,7 @@ def test_linear_mediation_recovers_nde_and_nie():
     df = _linear_med_dgp(n=2000, seed=0, nde_true=0.5, nie_true=2.0)
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=100, random_state=42,
+        ci_bootstrap=100, random_state=42,
     )
     assert est.method == "mediation_linear_imai"
     # Point estimates within 10% of truth
@@ -47,7 +47,7 @@ def test_te_equals_nde_plus_nie_up_to_sampling_noise():
     df = _linear_med_dgp(n=1000, seed=0)
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=50, random_state=42,
+        ci_bootstrap=50, random_state=42,
     )
     assert abs(est.te_point - (est.nde_point + est.nie_point)) < 0.10
 
@@ -56,7 +56,7 @@ def test_ci_bounds_present_and_ordered():
     df = _linear_med_dgp(n=800, seed=0)
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=50, random_state=1,
+        ci_bootstrap=50, random_state=1,
     )
     assert est.nde_ci_lower <= est.nde_point <= est.nde_ci_upper
     assert est.nie_ci_lower <= est.nie_point <= est.nie_ci_upper
@@ -77,7 +77,7 @@ def test_exposure_mediator_interaction_recovers_correct_nde_nie():
     y = 0.5 * x + 0.5 * m + 2.0 * x * m + rng.standard_normal(n) * 0.5
     df = pd.DataFrame({"x": x, "m": m, "y": y})
     est = estimate_mediation(
-        df, treatment="x", outcome="y", mediator="m", n_rep=40, random_state=1,
+        df, treatment="x", outcome="y", mediator="m", ci_bootstrap=40, random_state=1,
     )
     assert abs(est.nde_point - 0.5) < 0.1, est.nde_point   # not the biased ~1.5
     assert abs(est.nie_point - 2.5) < 0.1, est.nie_point   # not the biased ~1.5
@@ -98,7 +98,7 @@ def test_logit_outcome_uses_logit_model():
 
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=50, random_state=42,
+        ci_bootstrap=50, random_state=42,
     )
     assert est.method == "mediation_logit_imai"
     # NIE direction should be positive (M increases Y via positive logit)
@@ -116,7 +116,7 @@ def test_bool_mediator_accepted():
 
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=50, random_state=42,
+        ci_bootstrap=50, random_state=42,
     )
     # NIE should be positive (x→m→y is positive via positive coefs)
     assert est.nie_point > 0
@@ -138,7 +138,7 @@ def test_adjustment_set_threaded_into_both_models():
 
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        adjustment=("w",), n_rep=50, random_state=42,
+        adjustment=("w",), ci_bootstrap=50, random_state=42,
     )
     assert est.adjustment == ("w",)
     # True NIE = 2 * 1 = 2.0
@@ -152,11 +152,11 @@ def test_deterministic_under_fixed_seed():
     df = _linear_med_dgp(n=500, seed=0)
     e1 = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=30, random_state=42,
+        ci_bootstrap=30, random_state=42,
     )
     e2 = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=30, random_state=42,
+        ci_bootstrap=30, random_state=42,
     )
     assert e1.nde_point == e2.nde_point
     assert e1.nie_point == e2.nie_point
@@ -168,7 +168,7 @@ def test_shape_and_fields():
     df = _linear_med_dgp(n=200, seed=0)
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=30, random_state=42,
+        ci_bootstrap=30, random_state=42,
     )
     assert isinstance(est, MediationEstimate)
     assert est.treatment == "x"
@@ -189,7 +189,7 @@ def test_proportion_mediated_present_and_consistent_with_ratio():
     df = _linear_med_dgp(n=2000, seed=0, nde_true=0.5, nie_true=2.0)
     est = estimate_mediation(
         df, treatment="x", outcome="y", mediator="m",
-        n_rep=200, random_state=42,
+        ci_bootstrap=200, random_state=42,
     )
     # Point should be in the same ballpark as naive ratio (Imai's
     # bootstrap on the ratio uses median of ratio, not ratio of medians)
@@ -205,7 +205,7 @@ def test_unknown_model_rejected():
     with pytest.raises(EstimatorFailure) as exc:
         estimate_mediation(
             df, treatment="x", outcome="y", mediator="m",
-            model="random_forest", n_rep=10,
+            model="random_forest", ci_bootstrap=10,
         )
     assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
     # The set it does admit is the fact a caller cannot look up from the
@@ -228,6 +228,6 @@ def test_a_singular_point_fit_is_refused_not_swallowed():
     df = pd.DataFrame({"x": x, "m": x, "y": rng.random(n) < 0.5})
     with pytest.raises(EstimatorFailure, match="奇异") as exc:
         estimate_mediation(
-            df, treatment="x", outcome="y", mediator="m", n_rep=0,
+            df, treatment="x", outcome="y", mediator="m", ci_bootstrap=0,
         )
     assert exc.value.failure_type == Refusal.SINGULAR_DESIGN

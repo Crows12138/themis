@@ -71,13 +71,19 @@ SHAPES = json.loads(
 #: Every statement the corpus carries, and how many of the envelope's
 #: sentences each carrier accounts for. Pinned so a narrowing of the walk
 #: shows up as a number rather than as a quieter gate.
-REACHED = 5075
+REACHED = 5100
 PER_CARRIER = {
     "gap_routes": 1193,
-    "gap_describes": 1144,
-    "gap_if_provided": 966,
-    "gap_says": 666,
-    "assumption_claim": 507,
+    # These three and the ledger below moved together, by eight and eight
+    # and eight and one, when a targeted corpus refresh picked up producer
+    # drift the stored rows predated: eight more gaps and one more ledger
+    # entry across six rows. Four carriers of the same eight gaps is what
+    # a per-carrier pin is for — a narrowing shows up as one of them
+    # falling while the others hold.
+    "gap_describes": 1152,
+    "gap_if_provided": 974,
+    "gap_says": 674,
+    "assumption_claim": 508,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
     # statement quoted INSIDE another sentence's hole, which is the shape

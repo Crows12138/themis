@@ -92,6 +92,13 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
     Every claim token is a prefix of its entry's id — most equal to it,
     the rest proper prefixes where the id carries this occasion's values —
     and every value under ``said`` appears in what the id has left over.
+
+    The proper prefixes went up by one, and the values with them, when a
+    corpus refresh took ``longitudinal_ipw_msm`` from a run that resolved a
+    cluster column: the cluster-bootstrap declaration is an id that carries
+    the column's name, so it is one more entry of exactly the kind this
+    counts. A ledger line arriving is the producer having more to declare,
+    not this rule reaching further.
     """
     equal = prefix = values = no_id = 0
     for pair in SHAPES.values():
@@ -109,7 +116,7 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (448, 59, 61, 24), (
+    assert (equal, prefix, values, no_id) == (448, 60, 62, 24), (
         equal, prefix, values, no_id)
 
 

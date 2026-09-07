@@ -33356,7 +33356,7 @@ false
 "version": "0.1"
 },
 "estimation_context": {
-"ci_bootstrap": 500,
+"ci_bootstrap": 40,
 "ci_level": 0.95,
 "cluster": "clinic",
 "data_columns": [
@@ -34304,8 +34304,9 @@ false
 "version": "0.1"
 },
 "estimation_context": {
-"ci_bootstrap": 500,
+"ci_bootstrap": 40,
 "ci_level": 0.95,
+"cluster": "clinic",
 "data_columns": [
 "A0",
 "A1",
@@ -34385,6 +34386,22 @@ false
 "layer": "functional_form",
 "provenance": "inherent",
 "severity": "distorting",
+"testable": true
+},
+{
+"claim": [
+{
+"said": {
+"suffix": "clinic"
+},
+"token": "ci_via_pairs_cluster_bootstrap_on_",
+"vocabulary": "assumption_claim"
+}
+],
+"id": "ci_via_pairs_cluster_bootstrap_on_clinic",
+"layer": "confidence",
+"provenance": "inherent",
+"severity": "confidence_only",
 "testable": true
 }
 ]
@@ -34524,16 +34541,18 @@ false
 "positivity_each_treatment_level_observed_within_history_strata",
 "consistency_well_defined_sustained_treatment_strategy",
 "correct_specification_of_treatment_propensity_models",
-"marginal_structural_model_additive_no_treatment_time_interaction"
+"marginal_structural_model_additive_no_treatment_time_interaction",
+"ci_via_pairs_cluster_bootstrap_on_clinic"
 ],
 "bootstrap": {
-"kind": "iid",
+"cluster_column": "clinic",
+"kind": "cluster",
 "requested": 40,
 "used": 40
 },
 "ci_level": 0.95,
-"ci_lower": 5.345201553596833,
-"ci_upper": 6.84964245572948,
+"ci_lower": 4.530599366075211,
+"ci_upper": 7.19132468379837,
 "data_columns": [
 "A0",
 "A1",
@@ -34543,8 +34562,8 @@ false
 ],
 "data_hash": "bc67acb2291bc7295106b210bdbfeb2155b4d2250b1aeabae02ca1225ec6d236",
 "longitudinal_ipw_msm": {
-"ci_lower": 5.345201553596833,
-"ci_upper": 6.84964245572948,
+"ci_lower": 4.530599366075211,
+"ci_upper": 7.19132468379837,
 "confounders_by_time": [
 [
 "L0"
@@ -34563,9 +34582,9 @@ false
 "outcome": "Y",
 "point": 5.98773009882304,
 "precision_budget": {
-"current_ci_half_width": 0.75222,
+"current_ci_half_width": 1.330363,
 "n_to_halve_ci": 2400,
-"relative_width": 0.1256
+"relative_width": 0.2222
 },
 "stabilized": true,
 "strategy_control": 0.0,
@@ -34581,9 +34600,9 @@ false
 "outcome": "Y",
 "point": 5.98773009882304,
 "precision_budget": {
-"current_ci_half_width": 0.75222,
+"current_ci_half_width": 1.330363,
 "n_to_halve_ci": 2400,
-"relative_width": 0.1256
+"relative_width": 0.2222
 },
 "sample_size": 600,
 "treatment": "A0,A1"
@@ -35740,6 +35759,46 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m1"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m1",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m2"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m2",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -36478,6 +36537,28 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m1"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m2"
 }
 ],
 "investigation_requests": [
@@ -36540,10 +36621,66 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m1"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m1"
+},
+"target": "m1"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m2"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m2"
+},
+"target": "m2"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:4_items"
 }
 ],
 "numeric_estimate": {
@@ -36557,8 +36694,8 @@ false
 ],
 "bootstrap": {
 "kind": "iid",
-"requested": 200,
-"used": 200
+"requested": 500,
+"used": 500
 },
 "ci_level": 0.95,
 "data_columns": [
@@ -36571,56 +36708,56 @@ false
 "decomposition": {
 "cde": {
 "reference_control": {
-"ci_lower": 0.4368916230374493,
-"ci_upper": 0.5072655100813902,
+"ci_lower": 0.4368171539667819,
+"ci_upper": 0.506320665268699,
 "mediator_level": 0.0,
 "point": 0.4692597547584707,
 "precision_budget": {
-"current_ci_half_width": 0.035187,
+"current_ci_half_width": 0.034752,
 "n_to_halve_ci": 24000,
-"relative_width": 0.075
+"relative_width": 0.0741
 }
 },
 "reference_treated": {
-"ci_lower": 0.5485722625590326,
-"ci_upper": 0.6135436868468715,
+"ci_lower": 0.5479729285685074,
+"ci_upper": 0.6094363005162339,
 "mediator_level": 1.0,
 "point": 0.5760814762674151,
 "precision_budget": {
-"current_ci_half_width": 0.032486,
+"current_ci_half_width": 0.030732,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0564
+"relative_width": 0.0533
 }
 }
 },
 "nde": {
-"ci_lower": 0.47678263930647974,
-"ci_upper": 0.5554939804039166,
+"ci_lower": 0.47682144148316086,
+"ci_upper": 0.5453601992284165,
 "point": 0.5098434808887298,
 "precision_budget": {
-"current_ci_half_width": 0.039356,
+"current_ci_half_width": 0.034269,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0772
+"relative_width": 0.0672
 }
 },
 "nie": {
-"ci_lower": 1.6419890037436533,
-"ci_upper": 1.7770454151543533,
+"ci_lower": 1.643695502626004,
+"ci_upper": 1.7864417494845282,
 "point": 1.7143514507163775,
 "precision_budget": {
-"current_ci_half_width": 0.067528,
+"current_ci_half_width": 0.071373,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0394
+"relative_width": 0.0416
 }
 },
 "proportion_mediated": {
-"ci_lower": 0.754666286770862,
-"ci_upper": 0.783326963214867,
+"ci_lower": 0.7549091394683158,
+"ci_upper": 0.7842809532040445,
 "point": 0.7707739219957679,
 "precision_budget": {
-"current_ci_half_width": 0.01433,
+"current_ci_half_width": 0.014686,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0186
+"relative_width": 0.0191
 }
 },
 "reference": "VanderWeele & Vansteelandt 2014 (Mediation analysis with multiple mediators); joint NDE/NIE through the mediator set.",
@@ -36648,13 +36785,13 @@ false
 }
 },
 "te": {
-"ci_lower": 2.1536470654707003,
-"ci_upper": 2.286346022559662,
+"ci_lower": 2.154097116643709,
+"ci_upper": 2.296130955610637,
 "point": 2.2241949316051075,
 "precision_budget": {
-"current_ci_half_width": 0.066349,
+"current_ci_half_width": 0.071017,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0298
+"relative_width": 0.0319
 }
 }
 },
@@ -39953,6 +40090,46 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m1"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m1",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m2"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m2",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -40789,6 +40966,28 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m1"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m2"
 }
 ],
 "investigation_requests": [
@@ -40851,10 +41050,66 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m1"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m1"
+},
+"target": "m1"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m2"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m2"
+},
+"target": "m2"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:4_items"
 }
 ],
 "numeric_estimate": {
@@ -40872,8 +41127,8 @@ false
 ],
 "bootstrap": {
 "kind": "iid",
-"requested": 200,
-"used": 200
+"requested": 500,
+"used": 500
 },
 "ci_level": 0.95,
 "data_columns": [
@@ -40887,56 +41142,56 @@ false
 "decomposition": {
 "cde": {
 "reference_control": {
-"ci_lower": 0.2638902305310531,
-"ci_upper": 0.34551574400533736,
+"ci_lower": 0.26296153216942536,
+"ci_upper": 0.3375545481396887,
 "mediator_level": 0.0,
 "point": 0.299119022274306,
 "precision_budget": {
-"current_ci_half_width": 0.040813,
+"current_ci_half_width": 0.037297,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1364
+"relative_width": 0.1247
 }
 },
 "reference_treated": {
-"ci_lower": 0.26128241852402484,
-"ci_upper": 0.3717510491011877,
+"ci_lower": 0.25756845232594827,
+"ci_upper": 0.3718346442193036,
 "mediator_level": 1.0,
 "point": 0.31668717440515803,
 "precision_budget": {
-"current_ci_half_width": 0.055234,
+"current_ci_half_width": 0.057133,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1744
+"relative_width": 0.1804
 }
 }
 },
 "nde": {
-"ci_lower": 0.3127491627995689,
-"ci_upper": 0.36991344803496684,
+"ci_lower": 0.31067182649942043,
+"ci_upper": 0.36613466407206585,
 "point": 0.33791871604646245,
 "precision_budget": {
-"current_ci_half_width": 0.028582,
+"current_ci_half_width": 0.027731,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0846
+"relative_width": 0.0821
 }
 },
 "nie": {
-"ci_lower": 0.10140558850350812,
-"ci_upper": 0.12981014874806945,
+"ci_lower": 0.10218736648216734,
+"ci_upper": 0.1315068931649182,
 "point": 0.11673047305888826,
 "precision_budget": {
-"current_ci_half_width": 0.014202,
+"current_ci_half_width": 0.01466,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1217
+"relative_width": 0.1256
 }
 },
 "proportion_mediated": {
-"ci_lower": 0.2207556419718895,
-"ci_upper": 0.2858927793086166,
+"ci_lower": 0.22628256783067202,
+"ci_upper": 0.2866811120521217,
 "point": 0.2567484466179035,
 "precision_budget": {
-"current_ci_half_width": 0.032569,
+"current_ci_half_width": 0.030199,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1269
+"relative_width": 0.1176
 }
 },
 "reference": "VanderWeele & Vansteelandt 2014 (Mediation analysis with multiple mediators); joint NDE/NIE through the mediator set.",
@@ -40964,13 +41219,13 @@ false
 }
 },
 "te": {
-"ci_lower": 0.4286011433023828,
-"ci_upper": 0.482912432099751,
+"ci_lower": 0.4274853888053897,
+"ci_upper": 0.4832774454842146,
 "point": 0.4546491891053507,
 "precision_budget": {
-"current_ci_half_width": 0.027156,
+"current_ci_half_width": 0.027896,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0597
+"relative_width": 0.0614
 }
 }
 },
@@ -41163,6 +41418,26 @@ false
 "provenance": [
 {
 "ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "domain, time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m",
 "ref_kind": "framing_note"
 }
 ],
@@ -41639,6 +41914,18 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"domain",
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m"
 }
 ],
 "investigation_requests": [
@@ -41693,10 +41980,34 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "7",
+"fields": "domain, time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m"
+},
+"skeleton": {
+"existing": {},
+"fields": {
+"baseline": null,
+"direction": null,
+"domain": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m"
+},
+"target": "m"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "numeric_estimate": {
@@ -41707,11 +42018,6 @@ false
 "pearl_2001_four_conditions_hold_on_the_graph",
 "linear_outcome_regression"
 ],
-"bootstrap": {
-"kind": "iid",
-"requested": 200,
-"used": 200
-},
 "ci_level": 0.95,
 "data_columns": [
 "m",
@@ -41721,108 +42027,58 @@ false
 "data_hash": "c4d3517d200a4f35400f23127a2b8cc72e6f95824513c883498485713abc4c83",
 "decomposition": {
 "nde": {
-"ci_lower": 0.2873942484377756,
-"ci_upper": 0.32371636108378193,
-"point": 0.30355112528721234,
-"precision_budget": {
-"current_ci_half_width": 0.018161,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0598
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.30355112528721234
 },
 "nie": {
-"ci_lower": 0.23590564912906392,
-"ci_upper": 0.26638715984209016,
-"point": 0.25058186621690964,
-"precision_budget": {
-"current_ci_half_width": 0.015241,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0608
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.25058186621690964
 },
 "proportion_mediated": {
-"ci_lower": 0.4239297341298601,
-"ci_upper": 0.47704021463895085,
-"point": 0.4522052829533534,
-"precision_budget": {
-"current_ci_half_width": 0.026555,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0587
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.4522052829533534
 },
 "te": {
-"ci_lower": 0.5378936187219681,
-"ci_upper": 0.5695661789288666,
-"point": 0.554132991504122,
-"precision_budget": {
-"current_ci_half_width": 0.015836,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0286
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.554132991504122
 }
 },
 "four_way_decomposition": {
 "additive_interaction": -0.006911649630626569,
 "cde": {
-"ci_lower": 0.28534298956852194,
-"ci_upper": 0.3283059030228529,
-"point": 0.30488352907605115,
-"precision_budget": {
-"current_ci_half_width": 0.021481,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0705
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.30488352907605115
 },
 "cde_mediator_reference": 0,
 "intmed": {
-"ci_lower": -0.02078954683574312,
-"ci_upper": 0.011482852492400393,
-"point": -0.0035541518603773815,
-"precision_budget": {
-"current_ci_half_width": 0.016136,
-"n_to_halve_ci": 32000,
-"relative_width": 4.5401
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.0035541518603773815
 },
 "intref": {
-"ci_lower": -0.007869352230857385,
-"ci_upper": 0.004531201718357782,
-"point": -0.001332403788838663,
-"precision_budget": {
-"current_ci_half_width": 0.0062,
-"n_to_halve_ci": 32000,
-"relative_width": 4.6535
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.001332403788838663
 },
 "pie": {
-"ci_lower": 0.2401833449033953,
-"ci_upper": 0.26864566840153425,
-"point": 0.2541360180772869,
-"precision_budget": {
-"current_ci_half_width": 0.014231,
-"n_to_halve_ci": 32000,
-"relative_width": 0.056
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.2541360180772869
 },
 "prop_interaction": {
-"ci_lower": -0.05140336149820429,
-"ci_upper": 0.02877347424941772,
-"point": -0.008818380648934337,
-"precision_budget": {
-"current_ci_half_width": 0.040088,
-"n_to_halve_ci": 32000,
-"relative_width": 4.546
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.008818380648934337
 },
 "prop_mediated": {
-"ci_lower": 0.42392973412985974,
-"ci_upper": 0.4770402146389509,
-"point": 0.45220528295335316,
-"precision_budget": {
-"current_ci_half_width": 0.026555,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0587
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.45220528295335316
 },
 "reference": "VanderWeele 2014 (Explanation in Causal Inference Ch.14); TE = CDE + INTref + INTmed + PIE",
 "scale": "risk_difference",
@@ -41837,14 +42093,9 @@ false
 }
 },
 "te": {
-"ci_lower": 0.5378936187219684,
-"ci_upper": 0.5695661789288663,
-"point": 0.554132991504122,
-"precision_budget": {
-"current_ci_half_width": 0.015836,
-"n_to_halve_ci": 32000,
-"relative_width": 0.0286
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.554132991504122
 }
 },
 "mediator": "m",
@@ -41852,10 +42103,10 @@ false
 "outcome": "y",
 "sample_size": 8000,
 "sensitivity_analysis": {
-"band_basis": "ci_bound",
+"band_basis": "point",
 "baseline_rate": null,
 "e_value": 5.486355134114775,
-"e_value_ci_bound": 5.292028808758509,
+"e_value_ci_bound": null,
 "interpretation_band": "very_robust",
 "outcome_sd": 0.4564787194239706,
 "path": "continuous",
@@ -42031,6 +42282,26 @@ false
 "provenance": [
 {
 "ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m",
 "ref_kind": "framing_note"
 }
 ],
@@ -42497,6 +42768,17 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m"
 }
 ],
 "investigation_requests": [
@@ -42559,10 +42841,38 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m"
+},
+"target": "m"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "numeric_estimate": {
@@ -42573,11 +42883,6 @@ false
 "pearl_2001_four_conditions_hold_on_the_graph",
 "logit_outcome_regression"
 ],
-"bootstrap": {
-"kind": "iid",
-"requested": 200,
-"used": 200
-},
 "ci_level": 0.95,
 "data_columns": [
 "m",
@@ -42587,108 +42892,58 @@ false
 "data_hash": "2fbe730427de1637b787a2ae0c5b225e0b49377f771dddbe29b5a5dc4f532000",
 "decomposition": {
 "nde": {
-"ci_lower": -0.24769881032918747,
-"ci_upper": 0.1626827856824091,
-"point": -0.06867484794631495,
-"precision_budget": {
-"current_ci_half_width": 0.205191,
-"n_to_halve_ci": 400,
-"relative_width": 2.9879
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.06867484794631495
 },
 "nie": {
-"ci_lower": -0.05108128110824279,
-"ci_upper": 0.062052179423503905,
-"point": 0.0010111307350815849,
-"precision_budget": {
-"current_ci_half_width": 0.056567,
-"n_to_halve_ci": 400,
-"relative_width": 55.944
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.0010111307350815849
 },
 "proportion_mediated": {
-"ci_lower": -1.3782636153307675,
-"ci_upper": 1.8829373839371824,
-"point": -0.014943470101192123,
-"precision_budget": {
-"current_ci_half_width": 1.6306,
-"n_to_halve_ci": 400,
-"relative_width": 109.1179
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.014943470101192123
 },
 "te": {
-"ci_lower": -0.25736514963755375,
-"ci_upper": 0.1406683533542219,
-"point": -0.06766371721123338,
-"precision_budget": {
-"current_ci_half_width": 0.199017,
-"n_to_halve_ci": 400,
-"relative_width": 2.9413
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.06766371721123338
 }
 },
 "four_way_decomposition": {
 "additive_interaction": -0.10807453416149077,
 "cde": {
-"ci_lower": -0.27962697720762236,
-"ci_upper": 0.2483082706766918,
-"point": -0.028571428571428303,
-"precision_budget": {
-"current_ci_half_width": 0.263968,
-"n_to_halve_ci": 400,
-"relative_width": 9.2389
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.028571428571428303
 },
 "cde_mediator_reference": 0,
 "intmed": {
-"ci_lower": -0.12188626644849526,
-"ci_upper": 0.04893726371667546,
-"point": -0.015965556182947493,
-"precision_budget": {
-"current_ci_half_width": 0.085412,
-"n_to_halve_ci": 400,
-"relative_width": 5.3498
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.015965556182947493
 },
 "intref": {
-"ci_lower": -0.1887616472981259,
-"ci_upper": 0.1260740003230779,
-"point": -0.040527950310559044,
-"precision_budget": {
-"current_ci_half_width": 0.157418,
-"n_to_halve_ci": 400,
-"relative_width": 3.8842
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.040527950310559044
 },
 "pie": {
-"ci_lower": -0.0262132507573144,
-"ci_upper": 0.10680712144997866,
-"point": 0.01688311688311684,
-"precision_budget": {
-"current_ci_half_width": 0.06651,
-"n_to_halve_ci": 400,
-"relative_width": 3.9394
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.01688311688311684
 },
 "prop_interaction": {
-"ci_lower": -9.689289842881854,
-"ci_upper": 23.25199526442908,
-"point": 0.8285714285714313,
-"precision_budget": {
-"current_ci_half_width": 16.470643,
-"n_to_halve_ci": 400,
-"relative_width": 19.8784
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": 0.8285714285714313
 },
 "prop_mediated": {
-"ci_lower": -1.4436342061730172,
-"ci_upper": 3.094776714513612,
-"point": -0.01345755693581713,
-"precision_budget": {
-"current_ci_half_width": 2.269205,
-"n_to_halve_ci": 400,
-"relative_width": 168.6194
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.01345755693581713
 },
 "reference": "VanderWeele 2014 (Explanation in Causal Inference Ch.14); TE = CDE + INTref + INTmed + PIE",
 "scale": "risk_difference",
@@ -42703,14 +42958,9 @@ false
 }
 },
 "te": {
-"ci_lower": -0.2566515151515153,
-"ci_upper": 0.14238225469196258,
-"point": -0.06818181818181801,
-"precision_budget": {
-"current_ci_half_width": 0.199517,
-"n_to_halve_ci": 400,
-"relative_width": 2.9262
-}
+"ci_lower": null,
+"ci_upper": null,
+"point": -0.06818181818181801
 }
 },
 "four_way_ratio": {
@@ -42776,11 +43026,11 @@ false
 "outcome": "y",
 "sample_size": 100,
 "sensitivity_analysis": {
-"band_basis": "ci_bound",
+"band_basis": "point",
 "baseline_rate": 0.5,
 "e_value": 1.5819500095492296,
-"e_value_ci_bound": 1.0,
-"interpretation_band": "fragile",
+"e_value_ci_bound": null,
+"interpretation_band": "moderate",
 "outcome_sd": null,
 "path": "binary",
 "risk_ratio": 0.8646725655775332
@@ -147688,6 +147938,26 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m1"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m1",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -148429,6 +148699,17 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m1"
 }
 ],
 "investigation_requests": [
@@ -148491,10 +148772,38 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m1"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m1"
+},
+"target": "m1"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "numeric_estimate": {
@@ -148510,8 +148819,8 @@ false
 ],
 "bootstrap": {
 "kind": "iid",
-"requested": 200,
-"used": 200
+"requested": 500,
+"used": 500
 },
 "ci_level": 0.95,
 "data_columns": [
@@ -148523,107 +148832,107 @@ false
 "data_hash": "801a83f02b1316db063d4777d42e2ac3e52d8c1c271022b034a57f9ce95ad958",
 "decomposition": {
 "nde": {
-"ci_lower": 0.3536429822967321,
-"ci_upper": 0.40829398659693467,
+"ci_lower": 0.35373883623640023,
+"ci_upper": 0.4094060600628624,
 "point": 0.3788928042451715,
 "precision_budget": {
-"current_ci_half_width": 0.027326,
+"current_ci_half_width": 0.027834,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0721
+"relative_width": 0.0735
 }
 },
 "nie": {
-"ci_lower": 0.0649297318566042,
-"ci_upper": 0.08762787952138214,
+"ci_lower": 0.06294860659095347,
+"ci_upper": 0.08669302703544032,
 "point": 0.07461828909308015,
 "precision_budget": {
-"current_ci_half_width": 0.011349,
+"current_ci_half_width": 0.011872,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1521
+"relative_width": 0.1591
 }
 },
 "proportion_mediated": {
-"ci_lower": 0.14230717881249802,
-"ci_upper": 0.19225088856993677,
+"ci_lower": 0.13932624727442364,
+"ci_upper": 0.19159467604399927,
 "point": 0.16453465017541705,
 "precision_budget": {
-"current_ci_half_width": 0.024972,
+"current_ci_half_width": 0.026134,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1518
+"relative_width": 0.1588
 }
 },
 "te": {
-"ci_lower": 0.4274507805937479,
-"ci_upper": 0.47840798228985976,
+"ci_lower": 0.42921274702099066,
+"ci_upper": 0.4827055263615091,
 "point": 0.4535110933382517,
 "precision_budget": {
-"current_ci_half_width": 0.025479,
+"current_ci_half_width": 0.026746,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0562
+"relative_width": 0.059
 }
 }
 },
 "four_way_decomposition": {
 "additive_interaction": 0.04713155292811279,
 "cde": {
-"ci_lower": 0.3466130347899443,
-"ci_upper": 0.41499543477422685,
+"ci_lower": 0.34693756336785203,
+"ci_upper": 0.41487215726384247,
 "point": 0.3789148352282306,
 "precision_budget": {
-"current_ci_half_width": 0.034191,
+"current_ci_half_width": 0.033967,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0902
+"relative_width": 0.0896
 }
 },
 "cde_mediator_reference": 0,
 "intmed": {
-"ci_lower": -0.001710629460407275,
-"ci_upper": 0.027570491281670457,
+"ci_lower": -0.00120558969711874,
+"ci_upper": 0.025536865444678647,
 "point": 0.01191008633048638,
 "precision_budget": {
-"current_ci_half_width": 0.014641,
+"current_ci_half_width": 0.013371,
 "n_to_halve_ci": 24000,
-"relative_width": 1.2293
+"relative_width": 1.1227
 }
 },
 "intref": {
-"ci_lower": -0.0019274932611213613,
-"ci_upper": 0.030544128898395653,
+"ci_lower": -0.001446167807114789,
+"ci_upper": 0.029317044513125817,
 "point": 0.013884758391715397,
 "precision_budget": {
-"current_ci_half_width": 0.016236,
+"current_ci_half_width": 0.015382,
 "n_to_halve_ci": 24000,
-"relative_width": 1.1693
+"relative_width": 1.1078
 }
 },
 "pie": {
-"ci_lower": 0.05665349853922079,
-"ci_upper": 0.07812066532105479,
+"ci_lower": 0.05621352603299967,
+"ci_upper": 0.07839324185557599,
 "point": 0.06641899143593445,
 "precision_budget": {
-"current_ci_half_width": 0.010734,
+"current_ci_half_width": 0.01109,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1616
+"relative_width": 0.167
 }
 },
 "prop_interaction": {
-"ci_lower": -0.00732525824165812,
-"ci_upper": 0.11880794475748015,
+"ci_lower": -0.005707156260005348,
+"ci_upper": 0.11648226856434306,
 "point": 0.05475116733247538,
 "precision_budget": {
-"current_ci_half_width": 0.063067,
+"current_ci_half_width": 0.061095,
 "n_to_halve_ci": 24000,
-"relative_width": 1.1519
+"relative_width": 1.1159
 }
 },
 "prop_mediated": {
-"ci_lower": 0.14301695311714666,
-"ci_upper": 0.19763094446956703,
+"ci_lower": 0.1397797729383964,
+"ci_upper": 0.19678804583257892,
 "point": 0.16625835472064512,
 "precision_budget": {
-"current_ci_half_width": 0.027307,
+"current_ci_half_width": 0.028504,
 "n_to_halve_ci": 24000,
-"relative_width": 0.1642
+"relative_width": 0.1714
 }
 },
 "reference": "VanderWeele 2014 (Explanation in Causal Inference Ch.14); TE = CDE + INTref + INTmed + PIE",
@@ -148639,13 +148948,13 @@ false
 }
 },
 "te": {
-"ci_lower": 0.44769714789636295,
-"ci_upper": 0.4939482687814823,
+"ci_lower": 0.44762737729281804,
+"ci_upper": 0.4988431842253764,
 "point": 0.4711286713863668,
 "precision_budget": {
-"current_ci_half_width": 0.023126,
+"current_ci_half_width": 0.025608,
 "n_to_halve_ci": 24000,
-"relative_width": 0.0491
+"relative_width": 0.0544
 }
 }
 },
@@ -148765,7 +149074,7 @@ false
 "band_basis": "ci_bound",
 "baseline_rate": 0.15841584158415842,
 "e_value": 7.188198278801794,
-"e_value_ci_bound": 6.857240868597536,
+"e_value_ci_bound": 6.87962366664554,
 "interpretation_band": "very_robust",
 "outcome_sd": null,
 "path": "binary",
@@ -194788,6 +195097,26 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -195315,6 +195644,17 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m"
 }
 ],
 "investigation_requests": [
@@ -195377,10 +195717,38 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m"
+},
+"skeleton": {
+"existing": {
+"domain": [
+0.0,
+1.0
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m"
+},
+"target": "m"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "numeric_estimate": {
@@ -195393,8 +195761,8 @@ false
 ],
 "bootstrap": {
 "kind": "iid",
-"requested": 200,
-"used": 200
+"requested": 30,
+"used": 30
 },
 "ci_level": 0.95,
 "data_columns": [
@@ -195405,43 +195773,43 @@ false
 "data_hash": "9a2f3c565471ba28dab8f008f41d5f433d1b81752836535ea43963baf89feef5",
 "decomposition": {
 "nde": {
-"ci_lower": 0.11070138687679877,
-"ci_upper": 0.22334289164616827,
+"ci_lower": 0.0868483577928206,
+"ci_upper": 0.2280942080089321,
 "point": 0.16807087114118385,
 "precision_budget": {
-"current_ci_half_width": 0.056321,
+"current_ci_half_width": 0.070623,
 "n_to_halve_ci": 4800,
-"relative_width": 0.3351
+"relative_width": 0.4202
 }
 },
 "nie": {
-"ci_lower": 0.1520104362225331,
-"ci_upper": 0.21954593985048998,
+"ci_lower": 0.15584421926330927,
+"ci_upper": 0.21562364007158938,
 "point": 0.18331767606481578,
 "precision_budget": {
-"current_ci_half_width": 0.033768,
+"current_ci_half_width": 0.02989,
 "n_to_halve_ci": 4800,
-"relative_width": 0.1842
+"relative_width": 0.163
 }
 },
 "proportion_mediated": {
-"ci_lower": 0.42485332001926596,
-"ci_upper": 0.6413298633247118,
+"ci_lower": 0.4224466943060206,
+"ci_upper": 0.6966237566486385,
 "point": 0.5216950794851796,
 "precision_budget": {
-"current_ci_half_width": 0.108238,
+"current_ci_half_width": 0.137089,
 "n_to_halve_ci": 4800,
-"relative_width": 0.2075
+"relative_width": 0.2628
 }
 },
 "te": {
-"ci_lower": 0.2936997175788194,
-"ci_upper": 0.4094406715894348,
+"ci_lower": 0.2835987544397487,
+"ci_upper": 0.4189215854102782,
 "point": 0.35138854720599966,
 "precision_budget": {
-"current_ci_half_width": 0.05787,
+"current_ci_half_width": 0.067661,
 "n_to_halve_ci": 4800,
-"relative_width": 0.1647
+"relative_width": 0.1926
 }
 }
 },
@@ -195568,7 +195936,7 @@ false
 "band_basis": "ci_bound",
 "baseline_rate": 0.2605042016806723,
 "e_value": 4.128865172617473,
-"e_value_ci_bound": 3.6761441023441224,
+"e_value_ci_bound": 3.5965721318282506,
 "interpretation_band": "substantial",
 "outcome_sd": null,
 "path": "binary",

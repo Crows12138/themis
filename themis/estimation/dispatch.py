@@ -19,7 +19,7 @@ mediation estimators behind the same dispatch switch.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Callable
 
 from .. import answers, blocks, refusals
@@ -246,6 +246,15 @@ def _estimate_program(
     # others — which is what happened when that lesson was written into the
     # branch below rather than here, and the missing-data recovery path,
     # which returns above it, shipped intervals with no level at all.
+    #
+    # ``cluster`` is resolved from the program before this line so that
+    # what is recorded is the column that was used, and ``ci_bootstrap``
+    # is written the same way: what a route resolves for itself it also
+    # records, on its own result, because a spec sizes that block's
+    # resampling and not the resampling of whatever else the program
+    # asks. A run-level number left standing beside an interval built on
+    # a different one is not a reproduction recipe — and the epilogue
+    # holds the two together for every block on the way out.
     for result in identification_output.get("results", []):
         context = result.setdefault("estimation_context", {})
         context.update({
@@ -291,6 +300,13 @@ def _estimate_program(
             estimate = result.get("numeric_estimate")
             if isinstance(estimate, dict):
                 _attach_precision_budget(estimate)
+            # And the other thing that is true of the envelope on both
+            # sides of the door: how many draws an interval stands on is
+            # the number this run asked for. Asked at the same place and
+            # for the same reason — a count is a fact about the run, so
+            # whether it was checked must not be a fact about which route
+            # produced it.
+            _check_every_resample_count_is_the_runs(result)
 
     return identification_output
 
@@ -551,12 +567,23 @@ def _maybe_estimate_longitudinal(
         else "longitudinal_ipw_msm"
     )
 
+    # The one knob this route resolves for itself. ``options.cluster`` is
+    # resolved before the run records what it was told, so the envelope
+    # carries the column that was actually used; this one was resolved here,
+    # after that record was written, so the envelope carried the run-wide
+    # number beside an interval built on the program's. Resolved values are
+    # recorded where they are resolved — and this one is per RESULT rather
+    # than per run, because the spec sizes this block's resampling and not
+    # the resampling of whatever else the same program asks.
+    resolved_bootstrap = int(spec.get("ci_bootstrap", ci_bootstrap))
+    target.setdefault("estimation_context", {})["ci_bootstrap"] = (
+        resolved_bootstrap)
     kwargs = {
         "treatments": tuple(treatments),
         "confounders_by_time": tuple(tuple(b) for b in confounders_by_time),
         "outcome": outcome,
         "random_state": random_state,
-        "ci_bootstrap": int(spec.get("ci_bootstrap", ci_bootstrap)),
+        "ci_bootstrap": resolved_bootstrap,
         "cluster": cluster,
     }
     if "strategy_treated" in spec:
@@ -1104,7 +1131,8 @@ _EFFECT_STRATEGIES = check_table((
         produces=Estimand.DECOMPOSITION,
         run=lambda f, r, k: _try_mediation_joint_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
-            random_state=k.random_state,
+            random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
+            cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -3910,6 +3938,7 @@ def _try_mediation_estimate(
             mediator=m_pred,
             adjustment=adjustment,
             random_state=random_state,
+            ci_bootstrap=ci_bootstrap,
             cluster=cluster,
         )
     except EstimatorFailure as exc:
@@ -4125,7 +4154,7 @@ def _controlled_direct_estimate(
 
 def _try_mediation_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
-    cluster: str | None = None,
+    ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Attach a JOINT multi-mediator numeric estimate when the joint
     identification layer has cleared the block NDE/NIE for the mediator
@@ -4190,6 +4219,7 @@ def _try_mediation_joint_estimate(
             mediators=m_preds,
             adjustment=adjustment,
             random_state=random_state,
+            ci_bootstrap=ci_bootstrap,
             cluster=cluster,
         )
     except EstimatorFailure as exc:
@@ -7763,6 +7793,89 @@ def _attach_bootstrap_meta(
     if draws is None:
         return
     numeric_estimate["bootstrap"] = draws.record(cluster=cluster)
+
+
+#: A block that runs its OWN resampling loop, and the ceiling this build
+#: puts on it, keyed by the name the block sits under. Everything else
+#: draws what the run asked for, so everything else is absent from here.
+#:
+#: One entry, and it is a declaration rather than a note: the ratio split
+#: is a SECOND double-model bootstrap beside the primary one, so a
+#: mediation estimate at the default five hundred would silently pay a
+#: full 500× double fit for a supplementary audit block. The point
+#: decomposition is exact regardless; only these CIs take the ceiling.
+_LOOPS_UNDER_ITS_OWN_CEILING: dict[str, tuple[int, str]] = {
+    "four_way_ratio": (
+        _RATIO_BOOTSTRAP_CAP,
+        "it is a second double-model bootstrap beside the estimate's own, "
+        "and a supplementary audit block should not silently cost a full "
+        "double fit per draw the run asked for",
+    ),
+}
+
+
+def _resample_counts(
+    node: object, under: str = "",
+) -> Iterator[tuple[str, str, dict]]:
+    """Every bootstrap record on one result, and the block it belongs to.
+
+    Walked rather than listed, for the reason the pricing walk next door
+    gives: which blocks run a loop of their own is a fact about the
+    producer's layout, and a list would make "was this count checked" a
+    fact about whether somebody remembered to extend the list.
+    """
+    if isinstance(node, dict):
+        record = node.get("bootstrap")
+        if isinstance(record, dict) and "requested" in record:
+            yield under, f"{under or 'the result'}.bootstrap", record
+        for key, value in node.items():
+            if key != "bootstrap":
+                yield from _resample_counts(value, key)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _resample_counts(value, under)
+
+
+def _check_every_resample_count_is_the_runs(result: dict) -> None:
+    """No interval rests on a number of draws nobody on this run decided.
+
+    The count reaches an estimator by ONE route — dispatch hands it over
+    under the name the parameter has — and a parameter spelled differently
+    is not a wire that breaks but a wire that was never drawn: the call
+    site has no such argument, the estimator's default wins, and the
+    envelope goes on recording the caller's ask beside an interval built
+    on something else. That is what happened, and the reader-facing
+    sentence for these blocks says "taken over N of M resamples", so the
+    number was being shown to people.
+
+    Asked here rather than at the twenty-nine attach points, because a
+    count is a fact about the run and asking it per attach point would
+    make being checked a fact about which route remembered.
+    """
+    context = result.get("estimation_context")
+    if not isinstance(context, dict):
+        return
+    asked = context.get("ci_bootstrap")
+    if not isinstance(asked, int):
+        return
+    for block, where, record in _resample_counts(result):
+        got = record.get("requested")
+        ceiling, because = _LOOPS_UNDER_ITS_OWN_CEILING.get(
+            block, (None, None))
+        owed = asked if ceiling is None else min(asked, ceiling)
+        if got == owed:
+            continue
+        raise RuntimeError(
+            f"{where} says it drew {got!r} replicates and this run asked "
+            f"for {asked!r}"
+            + (f", which this block takes at most {ceiling} of because "
+               f"{because}" if ceiling is not None else "")
+            + f". A count the run did not decide reaches the reader as "
+              f"'taken over {record.get('used')} of {got}', so either the "
+              f"knob never arrived under the name this estimator spells "
+              f"it, or {block or 'this block'} runs a loop of its own and "
+              f"has not said so in "
+              f"themis.estimation.dispatch._LOOPS_UNDER_ITS_OWN_CEILING")
 
 
 #: What a block calls the number its interval is around. Three words for one

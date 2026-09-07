@@ -131,7 +131,7 @@ def _joint_scm(n=40000, seed=0):
 def test_joint_linear_recovers_truth():
     df, truth = _joint_scm()
     est = estimate_mediation_joint(
-        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=40,
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), ci_bootstrap=40,
     )
     assert est.method == "mediation_joint_linear"
     assert abs(est.nde_point - truth["nde"]) < 0.03
@@ -148,7 +148,7 @@ def test_joint_linear_bridge_reproduces_point():
     exactly — the same bridge the verifier uses."""
     df, _ = _joint_scm(n=8000)
     est = estimate_mediation_joint(
-        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=10,
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), ci_bootstrap=10,
     )
     ss = est.sufficient_statistics
     oc, mm = ss["outcome_coefficients"], ss["mediator_means"]
@@ -169,10 +169,10 @@ def test_k1_equivalence_to_single_mediator_linear():
     byte-for-byte on the linear path (both plug in the marginal mean)."""
     df, _ = _joint_scm(n=8000)
     j = estimate_mediation_joint(
-        df, treatment="x", outcome="y", mediators=("m1",), n_rep=10,
+        df, treatment="x", outcome="y", mediators=("m1",), ci_bootstrap=10,
     )
     s = estimate_mediation(
-        df, treatment="x", outcome="y", mediator="m1", n_rep=10,
+        df, treatment="x", outcome="y", mediator="m1", ci_bootstrap=10,
     )
     assert abs(j.nde_point - s.nde_point) < 1e-9
     assert abs(j.nie_point - s.nie_point) < 1e-9
@@ -183,7 +183,7 @@ def test_joint_logit_runs_and_holds_identity():
     df = df.copy()
     df["yb"] = df["y"] > df["y"].median()
     est = estimate_mediation_joint(
-        df, treatment="x", outcome="yb", mediators=("m1", "m2"), n_rep=20,
+        df, treatment="x", outcome="yb", mediators=("m1", "m2"), ci_bootstrap=20,
     )
     assert est.method == "mediation_joint_logit"
     assert abs(est.te_point - (est.nde_point + est.nie_point)) < 1e-9
@@ -494,7 +494,7 @@ def test_a_block_of_one_reaches_the_data_end_too():
     # estimator IS the classical single-mediator one (pinned independently by
     # test_k1_equivalence_to_single_mediator_linear), so that is the oracle.
     oracle = estimate_mediation(
-        df, treatment="x", outcome="y", mediator="m1", n_rep=10,
+        df, treatment="x", outcome="y", mediator="m1", ci_bootstrap=10,
     )
     assert abs(ne["decomposition"]["nie"]["point"] - oracle.nie_point) < 0.05
     assert abs(ne["decomposition"]["nde"]["point"] - oracle.nde_point) < 0.05
@@ -650,7 +650,7 @@ def _joint_cde_truth(seed=0):
 def test_joint_cde_recovers_truth():
     df, _ = _joint_scm()
     est = estimate_mediation_joint(
-        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=40,
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), ci_bootstrap=40,
     )
     truth = _joint_cde_truth()
     c0 = est.cde["reference_control"]["point"]
@@ -667,7 +667,7 @@ def test_joint_cde_bridge_reproduces_point():
     re-derives on the linear path."""
     df, _ = _joint_scm(n=8000)
     est = estimate_mediation_joint(
-        df, treatment="x", outcome="y", mediators=("m1", "m2"), n_rep=10,
+        df, treatment="x", outcome="y", mediators=("m1", "m2"), ci_bootstrap=10,
     )
     oc = est.sufficient_statistics["outcome_coefficients"]
     beta_x = oc["treatment"]

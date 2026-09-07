@@ -114,9 +114,9 @@ def test_mediation_cluster_widens_and_keeps_four_way():
     Y = 0.5 * A + 1.0 * M + 2.0 * A * M + u[clu] + rng.standard_normal(G * per) * 0.4
     df = pd.DataFrame({"A": A, "M": M, "Y": Y, "fam": clu})
     iid = estimate_mediation(df, treatment="A", outcome="Y", mediator="M",
-                             n_rep=60, random_state=1)
+                             ci_bootstrap=60, random_state=1)
     clu_e = estimate_mediation(df, treatment="A", outcome="Y", mediator="M",
-                               n_rep=60, random_state=1, cluster="fam")
+                               ci_bootstrap=60, random_state=1, cluster="fam")
     assert (clu_e.te_ci_upper - clu_e.te_ci_lower) > (iid.te_ci_upper - iid.te_ci_lower)
     assert clu_e.four_way is not None
     assert clu_e.cluster == "fam"

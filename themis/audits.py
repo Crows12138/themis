@@ -259,11 +259,13 @@ AUDITS: tuple[Audit, ...] = (
         # bounds attach where point identification failed, so ``verify`` is
         # dormant on exactly the results whose draws nobody else audits.
         "verify_bootstrap_draws", Artifact.QUERY_RESULT, False,
-        words={"zh": "重算每个区间到底站在多少次重抽样上：丢掉的抽样有没有说清各自是被什么吃掉的，"
+        words={"zh": "重算每个区间到底站在多少次重抽样上：抽了多少次是不是这次运行要的那个数，"
+                     "丢掉的抽样有没有说清各自是被什么吃掉的，"
                      "报出来的区间背后是不是不止一次抽样——只剩一次时分位数原样返回那个值，"
                      "两个端点会是同一个数印了两遍",
                "en": "Recompute how many resamples each interval actually "
-                     "rests on: whether the discarded draws say what ate each "
+                     "rests on: whether that is the number this run asked "
+                     "for, whether the discarded draws say what ate each "
                      "of them, and whether a reported interval rests on more "
                      "than one draw — a quantile of a single value returns "
                      "that value, so the two endpoints would be one number "

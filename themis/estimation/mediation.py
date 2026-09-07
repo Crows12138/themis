@@ -77,13 +77,42 @@ def _fit_or_refuse(fit, what: refusals.Design):
         ) from exc
 
 
+def _percentile_ci(
+    samples: list[float], point: float, *, ci_level: float,
+) -> tuple[float | None, float | None]:
+    """The interval those replicates support, or none at all.
+
+    Two runs arrive here with fewer than two usable numbers: one that drew
+    nothing because the caller asked for no interval, and one whose every
+    refit failed. Answering either with ``point, point`` does not report
+    the absence of an interval — it reports an interval of zero width,
+    which is a claim of exactness, has the shape of a real interval on the
+    envelope, and is read as one by everything downstream. Neither run has
+    an interval, so neither is given one, which is the answer every other
+    estimator in this package already gives a caller who asks for no
+    bootstrap.
+    """
+    half = (1.0 - ci_level) / 2.0
+    arr = np.array([s for s in samples if np.isfinite(s)], dtype=float)
+    if arr.size < 2:
+        return None, None
+    lo = float(np.quantile(arr, half))
+    hi = float(np.quantile(arr, 1.0 - half))
+    # Guarantee the interval brackets the point estimate.
+    return min(lo, point), max(hi, point)
+
+
 @dataclass(frozen=True)
 class ComponentEstimate:
-    """A single decomposition component: point estimate + percentile CI."""
+    """A single decomposition component: point estimate + percentile CI.
+
+    ``ci_lower`` / ``ci_upper`` are ``None`` when the component has no
+    interval — see :func:`_percentile_ci`.
+    """
 
     point: float
-    ci_lower: float
-    ci_upper: float
+    ci_lower: float | None
+    ci_upper: float | None
 
 
 @dataclass(frozen=True)
@@ -131,21 +160,21 @@ class MediationEstimate:
     """
 
     nde_point: float
-    nde_ci_lower: float
-    nde_ci_upper: float
+    nde_ci_lower: float | None
+    nde_ci_upper: float | None
     nie_point: float
-    nie_ci_lower: float
-    nie_ci_upper: float
+    nie_ci_lower: float | None
+    nie_ci_upper: float | None
     te_point: float
-    te_ci_lower: float
-    te_ci_upper: float
+    te_ci_lower: float | None
+    te_ci_upper: float | None
     # Proportion of total effect mediated through M = NIE / TE.
     # The user's "X 占多少比例" question — surfaced explicitly so the
     # renderer doesn't have to compute it from {nie, te} (and lose the
     # CI by doing the division naively).
     proportion_mediated_point: float
-    proportion_mediated_ci_lower: float
-    proportion_mediated_ci_upper: float
+    proportion_mediated_ci_lower: float | None
+    proportion_mediated_ci_upper: float | None
     ci_level: float
     method: str                   # "mediation_linear_imai" | "mediation_logit_imai"
     assumptions: tuple[str, ...]
@@ -158,9 +187,9 @@ class MediationEstimate:
     outcome: str
     #: The replicates every interval above was taken over, and what became
     #: of the rest — see :class:`themis.estimation.resample.Draws`. This
-    #: class used to carry ``n_rep``, the number ASKED for, which a refit
-    #: that fails on a resample makes into a different number from the one
-    #: the intervals rest on. ``None`` when no bootstrap ran.
+    #: class used to carry ``ci_bootstrap``, the number ASKED for, which a
+    #: refit that fails on a resample makes into a different number from the
+    #: one the intervals rest on. ``None`` when no bootstrap ran.
     draws: "Draws | None"
     # VanderWeele 2014 four-way split of the same total effect. Computed
     # from the same fitted (interaction-aware) models. None when the
@@ -194,7 +223,7 @@ def estimate_mediation(
     mediator: str,
     adjustment: tuple[str, ...] = (),
     model: str = "auto",
-    n_rep: int = 200,
+    ci_bootstrap: int = 200,
     ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
@@ -372,7 +401,7 @@ def estimate_mediation(
     fwte_s: list[float] = []
     fw_pm_s: list[float] = []
     fw_pi_s: list[float] = []
-    draws = Draws(n_rep) if n_rep > 0 else None
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         for _ in draws:
             idx = resample_indices(n_rows, rng, groups=groups)
@@ -411,16 +440,8 @@ def estimate_mediation(
                     if fwb.te != 0 else float("nan")
                 )
 
-    half = (1.0 - ci_level) / 2.0
-
-    def _ci(samples: list[float], point: float) -> tuple[float, float]:
-        arr = np.array([s for s in samples if np.isfinite(s)], dtype=float)
-        if arr.size < 2:
-            return point, point
-        lo = float(np.quantile(arr, half))
-        hi = float(np.quantile(arr, 1.0 - half))
-        # Guarantee the interval brackets the point estimate.
-        return min(lo, point), max(hi, point)
+    def _ci(samples: list[float], point: float):
+        return _percentile_ci(samples, point, ci_level=ci_level)
 
     nde_lo, nde_hi = _ci(nde_s, nde_p)
     nie_lo, nie_hi = _ci(nie_s, nie_p)
@@ -531,17 +552,17 @@ class MediationJointEstimate:
     """
 
     nde_point: float
-    nde_ci_lower: float
-    nde_ci_upper: float
+    nde_ci_lower: float | None
+    nde_ci_upper: float | None
     nie_point: float
-    nie_ci_lower: float
-    nie_ci_upper: float
+    nie_ci_lower: float | None
+    nie_ci_upper: float | None
     te_point: float
-    te_ci_lower: float
-    te_ci_upper: float
+    te_ci_lower: float | None
+    te_ci_upper: float | None
     proportion_mediated_point: float
-    proportion_mediated_ci_lower: float
-    proportion_mediated_ci_upper: float
+    proportion_mediated_ci_lower: float | None
+    proportion_mediated_ci_upper: float | None
     ci_level: float
     method: str            # "mediation_joint_linear" | "mediation_joint_logit"
     assumptions: tuple[str, ...]
@@ -554,7 +575,7 @@ class MediationJointEstimate:
     outcome: str
     #: The replicates every interval above was taken over, and what became
     #: of the rest — see :class:`themis.estimation.resample.Draws`, and the
-    #: single-mediator class for why it is not ``n_rep``.
+    #: single-mediator class for why it is not ``ci_bootstrap``.
     draws: "Draws | None"
     # Sufficient statistics for the verifier's STRONG re-derivation on the
     # LINEAR path: the outcome-model coefficients (beta_x; per-mediator main
@@ -626,7 +647,7 @@ def estimate_mediation_joint(
     mediators: tuple[str, ...],
     adjustment: tuple[str, ...] = (),
     model: str = "auto",
-    n_rep: int = 200,
+    ci_bootstrap: int = 200,
     ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
     cluster: str | None = None,
@@ -814,7 +835,7 @@ def estimate_mediation_joint(
     pm_s: list[float] = []
     cde0_s: list[float] = []
     cde1_s: list[float] = []
-    draws = Draws(n_rep) if n_rep > 0 else None
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         for _ in draws:
             idx = resample_indices(n_rows, rng, groups=groups)
@@ -839,15 +860,8 @@ def estimate_mediation_joint(
             cde0_s.append(c0b)
             cde1_s.append(c1b)
 
-    half = (1.0 - ci_level) / 2.0
-
-    def _ci(samples: list[float], point: float) -> tuple[float, float]:
-        arr = np.array([s for s in samples if np.isfinite(s)], dtype=float)
-        if arr.size < 2:
-            return point, point
-        lo = float(np.quantile(arr, half))
-        hi = float(np.quantile(arr, 1.0 - half))
-        return min(lo, point), max(hi, point)
+    def _ci(samples: list[float], point: float):
+        return _percentile_ci(samples, point, ci_level=ci_level)
 
     nde_lo, nde_hi = _ci(nde_s, nde_p)
     nie_lo, nie_hi = _ci(nie_s, nie_p)

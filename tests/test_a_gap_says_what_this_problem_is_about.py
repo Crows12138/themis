@@ -412,6 +412,13 @@ def test_the_remainder_is_counted_rather_than_described():
     domains the program declares, the uncertainties the caller flagged.
     What kind of word a value is and whether anything records it twice are
     two questions, and this file is where the first one is asked.
+
+    The refused went up by 16 for neither reason, and the docstring above
+    already names the shape: a targeted refresh of eight rows picked up
+    producer drift they predated, eight more gaps across six of them, and
+    each new gap brings its own ``said`` leaves to be forged. The accepted
+    did not move, which is the useful half — a rule losing ground shows up
+    there, and a corpus growing shows up here.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -426,7 +433,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2044, 224), (refused, accepted)
+    assert (refused, accepted) == (2060, 224), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

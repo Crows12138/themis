@@ -90,7 +90,7 @@ def test_estimator_recovers_known_components():
     df = _binary_mediator_dgp()
     est = estimate_mediation(
         df, treatment="A", outcome="Y", mediator="M",
-        n_rep=60, random_state=1,
+        ci_bootstrap=60, random_state=1,
     )
     fw4 = est.four_way
     assert fw4 is not None
@@ -115,7 +115,7 @@ def test_continuous_mediator_logit_outcome_is_gated_not_wrong():
     Y = (rng.random(n) < 1 / (1 + np.exp(-lin))).astype(bool)
     est = estimate_mediation(pd.DataFrame({"A": A, "M": M, "Y": Y}),
                              treatment="A", outcome="Y", mediator="M",
-                             n_rep=10, random_state=1)
+                             ci_bootstrap=10, random_state=1)
     assert est.four_way is None
     assert est.four_way_unavailable_reason is not None
 
@@ -130,7 +130,7 @@ def test_continuous_mediator_linear_outcome_is_valid():
     Y = 0.5 * A + 0.6 * M + 0.3 * A * M + rng.standard_normal(n) * 0.5
     est = estimate_mediation(pd.DataFrame({"A": A, "M": M, "Y": Y}),
                              treatment="A", outcome="Y", mediator="M",
-                             n_rep=10, random_state=1)
+                             ci_bootstrap=10, random_state=1)
     assert est.four_way is not None
     assert abs(est.four_way.te.point - est.te_point) < 1e-6
 
@@ -142,7 +142,7 @@ def test_estimator_bridge_to_nde_nie_is_exact():
     df = _binary_mediator_dgp(n=20000)
     est = estimate_mediation(
         df, treatment="A", outcome="Y", mediator="M",
-        n_rep=40, random_state=2,
+        ci_bootstrap=40, random_state=2,
     )
     fw4 = est.four_way
     assert abs((fw4.cde.point + fw4.intref.point) - est.nde_point) < 1e-6
@@ -154,7 +154,7 @@ def test_estimator_cis_present_and_ordered():
     df = _binary_mediator_dgp(n=8000)
     est = estimate_mediation(
         df, treatment="A", outcome="Y", mediator="M",
-        n_rep=40, random_state=3,
+        ci_bootstrap=40, random_state=3,
     )
     for c in (est.four_way.cde, est.four_way.intref, est.four_way.intmed,
               est.four_way.pie, est.four_way.te,

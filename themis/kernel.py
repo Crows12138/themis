@@ -1094,6 +1094,17 @@ def estimate(program: dict | str | bytes, data, **options) -> dict:
         ci_bootstrap (int, default 500) — bootstrap iterations; 0 skips
         model (str, default 'auto') — 'auto' | 'linear' | 'logistic'
 
+    ``ci_bootstrap`` is a promise and not a hint: every resample record on
+    the answer says it drew this many, and the run refuses rather than
+    ship an interval built on a count nobody asked for. A block that
+    draws fewer on purpose declares the ceiling and the reason for it —
+    see ``themis.verifier.bootstrap_rules.CEILINGS`` — and a program that
+    names its own count for one block (``options.longitudinal``) has that
+    number recorded on the result it sizes. ``0`` skips the interval, and
+    what an answer then carries is no endpoints rather than endpoints
+    equal to the point: a width of zero is not the absence of an interval
+    but a claim of exactness, and this entry does not make it.
+
     Returns a dict in the same shape as ``run`` with, where applicable,
     ``result['numeric_estimate']`` populated.
     """
@@ -2390,8 +2401,10 @@ def verify_bootstrap_draws(result: dict) -> None:
     Returns ``None`` on accept. Raises ``VerificationError`` when a block's
     losses do not add up to the draws that went missing, when a discard names
     a reason outside the refusal vocabulary, when an interval is reported over
-    fewer draws than a quantile can be taken over, or when the share of draws
-    refuting a declared monotonicity is not the share the record implies.
+    fewer draws than a quantile can be taken over, when the share of draws
+    refuting a declared monotonicity is not the share the record implies, or
+    when a loop drew a number of replicates this run never asked for — the one
+    claim in that block which does not come from inside it.
     """
     if not isinstance(result, dict):
         raise TypeError(f"result must be a dict; got {type(result).__name__}")

@@ -712,6 +712,22 @@ class Draws:
     and already registered, and a reader who sees which refusal ate the
     draws learns what to change, where a bare count only tells them
     something did.
+
+    **``requested`` is the run's number, and it arrives here by the name
+    it has everywhere else.** Nothing forwards it — dispatch hands each
+    estimator the settings the caller gave, keyword by keyword, so a
+    parameter spelled differently from the run's is not a wire that breaks
+    loudly but a wire that was never drawn: the call site simply has no
+    such argument, the estimator's own default wins, and the envelope goes
+    on recording what the caller asked for beside an interval built on
+    something else. Two loops here were spelled ``n_rep`` and every
+    mediation interval this system ever reported stood on two hundred
+    draws — under a caller who asked for five hundred, and under one who
+    asked for none at all, which this system documents as the way to skip
+    the interval. The source gate that holds every draw site to this class
+    reads the argument as well as the loop, so the next estimator to name
+    it something else fails there rather than shipping an interval nobody
+    asked for.
     """
 
     requested: int

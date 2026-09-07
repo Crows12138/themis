@@ -2365,12 +2365,13 @@
           "properties": {
             "nde": {
               "type": "object",
+              "description": "Spelled out rather than pointed at #/$defs/componentEstimate, which has the same shape. These four are the NDE/NIE split and that one is a term of the four-way split, and themis.intervals says what each interval is a width about in its own sentence — sharing the declaration would merge five facts into one.",
               "required": ["point", "ci_lower", "ci_upper"],
               "additionalProperties": false,
               "properties": {
                 "point": { "type": "number" },
-                "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" },
+                "ci_lower": { "type": ["number", "null"] },
+                "ci_upper": { "type": ["number", "null"] },
                 "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
@@ -2380,8 +2381,8 @@
               "additionalProperties": false,
               "properties": {
                 "point": { "type": "number" },
-                "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" },
+                "ci_lower": { "type": ["number", "null"] },
+                "ci_upper": { "type": ["number", "null"] },
                 "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
@@ -2391,8 +2392,8 @@
               "additionalProperties": false,
               "properties": {
                 "point": { "type": "number" },
-                "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" },
+                "ci_lower": { "type": ["number", "null"] },
+                "ci_upper": { "type": ["number", "null"] },
                 "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
@@ -2403,8 +2404,8 @@
               "additionalProperties": false,
               "properties": {
                 "point": { "type": "number" },
-                "ci_lower": { "type": "number" },
-                "ci_upper": { "type": "number" },
+                "ci_lower": { "type": ["number", "null"] },
+                "ci_upper": { "type": ["number", "null"] },
                 "precision_budget": { "$ref": "#/$defs/precisionBudget" }
               }
             },
@@ -2889,13 +2890,13 @@
     },
     "componentEstimate": {
       "type": "object",
-      "description": "A decomposition component: point estimate + bootstrap percentile CI (used by the four-way decomposition).",
+      "description": "A decomposition component: point estimate + bootstrap percentile CI (used by the four-way decomposition). The endpoints are null together when the component has no interval: a run that asked for no bootstrap, or one whose refits all failed. They were once declared number-only, which left the estimator no way to report the absence of an interval and made it report an interval of zero width instead — a claim of exactness with the shape of a real interval.",
       "required": ["point", "ci_lower", "ci_upper"],
       "additionalProperties": false,
       "properties": {
         "point": { "type": "number" },
-        "ci_lower": { "type": "number" },
-        "ci_upper": { "type": "number" },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] },
         "precision_budget": { "$ref": "#/$defs/precisionBudget" }
       }
     },
@@ -2907,8 +2908,8 @@
       "properties": {
         "mediator_level": { "type": "number" },
         "point": { "type": "number" },
-        "ci_lower": { "type": "number" },
-        "ci_upper": { "type": "number" },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] },
         "precision_budget": { "$ref": "#/$defs/precisionBudget" }
       }
     },

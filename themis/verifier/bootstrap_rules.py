@@ -7,7 +7,7 @@ over 1000 are the same two numbers on the page. The block exists so the
 reader can tell them apart, which makes the block's own honesty the thing
 worth auditing, because a wrong count reads exactly like a right one.
 
-Three claims, and each fails silently on its own:
+Three claims a block makes about ITSELF, and each fails silently on its own:
 
 - **The losses add up.** ``requested - used`` draws did not survive, and
   ``discarded`` says what took them. A block whose reasons total less than
@@ -32,8 +32,22 @@ failure hid.
 
 The ``kind`` / ``cluster_column`` half of the block is audited by
 :mod:`themis.verifier.cluster_inference_rules`, against the run's own
-resolved column — a two-source agreement this module cannot make, since
-everything here is internal to one block.
+resolved column.
+
+**And ``requested`` is held against the run too, here.** It is the one
+number in this block that did not come from this block: the run records
+what it was asked for, the estimator's loop records what it drew, and for
+a long time nothing put the two side by side — which is a description of
+this module's scope offered as if it were a reason, since the three claims
+above are internal to one block only because nobody had asked the fourth.
+The count reaches an estimator under the name its parameter is spelled, so
+a knob spelled differently is not a wire that breaks but one that was never
+drawn: two mediation loops called it something else, and every mediation
+interval this system reported stood on two hundred draws — under a caller
+who asked for five hundred, and under one who asked for none at all, which
+this system documents as the way to skip the interval. Nothing was
+inconsistent inside any of those blocks. The reader was simply told a
+number about a loop nobody had ordered.
 
 **Independence pin:** this module MUST NOT import from
 ``themis.estimation`` or ``themis.output``. It imports the refusal
@@ -58,6 +72,51 @@ FEWEST_DRAWS = 2
 #: The one key that is not a species — where a loop caught something that
 #: carried none. Restated for the same reason.
 UNNAMED = "unclassified"
+
+#: Where a run records what it was asked for, and under what name.
+_CONTEXT = "estimation_context"
+_ASKED = "ci_bootstrap"
+
+#: A block that runs a resampling loop of its OWN, and the ceiling this
+#: build puts on it. Absent from here means a block draws what the run
+#: asked for, which is every other one.
+#:
+#: RESTATED, not imported — see the independence pin. A ceiling read from
+#: the producer's own constant agrees with the producer by construction,
+#: and a build that quietly halved this one would be agreed with. Two
+#: copies and one test pinning them equal is what makes moving it
+#: something somebody declares.
+CEILINGS: dict[str, int] = {"four_way_ratio": 200}
+
+#: Why that block has one. Quoted in the refusal, so the reason has a
+#: reader and cannot drift into being true of no block.
+CEILING_BECAUSE: dict[str, str] = {
+    "four_way_ratio":
+        "it is a second double-model bootstrap beside the estimate's own, "
+        "and a supplementary audit block should not silently cost a full "
+        "double fit per draw the run asked for",
+}
+
+
+def _check_every_ceiling_says_why() -> None:
+    """Both directions, at import. A ceiling with no reason is a number
+    somebody will read as arbitrary and move; a reason with no ceiling is
+    a sentence about a block that no longer departs."""
+    silent = sorted(set(CEILINGS) - set(CEILING_BECAUSE))
+    if silent:
+        raise RuntimeError(
+            f"{silent} take fewer draws than the run asked for and say "
+            f"nothing about why; add the occasion to "
+            f"themis.verifier.bootstrap_rules.CEILING_BECAUSE")
+    stale = sorted(set(CEILING_BECAUSE) - set(CEILINGS))
+    if stale:
+        raise RuntimeError(
+            f"{stale} give a reason for a ceiling they no longer have; "
+            f"remove the row from "
+            f"themis.verifier.bootstrap_rules.CEILING_BECAUSE")
+
+
+_check_every_ceiling_says_why()
 
 
 def _reject(where: str, message: str) -> NoReturn:
@@ -191,6 +250,63 @@ def verify_bootstrap_records(result: object) -> None:
             )
     if isinstance(estimate, Mapping):
         _check_the_refuted_share(estimate)
+    _check_every_count_is_the_runs(result)
+
+
+def _counts(node: object, under: str = ""):
+    """Every resample count on one result, and the block it belongs to.
+
+    A walk rather than the tuple above, and the difference is what the
+    two questions need. The floor has to know which interval a block
+    describes, so it asks at sites it can name. A count needs no
+    interval: it is the run's number wherever it appears, so a block
+    written after this is asked by being written rather than by somebody
+    remembering to list it.
+    """
+    if isinstance(node, Mapping):
+        record = node.get("bootstrap")
+        if isinstance(record, Mapping) and "requested" in record:
+            yield under, f"{under or 'the result'}.bootstrap", record
+        for key, value in node.items():
+            if key != "bootstrap":
+                yield from _counts(value, str(key))
+    elif isinstance(node, (list, tuple)):
+        for value in node:
+            yield from _counts(value, under)
+
+
+def _check_every_count_is_the_runs(result: Mapping) -> None:
+    """No interval rests on a number of draws this run did not ask for.
+
+    The one claim in the block that reaches outside it. No-op where the
+    run recorded no ask — a fragment audited on its own is not a run, and
+    refusing it would make this rule a statement about how the caller
+    assembled their test rather than about the answer.
+    """
+    context = result.get(_CONTEXT)
+    if not isinstance(context, Mapping):
+        return
+    asked = context.get(_ASKED)
+    if isinstance(asked, bool) or not isinstance(asked, int):
+        return
+    for block, where, record in _counts(result):
+        got = record.get("requested")
+        ceiling = CEILINGS.get(block)
+        owed = asked if ceiling is None else min(asked, ceiling)
+        if got == owed:
+            continue
+        because = (
+            f", and {block} takes at most {ceiling} of them because "
+            f"{CEILING_BECAUSE[block]}" if ceiling is not None else "")
+        _reject(
+            where,
+            f"the interval stands on {got!r} replicates and "
+            f"{_CONTEXT}.{_ASKED} says this run asked for {asked!r}"
+            f"{because}. A reader is told an interval was taken over "
+            f"{record.get('used')!r} of {got!r} resamples, so a count the "
+            f"run did not ask for is a loop nobody ordered, described to "
+            f"them as the one they did"
+        )
 
 
 def _check_the_refuted_share(estimate: Mapping) -> None:

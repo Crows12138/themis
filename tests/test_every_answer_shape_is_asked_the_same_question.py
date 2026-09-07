@@ -868,9 +868,28 @@ def test_the_declared_remainder_is_what_it_is():
     the same 51 leaves and refused honest runs, which is why the families
     that spell the form into their method name are declared the way the
     producer builds them.
+
+    Then 33 came off the count of replicates an interval stands on, which
+    is 34 closed and one opened. What holds the 34 is the run's own record
+    of what it asked for, sitting on the same envelope the whole time: the
+    family is 120 rows, and the other 86 hold no second record — 72 asked
+    for no bootstrap and correctly carry none, 12 report an analytic
+    interval — so by the rule this file is built on they are honest
+    remainders rather than holes.
+
+    The one that OPENED is worth more than the 34, and it is not the fix:
+    refreshing the rows took ``longitudinal_ipw_msm`` from a clustered run
+    where the stored one had none, because the harvest proves sameness with
+    the data digest and the sample size and a cluster column is a third
+    input neither sees. On the row that arrived, bending ``bootstrap.kind``
+    from ``cluster`` to ``iid`` is refused by no reading door — the stamp
+    check returns early on a kind that is not ``cluster``, while the
+    estimator's own declaration still names the column. The old row could
+    not have shown that. A remainder that goes up because the corpus can
+    finally ask a question is the instrument working.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2620, total
+    assert total == 2587, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -943,6 +962,14 @@ def test_the_sweep_asks_about_the_whole_envelope():
 
     What a corpus does not carry is the other half, and it is asserted
     against the contract rather than against the corpus, above.
+
+    It also moves when a refresh changes what the rows carry, and both
+    directions happened at once here: eight rows were re-collected, six of
+    them picked up a framing note and a gap their producer had grown since
+    they were stored, and two mediation rows lost every interval endpoint
+    they had — the callers producing them ask for no bootstrap, and the day
+    that ask began to be honoured the endpoints stopped being reported at
+    all rather than being reported equal to the point.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -952,7 +979,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(shapes)
         asked_top.update(shape.split(".")[0] for shape in shapes)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 28057, asked_total
+    assert asked_total == 27988, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

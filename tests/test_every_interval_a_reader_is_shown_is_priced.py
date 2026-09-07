@@ -138,8 +138,10 @@ def test_the_schema_still_declares_intervals_to_ask_about():
 @pytest.mark.parametrize("method,path", [
     ("mediation_joint_linear", ("decomposition", "nde")),
     ("mediation_joint_linear", ("decomposition", "te")),
-    ("mediation_linear_imai", ("four_way_decomposition", "pie")),
-    ("mediation_logit_imai", ("four_way_decomposition", "intmed")),
+    ("numerically_solved:effect:numeric_result#d97753",
+     ("four_way_decomposition", "pie")),
+    ("numerically_solved:effect:numeric_result#d97753",
+     ("four_way_decomposition", "intmed")),
     ("longitudinal_gformula", ("longitudinal_gformula",)),
     ("longitudinal_ipw_msm", ("longitudinal_ipw_msm",)),
     ("iv_acr", ("acr_decomposition", "margins", 0)),
@@ -148,6 +150,14 @@ def test_an_interval_that_excludes_its_own_point_is_refused(method, path):
     """Every one of these was accepted. The edit is the same each time —
     push the lower endpoint past the upper — and what refuses it now is the
     half-width beside it, which no longer describes the interval it prices.
+
+    The two four-way items used to name the single-mediator shapes. Those
+    are produced by a caller asking for no bootstrap, and the day that ask
+    began to be honoured their components stopped carrying endpoints — the
+    forgery had nothing to bend, and the guard below is what said so
+    rather than the test passing on an absent budget. The block is the
+    same block on a shape whose caller asked for five hundred draws, so
+    what moved is which row carries it and not what is covered.
     """
     pair = SHAPES[method]
     bad = copy.deepcopy(pair["result"])
@@ -164,7 +174,8 @@ def test_an_interval_that_excludes_its_own_point_is_refused(method, path):
 
 @pytest.mark.parametrize("method,path", [
     ("mediation_joint_linear", ("decomposition", "nie")),
-    ("mediation_linear_imai", ("four_way_decomposition", "te")),
+    ("numerically_solved:effect:numeric_result#d97753",
+     ("four_way_decomposition", "te")),
     ("longitudinal_gformula", ("longitudinal_gformula",)),
 ])
 def test_widening_an_interval_is_refused_too(method, path):
@@ -222,13 +233,13 @@ def test_a_route_that_declines_early_cannot_decline_the_price():
 #: The shapes this file forges from — a reader's interval one level in, on
 #: each of the four routes that had no budget beside it.
 _FORGED_FROM = ("iv_acr", "longitudinal_gformula", "longitudinal_ipw_msm",
-                "mediation_joint_linear", "mediation_linear_imai",
-                "mediation_logit_imai")
+                "mediation_joint_linear",
+                "numerically_solved:effect:numeric_result#d97753")
 
 
 @pytest.mark.parametrize("method", _FORGED_FROM)
 def test_the_answer_each_forgery_was_made_from_is_honest(method):
-    """First in intent even where it sits last. Asked of these six and not
+    """First in intent even where it sits last. Asked of these five and not
     of all forty-four: the snapshot as a whole is
     :mod:`tests.test_every_answer_shape_is_asked_the_same_question`'s to
     answer for, and repeating that claim here would be a second copy of it

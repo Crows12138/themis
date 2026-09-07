@@ -821,6 +821,15 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
     "themis/estimation/form.py::fits": (
         Wrote.INVARIANT,
         "the clause that introduces the one above, in the same refusal"),
+    "themis/estimation/dispatch.py::_LOOPS_UNDER_ITS_OWN_CEILING[]": (
+        Wrote.INVARIANT,
+        "why one block draws fewer replicates than the run asked for, "
+        "quoted by the RuntimeError the epilogue raises at a count nobody "
+        "on that envelope decided. Same arrangement as the four above: a "
+        "run that fails there reaches no reader, the ceiling beside it is "
+        "read for its VALUE by the check and this clause for the sentence, "
+        "and the sentence is for whoever writes the next loop that wants "
+        "one"),
 
     # --- a value with no reader -----------------------------------------
     "themis/answers.py::Shape.carries": (

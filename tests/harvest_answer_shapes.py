@@ -14,8 +14,24 @@ author's imagination, and the shapes nobody thought of are exactly the ones
 carrying leaves nobody checks.
 
 So the shapes are collected rather than invented: patch the estimate entry
-point, keep the first envelope seen for each ``numeric_estimate.method``
-together with the program that produced it, and run the suite over it.
+point, keep one envelope per ``numeric_estimate.method`` together with the
+program that produced it, and run the suite over it.
+
+WHICH one, and it is not what this paragraph said for a long time. The
+guard below reads ``if method in seen``, and ``seen`` is empty until after
+the suite has finished — so nothing stops a later producer overwriting an
+earlier one, and the row a method is stored under is the LAST envelope
+seen rather than the first. Measured, not inferred: a targeted refresh
+naming the test that produced the stored run got a different run back
+until that test was moved to the end of the argument list.
+
+Left as it is on purpose. Swapping the two words makes it first-wins,
+which is the same schedule dependence wearing the other sign, and would
+silently re-key every numeric row on the next full collection. The
+structural rows are already decided deterministically — by the shapes a
+candidate brings, ties broken by name — and that is what these rows want
+too; it is a change to what the corpus IS, not a typo to fix in passing.
+Until then a refresh names its producers and puts the one it wants last.
 
 That collected answers WITH A NUMBER, and nothing else, for twelve
 frontiers. ``kernel.estimate`` takes data; the identification-only entry is
@@ -464,8 +480,16 @@ if __name__ == "__main__":
     # distinguish them, which is what earned them their place; a candidate
     # whose shapes are all covered is dropped before it needs a name, so a
     # row already in the snapshot never comes back wearing a new one.
+    #: Names the snapshot already carries, so a row in it does not come back
+    #: wearing a new one. That reason holds for a targeted refresh exactly as
+    #: it does for an addition, and reading it in only one of the two modes
+    #: is why ``--only`` could not name a row it had already stored: a
+    #: structural candidate whose bare name is taken wears its shape digest,
+    #: and a refresh asking for that digest was told the shape was never
+    #: produced. The digest is a function of the shapes, so a row whose
+    #: shapes did not move comes back under the name it went in with.
     existing = set(json.loads(OUT.read_text(encoding="utf-8"))
-                   if mode == "structural" else ())
+                   if mode in ("structural", "only") else ())
     kept = 0
     for digest, row in sorted(candidates.items(),
                               key=lambda item: (item[1]["name"], item[0])):

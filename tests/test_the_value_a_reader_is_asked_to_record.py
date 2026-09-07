@@ -237,7 +237,13 @@ def test_where_no_domain_is_declared_that_rule_says_nothing():
 
 
 def test_a_variable_patch_carries_no_value_and_is_never_asked():
-    """The silence that is by construction, not by exception."""
+    """The silence that is by construction, not by exception.
+
+    Eight more of them arrived with a targeted corpus refresh, which
+    picked up investigation items its rows predated. A patch count going
+    up is the producer asking for more, and this rule is silent for every
+    one of them either way.
+    """
     patches = [
         item["skeleton"]
         for pair in SHAPES.values()
@@ -246,7 +252,7 @@ def test_a_variable_patch_carries_no_value_and_is_never_asked():
         if isinstance(item.get("skeleton"), dict)
         and item["skeleton"].get("kind") == "variable_patch"
     ]
-    assert len(patches) == 288, len(patches)
+    assert len(patches) == 296, len(patches)
     assert all(_valued_atoms_of(patch, []) == [] for patch in patches)
 
 

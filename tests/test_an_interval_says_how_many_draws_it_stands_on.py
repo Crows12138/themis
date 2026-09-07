@@ -17,6 +17,19 @@ Three gates, and they hold three different things:
 - The **verifier** holds each emitted block to its own arithmetic. A wrong
   count reads exactly like a right one, which is why the block's honesty is
   the thing worth auditing.
+
+The source gate asked whether a loop was COUNTING and not where the number
+it counted to came from, and ``Draws(n_rep)`` answers the first question
+perfectly. Nothing forwards that number — dispatch hands each estimator the
+settings the caller gave, keyword by keyword — so a parameter spelled
+differently from the run's is not a wire that breaks but one that was never
+drawn: the call site has no such argument, the estimator's default wins
+silently, and the envelope goes on recording the caller's ask beside an
+interval built on something else. Two mediation loops were spelled that way
+and every mediation interval this system reported stood on two hundred
+draws, including under a caller who asked for none, which is this system's
+documented way to skip the interval. So the gate reads the argument as well
+as the loop, and the verifier holds the emitted count against the run.
 """
 from __future__ import annotations
 
@@ -356,6 +369,46 @@ def _draw_loops(tree: ast.AST) -> list[ast.For | ast.While]:
     return found
 
 
+#: The one name the run's resample count travels under. Dispatch forwards
+#: it by keyword, so this is not a convention but the wire itself.
+_KNOB = "ci_bootstrap"
+
+
+def _knob_complaints(tree: ast.AST) -> list[str]:
+    """Every ``Draws`` built from something other than the run's own knob.
+
+    Asked of the ARGUMENT and of the enclosing signature, because either
+    half alone passes the shape this exists to catch: a local named
+    anything would satisfy "there is a variable", and a parameter nobody
+    passes to ``Draws`` would satisfy "the signature takes the knob".
+    """
+    out: list[str] = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        params = {a.arg for a in fn.args.args + fn.args.kwonlyargs}
+        for node in ast.walk(fn):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = getattr(func, "id", None) or getattr(func, "attr", None)
+            if name != "Draws" or not node.args:
+                continue
+            given = node.args[0]
+            where = f"{fn.name}:{node.lineno}"
+            if not isinstance(given, ast.Name) or given.id != _KNOB:
+                out.append(
+                    f"{where}: draws {ast.unparse(given)} replicates, and "
+                    f"the run's count arrives under the name {_KNOB!r} — a "
+                    f"parameter spelled otherwise is never passed at all")
+            elif _KNOB not in params:
+                out.append(
+                    f"{where}: draws {_KNOB} replicates and {fn.name} does "
+                    f"not take it, so the number is this module's and not "
+                    f"the run's")
+    return out
+
+
 def _complaints(source: str, module: str) -> list[str]:
     """Every way one module's draw sites fail to say what they discarded.
 
@@ -366,7 +419,7 @@ def _complaints(source: str, module: str) -> list[str]:
     shown to reject the shapes they are about.
     """
     tree = ast.parse(source)
-    out: list[str] = []
+    out: list[str] = _knob_complaints(tree)
     for node in _draw_loops(tree):
         where = f"{module}:{node.lineno}"
 
@@ -407,20 +460,31 @@ def test_every_draw_site_in_the_package_says_what_it_discarded():
     """Including the ones written after this. That is the part of #472 that
     survives the next estimator: a new loop that forgets is a failure here
     rather than an interval nobody can size."""
-    seen, out = 0, []
+    seen, built, out = 0, 0, []
     for path in sorted(_ESTIMATION.rglob("*.py")):
         source = path.read_text(encoding="utf-8")
-        seen += len(_draw_loops(ast.parse(source)))
+        tree = ast.parse(source)
+        seen += len(_draw_loops(tree))
+        built += sum(
+            1 for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and (getattr(node.func, "id", None)
+                 or getattr(node.func, "attr", None)) == "Draws")
         out += _complaints(source, path.name)
     assert out == []
-    # The denominator, low enough not to churn and high enough that a gate
+    # The denominators, low enough not to churn and high enough that a gate
     # reading an empty package would fail here rather than pass silently.
+    # Two of them, because the two questions have different subjects: one
+    # counts the loops, and the knob is asked of the CONSTRUCTIONS — a gate
+    # that stopped finding those would report a package where every draw
+    # site takes its size from the run.
     assert seen >= 30
+    assert built >= 30
 
 
 _HONEST = """
-def fit(df, b, rng, n):
-    draws = Draws(b) if b > 0 else None
+def fit(df, ci_bootstrap, rng, n):
+    draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None
     if draws is not None:
         for _ in draws:
             idx = resample_indices(n, rng, groups=None)
@@ -440,13 +504,28 @@ def test_the_source_gate_says_no_to_each_shape_it_is_about():
     assert _complaints(_HONEST, "honest.py") == []
 
     counted = _complaints(
-        _HONEST.replace("for _ in draws:", "for _ in range(b):"), "m.py")
+        _HONEST.replace("for _ in draws:", "for _ in range(ci_bootstrap):"),
+        "m.py")
     assert any("not a Draws" in c for c in counted), counted
 
     borrowed = _complaints(
-        _HONEST.replace("draws = Draws(b) if b > 0 else None",
+        _HONEST.replace("draws = Draws(ci_bootstrap) if ci_bootstrap > 0 else None",
                         "draws = neighbouring_estimate.replicates"), "m.py")
     assert any("never built from Draws" in c for c in borrowed), borrowed
+
+    # The shape this system actually shipped: the loop counts, files its
+    # reasons and reports honestly — about a number the caller never gave
+    # it, because dispatch has no argument by that name to pass.
+    renamed = _complaints(_HONEST.replace("ci_bootstrap", "n_rep"), "m.py")
+    assert any("arrives under the name" in c for c in renamed), renamed
+
+    # And the half a rename alone would not catch: the right word, taken
+    # from the module instead of from the call.
+    local = _complaints(
+        _HONEST.replace("def fit(df, ci_bootstrap, rng, n):",
+                        "def fit(df, rng, n):\n    ci_bootstrap = 200"),
+        "m.py")
+    assert any("does not take it" in c for c in local), local
 
     silent = _complaints(
         _HONEST.replace("                draws.unusable(exc.failure_type)\n", ""),
