@@ -230,10 +230,48 @@ def _check_bounds(bounds_cluster, run_cluster: str) -> None:
         )
 
 
+def _reports_an_interval(node: object) -> bool:
+    """Whether this estimate reports an interval anywhere in it.
+
+    Read at every depth for the reason :func:`_stamps` is read that way: a
+    decomposition puts its endpoints in blocks of its own, described by the
+    same flat list of declarations, and an interval is not exempt from the
+    disclosure for sitting one level down. This question used to be asked of
+    two keys at the top, so an answer whose intervals all nest left the rule
+    by the early return meant for answers that have no interval at all —
+    a check present, looking in one place, and indistinguishable from a pass.
+
+    Measured when this was written: fourteen of the eighty-five answers this
+    repository harvests report endpoints ONLY below the top level, across
+    nine methods — three dose-response backends, both joint decompositions,
+    mediation, the counterfactual cell, the proximal bridge and the CDE. A
+    clustered mediation run carries eleven of them, and dropping the column
+    from every record left it accepted while the same tampering on a
+    back-door answer was refused.
+
+    ``ci_lower`` / ``ci_upper`` and nothing else, which is a convention this
+    envelope already keeps on purpose rather than a spelling chosen here:
+    the one writer that publishes a pair of numbers which is NOT an
+    estimate's endpoints calls them ``band_lower`` / ``band_upper``, and
+    says in its own comment that it does so because a pair named lower and
+    upper is read as endpoints.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("ci_lower", "ci_upper"):
+                if value is not None:
+                    return True
+            elif _reports_an_interval(value):
+                return True
+    elif isinstance(node, list):
+        return any(_reports_an_interval(v) for v in node)
+    return False
+
+
 def _check_declaration(estimate: dict, run_cluster: str) -> None:
     """Every interval produced under a clustered run must say, in the
     estimator's own declarations, what it did with the column."""
-    if estimate.get("ci_lower") is None and estimate.get("ci_upper") is None:
+    if not _reports_an_interval(estimate):
         return  # no interval — there is nothing to be robust about
     if _names(estimate.get("assumptions"), run_cluster):
         return

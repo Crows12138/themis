@@ -242,6 +242,37 @@ def test_a_count_that_is_not_a_count_is_refused():
     assert "must be an object" in _refused(_estimate("500 draws"))
 
 
+def test_the_floor_reaches_an_interval_that_only_nests():
+    """Where the endpoints are is a fact about the block, and this one puts
+    them one level down — every mediation answer does, twenty-two of them and
+    no top-level pair. The floor read the pair, so a stamp saying one draw
+    survived passed beside all twenty-two."""
+    assert "1 usable draw" in _refused({"numeric_estimate": {
+        "method": "mediation_linear_imai", "point": 0.3,
+        "decomposition": {
+            "nde": {"point": 0.1, "ci_lower": 0.0, "ci_upper": 0.2},
+            "nie": {"point": 0.2, "ci_lower": 0.1, "ci_upper": 0.3},
+        },
+        "bootstrap": {"kind": "iid", "requested": 40, "used": 1,
+                      "discarded": {_THIN: 39}}}})
+
+
+def test_a_second_loops_interval_does_not_fire_the_first_ones_floor():
+    """The side that keeps the reading from sweeping: the four-way ratio runs
+    a bootstrap of its own, so its endpoints rest on its own record and are
+    audited there. An estimate that reported no interval of its own may end
+    with one usable draw beside them, and this is the shape that would have
+    been refused by a walk that did not stop."""
+    verify_bootstrap_records({"numeric_estimate": {
+        "method": "mediation_logit_imai", "point": 0.3,
+        "ci_lower": None, "ci_upper": None,
+        "four_way_ratio": {
+            "cde": {"point": 0.2, "ci_lower": 0.1, "ci_upper": 0.3},
+            "bootstrap": {"kind": "iid", "requested": 50, "used": 50}},
+        "bootstrap": {"kind": "iid", "requested": 40, "used": 1,
+                      "discarded": {_THIN: 39}}}})
+
+
 def test_every_loop_is_audited_and_not_only_the_estimate_s():
     """Separate loops over separate quantities: auditing the estimate's says
     nothing about the margin table's, and the margin table is where a dead

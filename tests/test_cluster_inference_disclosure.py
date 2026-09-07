@@ -307,20 +307,42 @@ _CROSS_BATTERY = {
 }
 
 
+def _carries_an_interval(node) -> bool:
+    """Whether an answer reports endpoints anywhere in it.
+
+    Written here rather than imported from the rule, because a test that
+    borrows the producer's reading cannot catch the producer reading the
+    wrong place — which is exactly what it did: the guard below asked two
+    keys at the top, and the one family in this battery whose endpoints all
+    nest was skipped by it, asserting nothing while reading as covered.
+    """
+    if isinstance(node, dict):
+        return any(v is not None if k in ("ci_lower", "ci_upper")
+                   else _carries_an_interval(v)
+                   for k, v in node.items())
+    if isinstance(node, list):
+        return any(_carries_an_interval(v) for v in node)
+    return False
+
+
 @pytest.mark.parametrize("name", sorted(_CROSS_BATTERY))
 def test_every_family_under_a_clustered_run_names_the_column(name, cross_frame):
     """The invariant the verifier enforces, checked directly on real output —
     this is what catches the next producer that forgets to thread the column."""
     out = themis.estimate(_CROSS_BATTERY[name], cross_frame,
                           cluster="clinic", ci_bootstrap=20)
+    asserted = 0
     for result in out["results"]:
         estimate = result.get("numeric_estimate")
-        if not estimate or estimate.get("ci_lower") is None:
+        if not estimate or not _carries_an_interval(estimate):
             continue
+        asserted += 1
         assert any("clinic" in a for a in estimate.get("assumptions") or ()), (
             f"{name}: the {estimate.get('method')!r} interval says nothing "
             f"about the cluster column"
         )
+    # A battery row that asserted nothing reads as a family that passed.
+    assert asserted, f"{name}: every answer was skipped — nothing was checked"
 
 
 # ============================================================ the verifier
@@ -407,14 +429,93 @@ def test_an_estimator_that_declares_it_did_not_cluster_is_accepted(
     themis.verify_cluster_inference(_tamper(clustered_result, declare_instead))
 
 
+def _null_every_endpoint(node) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("ci_lower", "ci_upper"):
+                node[key] = None
+            else:
+                _null_every_endpoint(value)
+    elif isinstance(node, list):
+        for value in node:
+            _null_every_endpoint(value)
+
+
 def test_an_answer_with_no_interval_owes_nothing(clustered_result):
+    """The reason the early return exists, and it has to keep working: an
+    answer that reports only a point cannot be un-robust about anything.
+
+    Every endpoint, not the top pair. This used to null two keys and call the
+    result interval-free while two endpoints stayed below it — a premise the
+    test asserted and the answer did not have."""
     def drop_interval(r):
+        ne = r["numeric_estimate"]
+        _null_every_endpoint(ne)
+        ne["assumptions"] = [a for a in ne["assumptions"] if "clinic" not in a]
+        ne.pop("bootstrap", None)
+
+    tampered = _tamper(clustered_result, drop_interval)
+    assert not _carries_an_interval(tampered["numeric_estimate"])
+    themis.verify_cluster_inference(tampered)
+
+
+def test_removing_the_top_interval_does_not_settle_what_is_below(
+        clustered_result):
+    """The other side of the same predicate, and the shape the rule used to
+    accept: the top pair is gone, two endpoints are still reported one level
+    down, and nothing on the answer names the column they were built on."""
+    def drop_the_top_pair(r):
         ne = r["numeric_estimate"]
         ne["ci_lower"] = ne["ci_upper"] = None
         ne["assumptions"] = [a for a in ne["assumptions"] if "clinic" not in a]
         ne.pop("bootstrap", None)
 
-    themis.verify_cluster_inference(_tamper(clustered_result, drop_interval))
+    tampered = _tamper(clustered_result, drop_the_top_pair)
+    assert _carries_an_interval(tampered["numeric_estimate"])
+    with pytest.raises(VerificationError, match="never mention it"):
+        themis.verify_cluster_inference(tampered)
+
+
+def test_an_answer_whose_intervals_all_nest_is_audited_too(cross_frame):
+    """The measured hole, through the door a caller uses.
+
+    A clustered mediation run reports eleven endpoints and not one of them
+    is at the top, so the rule's early return took the whole answer out of
+    the audit. Same tampering, same run: the back-door answer above was
+    refused and this one was accepted, and the only difference between them
+    is where the interval sits."""
+    out = themis.estimate(_MEDIATION, cross_frame,
+                          cluster="clinic", ci_bootstrap=20)
+    honest = out["results"][0]
+    estimate = honest["numeric_estimate"]
+    # Not even a key: this block carries no top-level pair at all, which is
+    # what the old guard read as "there is no interval here".
+    assert estimate.get("ci_lower") is None and estimate.get("ci_upper") is None
+    assert _carries_an_interval(estimate)
+    themis.verify_cluster_inference(honest)      # the honest one still passes
+
+    def drop_everywhere(r):
+        ne = r["numeric_estimate"]
+        ne["assumptions"] = [a for a in ne["assumptions"] if "clinic" not in a]
+        for record in _every_stamp(ne):
+            record["kind"] = "iid"
+            record.pop("cluster_column", None)
+
+    with pytest.raises(VerificationError, match="never mention it"):
+        themis.verify_cluster_inference(_tamper(honest, drop_everywhere))
+
+
+def _every_stamp(node):
+    if isinstance(node, dict):
+        record = node.get("bootstrap")
+        if isinstance(record, dict):
+            yield record
+        for key, value in node.items():
+            if key != "bootstrap":
+                yield from _every_stamp(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _every_stamp(value)
 
 
 def test_verify_runs_the_cluster_audit_on_the_main_path(clustered_result,

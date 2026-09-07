@@ -238,7 +238,7 @@ def verify_bootstrap_records(result: object) -> None:
                 continue
             check_bootstrap_record(
                 block.get("bootstrap"), where=path,
-                has_interval=_carries_an_interval(block, key),
+                has_interval=_carries_an_interval(block),
             )
     for row in result.get("bounds_results") or ():
         if isinstance(row, Mapping):
@@ -359,25 +359,46 @@ def _check_the_refuted_share(estimate: Mapping) -> None:
                        "refutation rate lower than the data's")
 
 
-def _carries_an_interval(block: Mapping, key: str) -> bool:
-    """Whether the thing this block describes reported an interval.
+def _runs_its_own_loop(value: object) -> bool:
+    """Whether this sub-block records a bootstrap of its own."""
+    return (isinstance(value, Mapping)
+            and isinstance(value.get("bootstrap"), Mapping))
 
-    Asked per site because the endpoints live in a different place on each
-    — the estimate's own pair, a per-margin pair, a per-component band —
-    and the floor is about an interval that was REPORTED, not about a loop
-    that happened to end with one draw and said nothing.
+
+def _carries_an_interval(block: object) -> bool:
+    """Whether the loop this stamp belongs to reported an interval.
+
+    The floor is about an interval that was REPORTED, not about a loop that
+    happened to end with one draw and said nothing — so the question is
+    where the endpoints are, and they are wherever the block puts them.
+    Descends for that reason, and stops at any sub-block carrying a stamp of
+    its own: those endpoints rest on a SECOND loop and are audited under its
+    record, so counting them here would make one loop's floor fire on
+    another loop's interval.
+
+    It used to be a table keyed on the block's name — the estimate's own
+    pair, ACR's per-margin pairs, the four-way ratio's per-component ones,
+    and the top pair as the default. A table is complete only while somebody
+    remembers to extend it, and this one's default was already wrong for
+    every answer whose endpoints all nest: a clustered mediation result
+    carries twenty-two of them and no top-level pair at all, so a stamp
+    saying one draw survived passed the floor beside all twenty-two.
     """
-    if key == "acr_decomposition":
-        return any(
-            isinstance(m, Mapping) and m.get("ci_upper") is not None
-            for m in block.get("margins") or ()
-        )
-    if key == "four_way_ratio":
-        return any(
-            isinstance(v, Mapping) and v.get("ci_upper") is not None
-            for v in block.values()
-        )
-    return block.get("ci_lower") is not None or block.get("ci_upper") is not None
+    if isinstance(block, Mapping):
+        for name, value in block.items():
+            if name in ("ci_lower", "ci_upper"):
+                if value is not None:
+                    return True
+            elif name == "bootstrap":
+                continue                       # this block's own record
+            elif _runs_its_own_loop(value):
+                continue                       # a second loop, audited there
+            elif _carries_an_interval(value):
+                return True
+    elif isinstance(block, list):
+        return any(_carries_an_interval(v) for v in block
+                   if not _runs_its_own_loop(v))
+    return False
 
 
 def _check_the_losses_add_up(
