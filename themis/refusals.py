@@ -791,6 +791,22 @@ class Refusal(EnvelopeName):
         Kind.UNBUILT,
         "this estimator is binary-outcome only",
     )
+    #: Not the one above, and the difference is which of the two is being
+    #: described. There the estimator has one arm and the question needs the
+    #: other, so the limit is the tool's and the reader is told a boundary.
+    #: Here the estimator has both arms, the caller named the one that models
+    #: a probability, and the column has no probability to model — the limit
+    #: is in what was asked FOR THIS DATA, which is a ``REQUEST`` and a retry.
+    #: Filing it as the boundary would tell a reader Themis had not built
+    #: something it builds on every run.
+    A_NAMED_LOGIT_LINK_NEEDS_A_BINARY_OUTCOME = (
+        "a_named_logit_link_needs_a_binary_outcome",
+        Kind.REQUEST,
+        "the caller named the logit arm and this outcome is not binary. The "
+        "link models P(Y=1), so on a column taking other values there is no "
+        "such probability for the fit to be about — and left at ``auto`` the "
+        "same column would have been read and given the line",
+    )
     # instrument_not_binary lived here, and its own description said why it
     # would not last: "a multi-valued one is a larger enumeration". A larger
     # enumeration is something to enumerate, not something to decline, and
@@ -1967,6 +1983,15 @@ SAYS: dict[str, language.Words] = {
         "zh": "{outcome} 在数据里的取值是 {levels}；这个估计量只做二值结局",
         "en": "the observed values of {outcome} are {levels}; this estimator "
               "takes a binary outcome only",
+    },
+    "a_named_logit_link_needs_a_binary_outcome": {
+        "zh": "你写了 model={named}，而结局 {outcome} 有 {distinct} 个不同取值、"
+              "不是二值。这条链接建模的是 P({outcome}=1)，这样一列上没有这个概率"
+              "可言。不写 model= 就让这一列自己决定形状",
+        "en": "model={named} names the logit arm and the outcome {outcome} "
+              "takes {distinct} distinct values rather than two. The link "
+              "models P({outcome}=1), and this column has no such probability "
+              "to fit; leaving model= unset lets the column settle the shape",
     },
     "outcome_not_continuous": {
         "zh": "结局 {outcome} 只有 {distinct} 个不同取值；可加误差方差描述的是"

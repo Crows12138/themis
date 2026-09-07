@@ -3253,6 +3253,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '列 {column} 声明为随访时间，却含有负值；时间不会是负的，这一列装的不是它声称的东西',
     en: 'the column {column} is declared a follow-up time and holds a value below zero; time is not negative, so the column does not hold what it says it does',
   },
+  a_named_logit_link_needs_a_binary_outcome: {
+    zh: '你写了 model={named}，而结局 {outcome} 有 {distinct} 个不同取值、不是二值。这条链接建模的是 P({outcome}=1)，这样一列上没有这个概率可言。不写 model= 就让这一列自己决定形状',
+    en: 'model={named} names the logit arm and the outcome {outcome} takes {distinct} distinct values rather than two. The link models P({outcome}=1), and this column has no such probability to fit; leaving model= unset lets the column settle the shape',
+  },
   adjustment_all_missing: {
     zh: '调整集里的 {column} 从未被观测到，它的边际 P({column}) 无法恢复',
     en: 'the adjustment column {column} is never observed, so its marginal P({column}) cannot be recovered',

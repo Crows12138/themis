@@ -42,6 +42,7 @@ from types import MappingProxyType
 import pandas as pd
 
 from ..ledger import Provenance
+from ..refusals import EstimatorFailure, Refusal, Remedy
 
 
 #: What a caller writes to leave the shape to the system. Spelled once because
@@ -75,10 +76,28 @@ def outcome_form(
     """The outcome model's shape, and its origin.
 
     ``auto`` reads the outcome column: bool is a probability and takes the
-    non-linear link, anything else is a mean and takes the line. Anything the
-    caller names is passed through untouched — including a name this function
-    has never heard of, because which forms an estimator can fit is that
-    estimator's question and refusing here would answer it for all of them.
+    non-linear link, anything else is a mean and takes the line. A name this
+    function has never heard of is passed through untouched, because which
+    words an estimator takes is that estimator's question — declared on its
+    strategy row and refused there.
+
+    Whether THIS column can carry the logit link is not that question, and
+    was going out under it. The link models P(Y=1); named on a column that
+    is not binary there is no such probability, and the only thing that
+    noticed was the fitter, in its own language: ``Unknown label type:
+    continuous`` out of sklearn on the back-door and front-door routes,
+    ``endog must be in the unit interval`` out of statsmodels on mediation,
+    each of them a library's exception leaving the public entry. The two
+    libraries also disagreed about what they would accept — one fitted three
+    levels as a multinomial and reported it as a logistic ATE, the other
+    fitted proportions — so the set of outcomes a named logit was allowed on
+    was the accident of which library the family used, and nobody had
+    decided it.
+
+    So the check is here: this is the one place that holds the caller's word
+    and the column at once, and the eight families that call it inherit one
+    answer rather than eight. ``auto`` is unaffected — it already reads this
+    column, and on a non-binary one it chooses the line.
 
     ``logistic`` names the non-linear arm because the mediation family spells
     it ``logit`` on its estimate, in its method string and in its tests.
@@ -99,8 +118,41 @@ def outcome_form(
         is_bool = pd.api.types.is_bool_dtype(outcome)
         return (logistic if is_bool else "linear"), Provenance.DEFAULT
     if model == LOGISTIC:
+        if not carries_a_probability(outcome):
+            raise EstimatorFailure(
+                Refusal.A_NAMED_LOGIT_LINK_NEEDS_A_BINARY_OUTCOME,
+                named=model,
+                outcome=str(outcome.name),
+                distinct=int(outcome.nunique(dropna=True)),
+                remedies=[(Remedy.CHANGE_INPUT, "model")],
+            )
         return logistic, Provenance.CALLER_ASSERTED
     return model, Provenance.CALLER_ASSERTED
+
+
+def carries_a_probability(outcome: pd.Series) -> bool:
+    """Whether this column can be the ``Y = 1`` a logit link is about.
+
+    Two values, and both of them the ones the estimand names. Not
+    ``is_bool_dtype``, which is what ``auto`` reads: ``auto`` is choosing a
+    default and may prefer the line whenever it is unsure, while this is
+    judging a caller who has already chosen, and a 0/1 column stored as
+    float or int is a probability whichever dtype pandas gave it — measured,
+    on both families, before this refused anything.
+
+    Nulls are dropped rather than counted against the column: an absent
+    value is not a third level, and the fits below already decide what to do
+    with one.
+    """
+    if pd.api.types.is_bool_dtype(outcome):
+        return True
+    seen = pd.unique(outcome.dropna())
+    if len(seen) == 0:
+        return False
+    try:
+        return bool(pd.Series(seen).isin([0, 1]).all())
+    except TypeError:
+        return False
 
 
 #: What a caller leaves a NON-STRING shape lever at to say nothing about it.

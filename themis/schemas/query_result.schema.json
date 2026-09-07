@@ -2685,6 +2685,7 @@
             "outcome_does_not_vary",
             "outcome_error_exceeds_residual_variance",
             "outcome_not_binary",
+            "a_named_logit_link_needs_a_binary_outcome",
             "outcome_not_continuous",
             "overlap_insufficient",
             "probabilities_do_not_sum",

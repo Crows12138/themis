@@ -420,7 +420,7 @@ def test_the_carrier_that_can_never_speak_says_why():
     # And the other one is not silent: this is the reach the widening buys.
     holed = sum(bool(_holes(REFUSED, str(m)))
                 for m in language.VOCABULARIES[REFUSED])
-    assert holed == 130, holed
+    assert holed == 131, holed
 
 
 def test_every_carrier_is_a_vocabulary_this_build_declares():
