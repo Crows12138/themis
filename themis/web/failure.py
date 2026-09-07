@@ -15,6 +15,14 @@ other, ``str(exc)`` — kept rather than dropped, because a person who hit
 an internal error can paste it into a bug report, and named
 ``diagnostic`` so that nothing downstream mistakes it for the sentence.
 
+**The second side exists only when there is no first one.** ``str(exc)``
+is the maintainer's text where a raise site wrote it for a maintainer;
+where a species wrote a sentence, ``str`` is that sentence, assembled in
+one fixed language, and sending it as well handed the browser the same
+refusal twice — the reader's language above, Chinese below, whoever was
+reading. Which of the two an exception is, is exactly what the branches
+below decide, so the decision is kept rather than made and dropped.
+
 The sentence goes out as ``words`` rather than as a finished string. That
 is the shape ``/api/audit`` already uses and for its reason: a failure is
 an artifact rather than a rendering, and one that had already chosen a
@@ -134,10 +142,14 @@ def payload(stage: str, exc: BaseException | None = None,
         )
     words: language.Words = STAGE[stage]
     slots: dict[str, Any] = {}
+    # Whether the sentence below is the species' or the stage's. It is the
+    # question both branches ask, and until it was kept it was answered and
+    # then dropped one line later — see the diagnostic at the end.
+    spoken = False
     if isinstance(exc, refusals.EstimatorFailure):
         own = refusals.SAYS.get(str(exc.failure_type))
         if own is not None:
-            words, slots = own, dict(exc.details)
+            words, slots, spoken = own, dict(exc.details), True
     # The other half of the same distinction, one layer earlier. A refusal
     # of the PROGRAM is as much addressed to the person as a refusal to put
     # a number on it, and it was arriving as ``diagnostic`` only — English,
@@ -155,18 +167,32 @@ def payload(stage: str, exc: BaseException | None = None,
     # What the branch is actually asking is "does this exception carry its
     # own sentence", and ``Voiced`` is the name of that.
     elif isinstance(exc, language.Voiced):
-        words, slots = exc.species.words, dict(exc.details)
+        words, slots, spoken = exc.species.words, dict(exc.details), True
     body: dict[str, Any] = {"stage": stage, "words": dict(words)}
     if slots:
         body["slots"] = slots
     if exc is not None:
-        # Both of these are the exception's, and neither is the sentence.
-        # A stage that refuses without one — nothing to clarify, no rows
-        # uploaded — has no class name to give, and ``stage`` already says
-        # what happened; naming it twice would make the second name look
-        # like a second fact.
+        # The class name is the exception's and is not the sentence, so it
+        # goes out for every failure. A stage that refuses without an
+        # exception — nothing to clarify, no rows uploaded — has no class
+        # name to give, and ``stage`` already says what happened; naming it
+        # twice would make the second name look like a second fact.
         body["error"] = type(exc).__name__
-        body["diagnostic"] = str(exc)
+        # ``str(exc)`` is the maintainer's text ONLY when nobody wrote a
+        # sentence for the reader. When a species did, ``str`` is that same
+        # sentence — ``Voiced`` and ``EstimatorFailure`` both build their
+        # message by assembling it — rendered in one fixed language. This
+        # line sent it anyway, so a refusal reached the browser twice: once
+        # as ``words`` in the reader's language and again after 诊断信息 in
+        # Chinese, whoever was reading. The distinction this module exists
+        # to draw was being drawn for ``words`` and thrown away here, one
+        # line after the branch that had just decided it.
+        #
+        # ``api.ts`` was already written against the contract this restores
+        # — "a person who hit a refusal has already been told what
+        # happened" — so what changed is the server keeping its half.
+        if not spoken:
+            body["diagnostic"] = str(exc)
     body.update(extra)
     return body
 

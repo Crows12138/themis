@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-18393 passed / 512 skipped, warning-clean
+18397 passed / 512 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,56 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #598 给维护者的那条通道里装的是读者的句子，于是每个 refusal 都被说了两遍（2026-09-07）
+
+**现象。** 一个 voiced refusal 到了浏览器，读者先看到自己语言的那句话，
+紧接着「诊断信息：」＋**同一句中文**。一个英文读者拿到的是
+`English sentence` ＋ `Diagnostic: 中文的同一句`。
+
+**根因。** `themis/web/failure.py` 这个模块**存在的全部理由**就是划一条线：
+**读者的句子 vs 维护者的文本**。它在 `words` 上划了——
+`isinstance(exc, EstimatorFailure)` 和 `isinstance(exc, Voiced)` 两个分支
+问的就是「这个异常自带句子吗」。**然后它把刚问出来的答案扔掉**：下面一行
+无条件 `body["diagnostic"] = str(exc)`。而这两类异常的 `__str__` 恰恰**就是**
+那句自带的句子——`Voiced.__init__` 和 `EstimatorFailure.__init__` 都是
+`super().__init__(assemble(species.words, details))`——用 `language.DEFAULT`
+组装的。**这个模块在它为之而写的那个情形里，把读者的句子灌进了维护者的通道。**
+
+**量过，不是推的。** `EstimatorFailure(SAMPLE_TOO_SMALL, n=40, minimum=100)`：
+`diagnostic` 与 `assemble(body["words"], body["slots"])` **逐字相同**。
+
+**为什么这是根因不是表象。** 表象修法是在前端 `errorText` 里比一下两串相不相等
+再决定显不显示——那是让消费者去猜生产者的意思。而且 **`themis/web/frontend`
+一个测试都没有**（`package.json` 里没有 test runner，只有 dev/build/lint/preview），
+押在那边等于没押。真正的位置是：**分支已经知道句子是谁写的了，
+那个事实要变成一个值，而不是一行之后被忘掉。**
+
+**⚠️ 而且前端本来就是照正确的契约写的。** `api.ts` 里 `errorText` 的注释原话是
+「撞上 refusal 的人已经被告知发生了什么」——**注释是对的，服务端没照着做**。
+所以这一轮**一行前端都没动**，改的是服务端守住自己那半。
+
+**结构性修改。** `payload` 里把「句子来自 species」记成 `spoken`，
+`diagnostic` 依它决定填不填。`error`（类名）照旧对**所有**异常都给——
+维护者要的「哪个通道拒的」还在，`slots` 也还在。
+
+**⚠️ 押一条不变式，不是押两个例子：`diagnostic` 在场，当且仅当句子是 stage 的。**
+分开押两种情况，会让这套安排有空间漂进第三种；这条说的是**这个字段的含义**。
+并且另押**两个方向都真的发生过**（`seen == {True, False}`）——
+一条只有一侧会成立的不变式，是一句关于空集的话。
+
+**两个反例都构造过，都变红：**
+- **字段对所有人都留着**（就是这个缺陷）⇒ 3 条红。
+- **字段对所有人都拿掉**（矫枉过正）⇒ 7 条红——
+  schema 抱怨、不变量、参数契约这些**没有任何 species 为它们写过句子**，
+  拿掉字段就是把维护者唯一的文本删了。这一侧比第一侧红得更多，**这是对的**。
+
+**门上也押了，两个方向同一个端点**（`/api/run`，中间什么都没打桩）：
+一个 schema 过得了、语义过不了的程序（query 点名了没有任何 cause 边引入的变量）
+⇒ 有 species 的句子、**没有** `diagnostic`；
+一个 schema 就过不了的 ⇒ stage 句 ＋ **有** `diagnostic`。
+
+**账：宣告余项 2671 不动。** 基线 18393 → 18397，skipped 512。
 
 ### #597 一个既没代理也没 key 的评审点下去，屏幕说「因果图没建出来，试了三次」（2026-09-07）
 

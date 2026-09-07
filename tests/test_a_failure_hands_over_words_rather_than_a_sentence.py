@@ -19,6 +19,7 @@ import pathlib
 
 import pytest
 
+import themis
 from themis import language, refusals
 from themis.input.semantic_validator import SemanticError
 from themis.runtime import theta_builder
@@ -144,6 +145,76 @@ def test_a_failure_with_no_exception_carries_no_diagnostic():
     assert body["stage"] == "nothing_to_clarify"
 
 
+def _voiced():
+    return theta_builder.ConflictingThetaEntry(
+        Refuses.TWO_STATEMENTS_DISAGREE_ABOUT_ONE_KEY,
+        key="P(x=True)", first=0.4, second=0.6)
+
+
+def _estimator_refusal():
+    return refusals.EstimatorFailure(
+        refusals.Refusal.SAMPLE_TOO_SMALL, n=40, minimum=100)
+
+
+def test_a_sentence_a_species_wrote_does_not_come_back_as_a_diagnostic():
+    """The maintainer's channel was carrying the reader's sentence.
+
+    ``Voiced`` and ``EstimatorFailure`` both build their message by
+    assembling the species' words, so ``str(exc)`` IS what ``words``
+    already says — in ``language.DEFAULT``, whoever is reading. The
+    browser appends the diagnostic after the sentence, so a refusal
+    arrived twice: once in the reader's language and once in Chinese.
+    """
+    for stage, exc in (("run", _voiced()), ("estimate", _estimator_refusal())):
+        body = failure.payload(stage, exc)
+        assert "diagnostic" not in body, stage
+        # Still enough for whoever diagnoses it: the class name says which
+        # channel refused, and the slots say what the occasion was.
+        assert body["error"] == type(exc).__name__
+        assert body["slots"]
+
+
+def test_a_failure_nobody_worded_still_hands_over_its_text():
+    """The counterexample. Dropping the field whenever it looked redundant
+    would take the maintainer's only text away in the case it was named
+    for — a schema complaint, an invariant, an argument contract, none of
+    which any species wrote a sentence for."""
+    with pytest.raises(Exception) as caught:
+        themis.run({"version": "0.1"})
+    body = failure.payload("run", caught.value)
+    assert body["words"] == dict(failure.STAGE["run"])
+    assert body["diagnostic"] == str(caught.value)
+    assert "required property" in body["diagnostic"]
+
+
+def test_the_diagnostic_is_there_exactly_when_the_sentence_is_the_stages():
+    """One invariant over both directions, read off the body itself.
+
+    Asserting the two cases separately leaves the arrangement free to
+    drift into a third; this says what the field MEANS. A body whose
+    sentence fell to the stage has nobody's wording in it, so the
+    exception's text is the only account of what happened and must
+    travel. A body whose sentence came from a species already has it.
+    """
+    with pytest.raises(Exception) as caught:
+        themis.run({"version": "0.1"})
+    arrivals = [
+        ("run", _voiced()),
+        ("estimate", _estimator_refusal()),
+        ("run", ValueError("edges[3] must be a mapping")),
+        ("run", caught.value),
+    ]
+    seen = set()
+    for stage, exc in arrivals:
+        body = failure.payload(stage, exc)
+        fell_to_stage = body["words"] == dict(failure.STAGE[stage])
+        assert ("diagnostic" in body) is fell_to_stage, (stage, type(exc))
+        seen.add(fell_to_stage)
+    # Both directions were actually exercised — an invariant only one side
+    # of which ever happens is a sentence about nothing.
+    assert seen == {True, False}
+
+
 def test_a_live_endpoint_answers_in_the_new_shape():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
@@ -157,3 +228,44 @@ def test_a_live_endpoint_answers_in_the_new_shape():
     assert set(body["words"]) == set(language.written())
     assert body["diagnostic"]
     assert "message" not in body
+
+
+def test_one_door_both_ways_round():
+    """The same endpoint, a refused program of each kind.
+
+    Both reach ``/api/run`` as a 400 and they are not the same event: one
+    was worded for the person who wrote the program, the other was not
+    worded for anybody. Held at the door rather than only at
+    :func:`failure.payload`, because nothing between the two is stubbed
+    here and the browser is what reads the difference.
+    """
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from themis.web.app import app
+
+    client = TestClient(app)
+    me = [{"type": "const", "name": "me"}]
+
+    # Schema-valid, semantically refused: the query names a variable no
+    # cause edge ever introduces. That refusal has a species.
+    spoken = client.post("/api/run", json={"program": {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "x", "domain": [True, False]},
+            {"kind": "query", "id": "q", "query": {
+                "kind": "cause",
+                "from": {"predicate": "x", "args": me},
+                "to": {"predicate": "ghost", "args": me}}},
+        ],
+    }}).json()
+    assert spoken["words"] != dict(failure.STAGE["run"])
+    assert "diagnostic" not in spoken
+
+    # Schema-invalid: the complaint is jsonschema's, written for whoever
+    # is holding the program, and no species ever wrote a sentence for it.
+    unworded = client.post(
+        "/api/run", json={"program": {"version": "0.1"}}).json()
+    assert unworded["words"] == dict(failure.STAGE["run"])
+    assert unworded["diagnostic"]
