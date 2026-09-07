@@ -8151,6 +8151,32 @@ def _compute_precision_budget(
     return out
 
 
+#: Which words each of the three estimators below takes.
+#:
+#: The row that reaches this function declares ONE vocabulary and the
+#: function runs THREE estimators, chosen by ``ate_estimator`` — a run-level
+#: option the driver's gate cannot see. So the row's declaration is one
+#: estimator's vocabulary wearing the other two's names, and it was AIPW's:
+#: measured, ``model='linear'`` on a TMLE run came back as a logistic fit
+#: with the caller's word recorded beside it, and on an IPW run it was read
+#: at all by nothing, that estimator weighting by the propensity and fitting
+#: no outcome model whatever.
+#:
+#: Bound to the estimators rather than transcribed from them: a row here is
+#: ``MODEL_WORDS_OUTCOME`` exactly when the function it names has an
+#: outcome-model parameter to receive a word, and
+#: ``tests/test_a_row_that_runs_three_estimators_speaks_for_none_of_them.py``
+#: reads that off the signatures. TMLE has two arms and no lever — it reads
+#: the outcome column, and says so on every estimate it writes — which is a
+#: capability question and not this one: what is wrong here is a row
+#: promising a lever that does not exist.
+_WORDS_BY_DOUBLY_ROBUST_ESTIMATOR: dict[str, frozenset[str]] = {
+    "aipw": MODEL_WORDS_OUTCOME,
+    "tmle": MODEL_WORDS_NONE,
+    "ipw": MODEL_WORDS_NONE,
+}
+
+
 def _try_doubly_robust_estimate(
     *, result, contract, graph, x, y, adjustment, adjustment_names, given,
     estimator, random_state, ci_bootstrap, model, cluster,
@@ -8169,6 +8195,23 @@ def _try_doubly_robust_estimate(
     """
     from .aipw import AIPWEstimate, IPWEstimate, estimate_aipw_ate, estimate_ipw_ate
     from .tmle import TMLEEstimate, estimate_tmle_ate
+
+    # The judgement the row above cannot make, made where both halves are
+    # in one place — which is the argument :func:`run_cascade` makes one
+    # level up, and it does not reach here: the row it holds the word
+    # against is this one, and the estimator that answers is chosen after
+    # it. Refused in the same shape that gate refuses in, so a caller who
+    # names a shape on a TMLE query reads the same block as one who names
+    # a shape on a front-door query.
+    takes = _WORDS_BY_DOUBLY_ROBUST_ESTIMATOR[estimator]
+    if model not in takes:
+        result["estimator_failure"] = refusals.block(
+            estimator=estimator,
+            failure_type=Refusal.UNKNOWN_OPTION,
+            details={"option": "model", "given": model,
+                     "known": sorted(takes)},
+        )
+        return blocked("estimator_refused")
 
     est: AIPWEstimate | TMLEEstimate | IPWEstimate
     try:
