@@ -213,23 +213,27 @@ def test_an_answer_that_is_a_region_still_reports_its_fit():
 # ================================================= the limit, written down
 
 
-def test_one_field_has_no_witness_and_this_records_which(fitted):
-    """``form`` is the producer's word and stays so.
+def test_the_field_with_no_witness_has_one_now(fitted):
+    """This recorded that ``form`` had none, and the record is stale.
 
-    It reaches the envelope through this block alone — the fit reports
-    which method ran, never the shape word — so there is nothing to
-    disagree with. A rule invented for it (that the method spells the
-    form) holds for the outcome models and fails on the honest
-    ``logistic_propensity`` beside ``aipw``. What would hold it is a
-    table of shape words this repository would then own, which is a
-    different root cause and its own frontier.
+    It said so for a good reason and named the wrong remedy in passing:
+    a rule that the METHOD SPELLS THE FORM does hold for the outcome
+    models and does fail beside ``ipw_stabilized``, whose method spells
+    nothing and whose shape is ``logistic_propensity``. The thing it went
+    on to name — a table of shape words this repository would own — is
+    what exists, as :data:`themis.estimation.form.FITS`, and the witness
+    is not a second copy written by the same run. It is the method,
+    which is on the block, already held to the fit that ran, and now the
+    key a shape is looked up under.
 
-    Recorded rather than left silent: the day it gains a second copy
-    written by the same run, this test is what says the record is stale.
+    ``backdoor_logistic`` fitting ``linear`` is a real shape claimed by a
+    method that does not fit it — the bend a rule reading only for
+    emptiness would let through.
     """
     r = copy.deepcopy(fitted)
     _mech(r)["form"] = "linear"
-    themis.verify(BACKDOOR, r)
+    with pytest.raises(VerificationError, match="cannot fit that way"):
+        themis.verify(BACKDOOR, r)
 
 
 def test_the_target_was_the_other_one_and_the_record_was_wrong(fitted):

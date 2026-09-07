@@ -89,6 +89,7 @@ from typing import NoReturn
 
 from ..assumption_glossary import declares
 from .errors import VerificationError
+from .mechanism_rules import shape_the_method_cannot_fit
 
 _SEVERITIES = ("invalidating", "distorting", "confidence_only")
 _RANK = {s: i for i, s in enumerate(_SEVERITIES)}
@@ -1317,6 +1318,16 @@ def _check_the_block_describes_the_fit_that_ran(
                 f"the estimate reports {estimate.get('method')!r}; a reader "
                 "weighing the shape is weighing the wrong estimator"
             )
+        # And the shape itself, against what that method can fit. The two
+        # lines around this one held the other fields of the block from the
+        # day it existed; the one word that says what the number was fitted
+        # THROUGH took any string, so every form on every answer shape could
+        # be rewritten and this door said yes. It is asked after the method
+        # is held, so the set it is looked up in is not one an answer can
+        # choose for itself.
+        complaint = shape_the_method_cannot_fit(m.get("method"), m.get("form"))
+        if complaint is not None:
+            _reject(complaint)
         for named in m.get("assumptions") or ():
             if not isinstance(named, dict):
                 continue

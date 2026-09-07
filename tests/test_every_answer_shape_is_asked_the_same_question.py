@@ -848,9 +848,29 @@ def test_the_declared_remainder_is_what_it_is():
 
     Ten rows stay at the ref, all leading with a place in the program, which
     is the range T10-1 declares for that space and not an omission here.
+
+    Then 51 came off the shape word a mechanism was fitted through. Three
+    of the block's four fields were held — the method against the estimate
+    that ran, each named assumption against the estimate's declaration, the
+    target against the question — and ``form``, the field the block exists
+    for, took any string at all. Nothing held it because which shapes a
+    build can fit was decided in every estimator and written down in none:
+    the refusals are there, and one of them even lists its five, but a set
+    that lives in control flow is a set no reader downstream can look
+    anything up in.
+
+    The rows came from watching the whole suite produce them rather than
+    from this corpus, and that distinction is the finding. The note this
+    closed said ``form`` is a function of ``method`` "across the corpus",
+    and the qualifier was load-bearing: ``tmle`` fits the logit link for a
+    bool outcome and the line otherwise, and only one of the two is
+    recorded here. A table assembled from these 243 rows would have closed
+    the same 51 leaves and refused honest runs, which is why the families
+    that spell the form into their method name are declared the way the
+    producer builds them.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2671, total
+    assert total == 2620, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

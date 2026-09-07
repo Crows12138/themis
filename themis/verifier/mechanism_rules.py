@@ -37,14 +37,27 @@ on the ASKED side of the envelope, which is what makes it safe to be
 silent about — an answer cannot edit the question into having no
 outcome.
 
-WHAT THIS DOES NOT REACH. ``form`` — the shape word beside the target —
-is a function of ``method`` across the corpus (thirty-one methods, one
-form each), and of the twenty-seven forms nothing holds, four have a
-second record on the envelope and two of those four are
-``estimation_context.model_preference``, which is what a caller ASKED
-for and need not be what ran. So the thing that would hold ``form`` is a
-table of shape words this repository would then own, which is a
-different root cause from this one and belongs to its own frontier.
+``form`` — the shape word beside the target — was the fourth, and the
+note here said it was "a function of ``method`` across the corpus
+(thirty-one methods, one form each)", pointing at a table of shape words
+as the thing that would hold it. **The qualifier was carrying the
+sentence.** ``tmle`` fits ``logistic`` when the outcome is a bool and
+``linear`` when it is not, and both were driven end to end; ``aipw`` is
+the same; the two counterfactual plug-ins name the route their borrowed
+risk came under. The corpus holds one form for each of them because a
+corpus is a sample of what somebody once ran — it names thirty-five
+methods where the build produces forty-nine — so a table assembled from
+it would have been assembled from the sample.
+
+The table exists now, as :data:`themis.estimation.form.FITS`, and
+:data:`FITS` below is this side's own copy of it — re-declared rather
+than imported, the way :mod:`themis.risk_provenance` is, because
+re-deriving an answer from the vocabulary the producer chose is not an
+independent check. A test pins the two equal. What reads it is the
+mechanism loop in :mod:`themis.verifier.assumption_ledger_rules`, where
+``method`` and the named assumptions are already held: the authority for
+a form is the method, which is on the result, so it belongs at that
+result-only door rather than at this one.
 """
 from __future__ import annotations
 
@@ -53,6 +66,117 @@ from typing import Any, Mapping
 from .errors import VerificationError
 
 _RULE = "mechanism_target_check"
+
+#: Which shapes each method can fit — this side's own copy.
+#:
+#: Written out flat, and deliberately: the producer builds six of these
+#: families by spelling the form into the method name, and a verifier that
+#: shared that construction would agree with the producer by running the
+#: producer's code. Flat, the two are two statements, and
+#: ``test_a_mechanism_says_what_it_was_fitted_for`` pins them equal.
+FITS: dict[str, frozenset[str]] = {
+    "aipw": frozenset({"linear", "logistic"}),
+    "backdoor_linear": frozenset({"linear"}),
+    "backdoor_logistic": frozenset({"logistic"}),
+    "causation_plugin": frozenset({
+        "nonparametric_c_factor_plug_in",
+        "nonparametric_gformula_plug_in",
+        "nonparametric_response_function_lp"}),
+    "cde_linear": frozenset({"linear"}),
+    "cde_logit": frozenset({"logit"}),
+    "cde_chain_linear": frozenset({"linear"}),
+    "cde_chain_logit": frozenset({"logit"}),
+    "combined_measurement_error_correction": frozenset({
+        "combined_confusion_matrix_inversion_backdoor_standardised"}),
+    "counterfactual_cell_plugin": frozenset({
+        "nonparametric_c_factor_plug_in",
+        "nonparametric_gformula_plug_in",
+        "nonparametric_response_function_lp"}),
+    "ctf_conjunction_plugin": frozenset({"nonparametric_plug_in"}),
+    "differential_outcome_correction": frozenset({
+        "differential_outcome_shift_backdoor_linear"}),
+    "differential_regression_calibration": frozenset({
+        "differential_regression_calibration_backdoor_linear"}),
+    "dose_response_causal_forest_dml": frozenset({"forest"}),
+    "dose_response_linear_dml": frozenset({"linear"}),
+    "dose_response_linear_drlearner": frozenset({"drlearner"}),
+    "exposure_measurement_error_correction": frozenset({
+        "exposure_confusion_matrix_inversion_backdoor_standardised"}),
+    "frontdoor_empirical_linear": frozenset({"linear"}),
+    "frontdoor_empirical_logistic": frozenset({"logistic"}),
+    "frontdoor_linear": frozenset({"linear"}),
+    "frontdoor_logistic": frozenset({"logistic"}),
+    "general_id_idc_plugin": frozenset({"nonparametric_plug_in"}),
+    "general_id_plugin": frozenset({"nonparametric_plug_in"}),
+    "ipw_ht": frozenset({"logistic_propensity"}),
+    "ipw_stabilized": frozenset({"logistic_propensity"}),
+    "iv_2sls": frozenset({"2sls"}),
+    "iv_2sls_overid": frozenset({"two_stage_least_squares"}),
+    "iv_acr": frozenset({"acr"}),
+    "iv_anderson_rubin_region": frozenset({"linear_in_the_treatment_vector"}),
+    "iv_stratified_wald": frozenset({"stratified_wald"}),
+    "iv_wald": frozenset({"wald"}),
+    "joint_backdoor_linear": frozenset({"linear"}),
+    "joint_backdoor_logistic": frozenset({"logistic"}),
+    "joint_general_id_plugin": frozenset({"nonparametric_plug_in"}),
+    "longitudinal_gformula": frozenset({
+        "sequential_regression_g_formula_simulation"}),
+    "longitudinal_ipw_msm": frozenset({
+        "marginal_structural_model_with_inverse_probability_weights"}),
+    "measurement_error_correction": frozenset({
+        "confusion_matrix_inversion_backdoor_standardised"}),
+    "mediation_joint_linear": frozenset({"linear"}),
+    "mediation_joint_logit": frozenset({"logit"}),
+    "mediation_linear_imai": frozenset({"linear"}),
+    "mediation_logit_imai": frozenset({"logit"}),
+    "missing_data_recovery_gformula": frozenset({
+        "saturated_strata_recovery_plug_in"}),
+    "proximal_bridge": frozenset({"sieve_two_stage_bridge"}),
+    "proximal_matrix": frozenset({"nonparametric_matrix_plug_in"}),
+    "proximal_miao": frozenset({"nonparametric_matrix_plug_in"}),
+    "proximal_null_test": frozenset({"nonparametric_matrix_plug_in"}),
+    "regression_calibration": frozenset({
+        "regression_calibration_backdoor_linear"}),
+    "scm_counterfactual_linear_fit": frozenset({"linear_structural_equations"}),
+    "selection_backdoor_recovery": frozenset({
+        "selection_backdoor_theorem_3_5_plug_in"}),
+    "simex": frozenset({
+        "simex_linear_linear", "simex_linear_quadratic",
+        "simex_linear_rational", "simex_logistic_linear",
+        "simex_logistic_quadratic", "simex_logistic_rational"}),
+    "tmle": frozenset({"linear", "logistic"}),
+    "transport_post_stratification": frozenset({
+        "transport_reweighted_strata_plug_in"}),
+}
+
+
+def shape_the_method_cannot_fit(method: object, form: object) -> str | None:
+    """A complaint if this method cannot fit this shape, else ``None``.
+
+    Returns rather than raises because the caller is one loop over a block
+    whose other two fields it already checks, and it words its own
+    refusals.
+
+    A method with no row is a complaint too. The methods that disclose a
+    mechanism are finite and were measured; answering "no opinion" for an
+    unknown one would be silent exactly where a family arrives with
+    nothing holding it.
+    """
+    allowed = FITS.get(str(method))
+    if allowed is None:
+        return (
+            f"mechanism_audit says the fit was {method!r}, and no method by "
+            f"that name declares any shape it can fit; a reader weighing the "
+            f"shape has nothing to weigh it against"
+        )
+    if str(form) not in allowed:
+        return (
+            f"mechanism_audit says {method!r} fitted the shape {form!r} and "
+            f"that method fits {sorted(allowed)}; the one word telling a "
+            f"reader what the number was fitted through names a shape this "
+            f"build cannot fit that way"
+        )
+    return None
 
 #: The routes whose mechanism target is a rendering rather than a
 #: reference. Keyed on ``method`` because that is the field naming the

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-18397 passed / 512 skipped, warning-clean
+18489 passed / 512 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,78 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #599 说「这个数拟合了什么形状」的那个词，任何字符串都收（2026-09-07）
+
+**现象。** `extensions.mechanism_audit.mechanisms[]` 四个字段，三个有主人：
+`method` 押到 estimate 自己报的方法，每个 `assumptions[].id` 押到 estimate 声明的
+列表，`target` 押到问题。**只有 `form`——这个块存在的理由本身——什么都不押**：
+语料里 51 个载体的 form 全部可以被改写，公开的门一律说 yes。
+
+**根因。「这个 build 能拟合哪些形状」处处都在决定，哪儿都没写下来。**
+估计器确实会拒（`model="a_shape_nobody_declared"` 回来的是 `unknown model`，
+`iv` 甚至在拒绝里列了它那五个），但**这个决定活在控制流和一句措辞里**，
+于是下游没有任何东西可以拿一个 form 去查。
+
+**为什么这是根因不是表象。** 表象修法是加一张全局 `KNOWN_FORMS` 枚举。
+那既违反 `form.py` 写明的设计（「which forms an estimator can fit is that
+estimator's question——在这里拒就是替所有估计器回答了」），又会立刻把
+`2sls`／`two_stage_least_squares`、`logit`／`logistic` 这些**有意的**分叉判成错。
+真正的位置是：**声明的粒度要跟「谁有权决定」的粒度一致**——方法有权决定自己
+能拟合什么，声明就按方法写。这正是 `form.py` 那句话本身蕴含、却一直没人接着写的那半。
+
+**⚠️ 表从哪儿来：从跑起来的 build 量，不从语料抄。**
+`mechanism_rules.py` 文末原话是 `form` 是 method 的函数
+「**across the corpus**（thirty-one methods, one form each）」——
+**那个限定词在扛整句话**。实测：`tmle` 结局是 bool 拟 logit、否则拟直线，
+两条都端到端跑出来了；`aipw` 同样；两个反事实 plug-in 的 form 说的是它借来的
+干预风险走了哪条许可。语料只记住其中一个，因为**语料是「某次有人跑过什么」的采样**
+——它有 35 个方法，而这个 build 产出 **49 个**。
+所以表是**挂一个 pytest 插件跑全量、记录每一对真实产出**量出来的。
+
+**⚠️ 而且照语料建表会误报，这一点押住了。**
+六个族的 method 名是**从 form 拼出来的**（`f"backdoor_{resolved}"`，
+而 `form=resolved` 是同一个变量），所以这些行**按生产者拼名字的同一种方式生成**，
+`cde_logit`、`cde_chain_*`、`frontdoor_empirical_logistic` 这些「可达但这轮没跑到」的
+自动覆盖。**照测量枚举就会拒掉它们——误报比它闭掉的洞更糟。**
+
+**结构性修改。**
+1. `themis/estimation/form.py`：`FITS`（52 行）＋ `FITS_TURNS_ON`——
+   **能拟合多个形状的方法必须写明「什么场合在挑」**，import 时双向查
+   （多值必须有解释；解释必须对应多值）。写表时这道闸当场抓了我自己一个疏漏：
+   `simex` 六个 form（两个杠杆的乘积）没写靠什么挑。
+2. **那句解释有读者**：拒绝里原样引用它（#589／#593 的形状），
+   否则一张表里没有读者的值没有任何东西能让它保持诚实。
+3. 唯一入口 `fits(method, form)`，装在 `_attach_mechanism_audit`——
+   **29 个站点汇到这一个门，别处不建这个块**。装在块建好之后：
+   builder 扣下不发的那些对到不了读者。
+4. 验证器**摊平重声明一份**（`risk_provenance.py` 立的规矩：不 import 生产者的表，
+   共用构造就是拿生产者的代码给生产者背书），跨表测试钉住两份相等；
+   检查加在**已经押着 `method` 和 `assumptions[].id` 的那个循环里**。
+
+**五个反例都构造过，都变红：**
+- 生产者的门全放行 ⇒ 4 红；
+- 读者的门没有意见（就是原来的状态）⇒ 8 红；
+- 读者的门对未知方法沉默（部分映射＋静默兜底）⇒ 1 红；
+- attach 点不再问 ⇒ 1 红；
+- **⚠️ 矫枉过正：`tmle` 按语料只声明一个 form** ⇒ 3 红，
+  其中 `test_a_run_the_corpus_never_saw_is_still_accepted[tmle-linear]`
+  ——**正是照采样建表会造成的那个误报**。
+
+**账。宣告余项 2671 → 2620（−51／+0）**；那 51 正是旧测试里
+「改写后仍被接受的载体数」，现在是 **0**。
+（⚠️ 51 与「58 片叶子」不矛盾：普查按 collapsed shape 取每组第一片。）
+基线 18397 → 18489，skipped 512。
+
+**⚠️ 顺手量到、没有修的**：`causation_plugin`／`counterfactual_cell_plugin` 的
+`FORM_BY_PROVENANCE.get(provenance, DEFAULT_FORM)`，默认是
+`nonparametric_gformula_plug_in`，而 `not_required`／`pinned_by_monotonicity`
+（两者 `uses_risk=False`、实测 `p_y_do_x_cf is None`、`adjustment == ()`）和
+`user_experimental`（`asserts` 明写「nothing on the graph was used to obtain it」）
+**都没有做过任何标准化**。这三种情况下那个默认值是假的——
+但**实测它一次都没上过信封**（那些许可下 `build_mechanism_audit` 返回 `None`），
+所以它不是「审计轨迹里的假话」，是「一个没有读者的值因此没人管着」。
+表上方写着的那句「其余许可一律取默认」是**一句可以为假的断言，而没有任何东西押它**。
 
 ### #598 给维护者的那条通道里装的是读者的句子，于是每个 refusal 都被说了两遍（2026-09-07）
 

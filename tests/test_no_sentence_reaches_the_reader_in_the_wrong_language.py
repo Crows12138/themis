@@ -808,6 +808,19 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "neither. A ref that fails to construct never reaches an envelope, "
         "and the rule beside it reads the NAMES — the sentence is for "
         "whoever writes the next producer of that species"),
+    "themis/estimation/form.py::FITS_TURNS_ON[]": (
+        Wrote.INVARIANT,
+        "what the choice among a method's shapes turns on — the outcome's "
+        "type, the licence a borrowed risk came under, a pair of levers — "
+        "quoted by the ValueError ``fits`` raises at an estimator "
+        "disclosing a shape its method does not fit. The same arrangement "
+        "as the three above: a block that fails to attach never reaches an "
+        "envelope, ``FITS`` beside it is read for its VALUES by the check "
+        "and this table for the sentence, and the sentence is for whoever "
+        "writes the next producer"),
+    "themis/estimation/form.py::fits": (
+        Wrote.INVARIANT,
+        "the clause that introduces the one above, in the same refusal"),
 
     # --- a value with no reader -----------------------------------------
     "themis/answers.py::Shape.carries": (

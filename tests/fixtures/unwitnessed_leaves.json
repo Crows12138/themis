@@ -17,7 +17,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],
@@ -27,7 +26,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate",
@@ -40,7 +38,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.fitted_overlap.p_max",
   "numeric_estimate.fitted_overlap.p_min",
   "numeric_estimate.outcome_saturation.p_max",
@@ -68,7 +65,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.nde_nie.failed_condition",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
@@ -285,7 +281,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.estimand"
  ],
@@ -316,8 +311,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "dose_response_linear_dml": [
   "derivation.steps.[].inputs.ci_lower",
@@ -328,8 +322,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "dose_response_linear_drlearner": [
   "derivation.steps.[].inputs.ci_lower",
@@ -339,8 +332,7 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].testable"
  ],
  "exposure_measurement_error_correction": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
@@ -357,7 +349,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.front_door_empirical.outcome_coefficients.[]",
   "numeric_estimate.front_door_empirical.treatment_prevalence"
  ],
@@ -371,7 +362,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.bootstrap.kind"
  ],
  "frontdoor_logistic": [
@@ -379,8 +369,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].provenance"
  ],
  "general_id_idc_plugin": [
   "estimation_context.ci_bootstrap",
@@ -388,7 +377,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.identification.conditioned_on.[]",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.given.[].[]"
  ],
  "general_id_plugin": [
@@ -396,8 +384,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].provenance"
  ],
  "ipw_stabilized": [
   "bounds_results.[].contrast.reference_value",
@@ -417,7 +404,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.stabilized"
@@ -439,7 +425,6 @@
   "extensions.feedback_loop.withdrew.[]",
   "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.acr_declined"
  ],
  "iv_2sls_overid": [
@@ -455,7 +440,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].priority",
@@ -510,7 +494,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "joint_backdoor_logistic": [
@@ -518,8 +501,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].provenance"
  ],
  "joint_general_id_plugin": [
   "derivation.steps.[].inputs.joint_ci_lower",
@@ -527,8 +509,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form"
+  "extensions.assumption_ledger.assumptions.[].provenance"
  ],
  "longitudinal_gformula": [
   "derivation.steps.[].step_id",
@@ -536,7 +517,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.bootstrap.kind",
   "numeric_estimate.longitudinal_gformula.n_sim",
   "numeric_estimate.longitudinal_gformula.strategy_control",
@@ -548,7 +528,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.longitudinal_ipw_msm.stabilized",
   "numeric_estimate.longitudinal_ipw_msm.weight_max",
   "numeric_estimate.longitudinal_ipw_msm.weight_mean"
@@ -570,7 +549,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_joint_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_joint_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_joint_decomposition.numeric.cde_status.said.key",
@@ -587,7 +565,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_joint_decomposition.numeric.cde.False|False",
   "extensions.mediation_joint_decomposition.numeric.cde.False|True",
   "extensions.mediation_joint_decomposition.numeric.cde.True|False",
@@ -622,7 +599,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_decomposition.numeric.cde_status.said.key",
@@ -638,7 +614,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_decomposition.numeric.cde_status.said.key",
@@ -734,7 +709,6 @@
   "extensions.anderson_rubin_region.outcome",
   "extensions.assumption_ledger.assumptions.[].id",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].items.[].need",
@@ -1249,7 +1223,6 @@
   "extensions.anderson_rubin_region.outcome",
   "extensions.assumption_ledger.assumptions.[].id",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "investigation_requests.[].note.need",
   "missing_information.[].name",
@@ -1539,7 +1512,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mechanism_audit.mechanisms.[].target",
   "investigation_requests.[].items.[].said.note",
   "investigation_requests.[].note.said.note",
@@ -1623,7 +1595,6 @@
   "extensions.counterfactual_cell.precision_budget.n_to_halve_ci",
   "extensions.counterfactual_cell.precision_budget.relative_width",
   "extensions.counterfactual_cell.target_y",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.counterfactual_cell.monotonicity",
   "numeric_result.value"
@@ -1682,7 +1653,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.missing_data_recovery.adjustment_set.[]",
   "extensions.missing_data_recovery.complete_criterion",
   "extensions.missing_data_recovery.covariate_recovery.factorization.[].factor",
@@ -1710,7 +1680,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.missing_data_recovery.adjustment_set.[]",
   "extensions.missing_data_recovery.complete_criterion",
   "extensions.missing_data_recovery.covariate_recovery.factorization.[].factor",
@@ -1746,7 +1715,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.propensity_summary.floor",
@@ -1770,7 +1738,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -1782,7 +1749,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.alpha",
@@ -1813,7 +1779,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.fitted_overlap.p_min",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
@@ -1828,7 +1793,6 @@
   "extensions.assumption_ledger.assumptions.[].claim.[].token",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.assumption_ledger.assumptions.[].testable",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -1847,7 +1811,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.data_columns.[]"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#6ce8fb": [
@@ -1858,7 +1821,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "numeric_estimate.fitted_overlap.p_max",
   "numeric_estimate.fitted_overlap.p_min",
@@ -1873,7 +1835,6 @@
   "estimation_context.random_state",
   "estimator_failure.estimator",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate"
@@ -1884,7 +1845,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "formula.body.terms.[].denominator.body.body.terms.[].given.[].value"
  ],
  "numerically_solved:effect:numeric_general_id_estimate#5414a2": [
@@ -1893,7 +1853,6 @@
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
   "extensions.identification.conditioned_on.[]",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.given.[].[]"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
@@ -1922,7 +1881,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].priority",
   "numeric_estimate.acr_declined",
@@ -1942,7 +1900,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].priority"
  ],
@@ -1954,7 +1911,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "investigation_requests.[].items.[].gap",
   "investigation_requests.[].priority",
   "numeric_estimate.robust_anderson_rubin_confidence_set.cluster_robust",
@@ -1967,7 +1923,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "numerically_solved:effect:numeric_joint_backdoor_estimate#b00848": [
@@ -1977,7 +1932,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
@@ -2317,7 +2271,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.numeric.cde.False",
   "extensions.mediation_decomposition.numeric.cde.True",
   "extensions.mediation_decomposition.numeric.e_y_control",
@@ -2650,7 +2603,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "investigation_requests.[].priority"
  ],
  "simex": [
@@ -2798,7 +2750,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
   "extensions.mediation_decomposition.numeric.cde_status.said.key",
@@ -2817,7 +2768,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "extensions.mediation_decomposition.nde_nie.failed_condition",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
@@ -3130,7 +3080,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.mechanism_audit.mechanisms.[].form",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],

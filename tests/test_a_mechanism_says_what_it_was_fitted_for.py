@@ -27,6 +27,14 @@ The corpus has since widened to the answers that carry no number. The
 reach moved with it and the exception list did not, which is the shape of
 an exception that is about a route rather than about how many answers
 happened to be looked at.
+
+Three of four had a holder when this file was written, and ``form`` was
+the fourth — counted here rather than waved at, because a block with one
+unheld field is not a closed block. It has one now: the shapes each
+method can fit are declared, and the loop that already held ``method``
+and the named assumptions reads the third. The count below stays and
+reads zero, which is the only way "the form is held" is a measurement
+rather than a claim.
 """
 from __future__ import annotations
 
@@ -266,14 +274,24 @@ def test_the_exemption_costs_two_lies_and_still_does_not_buy_anything():
         _verify_with("backdoor_linear", both)
 
 
-def test_the_form_beside_the_target_is_declared_not_held():
-    """Counted, so that "we closed the mechanism block" cannot be said.
+def test_the_form_beside_the_target_survives_no_bend_now():
+    """This counted the hole, so that "we closed the mechanism block"
+    could not be said while fifty-one forms could be rewritten. It counts
+    zero, and that is the whole of the change: the table of shape words
+    it named as a different frontier exists —
+    :data:`themis.estimation.form.FITS`, re-declared for this side in
+    ``verifier.mechanism_rules`` — and the loop that already held the
+    block's ``method`` and its named assumptions now looks at the shape
+    too.
 
-    ``form`` is a function of ``method`` across the corpus, and the four
-    that a bend cannot survive are held by their own route audits, not by
-    anything about the shape word. What would hold the rest is a table of
-    shape words this repository would then own — a different root cause,
-    and its own frontier.
+    The note here said ``form`` is a function of ``method`` across the
+    corpus. It is not one in the build: ``tmle`` fits the logit link for a
+    bool outcome and the line otherwise, and the corpus holds one of the
+    two because a corpus is a sample. That is why the count stays, in the
+    other direction: a table assembled from the corpus would send this to
+    zero as well, while refusing honest runs, and
+    ``test_a_shape_is_one_this_build_can_fit`` is where the difference is
+    held.
     """
     # Every mechanism block is asked at a door that READS the answer
     # carrying it, which is the point this guard was making: a door that
@@ -300,8 +318,10 @@ def test_the_form_beside_the_target_is_declared_not_held():
                 continue
             survived.append(name)
             break
-    assert len(survived) == 51
-    assert set(survived) & _RENDERS_ITS_TARGET == set()
+    assert survived == []
+    # And the carriers really were asked — a count of zero reached by
+    # having nothing to bend would say the same thing and mean nothing.
+    assert len(CARRIERS) >= 51
 
 
 def test_the_rule_is_silent_where_there_is_no_block_to_read():

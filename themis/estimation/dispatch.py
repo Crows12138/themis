@@ -7623,8 +7623,17 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
     why this attaches conditionally: writing ``None`` into ``extensions``
     would put a key there that says a mechanism was audited and found to be
     nothing.
+
+    It is also the ONE door a ``form`` takes onto an envelope — twenty-nine
+    call sites reach this function and nothing else builds the block — so
+    the shape is held to the method here. Held after the build rather than
+    before it, because a pair the builder withholds reaches no reader:
+    ``causation_plugin`` computes a g-formula plug-in for every licence
+    without a row of its own, and that string has never once shipped.
     """
     from ..output.result_orchestrator import build_mechanism_audit
+
+    from .form import fits
 
     audit = build_mechanism_audit(
         target=target,
@@ -7641,6 +7650,8 @@ def _attach_mechanism_audit(result: dict, estimate, *, target: str) -> None:
         shape_provenance=estimate.shape_provenance,
     )
     if audit is not None:
+        for mechanism in audit.get("mechanisms") or ():
+            fits(str(mechanism.get("method")), str(mechanism.get("form")))
         result.setdefault("extensions", {})[blocks.Block.MECHANISM_AUDIT] = audit
 
 
