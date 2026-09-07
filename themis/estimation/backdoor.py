@@ -36,7 +36,9 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .form import (
+    MODEL_WORDS_OUTCOME, NO_OTHER_SHAPES, outcome_form, shapes_settled,
+)
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals
 from ..refusals import Refusal, Remedy
@@ -254,7 +256,19 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
         reg = LinearRegression()
         reg.fit(X, y)
         return lambda X_new: reg.predict(X_new)
-    raise ValueError(f"unknown model {model!r}")
+    # The caller's mistake leaves by the refusal door, like every other
+    # family's does. As a bare ValueError it left by the exception door
+    # instead — out through the public entry, past the envelope, while the
+    # same mistake on a front-door query came back as a readable block.
+    # One word, two fates, decided by which route the graph happened to
+    # take. ``known`` lists what a CALLER may write, not what this function
+    # compares against: by here ``auto`` has been resolved away, and a
+    # reader told to choose between two words neither of which is the one
+    # they could have written is being sent nowhere.
+    raise EstimatorFailure(
+        Refusal.UNKNOWN_OPTION,
+        option="model", given=model, known=sorted(MODEL_WORDS_OUTCOME),
+    )
 
 
 def _point_estimate(

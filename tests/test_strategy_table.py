@@ -22,8 +22,10 @@ import themis
 from themis import routing
 from themis.estimation.claim import annotated, answered, blocked, passed
 from themis.estimation.dispatch import _EFFECT_STRATEGIES
+from themis.estimation.form import AUTO, MODEL_WORDS_NONE, MODEL_WORDS_OUTCOME
 from themis.estimation.strategy import (
     EffectFacts,
+    EffectKnobs,
     Estimand,
     Evaluation,
     Role,
@@ -38,18 +40,29 @@ _ROUTING = pathlib.Path(themis.__file__).parent / "routing.py"
 _SCHEDULER = pathlib.Path(themis.__file__).parent / "runtime" / "scheduler.py"
 
 
+#: The driver reads the caller's ``model`` off the knobs to hold the row that
+#: answered to the words it declared, so a stand-in that cannot be asked would
+#: exempt every table here from that check. Nothing else on it is read: these
+#: tables run no estimator.
+_KNOBS = EffectKnobs(
+    random_state=42, ci_bootstrap=0, model=AUTO, cluster=None,
+    reference_data=None, selection_values=None, program=None,
+)
+
+
 def _noop(f, r, k):
     return passed("not_identified")
 
 
 def _row(id_, precedence, *, guard=lambda f: True, role=Role.CLAIM,
-         produces=Estimand.QUERY_EFFECT, run=_noop, defers=()) -> Strategy:
+         produces=Estimand.QUERY_EFFECT, run=_noop, defers=(),
+         models=MODEL_WORDS_NONE) -> Strategy:
     return Strategy(
         route=routing.Route(
             id=id_, precedence=precedence, applies_when=guard,
             ends=routing.ESTIMATES,
         ),
-        role=role, produces=produces, run=run,
+        role=role, produces=produces, models=models, run=run,
         defers_to=frozenset(defers),
     )
 
@@ -152,6 +165,7 @@ def test_a_row_past_the_ladder_may_not_produce_an_estimand():
         check_table((
             Strategy(
                 route=late, role=Role.CLAIM, produces=Estimand.QUERY_EFFECT,
+                models=MODEL_WORDS_NONE,
                 run=lambda f, r, k: annotated(),
             ),
         ))
@@ -326,7 +340,7 @@ def test_an_annotation_that_answers_the_query_is_rejected():
              run=lambda f, r, k: answered()),
     ))
     with pytest.raises(AssertionError, match="declared as annotating"):
-        run_cascade(table, None, {}, None, query_id="q1")
+        run_cascade(table, None, {}, _KNOBS, query_id="q1")
 
 
 def test_every_claiming_row_in_the_real_table_names_a_real_estimand():
@@ -344,7 +358,7 @@ def test_the_first_claim_wins_and_stops_the_offer():
         _row("first", 10, run=lambda f, r, k: (reached.append("first"), answered())[1]),
         _row("second", 20, run=lambda f, r, k: (reached.append("second"), answered())[1]),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert reached == ["first"]
     assert ev.fired == ("first", Estimand.QUERY_EFFECT)
     assert ev.answered
@@ -358,7 +372,7 @@ def test_a_block_stops_the_offer_without_an_answer():
         _row("owner", 10, run=lambda f, r, k: blocked("not_identified")),
         _row("later", 20, run=lambda f, r, k: (reached.append("later"), answered())[1]),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert reached == []
     assert not ev.answered
     assert ev.declined == (("owner", "not_identified"),)
@@ -370,7 +384,7 @@ def test_a_pass_keeps_the_query_in_flight_and_is_remembered():
              run=lambda f, r, k: passed("identification_chose_another_strategy")),
         _row("answerer", 20, run=lambda f, r, k: answered()),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert ev.fired == ("answerer", Estimand.QUERY_EFFECT)
     assert ev.passed_by == (
         ("passer", Estimand.QUERY_EFFECT,
@@ -383,7 +397,7 @@ def test_a_guard_that_does_not_hold_explains_reachability():
         _row("skipped", 10, guard=lambda f: False),
         _row("ran", 20, run=lambda f, r, k: answered()),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert ev.considered == ("skipped",)
 
 
@@ -393,7 +407,7 @@ def test_an_annotation_is_recorded_and_the_query_continues():
              run=lambda f, r, k: annotated()),
         _row("answerer", 20, run=lambda f, r, k: answered()),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert ev.annotated == ("note",)
     assert ev.passed_by == ()
     assert ev.answered
@@ -414,7 +428,7 @@ def test_an_undeclared_substitution_is_rejected():
              run=lambda f, r, k: answered()),
     ))
     with pytest.raises(AssertionError, match="different estimand"):
-        run_cascade(table, None, {}, None, query_id="q1")
+        run_cascade(table, None, {}, _KNOBS, query_id="q1")
 
 
 def test_a_declared_substitution_is_allowed_and_surfaced():
@@ -428,7 +442,7 @@ def test_a_declared_substitution_is_allowed_and_surfaced():
         _row("under_assumption", 20, produces=Estimand.COMPLIER_EFFECT,
              run=lambda f, r, k: answered()),
     ))
-    ev = run_cascade(table, None, {}, None, query_id="q1")
+    ev = run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert ev.substitutions == (
         ("assumption_free", "under_assumption",
          Estimand.QUERY_EFFECT, Estimand.COMPLIER_EFFECT),
@@ -467,14 +481,14 @@ def test_a_pass_answered_by_the_same_estimand_is_not_a_substitution():
         _row("a", 10, run=lambda f, r, k: passed("design_unavailable")),
         _row("b", 20, run=lambda f, r, k: answered()),
     ))
-    assert run_cascade(table, None, {}, None, query_id="q1").substitutions == ()
+    assert run_cascade(table, None, {}, _KNOBS, query_id="q1").substitutions == ()
 
 
 def test_an_unanswered_query_has_no_substitutions():
     table = check_table((
         _row("a", 10, run=lambda f, r, k: passed("design_unavailable")),
     ))
-    assert run_cascade(table, None, {}, None, query_id="q1").substitutions == ()
+    assert run_cascade(table, None, {}, _KNOBS, query_id="q1").substitutions == ()
 
 
 # --- the recorder --------------------------------------------------------
@@ -483,8 +497,8 @@ def test_an_unanswered_query_has_no_substitutions():
 def test_recording_collects_every_evaluation_in_the_block():
     table = check_table((_row("a", 10, run=lambda f, r, k: answered()),))
     with recording() as seen:
-        run_cascade(table, None, {}, None, query_id="q1")
-        run_cascade(table, None, {}, None, query_id="q2")
+        run_cascade(table, None, {}, _KNOBS, query_id="q1")
+        run_cascade(table, None, {}, _KNOBS, query_id="q2")
     assert [e.query_id for e in seen] == ["q1", "q2"]
 
 
@@ -492,7 +506,7 @@ def test_recording_stops_at_the_end_of_the_block():
     table = check_table((_row("a", 10, run=lambda f, r, k: answered()),))
     with recording() as seen:
         pass
-    run_cascade(table, None, {}, None, query_id="q1")
+    run_cascade(table, None, {}, _KNOBS, query_id="q1")
     assert seen == []
 
 

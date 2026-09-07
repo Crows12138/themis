@@ -2568,7 +2568,18 @@
           "minLength": 1
         },
         "model_preference": {
-          "enum": ["auto", "linear", "logistic", "forest", "drlearner"]
+          "description": "The word the caller wrote for ``model=``, normalised. Every word SOME route of the cascade accepts, which is not the same as every word THIS answer's route accepts: 'auto' / 'linear' / 'logistic' are the outcome-model families, 'linear' / 'forest' / 'drlearner' the dose-response backends, and 'wald' / 'stratified_wald' / '2sls' / 'acr' name which estimator the instrumental-variable family runs rather than any link function. Which of them the route that answered would accept is declared on that route and refused there; a word outside this list is refused at the entry, where it is the caller's typo rather than any route's business.",
+          "enum": [
+            "2sls",
+            "acr",
+            "auto",
+            "drlearner",
+            "forest",
+            "linear",
+            "logistic",
+            "stratified_wald",
+            "wald"
+          ]
         }
       }
     },

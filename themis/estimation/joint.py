@@ -84,7 +84,9 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .contract import validate_data
-from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .form import (
+    MODEL_WORDS_OUTCOME, NO_OTHER_SHAPES, outcome_form, shapes_settled,
+)
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .. import refusals, registry
 from ..refusals import Refusal
@@ -540,7 +542,12 @@ def _fit(
         reg.fit(X, y.astype(float))
         base = lambda M: reg.predict(M)
     else:
-        raise ValueError(f"unknown model {model!r}")
+        # By the refusal door and naming the caller's own vocabulary, for
+        # the reason ``backdoor._fit_predict`` gives at the same spot.
+        raise EstimatorFailure(
+            Refusal.UNKNOWN_OPTION,
+            option="model", given=model, known=sorted(MODEL_WORDS_OUTCOME),
+        )
 
     def predict(sample: pd.DataFrame, cell: tuple[float, ...]):
         n = len(sample)

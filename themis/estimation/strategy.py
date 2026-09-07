@@ -22,13 +22,17 @@ layer's conclusions, which is the layer boundary working as designed.
 from __future__ import annotations
 
 import contextlib
+import copy
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
 from typing import Any, Callable, Iterator
 
+from .. import refusals
+from ..refusals import Refusal
 from ..routing import End, Route, StructuralFacts, bind, displaced_by
 from .claim import Claim
+from .form import AUTO
 
 
 #: The two error STRUCTURES a continuous ``measurement_error`` spec may
@@ -121,6 +125,45 @@ class Strategy:
     route: Route
     role: Role
     produces: Estimand
+    models: frozenset[str]
+    """Which words this row's ``model=`` knob accepts, ``auto`` included.
+
+    The same sentence ``produces`` is here for, one knob over: which forms
+    an estimator can fit was decided in each estimator's own control flow
+    and written in each estimator's own ``ModelName``, so nothing connected
+    the caller's word to the row that would answer under it. What that cost
+    was measured before this field was written — one word, four fates. On a
+    back-door query ``model='forest'`` left by the exception door as a bare
+    ``ValueError``; on a front-door one it came back as a proper refusal
+    naming the two words that route knows; on an IV or a mediation query it
+    was accepted, ignored, and recorded on the envelope as the caller's
+    preference beside a number fitted through something else.
+
+    And the mirror, which is why forwarding the knob to the two rows that
+    dropped it would not have been the fix: ``iv`` declares five words and
+    implements all five, down to the remedy it suggests when one answers
+    the wrong question — and the entry's vocabulary, hand-written as the
+    union of the OTHER families, shares exactly ``auto`` with it. Every
+    word IV knows was refused at the door; every word the door allowed ran
+    the same estimator. A union cannot decide this, because the question is
+    not "does some route take this word" but "does the row now running take
+    it", and only here are both halves in one place.
+
+    ``auto`` is in every set: it is the caller declining to choose, which
+    every row accepts. A row whose method IS its shape declares
+    :data:`~themis.estimation.form.MODEL_WORDS_NONE` — one word, not none,
+    because a row that takes no choice still answers the question.
+
+    :func:`run_cascade` refuses a word the ANSWERING row does not declare,
+    and it refuses there rather than leaving it to the estimators because
+    most of these rows have nothing of their own to refuse with: a family
+    whose method is its shape never reads the option at all, so a caller
+    who names a shape on such a query used to be answered as though they
+    had said nothing. The other direction — a row that declares a word and
+    then does not change its answer under it — is not decidable from here
+    and is pinned per route, on live runs, in
+    ``tests/test_the_word_a_caller_writes_is_one_the_route_takes.py``.
+    """
     run: Callable[["EffectFacts", dict, "EffectKnobs"], Claim]
     defers_to: frozenset[str] = frozenset()
     """Rows allowed to answer this one's query with a DIFFERENT estimand.
@@ -170,6 +213,16 @@ class Strategy:
                 f"estimand and a claiming one must name the estimand it "
                 f"produces; got role={self.role.value} "
                 f"produces={self.produces.value}"
+            )
+        # The caller's do-nothing word, in every row. A set without it says
+        # this row refuses a caller who declined to choose, which is the one
+        # caller every row already serves; a set with nothing in it says the
+        # knob cannot be written at all, and the knob has no such value.
+        if AUTO not in self.models:
+            raise ValueError(
+                f"strategy {self.id!r} accepts {sorted(self.models)} for "
+                f"model= and not {AUTO!r}; every row serves the caller who "
+                f"declined to choose, so a set without it describes no run"
             )
 
 
@@ -567,7 +620,37 @@ def run_cascade(
         if not strategy.applies_when(facts):
             considered.append(strategy.id)
             continue
+        # A row cannot honour a word it does not accept, and WHICH row was
+        # asked to is settled only once one answers: a row that hands the
+        # query on has not used the knob, and the row that takes it next
+        # may take a word this one does not — the escape that fires 80
+        # times in 434 measured evaluations. So the judgement waits for the
+        # claim, which means the result has to survive until it comes. The
+        # copy is kept only where it could be needed, and on the ordinary
+        # path — every run that leaves ``model`` at ``auto`` — no row is
+        # ever offered a word it does not take and nothing is copied.
+        untouched = (None if knobs.model in strategy.models
+                     else copy.deepcopy(result))
         claim = strategy.run(facts, result, knobs)
+        if untouched is not None and claim.answered:
+            # The number was produced with the caller's instruction
+            # ignored, so it does not stand. Refused here and not in the
+            # estimator because most of these rows have nothing of their
+            # own to refuse WITH: a family whose method is its shape never
+            # reads the option, so the caller who names a shape on such a
+            # query was answered as though they had said nothing. The
+            # driver is the only place that holds both the word and the
+            # row it was aimed at.
+            result.clear()
+            result.update(untouched)
+            result["estimator_failure"] = refusals.block(
+                estimator=strategy.id,
+                failure_type=Refusal.UNKNOWN_OPTION,
+                details={"option": "model", "given": knobs.model,
+                         "known": sorted(strategy.models)},
+            )
+            declined.append((strategy.id, "estimator_refused"))
+            break
         if strategy.role is Role.ANNOTATE and claim.answered:
             raise AssertionError(
                 f"strategy {strategy.id!r} is declared as annotating but "

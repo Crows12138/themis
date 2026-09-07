@@ -210,7 +210,13 @@ def test_unknown_model_rejected():
     assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
     # The set it does admit is the fact a caller cannot look up from the
     # value they sent, so it is carried rather than described (#405).
-    assert exc.value.details["known"] == ["logit", "linear"]
+    #
+    # And it is the set a CALLER may write, which ``['logit', 'linear']``
+    # was not: 'logit' is this family's own spelling of the resolved form
+    # and the entry's option has never carried it, so the reader was sent
+    # to a word they could not use — while 'logistic', the word that does
+    # reach this arm, was missing from the list they were shown.
+    assert exc.value.details["known"] == ["auto", "linear", "logistic"]
 
 
 def test_a_singular_point_fit_is_refused_not_swallowed():

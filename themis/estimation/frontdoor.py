@@ -65,7 +65,9 @@ from .contract import integer_valued, validate_data
 from ..ledger import Provenance
 from ..intervals import CONFIDENCE_LEVEL
 from .declared import design_block
-from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .form import (
+    MODEL_WORDS_OUTCOME, NO_OTHER_SHAPES, outcome_form, shapes_settled,
+)
 from .resample import Draws, cluster_labels, resample_indices
 
 
@@ -564,7 +566,7 @@ def _fit_predict(X: np.ndarray, y: np.ndarray, model: str):
         return lambda X_new: reg.predict(X_new)
     raise EstimatorFailure(
         Refusal.UNKNOWN_OPTION,
-        option="model", given=model, known=["logistic", "linear"],
+        option="model", given=model, known=sorted(MODEL_WORDS_OUTCOME),
     )
 
 

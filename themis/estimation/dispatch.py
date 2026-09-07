@@ -50,6 +50,13 @@ from ..types import (
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
 from .contract import DataContract, validate_data
+from .form import (
+    MODEL_WORD_TWO_STAGE,
+    MODEL_WORDS_DOSE_RESPONSE,
+    MODEL_WORDS_IV,
+    MODEL_WORDS_NONE,
+    MODEL_WORDS_OUTCOME,
+)
 from .warning_words import DoseResponse
 from .. import gaps as _gaps
 from ..gaps import Route, Sentence, sentence as _sentence
@@ -1062,6 +1069,23 @@ def _guarded_spec(spec: object) -> dict:
     return spec
 
 
+def _as_the_caller_wrote_it(model: str) -> Any:
+    """The caller's ``model``, handed to an estimator whose annotation
+    names only the words that family ACCEPTS.
+
+    Passing something outside that set is the point here rather than an
+    oversight: the estimator is where the word is judged, by name, in a
+    refusal that says which words it knows — and a value pre-filtered to
+    the annotation could never reach it. Two call sites carried a bare
+    ``# type: ignore[arg-type]`` for this and the ignore said none of it.
+
+    Which words each row accepts is not left to the annotation either;
+    it is declared on the row (see :attr:`Strategy.models`) and enforced
+    by the driver, so what this widens is the type and not the rule.
+    """
+    return model
+
+
 def _spec_row(
     estimator: str,
     run: Callable[[EffectFacts, dict, EffectKnobs], Claim],
@@ -1105,12 +1129,15 @@ _EFFECT_STRATEGIES = check_table((
         route=route("feedback_loop"),
         role=Role.CLAIM,
         produces=Estimand.STRUCTURAL_COEFFICIENT,
+        # The same arithmetic as ``iv_wald`` below, so the same five words.
+        models=MODEL_WORDS_IV,
         run=lambda f, r, k: _try_iv_estimate(f, r, k, feedback=True),
     ),
     Strategy(
         route=route("joint_intervention"),
         role=Role.CLAIM,
         produces=Estimand.JOINT_CONTRAST,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_joint_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
             joint_sets=f.joint_adjustment_sets,
@@ -1126,6 +1153,8 @@ _EFFECT_STRATEGIES = check_table((
         route=route("transport"),
         role=Role.CLAIM,
         produces=Estimand.TRANSPORTED_EFFECT,
+        # Post-stratification onto declared strata: the method IS the shape.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_transport_estimate(
             f.q_stmt, r, f.contract, k.program,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
@@ -1136,10 +1165,11 @@ _EFFECT_STRATEGIES = check_table((
         route=route("mediation_joint"),
         role=Role.CLAIM,
         produces=Estimand.DECOMPOSITION,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_mediation_joint_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            cluster=k.cluster,
+            model=k.model, cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -1150,10 +1180,11 @@ _EFFECT_STRATEGIES = check_table((
         route=route("mediation_single"),
         role=Role.CLAIM,
         produces=Estimand.DECOMPOSITION,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_mediation_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
-            cluster=k.cluster,
+            model=k.model, cluster=k.cluster,
         ),
     ),
     Strategy(
@@ -1163,6 +1194,8 @@ _EFFECT_STRATEGIES = check_table((
         route=route("selection_recovery"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        # A saturated-strata recovery plug-in: no outcome model to choose.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_selection_recovery_estimate(
             f.q_stmt, r, f.contract, k.reference_data, k.selection_values,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
@@ -1173,6 +1206,8 @@ _EFFECT_STRATEGIES = check_table((
         route=route("measurement_correction_both_channels"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        # Confusion-matrix inversion, one shape per channel combination.
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "combined_measurement_error_correction",
             lambda f, r, k: _try_combined_measurement_correction_estimate(
@@ -1195,6 +1230,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("measurement_correction_outcome"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "measurement_error_correction",
             lambda f, r, k: _try_measurement_correction_estimate(
@@ -1212,6 +1248,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("measurement_correction_exposure"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "exposure_measurement_error_correction",
             lambda f, r, k: _try_exposure_measurement_correction_estimate(
@@ -1233,6 +1270,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("outcome_error_declaration"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "outcome_measurement_error",
             lambda f, r, k: _try_outcome_error_declaration(
@@ -1254,6 +1292,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("outcome_error_precision_cost"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "outcome_measurement_error",
             lambda f, r, k: _try_outcome_error_price(
@@ -1274,6 +1313,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("berkson_error_price"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
+        models=MODEL_WORDS_NONE,
         run=_spec_row(
             "berkson_error",
             lambda f, r, k: _try_berkson_error_price(
@@ -1295,6 +1335,9 @@ _EFFECT_STRATEGIES = check_table((
         route=route("differential_outcome_error"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        # A declared shift on the back-door linear fit; the shape is the
+        # correction's own and not a lever.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_differential_outcome_error_estimate(
             f.q_stmt, r, f.contract, f.graph,
             adjustment_sets=f.adjustment_sets,
@@ -1315,6 +1358,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("differential_error"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_differential_error_estimate(
             f.q_stmt, r, f.contract, f.graph,
             adjustment_sets=f.adjustment_sets,
@@ -1335,6 +1379,10 @@ _EFFECT_STRATEGIES = check_table((
         route=route("simex"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        # simex builds its form out of two levers of its own — the model
+        # fitted at each rung and the extrapolant — and both arrive on the
+        # measurement spec. ``model=`` is not one of them.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_simex_estimate(
             f.q_stmt, r, f.contract, f.graph,
             adjustment_sets=f.adjustment_sets,
@@ -1353,6 +1401,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("regression_calibration"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_regression_calibration_estimate(
             f.q_stmt, r, f.contract, f.graph,
             adjustment_sets=f.adjustment_sets,
@@ -1367,6 +1416,9 @@ _EFFECT_STRATEGIES = check_table((
         route=route("dose_response_binary_fallback"),
         role=Role.ANNOTATE,
         produces=Estimand.NONE,
+        # It records that the curve degenerates and lets the binary path
+        # answer, so the word is judged against whichever row does.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_dose_response_binary_fallback(f, r, k),
     ),
     Strategy(
@@ -1375,6 +1427,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("dose_response_curve"),
         role=Role.CLAIM,
         produces=Estimand.DOSE_RESPONSE,
+        models=MODEL_WORDS_DOSE_RESPONSE,
         run=lambda f, r, k: _try_dose_response_estimate(
             result=r,
             contract=f.contract,
@@ -1395,6 +1448,7 @@ _EFFECT_STRATEGIES = check_table((
         route=route("doubly_robust"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_doubly_robust_estimate(
             result=r, contract=f.contract,
             graph=f.graph, x=f.x_atom, y=f.y_atom,
@@ -1410,18 +1464,22 @@ _EFFECT_STRATEGIES = check_table((
         route=route("survival"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        # The restricted mean of a follow-up time: no link to pick.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_survival_estimate(f, r, k),
     ),
     Strategy(
         route=route("backdoor"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_backdoor_estimate(f, r, k),
     ),
     Strategy(
         route=route("frontdoor"),
         role=Role.CLAIM,
         produces=Estimand.QUERY_EFFECT,
+        models=MODEL_WORDS_OUTCOME,
         run=lambda f, r, k: _try_frontdoor_estimate(f, r, k),
     ),
     Strategy(
@@ -1437,6 +1495,8 @@ _EFFECT_STRATEGIES = check_table((
         # warning); declaring it here is what keeps it from being taken by
         # accident somewhere else.
         defers_to=frozenset({"iv_overidentified", "iv_wald"}),
+        # The non-parametric plug-in: its method is its shape.
+        models=MODEL_WORDS_NONE,
         run=lambda f, r, k: _try_general_id_estimate(
             f.q_stmt, r, f.contract, f.graph, f.bidirected,
             x_atom=f.x_atom, y_atom=f.y_atom, given_atoms=f.given_atoms,
@@ -1450,6 +1510,12 @@ _EFFECT_STRATEGIES = check_table((
         route=route("iv_overidentified"),
         role=Role.CLAIM,
         produces=Estimand.COMPLIER_EFFECT,
+        # This row IS the two-stage fit, so there is nothing for the option
+        # to pick between — and that is exactly why the word for it belongs
+        # in the set. A caller writing '2sls' on an over-identified design
+        # is naming what this row does; refusing them would be refusing the
+        # right word for having no parameter to receive it.
+        models=MODEL_WORDS_NONE | {MODEL_WORD_TWO_STAGE},
         run=lambda f, r, k: _try_iv_overid_estimate(
             r, f.contract, f.graph,
             x=f.x_atom, y=f.y_atom,
@@ -1463,6 +1529,12 @@ _EFFECT_STRATEGIES = check_table((
         route=route("iv_wald"),
         role=Role.CLAIM,
         produces=Estimand.COMPLIER_EFFECT,
+        # ``model=`` here names the ESTIMATOR, not a link function: this
+        # family's five words are Wald / stratified Wald / 2SLS / ACR and
+        # the caller declining to choose. The row is named for its guard —
+        # ``auto`` already resolves to all four — so naming one takes
+        # nothing this row could not otherwise produce.
+        models=MODEL_WORDS_IV,
         run=lambda f, r, k: _try_iv_estimate(f, r, k),
     ),
 ), covers=End.ESTIMATION)
@@ -1596,7 +1668,7 @@ def _try_backdoor_estimate(
             adjustment=facts.adjustment_names,
             ci_bootstrap=knobs.ci_bootstrap,
             random_state=knobs.random_state,
-            model=knobs.model,  # type: ignore[arg-type]
+            model=_as_the_caller_wrote_it(knobs.model),
             cluster=knobs.cluster,
         )
     except EstimatorFailure as exc:
@@ -1691,7 +1763,7 @@ def _try_frontdoor_estimate(
             mediators=mediator_names,
             ci_bootstrap=knobs.ci_bootstrap,
             random_state=knobs.random_state,
-            model=knobs.model,  # type: ignore[arg-type]
+            model=_as_the_caller_wrote_it(knobs.model),
             cluster=knobs.cluster,
         )
     except EstimatorFailure as exc:
@@ -1787,6 +1859,7 @@ def _try_iv_estimate(
             conditioning=tuple(a.predicate for a in chosen_iv.conditioning),
             ci_bootstrap=knobs.ci_bootstrap,
             random_state=knobs.random_state,
+            model=_as_the_caller_wrote_it(knobs.model),
             cluster=knobs.cluster,
         )
     except EstimatorFailure as exc:
@@ -3866,7 +3939,7 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
 
 def _try_mediation_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
-    ci_bootstrap: int = 500, cluster: str | None = None,
+    model: str, ci_bootstrap: int = 500, cluster: str | None = None,
 ) -> Claim:
     """Phase 7.4 — attach a mediation numeric estimate when the
     identification layer has cleared NDE/NIE for the requested mediator.
@@ -3945,6 +4018,7 @@ def _try_mediation_estimate(
             mediator=m_pred,
             adjustment=adjustment,
             random_state=random_state,
+            model=model,
             ci_bootstrap=ci_bootstrap,
             cluster=cluster,
         )
@@ -4161,7 +4235,7 @@ def _controlled_direct_estimate(
 
 def _try_mediation_joint_estimate(
     q_stmt, result: dict, contract, graph, bidirected, *, random_state: int,
-    ci_bootstrap: int, cluster: str | None = None,
+    model: str, ci_bootstrap: int, cluster: str | None = None,
 ) -> Claim:
     """Attach a JOINT multi-mediator numeric estimate when the joint
     identification layer has cleared the block NDE/NIE for the mediator
@@ -4226,6 +4300,7 @@ def _try_mediation_joint_estimate(
             mediators=m_preds,
             adjustment=adjustment,
             random_state=random_state,
+            model=model,
             ci_bootstrap=ci_bootstrap,
             cluster=cluster,
         )
@@ -9138,10 +9213,23 @@ def _resolve_dose_response_points(prog, x_atom):
 
 
 #: The closed set the envelope declares for ``estimation_context.
-#: model_preference``. Two vocabularies meet in it: the binary-effect
-#: entry takes 'auto' / 'linear' / 'logistic' and the dose-response one
-#: takes 'auto' / 'linear' / 'forest' / 'drlearner'.
-_DECLARED_MODELS = ("auto", "linear", "logistic", "forest", "drlearner")
+#: model_preference``: every word SOME row of the cascade accepts.
+#:
+#: Read off the table rather than written here, and that is the whole fix.
+#: Hand-written, it was the union of three families and not of the fourth:
+#: ``iv`` implements five words down to the remedy it suggests when one
+#: answers the wrong question, and shared exactly ``auto`` with this tuple —
+#: so every word IV knew was refused at the door, by a message listing five
+#: alternatives that all ran the same estimator on an IV query. Derived, a
+#: row cannot declare a word the entry then refuses.
+#:
+#: What it can still not decide is the one thing it looks like it decides.
+#: Membership here says some row takes this word, never that the row about
+#: to run does; that question needs the row, and :func:`run_cascade` asks it
+#: where both halves are in one place.
+_DECLARED_MODELS: tuple[str, ...] = tuple(sorted(
+    frozenset().union(*(s.models for s in _EFFECT_STRATEGIES))
+))
 
 
 def _declared_model(model: str) -> str:
@@ -9155,21 +9243,26 @@ def _declared_model(model: str) -> str:
     was refused by the backdoor estimator, and either way the envelope
     recorded the spelling, outside the enum its schema declares.
 
-    The set is the UNION of two vocabularies (the binary-effect entry
-    knows 'logistic', the dose-response one knows 'forest' / 'drlearner'),
-    because that is what this function can decide: a value belongs to
-    ``estimate``'s option or it does not. Whether the route that ends up
-    running accepts it is that route's own question, and each one still
-    asks it.
+    The set is the UNION of every row's vocabulary, because that is what
+    this function can decide: a value belongs to ``estimate``'s option or
+    it does not. Whether the row that ends up running accepts it is a
+    different question, and this function is on the wrong side of the
+    cascade to answer it — which is why it no longer claims each route
+    asks. Two of the four families never did, and one of the two that did
+    answered with a bare ``ValueError`` through the public door.
+    :func:`~themis.estimation.strategy.run_cascade` asks it now, of the row
+    that answered, where the word and the row are finally in one place.
     """
     if not isinstance(model, str):
         raise ValueError(f"model must be a string, got {type(model).__name__}")
     normalized = model.strip().lower()
     if normalized not in _DECLARED_MODELS:
         raise ValueError(
-            f"unknown model {model!r}; expected one of "
+            f"unknown model {model!r}; this build knows "
             f"{' / '.join(repr(m) for m in _DECLARED_MODELS)} "
-            f"(case-insensitive)"
+            f"(case-insensitive). No route takes all of them — the one that "
+            f"answers refuses a word it does not take and names the ones it "
+            f"does, which is a question only it can answer"
         )
     return normalized
 
@@ -9190,7 +9283,7 @@ def _resolve_dose_response_model(model: str) -> str:
     if not isinstance(model, str):
         raise ValueError(f"model must be a string, got {type(model).__name__}")
     normalized = model.strip().lower()
-    if normalized in ("auto", "linear", "forest", "drlearner"):
+    if normalized in MODEL_WORDS_DOSE_RESPONSE:
         return normalized
     if normalized == "logistic":
         # Binary-effect vocabulary, no dose-response counterpart — fall
@@ -9199,7 +9292,8 @@ def _resolve_dose_response_model(model: str) -> str:
         return "auto"
     raise ValueError(
         f"unknown model {model!r}; expected one of "
-        f"'auto' / 'linear' / 'forest' / 'drlearner' (case-insensitive)"
+        f"{' / '.join(repr(m) for m in sorted(MODEL_WORDS_DOSE_RESPONSE))} "
+        f"(case-insensitive)"
     )
 
 

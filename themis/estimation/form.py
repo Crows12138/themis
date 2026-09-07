@@ -48,6 +48,13 @@ from ..ledger import Provenance
 #: it is the value the whole distinction turns on.
 AUTO = "auto"
 
+#: What a caller writes to name the non-linear arm. Spelled once for the same
+#: reason :data:`AUTO` is, and needed for a second one: the families that share
+#: :func:`outcome_form` do not all SPELL that arm the same way, so the word the
+#: caller uses and the word the family's method string carries are two
+#: different facts and only one of them is this.
+LOGISTIC = "logistic"
+
 
 def chosen_by(model: str) -> Provenance:
     """Who settled the form: the system, or the caller.
@@ -76,10 +83,23 @@ def outcome_form(
     ``logistic`` names the non-linear arm because the mediation family spells
     it ``logit`` on its estimate, in its method string and in its tests.
     Spelling is not what this unifies.
+
+    Which is why naming that arm resolves like ``auto`` does rather than
+    passing through. The ``logistic=`` argument exists to say what THIS family
+    calls the non-linear arm, and translating only the system's choice left the
+    same arm coming back under two words depending on who picked it: a bool
+    outcome under ``auto`` resolved to ``'logit'`` and ran, and the caller who
+    named that very arm got ``'logistic'`` — a word the mediation estimator
+    refuses, listing ``['logit', 'linear']`` at a caller who cannot write
+    ``logit`` because the entry's option does not carry it. A translator that
+    runs in one direction only is not a translator; it is a default with a
+    blind spot on the other side.
     """
     if model == AUTO:
         is_bool = pd.api.types.is_bool_dtype(outcome)
         return (logistic if is_bool else "linear"), Provenance.DEFAULT
+    if model == LOGISTIC:
+        return logistic, Provenance.CALLER_ASSERTED
     return model, Provenance.CALLER_ASSERTED
 
 
@@ -128,6 +148,50 @@ _IV_SHAPES = frozenset({"wald", "stratified_wald", "2sls", "acr"})
 #: arrangement :mod:`themis.risk_provenance` uses for the same reason.
 _SIMEX_FITTERS = frozenset({"linear", "logistic"})
 _SIMEX_EXTRAPOLANTS = frozenset({"linear", "quadratic", "rational"})
+
+#: What ``dose_response`` resolves ``model=`` to — one backend per shape, and
+#: the method names below spell the backend rather than the shape, so this set
+#: cannot be built by :func:`_spelt_into` the way the six families are.
+_DOSE_RESPONSE_SHAPES = frozenset({"linear", "forest", "drlearner"})
+
+
+# --- the words a caller may write, which are not the shapes they resolve to --
+#
+# Everything above answers "what did this method fit". These answer "what may
+# the caller ASK for", and the two were the same table for so long that the
+# difference stopped being visible. They are not the same:
+#
+#   * ``auto`` is a word every route takes and no route fits — it is the
+#     caller declining to choose, so it belongs in every set here and in none
+#     of the sets above;
+#   * ``iv`` reads ``model=`` as which ESTIMATOR to run, not which shape to
+#     fit, so its words name Wald / 2SLS / ACR rather than a link function;
+#   * a family whose method IS its shape still has a vocabulary, and it has
+#     exactly one word. Saying so is what makes naming any other word a
+#     refusal instead of a silence.
+#
+# Derived from the resolved sets rather than written beside them, so a shape
+# added to a family cannot leave the word that asks for it behind.
+
+MODEL_WORDS_OUTCOME = _OUTCOME_SHAPES | {AUTO}
+MODEL_WORDS_IV = _IV_SHAPES | {AUTO}
+MODEL_WORDS_DOSE_RESPONSE = _DOSE_RESPONSE_SHAPES | {AUTO}
+
+#: For a route that fits one shape because its method IS that shape. Not an
+#: empty set and not ``None``: a row that takes no choice still answers the
+#: question, and the answer is that the only thing a caller may say here is
+#: that they are not choosing.
+MODEL_WORDS_NONE = frozenset({AUTO})
+
+#: The one word of :data:`MODEL_WORDS_IV` that names an estimator with a ROW
+#: of its own rather than a branch inside one. Over-identified IV is the
+#: two-stage fit — several instruments, with the Sargan test beside it — so
+#: a caller who writes it there is naming exactly what that row does, and a
+#: row declaring only ``auto`` would refuse them the right word. Honoured by
+#: the row's identity rather than by a parameter, which is a real way to
+#: honour a request and not a loophole: what the option asks for is what
+#: runs.
+MODEL_WORD_TWO_STAGE = "2sls"
 
 
 def _spelt_into(prefix: str, shapes: frozenset[str]
@@ -287,7 +351,39 @@ def _check_every_choice_says_what_picks() -> None:
         )
 
 
+def _check_the_words_asked_are_the_shapes_fitted() -> None:
+    """A word a caller may write with no method that fits it, and a shape a
+    method fits with no word that asks for it, are one hole from two ends.
+
+    Only ``dose_response`` needs saying: the other two word sets are built
+    out of the resolved sets above, so they cannot drift from them. That
+    family's method names spell the BACKEND (``dose_response_linear_dml``)
+    rather than the shape, so its shapes are written twice by necessity —
+    and this is the sentence that keeps the two copies one fact.
+    """
+    fitted: frozenset[str] = frozenset().union(*(
+        shapes for method, shapes in FITS.items()
+        if method.startswith("dose_response_")
+    ))
+    asked = MODEL_WORDS_DOSE_RESPONSE - {AUTO}
+    if fitted != asked:
+        raise RuntimeError(
+            f"themis.estimation.form: the dose-response backends fit "
+            f"{sorted(fitted)} and a caller may ask for {sorted(asked)}; a "
+            f"word nobody fits is an option that cannot be honoured, and a "
+            f"shape nobody can ask for is a backend with no door"
+        )
+    if MODEL_WORD_TWO_STAGE not in MODEL_WORDS_IV:
+        raise RuntimeError(
+            f"themis.estimation.form: {MODEL_WORD_TWO_STAGE!r} is declared "
+            f"as the IV vocabulary's word for the row that runs it, and "
+            f"that vocabulary is {sorted(MODEL_WORDS_IV)}; a word spelled "
+            f"apart from the set it belongs to is a set with a second author"
+        )
+
+
 _check_every_choice_says_what_picks()
+_check_the_words_asked_are_the_shapes_fitted()
 
 
 def fits(method: str, form: str) -> str:

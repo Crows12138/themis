@@ -1092,7 +1092,23 @@ def estimate(program: dict | str | bytes, data, **options) -> dict:
     Options (kw-only):
         random_state (int, default 42) — deterministic seed
         ci_bootstrap (int, default 500) — bootstrap iterations; 0 skips
-        model (str, default 'auto') — 'auto' | 'linear' | 'logistic'
+        model (str, default 'auto') — which fit, per route (below)
+
+    ``model`` is one option over several vocabularies, and which words it
+    takes depends on the route that answers rather than on this entry.
+    ``'auto'`` is every route's word and means the system chooses; the
+    outcome-model families (back-door, front-door, joint, mediation, the
+    doubly-robust rows) add ``'linear'`` and ``'logistic'``; the
+    dose-response curve takes ``'linear'``, ``'forest'`` and
+    ``'drlearner'``, one backend each; and the instrumental-variable rows
+    read the option as WHICH ESTIMATOR rather than which link, taking
+    ``'wald'``, ``'stratified_wald'``, ``'2sls'`` and ``'acr'``.
+
+    A word outside every one of those sets is refused here, where it is
+    the caller's typo. A word that belongs to some other route is refused
+    by the route that answers, which names the words IT takes — this entry
+    cannot say, because it runs before the cascade has chosen. Each row's
+    set is declared beside what it produces, in ``_EFFECT_STRATEGIES``.
 
     ``ci_bootstrap`` is a promise and not a hint: every resample record on
     the answer says it drew this many, and the run refuses rather than

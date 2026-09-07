@@ -20,6 +20,7 @@ from themis.estimation.backdoor import (
     BackdoorEstimate,
     estimate_backdoor_ate,
 )
+from themis.refusals import EstimatorFailure, Refusal
 
 
 def _linear_dgp(n=500, seed=0, true_ate=2.0, confounding=True):
@@ -106,13 +107,25 @@ def test_explicit_model_overrides_auto():
     assert est.method == "backdoor_linear"
 
 
-def test_unknown_model_raises():
+def test_unknown_model_refused_by_the_door_every_family_uses():
+    """As a bare ``ValueError`` this left by the exception door: out
+    through the public entry, past the envelope, while the identical
+    mistake on a front-door query came back as a readable refusal block.
+    Which fate a caller met was decided by which route their graph took.
+
+    ``known`` is the vocabulary a CALLER may write and not the two words
+    this function compares against — by the time the shape has been
+    resolved ``auto`` is gone, and a list a reader cannot choose from
+    sends them nowhere."""
     df = _linear_dgp(n=100, seed=0)
-    with pytest.raises(ValueError, match="unknown model"):
+    with pytest.raises(EstimatorFailure) as exc:
         estimate_backdoor_ate(
             df, treatment="x", outcome="y", adjustment=("z",),
             ci_bootstrap=0, model="random_forest",  # type: ignore[arg-type]
         )
+    assert exc.value.failure_type == Refusal.UNKNOWN_OPTION
+    assert exc.value.details["known"] == ["auto", "linear", "logistic"]
+    assert exc.value.details["given"] == "random_forest"
 
 
 # ============================================ empty adjustment

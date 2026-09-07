@@ -49,7 +49,9 @@ from ..refusals import EstimatorFailure
 from .contract import validate_data
 from ..ledger import Provenance
 from ..intervals import CONFIDENCE_LEVEL
-from .form import NO_OTHER_SHAPES, outcome_form, shapes_settled
+from .form import (
+    MODEL_WORDS_OUTCOME, NO_OTHER_SHAPES, outcome_form, shapes_settled,
+)
 from .declared import ORDERED_ENTRY_SHAPE, design_block, ordered_entry
 from .four_way import four_way_decomposition
 from .warning_words import FourWay
@@ -284,7 +286,12 @@ def estimate_mediation(
     else:
         raise EstimatorFailure(
             Refusal.UNKNOWN_OPTION,
-            option="model", given=model, known=["logit", "linear"],
+            # The words a CALLER may write, not the two this family spells
+            # its own resolved forms with. Listing 'logit' sent the reader
+            # to a word the entry's option does not carry, while the word
+            # they should have written — 'logistic', which now resolves to
+            # this family's spelling — was missing from the list entirely.
+            option="model", given=model, known=sorted(MODEL_WORDS_OUTCOME),
         )
 
     # Mediator model: M ~ X [+ adjustment]. Always OLS; for a bool mediator this
@@ -717,7 +724,12 @@ def estimate_mediation_joint(
     else:
         raise EstimatorFailure(
             Refusal.UNKNOWN_OPTION,
-            option="model", given=model, known=["logit", "linear"],
+            # The words a CALLER may write, not the two this family spells
+            # its own resolved forms with. Listing 'logit' sent the reader
+            # to a word the entry's option does not carry, while the word
+            # they should have written — 'logistic', which now resolves to
+            # this family's spelling — was missing from the list entirely.
+            option="model", given=model, known=sorted(MODEL_WORDS_OUTCOME),
         )
 
     mediator_formulas = [f"{m} ~ {treatment}{sep}{adj_term}" for m in mediators]
@@ -1206,7 +1218,11 @@ def estimate_cde_curve(
             def _at(design: np.ndarray) -> np.ndarray:
                 return np.asarray(model_fit.predict(design))
         else:
-            raise ValueError(f"unknown model {model!r}")
+            raise EstimatorFailure(
+                Refusal.UNKNOWN_OPTION,
+                option="model", given=model,
+                known=sorted(MODEL_WORDS_OUTCOME),
+            )
         diffs, highs, lows = [], [], []
         for level in levels:
             held = ones * level
@@ -1564,7 +1580,11 @@ def estimate_cde_chain(
             reg.fit(X_full, y.astype(float))
             return float(np.mean(reg.predict(X_high) - reg.predict(X_low)))
         else:
-            raise ValueError(f"unknown model {model!r}")
+            raise EstimatorFailure(
+                Refusal.UNKNOWN_OPTION,
+                option="model", given=model,
+                known=sorted(MODEL_WORDS_OUTCOME),
+            )
 
     point = _fit_predict_diff(df)
 

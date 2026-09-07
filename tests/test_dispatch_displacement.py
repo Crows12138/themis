@@ -274,8 +274,9 @@ def test_the_estimation_cascade_keeps_the_same_record():
     the winner, so the rows below are in neither ``considered`` nor
     anywhere else, while ``considered`` claims to explain reachability."""
     from themis.estimation.claim import answered
+    from themis.estimation.form import AUTO, MODEL_WORDS_NONE
     from themis.estimation.strategy import (
-        Estimand, Role, Strategy, check_table, run_cascade,
+        EffectKnobs, Estimand, Role, Strategy, check_table, run_cascade,
     )
 
     class _Facts:
@@ -289,10 +290,19 @@ def test_the_estimation_cascade_keeps_the_same_record():
                 displaces=frozenset({"mediation_single"}),
             ),
             role=Role.CLAIM, produces=Estimand.TRANSPORTED_EFFECT,
+            models=MODEL_WORDS_NONE,
             run=lambda f, r, k: answered(),
         ),
     ))
-    ev = run_cascade(table, _Facts(), {}, None, query_id="q1")
+    # Real knobs rather than ``None``: the driver now reads the caller's
+    # ``model`` off them to hold the row that answered to the words it
+    # declared, and a stand-in that cannot be asked would exempt this table
+    # from the one check it is here to run under.
+    knobs = EffectKnobs(
+        random_state=42, ci_bootstrap=0, model=AUTO, cluster=None,
+        reference_data=None, selection_values=None, program=None,
+    )
+    ev = run_cascade(table, _Facts(), {}, knobs, query_id="q1")
     assert ev.displaced == ("mediation_single",)
 
 
