@@ -977,6 +977,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "reason, or its routes name variables only the site knows. The "
         "reader is handed neither sentence, only the routes the species "
         "DOES settle, each a ``Route`` with its bilingual line beside it"),
+    "themis/gaps.py::NO_WAY_PAST[]": (
+        Wrote.UNREAD,
+        "the same note one grain coarser — why a SPECIES has no way past "
+        "at all, where the table above answers per shortfall. Both are "
+        "read by whoever adds the next row and neither reaches a reader: "
+        "a gap of these species is shown the sentences it is made of and "
+        "no alternative path, which is the fact this row explains rather "
+        "than states"),
     "themis/gaps.py::NOTHING_FILLS[]": (
         Wrote.UNREAD,
         "why nothing supplied would change this species — the other half "
@@ -997,6 +1005,12 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "are in ``gaps.ROUTES``. What the note says here is why a reader "
         "would take this route rather than the one above it, which is a "
         "question for whoever adds the next one"),
+    "themis/gaps.py::THE_RUN_SETTLES[]": (
+        Wrote.UNREAD,
+        "why a way past belongs to the run rather than to any species — "
+        "the note whoever adds the second such route has to answer. The "
+        "reader is handed the route's own bilingual line from "
+        "``gaps.ROUTES``, never this"),
     "themis/language.py::Text": (
         Wrote.UNREAD,
         "``says``, why a slot's words are or are not the kernel's, to "

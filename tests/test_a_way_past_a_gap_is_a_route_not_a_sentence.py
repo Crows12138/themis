@@ -188,6 +188,21 @@ def test_a_word_in_a_hole_travels_as_its_set_and_its_token():
 # ------------------------------------------- the property, not the spelling
 
 
+def _a_species_offering(route: Route) -> GapKind:
+    """A gap this route could honestly be on.
+
+    What is under test here is the JUDGEMENT about a route, and the
+    species carrying it is scaffolding — but a gap may only offer a way
+    past its own species has (:data:`themis.gaps.ROUTES_OF`), so the
+    scaffolding is read off that table rather than picked. One fixed kind
+    stood here and was right for whichever route was written first.
+    """
+    for kind in sorted(gaps.ROUTES_OF, key=lambda k: k.value):
+        if route in gaps.ROUTES_OF[kind]:
+            return kind
+    raise AssertionError(f"{route} is no species' way past")
+
+
 def _reconciled(route: Route, methods=("manski_natural",)):
     """The ROUTES one gap is left with, after the scheduler's bounds pass."""
     return [a.route for a in _reconciled_entries(route, methods)]
@@ -208,7 +223,7 @@ def _reconciled_entries(route: Route, methods=("manski_natural",)):
     from themis.types import DataGapReport
 
     report = DataGapReport(gaps=(DataGap(
-        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+        kind=_a_species_offering(route),
         describes=(),
         alternative_paths=(GapRoute(route=route),),
         provenance=(),
@@ -395,7 +410,7 @@ def _filed_during_estimation(route: Route, methods=("manski_natural",)):
         "bounds_results": [{"method": m} for m in methods],
     }
     dispatch._file_gaps(result, [DataGap(
-        kind=GapKind.OVERIDENTIFICATION_REJECTED,
+        kind=_a_species_offering(route),
         describes=(),
         alternative_paths=(GapRoute(route=route),),
         provenance=(),
@@ -442,7 +457,12 @@ def test_the_pointer_at_a_computed_interval_has_one_author():
     ``BOUNDS_ALREADY_COMPUTED`` is not a route anybody OFFERS — it is what
     the judgement puts in place of a route whose interval arrived. A module
     that builds one is a module making that judgement itself, which is how
-    the two doors came to disagree."""
+    the two doors came to disagree.
+
+    The declaration in ``gaps.THE_RUN_SETTLES`` names it and is the
+    opposite of making the judgement: it is the record that this route
+    belongs to no species, which is what stops one from claiming it. So
+    the line that says so is allowed, and nothing else is."""
     import ast
 
     offenders = []
@@ -454,12 +474,20 @@ def test_the_pointer_at_a_computed_interval_has_one_author():
              and fn.name == "past_the_bounds_in_hand"), None)
         inside = range(judge.lineno, (judge.end_lineno or judge.lineno) + 1) \
             if judge is not None else ()
+        declares = next(
+            (node for node in ast.walk(tree)
+             if isinstance(node, ast.AnnAssign)
+             and isinstance(node.target, ast.Name)
+             and node.target.id == "THE_RUN_SETTLES"), None)
+        declared = range(
+            declares.lineno, (declares.end_lineno or declares.lineno) + 1
+        ) if declares is not None else ()
         for node in ast.walk(tree):
             if not isinstance(node, ast.Attribute):
                 continue
             if node.attr != "BOUNDS_ALREADY_COMPUTED":
                 continue
-            if node.lineno in inside:
+            if node.lineno in inside or node.lineno in declared:
                 continue
             offenders.append(
                 f"{path.relative_to(REPO).as_posix()}:{node.lineno}")

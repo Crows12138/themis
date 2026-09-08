@@ -252,9 +252,12 @@ def test_query_result_with_full_data_gap_report_serializes():
                     precision_target=language.state(
                         Precision.DETECT_A_BINARY_EFFECT, h=0.2),
                 ),
+                # The one way past this species has (``gaps.ROUTES_OF``).
+                # A matched RCT stood beside it and is the OTHER transport
+                # species' route: what is missing there is the source
+                # conditional, and no trial in the target settles that.
                 alternative_paths=(
                     route(Route.ACCEPT_THE_SOURCE_ATE),
-                    route(Route.FIND_A_MATCHED_RCT),
                 ),
                 provenance=(
                     GapProvenanceRef(

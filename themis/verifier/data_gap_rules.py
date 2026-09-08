@@ -1,6 +1,6 @@
 """Phase 10 §10.4 — independent verification of DataGapReport.
 
-Three rules audit a generated DataGapReport for honesty:
+Six rules audit a generated DataGapReport for honesty:
 
 - **T10-1 ``data_gap_provenance_check``** — every ref in every gap's
   provenance array must point at something that is there. What "there"
@@ -29,6 +29,10 @@ Three rules audit a generated DataGapReport for honesty:
   needs. That statement is on the item the gap cites, so the ``signature``
   and the ``data_type`` are both held to a second record rather than to
   each other.
+- **T10-7 ``data_gap_route_check``** — every way past a gap must be one
+  its species declares. What a reader acts on had 38 authors and three
+  declarations; the ceiling this holds it to is the species', so two ways
+  past of the SAME species stay interchangeable and nothing else does.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -47,11 +51,13 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+from .. import gaps as _gaps
 from ..types import (
     BLOCKS_OF,
     BLOCKS_TURN_ON,
     DATA_TYPE_TURNS_ON,
     GapKind,
+    GapSeverity,
     NO_SUBJECT,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
@@ -60,6 +66,10 @@ from ..types import (
 )
 from .errors import VerificationError
 from .program_copy_rules import query_of
+
+#: The severity that lets the generic pointer at a computed interval lead a
+#: gap, spelled as it travels — see :func:`themis.gaps.ways_past`.
+_BLOCKING = GapSeverity.BLOCKING.value
 
 
 # ============================================ failure detection
@@ -1325,6 +1335,87 @@ def _verify_t10_6_shape_of_data(
             )
 
 
+# ================================= T10-7 whose way past a gap this route is
+#
+# ``alternative_paths[].route`` is what a reader ACTS on. It was written at 38
+# construction sites and declared for three of them, so nothing anywhere asked
+# whether a route belonged to the gap offering it: swapping one for any of the
+# other 84 the kernel names left 63 of them unrefused. What did refuse the
+# other 21 was ``statement_rules._CARRIERS``, which asks whether the slots a
+# sentence names are the ones filled in beside it — so two routes with the same
+# slot signature were interchangeable, and a gap could tell a reader to go find
+# an instrument where the honest way past was to measure the confounder.
+#
+# :func:`themis.gaps.ways_past` is imported rather than restated for the reason
+# the T10-5 comment gives: it is the contract layer's statement of which ways
+# past belong to a species, not a producer's roster. Restating it here would
+# make this module the thirty-ninth author.
+#
+# What it claims is a ceiling. Which of a species' ways past THIS occasion
+# offers is the renderer's decision, and a table saying so would be the
+# renderer's branches copied — so two routes of the same species remain
+# interchangeable here, and that is the rule's stated reach rather than an
+# oversight.
+
+_ROUTE_RULE = "data_gap_route_check"
+
+#: What a reader does with a way past, so a refusal says what goes wrong
+#: rather than only which word was unexpected.
+_WHAT_A_READER_DOES_WITH_A_ROUTE = (
+    "acts on it — it is the sentence telling them what to go and do about "
+    "this gap, and doing the wrong one costs a study"
+)
+
+
+def _verify_t10_7_ways_past(report: dict) -> None:
+    """Every route a gap offers is one its species declares.
+
+    Silent where the species or the route is not one this build names: an
+    unknown kind belongs to T10-3 and an unknown route to the contract's own
+    enumeration, and a rule refusing for a reason another authority owns
+    reports that authority's coverage as its own.
+    """
+    for gap_index, gap in enumerate(report.get("gaps", []) or []):
+        if not isinstance(gap, dict):
+            continue
+        kind = gap.get("kind")
+        if not isinstance(kind, str):
+            continue
+        try:
+            species = GapKind(kind)
+        except ValueError:
+            continue
+        offered = []
+        for path in gap.get("alternative_paths", []) or []:
+            if isinstance(path, dict) and isinstance(path.get("route"), str):
+                offered.append(path["route"])
+        if not offered:
+            continue
+        allowed = {
+            str(route) for route in _gaps.ways_past(
+                species, blocking=gap.get("severity") == _BLOCKING)
+        }
+        named = {route for route in offered if route in _gaps.BY_ROUTE}
+        stray = sorted(named - allowed)
+        if not stray:
+            continue
+        if species in _gaps.NO_WAY_PAST:
+            raise VerificationError(
+                f"T10-7: gap[{gap_index}] kind={species.value!r} offers "
+                f"{stray} and this species has no way past at all — "
+                f"{_gaps.NO_WAY_PAST[species]}. A reader "
+                f"{_WHAT_A_READER_DOES_WITH_A_ROUTE}",
+                step_index=None, rule=_ROUTE_RULE,
+            )
+        raise VerificationError(
+            f"T10-7: gap[{gap_index}] kind={species.value!r} offers "
+            f"{stray}, and the ways past this species has are "
+            f"{sorted(allowed)}. A reader "
+            f"{_WHAT_A_READER_DOES_WITH_A_ROUTE}",
+            step_index=None, rule=_ROUTE_RULE,
+        )
+
+
 # ============================================ public entry
 
 
@@ -1336,7 +1427,7 @@ def verify_data_gap_report(
     framing_notes: list[dict] | None = None,
     envelope: dict | None = None,
 ) -> None:
-    """Run T10-1 / T10-2 / T10-3 / T10-5 / T10-6 against ``report``.
+    """Run T10-1 / T10-2 / T10-3 / T10-5 / T10-6 / T10-7 against ``report``.
 
     Inputs are dicts (as serialized in the result envelope) so the audit
     catches serialization bugs in addition to generator bugs.
@@ -1383,6 +1474,7 @@ def verify_data_gap_report(
     _verify_t10_6_shape_of_data(
         report, investigation_requests=investigation_requests,
     )
+    _verify_t10_7_ways_past(report)
 
 
 # ==================================== T10-4: the tier the report announces

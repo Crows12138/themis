@@ -1150,9 +1150,26 @@ def test_the_declared_remainder_is_what_it_is():
     held here is held against nonsense and not against another real member
     of another real set. That is a limit of this instrument, and it is
     written here rather than left to be discovered from a passing test.
+
+    Then 26, and they are the fifth value typed at every construction site
+    and declared nowhere. A way past a gap is a member of a closed
+    vocabulary of 85, and which of them a gap may offer was declared for
+    three species — ``gaps.ESCAPES`` is keyed by the fine-grained need
+    while the envelope carries the coarse species, so the other 27 obeyed
+    nothing. ``gaps.ROUTES_OF`` now holds one row per species, folded from
+    the declarations that already existed, and the type refuses a route its
+    species does not offer before any rule reads it.
+
+    What that closure is a measurement OF: three swaps per leaf, spread
+    across those 85 members. The rule accepts any route the SAME species
+    could offer — 137 of the 42 x 85 pairs, every one of them the carrier's
+    own — so a swap landing on a sibling is not refused, and three swaps
+    drawn from across the vocabulary land on one only by chance. The family
+    reads closed because the lies this instrument asks are refused, not
+    because every lie in it is.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2471, total
+    assert total == 2445, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

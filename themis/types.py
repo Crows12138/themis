@@ -2897,6 +2897,14 @@ class DataGap:
     on something that does not know which species it is describing, so
     nothing but this constructor is in a position to hold it.
 
+    ``alternative_paths`` is held the same way and refused rather than
+    filled — :data:`themis.gaps.ROUTES_OF` and
+    :data:`themis.gaps.NO_WAY_PAST`, read through
+    :func:`themis.gaps.ways_past`. Filling is not open to it: which of a
+    species' ways past this occasion offers, and which of the occasion's
+    facts each names, is the renderer's to decide. What the species does
+    settle is which routes are ITS ways past, and that had 38 authors.
+
     Passing one is still allowed where it agrees, because
     ``dataclasses.replace`` re-enters this constructor with the gap's own
     values and a gap must survive being rewritten. What is refused is a
@@ -2942,6 +2950,45 @@ class DataGap:
                     f"{where} with the sentence saying what it turns on"
                 )
         self._settle_the_shape_of_data_it_asks_for()
+        self._settle_the_ways_past_it_offers()
+
+    def _settle_the_ways_past_it_offers(self) -> None:
+        """The routes on this gap are ways past the gap it is.
+
+        Imported here rather than at the top because :mod:`themis.gaps`
+        imports this module: the routes are an enum there, the kind is an
+        enum here, and the two meet for the first time on this object.
+
+        Refused and never filled, which is the difference between this
+        field and the three above it. A species settles WHICH routes are
+        its own; which of them this occasion offers, and what each names,
+        is the renderer's, and a table that answered it would be the
+        renderer's branches written twice.
+        """
+        from .gaps import NO_WAY_PAST, ways_past
+
+        offered = {alt.route for alt in self.alternative_paths}
+        if not offered:
+            return
+        allowed = ways_past(
+            self.kind, blocking=self.severity is GapSeverity.BLOCKING)
+        stray = sorted(str(route) for route in offered - allowed)
+        if not stray:
+            return
+        if self.kind in NO_WAY_PAST:
+            raise ValueError(
+                f"this gap offers {stray} and {self.kind.value} declares no "
+                f"way past at all — {NO_WAY_PAST[self.kind]}. If that has "
+                f"stopped being true, the species moves to gaps.ROUTES_OF "
+                f"with the routes it settles"
+            )
+        raise ValueError(
+            f"this gap offers {stray}, which {self.kind.value} does not "
+            f"declare as a way past it (gaps.ROUTES_OF holds "
+            f"{sorted(str(route) for route in allowed)}); a way past a gap "
+            f"belongs to the gap that offers it, so a route a site knows "
+            f"about is one the species has to declare"
+        )
 
     def _settle_the_shape_of_data_it_asks_for(self) -> None:
         """``required_data.data_type`` on the same terms, one field down.

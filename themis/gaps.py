@@ -2398,6 +2398,361 @@ def escapes(need) -> tuple[GapRoute, ...]:
     return tuple(route(r) for r in ESCAPES.get(member, ()))
 
 
+#: The ways past a gap that its species settles, under the name the
+#: envelope carries.
+#:
+#: :data:`ESCAPES` says the same thing one level finer, and both are here
+#: because a gap travels under the coarse name: the species is what a
+#: producer knows and ``kind`` is what a reader — and a verifier — gets.
+#: This table holds the routes written at the construction sites;
+#: :func:`_bind_routes` folds the finer table in under the kind each of
+#: its species declares (``Need.gap``), so a route settled there is not
+#: written twice.
+#:
+#: What a row claims is a CEILING, not this occasion's list: which of a
+#: species' ways past appear depends on what the run found, and a row
+#: saying which would be the renderer's branches copied into a table. The
+#: claim it does make is the one that was missing — a way past a gap
+#: belongs to the gap that offers it.
+_WAYS_PAST_TYPED_AT_SITES: dict[GapKind, frozenset[Route]] = {
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE: frozenset({
+        Route.ENRICH_A_PROXY_TO_GET_A_NUMBER,
+        Route.USE_A_BRIDGE_CHANNEL_FOR_MORE_THAN_TWO_ARMS,
+    }),
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR: frozenset({
+        Route.ASK_THE_MARGINAL_EFFECT,
+        Route.MAYBE_IT_IS_NOT_A_COLLIDER,
+        Route.TREAT_THE_COLLIDER_AS_A_TARGET_POPULATION,
+    }),
+    GapKind.DECLARED_TYPE_DATA_MISMATCH: frozenset({
+        Route.FIX_THE_DATA_TO_MATCH_THE_DECLARATION,
+        Route.FIX_THE_DECLARATION_TO_MATCH_THE_DATA,
+    }),
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: frozenset({
+        Route.KEEP_THE_MEASURE_CONTINUOUS,
+        Route.REPORT_CUTPOINT_SENSITIVITY,
+        Route.STRATIFY_MORE_FINELY,
+    }),
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: frozenset({
+        Route.FALL_BACK_TO_A_BINARY_CONTRAST,
+    }),
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: frozenset({
+        Route.RESOLVE_THE_LOOP_IN_TIME,
+        Route.WITHDRAW_THE_DECLARED_LOOP,
+    }),
+    # The interval offer is the species', not the run's: this species and
+    # the one below decide whether to make it, from whether the QUESTION
+    # has an interval channel at all.
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: frozenset({
+        Route.ACCEPT_THE_INTERVAL,
+        Route.DROP_THE_CONTRADICTING_EDGE,
+        Route.SUPPLY_THE_CONDITIONAL,
+    }),
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: frozenset({
+        Route.ACCEPT_THE_MIXED_ESTIMAND,
+        Route.DECLARE_THE_INTERVENTION_AN_EVENT,
+        Route.SPLIT_THE_INTERVENTION_IN_TWO,
+        Route.USE_EXPERIMENTAL_DATA_FOR_THE_VERSIONS,
+    }),
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: frozenset({
+        Route.ACCEPT_THE_VARIANCE_WEIGHTED_2SLS,
+        Route.COARSEN_THE_CONDITIONING_SET,
+        Route.COLLECT_IN_THE_ONE_ARMED_STRATA,
+    }),
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Route.RESOLVE_THE_LOOP_IN_TIME,
+        Route.WITHDRAW_THE_DECLARED_LOOP,
+    }),
+    GapKind.MEASUREMENT_ERROR_CONCERN: frozenset({
+        Route.REPORT_ATTENUATION_RANGE,
+        Route.RETEST_RELIABILITY,
+        Route.USE_EXPERIMENTAL_DATA_INSTEAD_OF_SELF_REPORT,
+    }),
+    GapKind.MISSING_DISTRIBUTION: frozenset({
+        Route.ACCEPT_THE_INTERVAL,
+        Route.COLLECT_IT_NO_INTERVAL_FALLBACK,
+    }),
+    GapKind.MISSING_IV_CANDIDATE: frozenset({
+        Route.NAME_AN_INSTRUMENT_FOR_THE_TREATMENT,
+        Route.RESOLVE_THE_LOOP_IN_TIME,
+        Route.WITHDRAW_THE_DECLARED_LOOP,
+    }),
+    GapKind.MISSING_MEDIATOR_DATA: frozenset({
+        Route.FALL_BACK_TO_CDE,
+        Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
+    }),
+    # Beside what the fold brings: the layer to drop is named at the site
+    # because the species knows only that two layers were asked for. See
+    # ``data_gap_report._layer_to_drop``, which draws that split.
+    GapKind.MISSING_STRUCTURAL_INPUT: frozenset({
+        Route.DROP_THE_OTHER_LAYER,
+    }),
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION: frozenset({
+        Route.COLLECT_IN_THE_SATURATED_STRATA,
+        Route.GO_BAYESIAN_WITH_A_WEAK_PRIOR,
+        Route.KNOW_THE_BOOTSTRAP_IS_ALSO_STRAINED,
+        Route.USE_A_SEPARATION_ROBUST_FIT,
+    }),
+    GapKind.OVERIDENTIFICATION_REJECTED: frozenset({
+        Route.DROP_THE_SUSPECT_INSTRUMENT,
+        Route.FALL_BACK_TO_BOUNDS_WITHOUT_EXCLUSION,
+        Route.REEXAMINE_THE_GRAPH_FOR_A_DIRECT_PATH,
+    }),
+    GapKind.PROPENSITY_OVERLAP_VIOLATION: frozenset({
+        Route.BOUND_THE_UNSUPPORTED_REGION,
+        Route.LOOSEN_THE_ADJUSTMENT_SET,
+        Route.TRIM_TO_THE_OVERLAP_REGION,
+        Route.USE_AN_OVERLAP_ROBUST_METHOD,
+    }),
+    GapKind.PROXY_COARSENING_UNDECLARED: frozenset({
+        Route.DECLARE_A_PROXY_COARSENING,
+        Route.RECONSIDER_THE_LATENT_CARDINALITY,
+    }),
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER: frozenset({
+        Route.NAME_A_LIGHTER_PENALTY,
+        Route.READ_THE_PENALTY_LADDER_AS_THE_ANSWER,
+        Route.THIN_THE_SIEVE,
+    }),
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH: frozenset({
+        Route.DECLARE_IT_A_SELECTION_NODE,
+        Route.MAYBE_IT_IS_NOT_A_COMMON_EFFECT,
+        Route.REWEIGHT_FOR_SELECTION,
+    }),
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: frozenset({
+        Route.FIND_A_MATCHED_RCT,
+        Route.FIND_A_SUBGROUP_ANALYSIS,
+        Route.FIND_THE_RCT_IPD,
+    }),
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: frozenset({
+        Route.ACCEPT_THE_SOURCE_ATE,
+    }),
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE: frozenset({
+        Route.READ_THE_DOUBLY_ROBUST_ANSWER_INSTEAD,
+        Route.WIDEN_THE_TREATMENT_BRIDGE,
+    }),
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT: frozenset({
+        Route.DROP_THE_OTHER_LAYER,
+    }),
+    # Beside what the fold brings: two routes for the hedge shapes, one
+    # for the graph that already holds an instrument, and the interval a
+    # later pass tightens once Balke-Pearl bounds have come out.
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: frozenset({
+        Route.FIND_AN_INSTRUMENT,
+        Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE,
+        Route.RUN_AN_RCT_PAST_THE_HEDGE,
+        Route.TIGHTEN_THE_IV_INTERVAL,
+    }),
+    GapKind.UNMEASURED_CONFOUNDER_RISK: frozenset({
+        Route.CROSS_CHECK_AN_EXPERIMENT,
+        Route.EMULATE_A_TARGET_TRIAL,
+        Route.RUN_AN_E_VALUE,
+    }),
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH: frozenset({
+        Route.ASK_CONDITIONALLY,
+        Route.SUPPLY_A_SOURCE_FOR_THE_EDGE,
+    }),
+    # The two AR routes that say no set was constructible are what this
+    # species offers when the sample could not produce one, and they are
+    # here because the check below found them: reachable at a site and
+    # named by no species. Nothing in the corpus carries either.
+    GapKind.WEAK_IV_INSTRUMENT: frozenset({
+        Route.AR_SET_FOR_THE_JOINT_STAGE,
+        Route.AR_SET_NOT_CONSTRUCTIBLE,
+        Route.FALL_BACK_TO_IV_BOUNDS,
+        Route.FIND_A_STRONGER_INSTRUMENT,
+        Route.FIND_STRONGER_INSTRUMENTS_JOINTLY,
+        Route.USE_THE_AR_SET,
+        Route.USE_THE_ROBUST_AR_SET,
+    }),
+}
+
+
+NO_WAY_PAST: dict[GapKind, str] = {
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: (
+        "the reader is asked to say what they meant by a name; there is no "
+        "second way past a question only they can answer"
+    ),
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: (
+        "the interval IS the answer, so an alternative to it would be an "
+        "alternative to having answered"
+    ),
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "a premise the reader accepts or does not, which is why it is "
+        "stated rather than checked — the same reason it has no line in "
+        "IF_PROVIDED"
+    ),
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "the same, for the front-door conditions"
+    ),
+    GapKind.GRAPH_LEARNED_FROM_DATA: (
+        "a provenance note about the graph in hand rather than a shortfall; "
+        "what would change it is a different graph, and that is not a route "
+        "past this"
+    ),
+    GapKind.LLM_DECLARED_AMBIGUITY: (
+        "the caller said the question is ambiguous and only the caller can "
+        "un-say it"
+    ),
+    GapKind.LOW_CONFIDENCE_INPUT_DATA: (
+        "it says how much to trust what was supplied; there is no way past "
+        "a measurement of one's own footing"
+    ),
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "the same as the other premise species, for sequential "
+        "ignorability"
+    ),
+    GapKind.MISSING_POPULATION_DISTRIBUTION: (
+        "nothing in this tree constructs it — see "
+        "``data_gap_report.GAP_KINDS_WITH_NO_PRODUCER`` — and it is "
+        "declared here for the reason its severity row is declared: a slot "
+        "that says why it is empty is checkable"
+    ),
+    GapKind.MISSING_UNIT_OBSERVATION: (
+        "abduction wants this unit's own reading and no population figure "
+        "substitutes, so the alternatives a route offers do not exist"
+    ),
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "the same as the other premise species, for the transportability "
+        "conditions"
+    ),
+    GapKind.TRANSPORT_SOURCES_DISAGREE: (
+        "one of two declared selection diagrams has to be withdrawn and "
+        "which one is not the kernel's to decide — the sentence its "
+        "species already gives in NO_SPECIES_ESCAPE"
+    ),
+}
+"""Species that offer no way past, and why each does not.
+
+Declared rather than left out, for the reason :data:`NO_SPECIES_ESCAPE`
+is: an entry saying "none, and here is why" is checkable and an absence
+is not. The two tables answer at different grains and a species can be on
+both — this one is asked by whoever holds a gap, that one by whoever is
+building one from an item.
+"""
+
+
+#: The ways past a gap that no species settles, and what each turns on.
+#:
+#: A pass after identification knows something no producer does — which
+#: intervals actually came out — and replaces a promise of one with a
+#: pointer at it (:func:`past_the_bounds_in_hand`). So this route is on a
+#: gap because of what the RUN found, and asking a species to declare it
+#: would be asking it to know the answer before the question was run.
+#:
+#: Where it may land is still not "anywhere": it replaces a route that
+#: accepts an interval, or leads a gap that blocks the answer. Both halves
+#: are already declared — :attr:`Route.answered_by` and the gap's own
+#: severity — so :func:`ways_past` derives the permission rather than
+#: keeping a second list of species beside this one.
+THE_RUN_SETTLES: dict[Route, str] = {
+    Route.BOUNDS_ALREADY_COMPUTED: (
+        "which intervals the bounds attempt produced, which is a fact "
+        "about this run and not about the species that filed the gap"
+    ),
+}
+
+
+def _bind_routes(
+    typed: dict[GapKind, frozenset[Route]],
+) -> dict[GapKind, frozenset[Route]]:
+    """Every species declares its ways past, or declares that it has none.
+
+    Four defects, and the first is the one this table was built for. A
+    species on neither table has whatever routes its sites happened to
+    type and nothing to hold them to, which is the state a way past a gap
+    was in at 38 construction sites. A species on both is two authors for
+    one answer. A species declaring an empty set is an absence that says
+    nothing, which the other table exists to name.
+
+    The fourth is the other direction, and it is here because asking a
+    table in one direction only is how the last one came to be wrong: a
+    route no species offers is one no gap can carry, so every rule reading
+    this would refuse it wherever it was written. Two were, at sites the
+    corpus does not reach — the Anderson-Rubin set that could not be
+    constructed from this sample — and nothing would have said so.
+
+    The fold is the fifth claim: :data:`ESCAPES` settles routes per
+    species, ``Need.gap`` says which kind each species is filed under, and
+    a route settled there is therefore already settled here. Restating it
+    would make the finer table's rows a copy — and a copy of a table is
+    how the coarse name came to disagree with the fine one before #466.
+    """
+    bound = {kind: routes for kind, routes in typed.items()}
+    for need, routes in ESCAPES.items():
+        bound[need.gap] = bound.get(need.gap, frozenset()) | frozenset(routes)
+
+    unplaced = sorted(
+        k.value for k in GapKind if k not in bound and k not in NO_WAY_PAST)
+    if unplaced:
+        raise ValueError(
+            f"no ways past declared for {unplaced}; which routes a gap may "
+            f"offer belongs to its species, so it is settled beside the "
+            f"species or declared absent in gaps.NO_WAY_PAST"
+        )
+    both = sorted(k.value for k in bound if k in NO_WAY_PAST)
+    if both:
+        raise ValueError(
+            f"{both} declare both ways past and a reason for having none; "
+            f"whether a route is refused would depend on lookup order"
+        )
+    empty = sorted(k.value for k, routes in bound.items() if not routes)
+    if empty:
+        raise ValueError(
+            f"{empty} declare an empty set of ways past; an absence that "
+            f"says nothing is the one gaps.NO_WAY_PAST exists to name"
+        )
+    claimed = sorted(
+        f"{k.value}:{r}" for k, routes in bound.items() for r in routes
+        if r in THE_RUN_SETTLES
+    )
+    if claimed:
+        raise ValueError(
+            f"{claimed} claim a route gaps.THE_RUN_SETTLES says is the "
+            f"run's; a species cannot declare a way past that depends on "
+            f"what the run found"
+        )
+    offered = {r for routes in bound.values() for r in routes}
+    orphan = sorted(
+        str(r) for r in Route
+        if r not in offered and r not in THE_RUN_SETTLES
+    )
+    if orphan:
+        raise ValueError(
+            f"{orphan} are ways past no species offers, so no gap can "
+            f"carry one and every rule reading this table would refuse it "
+            f"wherever it is written. A route is a species' way past or "
+            f"the run's; declare it in gaps.ROUTES_OF beside the species "
+            f"whose site writes it, or in gaps.THE_RUN_SETTLES with the "
+            f"sentence saying what it turns on"
+        )
+    return bound
+
+
+ROUTES_OF: dict[GapKind, frozenset[Route]] = _bind_routes(
+    _WAYS_PAST_TYPED_AT_SITES)
+
+
+def ways_past(kind, *, blocking: bool = False) -> frozenset[Route]:
+    """Every route this gap could be offering, species and run together.
+
+    The reader's door, and the one both sides use: the constructor asks it
+    of a gap being built and the verifier asks it of one that arrived, so
+    that a rule holding an envelope to this is not a second author of the
+    answer.
+
+    ``blocking`` is the gap's own severity, which is what decides whether
+    the generic pointer at a computed interval may lead it. Passing the
+    severity rather than reading it off the kind is deliberate: two
+    species leave it to the occasion (:data:`themis.types.SEVERITY_TURNS_ON`)
+    and the kind alone cannot say.
+    """
+    member = kind if isinstance(kind, GapKind) else GapKind(str(kind))
+    settled = ROUTES_OF.get(member, frozenset())
+    if blocking or any(r.answered_by for r in settled):
+        return settled | frozenset(THE_RUN_SETTLES)
+    return settled
+
+
 def route(name, **details) -> GapRoute:
     """One way past a gap, in the one shape it takes.
 
