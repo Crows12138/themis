@@ -835,7 +835,56 @@ _WHAT_A_READER_DOES_WITH_IT = {
 _SPECIES_NAMED: dict[str, GapKind] = {kind.value: kind for kind in GapKind}
 
 
-def _verify_t10_5_species_properties(report: dict) -> None:
+#: Where the envelope says a feedback loop was reduced to one equation.
+#: Restated rather than imported, like every other envelope word in this
+#: module, and pinned to the block vocabulary by a test.
+_A_LOOP_REDUCED_TO_ONE_EQUATION = ("extensions", "feedback_loop", "reduction")
+
+
+def _the_occasion_for_an_iv_assumption(envelope: Mapping) -> str:
+    """What the assumption under an instrument's answer DOES to the number.
+
+    :data:`themis.types.SEVERITY_TURNS_ON` says this species' weight turns
+    on which of two things the assumption does — sit under the instrument
+    as a condition on reading the number, or change what quantity the
+    number is OF. Two producers build this species accordingly, one per
+    occasion, and the second is reached only where a feedback loop was
+    reduced to a single equation: there the digits are a structural
+    coefficient rather than the interventional contrast that was asked
+    for, which is a different quantity and not a caveat on the same one.
+
+    Read off the reduction rather than off the gap's own provenance ref.
+    The ref is written at the same site as the severity, so an author who
+    got the occasion wrong would have written both wrong and been agreed
+    with; the reduction is the identification layer's record of what
+    happened to the estimand, which is what the severity is about.
+    """
+    node: object = envelope
+    for step in _A_LOOP_REDUCED_TO_ONE_EQUATION:
+        if not isinstance(node, Mapping):
+            return "informational"
+        node = node.get(step)
+    return "informational" if node is None else "important"
+
+
+#: The occasions this rule reads, one per species whose severity is not its
+#: species'. ``declared_type_data_mismatch`` is absent because it is read
+#: in :mod:`themis.verifier.type_reconciliation_rules`, against the columns
+#: the answer stands on — and a second reading here would be a second thing
+#: to drift rather than a second opinion. What holds the SET closed is not
+#: this table but a counterexample per member: a species that declares its
+#: severity an occasion's and has nothing anywhere that reads the occasion
+#: has a field no rule can refuse, which is the arrangement
+#: ``SEVERITY_TURNS_ON`` exists to end rather than to license.
+_THE_OCCASION_READ_HERE = {
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED:
+        _the_occasion_for_an_iv_assumption,
+}
+
+
+def _verify_t10_5_species_properties(
+    report: dict, envelope: dict | None = None,
+) -> None:
     """Each gap's severity and blocks, against what its species declares."""
     for gap_index, gap in enumerate(report.get("gaps") or ()):
         if not isinstance(gap, dict):
@@ -847,6 +896,23 @@ def _verify_t10_5_species_properties(report: dict) -> None:
             # outside the vocabulary is refused by the schema the door
             # validates against, before any rule here reads it.
             continue
+        # Silent where the audit was handed no answer, and that silence is
+        # not a way through: a species is here because its occasion is a
+        # fact about the answer, so it cites an ``envelope_path``, and T10-1
+        # refuses a report audited without the answer that path lands on.
+        # Pinned by a counterexample rather than left to this comment.
+        reader = _THE_OCCASION_READ_HERE.get(species)
+        if reader is not None and envelope is not None:
+            owed = reader(envelope)
+            shown = gap.get("severity")
+            if shown != owed:
+                raise VerificationError(
+                    f"T10-5: gap[{gap_index}] kind={species.value!r} says "
+                    f"its severity is {shown!r}, and on this occasion it is "
+                    f"{owed!r}: {SEVERITY_TURNS_ON[species]}. A reader "
+                    f"{_WHAT_A_READER_DOES_WITH_IT['severity']}",
+                    step_index=None, rule=_SPECIES_RULE,
+                )
         for field, fixed, _the_occasion_s in _A_GAP_SAYS_OF_ITSELF:
             declared = fixed.get(species)
             if declared is None:
@@ -925,7 +991,7 @@ def verify_data_gap_report(
         report,
         derivation_steps=derivation_steps,
     )
-    _verify_t10_5_species_properties(report)
+    _verify_t10_5_species_properties(report, envelope)
 
 
 # ==================================== T10-4: the tier the report announces
