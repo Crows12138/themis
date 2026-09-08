@@ -8002,10 +8002,15 @@ def _check_every_stamp_says_what_the_estimator_declared(result: dict) -> None:
     evidence of anything. Since #603 the declaration is read off the loop
     (:meth:`themis.estimation.resample.Draws.declares`), so a declaration
     implies draws and draws imply a stamp at the attach point that wrote
-    them. The hold is still not taken, because what it would assert is that
-    EVERY attach point writes one — several blocks write their own — and
-    that is a claim about this layer's call sites rather than about the two
-    records of one loop, which is all this rule compares.
+    them.
+
+    Still silent here, and no longer unasked: the missing stamp is refused
+    by :mod:`themis.verifier.bootstrap_rules`, from the sentence rather
+    than from a block, on the general sentence every resampled interval
+    carries rather than on the cluster refinement this rule reads. It is
+    the envelope's own contradiction and needs no account of which call
+    site was supposed to write what, which is why it is asked there and
+    not by an audit of this layer's call sites.
     """
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):

@@ -189,11 +189,12 @@ def _check_every_stamp_says_what_the_estimator_declared(estimate) -> None:
     the loop it describes ran — was fixed in #603 where the declaration is
     written, so that shape is gone from the estimators.
 
-    Still silent, for a different reason and a smaller one: the hold that
-    is now available asserts that every attach point writes a stamp, which
-    is a claim about the dispatch layer's call sites and not about two
-    records of one loop. This rule compares records; it does not audit
-    whether the other record was attached.
+    Still silent, and the hold that #603 made available is taken in
+    :mod:`themis.verifier.bootstrap_rules`: a resampled interval carries a
+    general sentence as well as this cluster refinement, and an answer
+    carrying that sentence with no block anywhere contradicts itself
+    without any second record to compare. This rule compares records, so
+    an answer with none is not its question.
     """
     if not isinstance(estimate, dict):
         return

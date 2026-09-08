@@ -24,6 +24,18 @@ Three claims a block makes about ITSELF, and each fails silently on its own:
   surviving draw is a point printed twice with a confidence level beside
   it. Where an interval is reported, at least two draws answered.
 
+**And a fifth, which is the one the four above cannot ask.** Every claim
+so far begins at a block, so a loop that left NO block is held by nobody:
+the count that is not there adds up, the species that are not there are
+all registered, the floor that is not there is cleared, and the interval
+printed beside them rests on whatever number the reader supplies. It is
+askable because the estimator's sentence and this block are one object's
+two statements — the sentence is written where enough replicates survived
+for an interval to be reportable at all, the block wherever a loop ran —
+so an answer saying it resampled and showing nothing contradicts itself.
+One direction only: a block with no sentence is the honest shape of a loop
+that lost too many draws to let its estimator claim anything.
+
 What it deliberately does NOT audit: whether the interval is numerically
 right. Re-deriving a percentile bootstrap needs the raw data and a rerun of
 the estimator, which is the data-refit ceiling every numeric verifier here
@@ -76,6 +88,12 @@ UNNAMED = "unclassified"
 #: Where a run records what it was asked for, and under what name.
 _CONTEXT = "estimation_context"
 _ASKED = "ci_bootstrap"
+
+#: What an estimator says about an interval it MADE by resampling — the
+#: sentence, as opposed to the block. RESTATED, not imported, for the reason
+#: in the header; a test reads it off the producer so the two copies cannot
+#: drift into describing different sentences.
+_DECLARES_A_RESAMPLED_INTERVAL = "ci_via_percentile_bootstrap"
 
 #: A block that runs a resampling loop of its OWN, and the ceiling this
 #: build puts on it. Absent from here means a block draws what the run
@@ -251,6 +269,7 @@ def verify_bootstrap_records(result: object) -> None:
     if isinstance(estimate, Mapping):
         _check_the_refuted_share(estimate)
     _check_every_count_is_the_runs(result)
+    _check_a_declared_loop_left_its_record(result)
 
 
 def _counts(node: object, under: str = ""):
@@ -307,6 +326,74 @@ def _check_every_count_is_the_runs(result: Mapping) -> None:
             f"run did not ask for is a loop nobody ordered, described to "
             f"them as the one they did"
         )
+
+
+def _any_record(node: object) -> bool:
+    """Whether one estimate carries a ``bootstrap`` block anywhere under it.
+
+    Presence, which is why this is not :func:`_counts`: that walk skips a
+    block with no ``requested`` because it is asking what a count is, and a
+    block missing a field is still a block. The question here is whether
+    the loop left anything at all, and a walk rather than a site list
+    because a decomposition puts its loop under a block of its own.
+    """
+    if isinstance(node, Mapping):
+        if isinstance(node.get("bootstrap"), Mapping):
+            return True
+        return any(_any_record(value) for key, value in node.items()
+                   if key != "bootstrap")
+    if isinstance(node, (list, tuple)):
+        return any(_any_record(value) for value in node)
+    return False
+
+
+def _check_a_declared_loop_left_its_record(result: Mapping) -> None:
+    """A loop the estimator says it ran owes the block that describes it.
+
+    The side every other check in this package begins on the far end of,
+    and the two in :mod:`themis.verifier.cluster_inference_rules` with it:
+    all of them start AT a block and hold it to its own arithmetic, to the
+    run's count, or to what the estimator declared. A loop that left no
+    block is therefore audited by nobody — the count that is not there adds
+    up, the species that are not there are all registered, the floor that
+    is not there is cleared, and the interval printed beside them rests on
+    whatever number the reader supplies.
+
+    Askable because the sentence and the block are one object's two
+    statements: the estimator writes the sentence when its loop drew enough
+    replicates for an interval to be reportable at all, and the block
+    whenever a loop ran, so the sentence cannot be true of an answer
+    carrying no block. Only that direction — a block with no sentence is
+    the honest shape of a loop that ran and lost too many draws to let its
+    estimator claim anything.
+
+    Asked of the estimate, because that is where the sentence is written:
+    the thirty-odd families all append it to the estimate's own
+    assumptions, and the routes that fill a bounds row instead never write
+    it, so there is no second pairing here going unasked. A decomposition
+    describes its second loop in the same flat list, so this asks for A
+    block rather than one per loop — the same reach the pairing one module
+    over has, and unavailable for the same reason: one list, two loops.
+    """
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, Mapping):
+        return
+    said = [str(item) for item in (estimate.get("assumptions") or ())]
+    if _DECLARES_A_RESAMPLED_INTERVAL not in said:
+        return
+    if _any_record(estimate):
+        return
+    _reject(
+        "numeric_estimate",
+        f"the estimator declares {_DECLARES_A_RESAMPLED_INTERVAL!r} and no "
+        f"bootstrap block sits anywhere on the estimate. The sentence says "
+        f"an interval was made by resampling and is written only where "
+        f"enough replicates survived to report one, so the loop it "
+        f"describes ran — and every claim this module makes about such a "
+        f"loop is a claim about the block, which means an interval with no "
+        f"block is the one shape where a reader is told how the interval "
+        f"was made and nothing can be checked about it"
+    )
 
 
 def _check_the_refuted_share(estimate: Mapping) -> None:
