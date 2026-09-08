@@ -92,6 +92,7 @@ import itertools
 import re
 from typing import Any, Iterable, Mapping, NoReturn
 
+from .. import gaps as _gaps
 from ..types import Atom, ConstTerm, VariableDeclaration
 from .errors import VerificationError
 
@@ -713,6 +714,48 @@ def _check_the_gap_it_names_is_in_the_report(
     )
 
 
+def _check_it_names_the_species_its_need_raises(where: str, item: Mapping
+                                                ) -> None:
+    """And WHICH species, which the ask's own need already settles.
+
+    The check above asks whether the named species is one this answer
+    reported, and that is all a reference to a list can be asked on its
+    own: an ask pointed at another gap the report really does carry sends
+    a reader to collect something for a problem that is on the envelope,
+    and no reading of the report alone can tell that from the truth.
+
+    It is not on its own. An item says what was NEEDED, and a need
+    declares the channel that repairs it — ``Need.gap``, on the member
+    rather than at the sites that raise it, so that a site cannot file a
+    need under a kind that contradicts it. That constrains the producer
+    and nothing was holding the envelope to it, so the relation the
+    contract states was a relation no answer had to honour.
+
+    Read off the contract's own member rather than gathered from the
+    corpus: a need this build has never raised is held to the same
+    sentence as the ones it raises daily.
+    """
+    named, need = item.get("gap"), item.get("need")
+    if not isinstance(named, str) or not isinstance(need, str):
+        return
+    declared = _gaps.BY_NAME.get(need)
+    if declared is None:
+        # A word outside the vocabulary is refused by the schema the door
+        # validates against, before any rule here reads it.
+        return
+    if named == declared.gap.value:
+        return
+    _reject(
+        f"{where} says what it needed is {need!r} and points a reader at a "
+        f"{named!r} gap, and a {need!r} is repaired through a "
+        f"{declared.gap.value!r} one. The species is the CHANNEL that "
+        f"closes the need, so an ask pointed at another gap on the same "
+        f"report sends a reader to collect something that would not close "
+        f"this one — and the gap it really came from is left with nothing "
+        f"pointing at it"
+    )
+
+
 #: The names a parameter key mentions: whatever stands immediately before
 #: an "=" inside it. A narrow reading of one grammar, stated rather than
 #: inferred, and pinned by a test that reproduces every corpus row's
@@ -953,6 +996,10 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                 _check_the_two_renderings_agree(where, item, row, group)
             if kinds is not None:
                 _check_the_gap_it_names_is_in_the_report(where, item, kinds)
+            # Whether or not the report is here to be read: which species
+            # an ask points at is settled by the ask's own need, and that
+            # is a question about the item alone.
+            _check_it_names_the_species_its_need_raises(where, item)
             said = item.get("said")
             said = said if isinstance(said, Mapping) else {}
             skeleton = item.get("skeleton")

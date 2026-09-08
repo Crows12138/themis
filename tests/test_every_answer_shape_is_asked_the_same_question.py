@@ -1112,9 +1112,20 @@ def test_the_declared_remainder_is_what_it_is():
     qualified slice that stays cites a dispatch conflict: its kind says
     program and its content is about this run, so there is nothing in the
     problem to find, and refusing it would refuse an honest report.
+
+    Then 50 more went the same way, and so did the sentence above them.
+    An investigation item's ``gap`` was held to the report's own list —
+    the species must be one this answer found — and an ask pointed at
+    another gap the report really does carry passed, which this file had
+    written down as the limit of holding a reference to its referent. It
+    was not the limit. The item says what was NEEDED, and the contract
+    declares on each need the channel that repairs it, so which species an
+    ask may point at was settled all along. 41 qualified slices and the 9
+    bare ones close together, which is the second time in two rounds that
+    a hole was being counted twice under two units.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2703, total
+    assert total == 2653, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
