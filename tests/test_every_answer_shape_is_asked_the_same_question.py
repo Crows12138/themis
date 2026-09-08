@@ -95,10 +95,26 @@ the wrong half of ``verify``, and ``verify_answer_claims`` is the door
 that came of it: twenty-six of the leaves this file declared unwitnessed
 were the variable a gap says it is about, what it says is missing, and the
 predicates of the estimand and the patch on the five answers nothing read.
+
+That one occurrence of a shape stands for the rest of them, which is the
+same sentence a fourth time and the one that hid a live defect. A row's
+gaps are a list of records of different species, and which rule decides a
+gap's severity depends on its species: the first gap's is fixed by its
+species and refused by the table that fixes it, so the shape scored held —
+while the fourth gap's severity was an occasion's, nothing read the
+occasion, and no question was ever put to it. The unit is now the SORT of
+record, told apart by the words the record takes from a declared
+vocabulary, and the names of the sorts that were never asked are added
+beside the shapes rather than replacing them, so what the declared file
+already says still means what it said. Eleven percent more questions cost
+twenty-three percent more wall clock: the sorts nobody was asking sit on
+the gap list, and a leaf there is put to more doors than the average one.
+What a widening costs is priced in doors, not in questions.
+
 An instrument that reports a hole honestly is how the hole gets closed;
-this is the third one it has found about itself, and all three are one
-sentence: a coverage number is a fact about the question that was asked —
-of which rows, of which leaves, and in which words.
+these are the ones it has found about itself, and they are one sentence: a
+coverage number is a fact about the question that was asked — of which
+rows, of which leaves, of which of them, and in which words.
 """
 from __future__ import annotations
 
@@ -255,22 +271,98 @@ def _tamper(result, path, value):
     return bad
 
 
+def _the_record_this_leaf_sits_in(result, path):
+    """The nearest list element above a leaf, and its path.
+
+    A list element is where a record begins: an answer's gaps, its ledger
+    lines, its bounds rows. Everything above that is the envelope's
+    furniture, which one row has one of.
+    """
+    node = result
+    record, record_path = None, ()
+    for depth, step in enumerate(path):
+        if isinstance(node, list) and isinstance(node[step], dict):
+            record, record_path = node[step], path[:depth + 1]
+        node = node[step]
+    return record, record_path
+
+
+def _the_words_that_say_which_sort(result, path) -> tuple:
+    """What a record takes from a closed vocabulary, minus the leaf itself.
+
+    The identity this gate needs and did not have. Two records in one list
+    are the same SORT of record exactly when every word they take from a
+    declared vocabulary agrees — a gap of one kind and a gap of another are
+    two sorts, and the rule that reads one of them may not be the rule that
+    reads the other. Read off the contract's own domains rather than a list
+    of field names kept here, so a record that grows a vocabulary field is
+    told apart by it without anybody remembering to say so.
+
+    The leaf's own field is excluded, or the sort would be the value under
+    test and every value would be its own sort — and only where the leaf
+    IS that field of this record, since a field of the same name deeper
+    inside it is a different field and describes the sort as much as any
+    other word does.
+    """
+    record, record_path = _the_record_this_leaf_sits_in(result, path)
+    if not isinstance(record, dict):
+        return ()
+    itself = path[-1] if len(path) == len(record_path) + 1 else None
+    return tuple(
+        (key, value) for key, value in sorted(record.items())
+        if key != itself and isinstance(value, str)
+        and _shape_of(record_path + (key,)) in _DOMAIN
+    )
+
+
+def _named(shape: str, words: tuple) -> str:
+    """What the declared file calls one asked leaf.
+
+    Additive on purpose. The first record of a shape keeps the bare shape
+    it has always had, so every line already in the file means what it
+    meant; only the sorts that were never asked take a name of their own,
+    and the remainder therefore moves by what this finds rather than by
+    what it renamed.
+    """
+    return shape + "@" + ",".join(f"{k}={v}" for k, v in words)
+
+
 def _asked(result):
-    """Every leaf this gate puts a question to, once per distinct shape.
+    """Every leaf this gate puts a question to, once per sort of record.
 
     The gate's SCOPE, and the only statement of it: what ``_sweep`` bends
     and what the scope test measures are the same walk, so a narrowing is
     one edit and it fails rather than passes. For twelve frontiers the
     scope was a subscript inside the sweep — ``result["numeric_estimate"]``
     — and nothing anywhere said so.
+
+    ONCE PER SHAPE was the same defect one level down, and it hid a live
+    one. A row's gaps are a list of records of different species, and the
+    severity of the first says nothing about the severity of the fourth:
+    the first was refused by the table that fixes its species' weight, the
+    shape scored held, and the fourth — whose weight is an occasion's and
+    whose occasion nothing read — was never asked at all. So the unit is
+    the sort of record, and a shape is asked once per sort that appears.
+
+    Yields the NAME to report under and the SHAPE to bend by, which are no
+    longer the same string: the vocabulary a leaf's lies must come out of
+    is the shape's, and a name qualified by the record's other words would
+    find no domain and fall back to lies the validator refuses — which is
+    the sweep measuring the validator and reporting it as coverage.
     """
-    seen = set()
+    seen_shape: set[str] = set()
+    seen_sort: set[tuple] = set()
     for path, value in _leaves(result):
         shape = _shape_of(path)
-        if shape in seen:
+        words = _the_words_that_say_which_sort(result, path)
+        if (shape, words) in seen_sort:
             continue
-        seen.add(shape)
-        yield shape, path, value
+        seen_sort.add((shape, words))
+        if shape in seen_shape:
+            yield _named(shape, words), shape, path, value
+            continue
+        seen_shape.add(shape)
+        yield shape, shape, path, value
 
 
 def _doors() -> tuple[str, ...]:
@@ -334,20 +426,20 @@ def _sweep(program, result):
     Refused by SOME door that read the answer. Where none does, nothing
     about this envelope is witnessed and every leaf of it says so.
     """
-    asked = {shape for shape, _, _ in _asked(result)}
+    asked = {name for name, _, _, _ in _asked(result)}
     doors = _reading_doors(program, result)
     if not doors:
         return sorted(asked), asked
 
     survived = []
-    for shape, path, value in _asked(result):
+    for name, shape, path, value in _asked(result):
         for bent in _bends(value, shape):
             if not _is_material(value, bent):
                 continue
             bad = _tamper(result, path, bent)
             if any(_refuses(door, program, bad) for door in doors):
                 continue
-            survived.append(shape)
+            survived.append(name)
             break
     return survived, asked
 
@@ -473,6 +565,66 @@ def test_a_door_that_will_not_read_the_answer_witnesses_nothing():
     assert "verify" not in _reading_doors(program, nothing)
     survived, asked = _sweep(program, nothing)
     assert asked and sorted(survived) == sorted(asked)
+
+
+def test_two_records_of_different_species_are_two_questions():
+    """The unit, on the row that showed it was wrong.
+
+    ``iv_2sls`` carries four gaps of three species. Its first gap's
+    severity is fixed by its species and refused by the table that fixes
+    it; the fourth gap's severity is an occasion's. One question per shape
+    put that question to the first gap only, so the shape scored held and
+    the fourth was never asked at all.
+    """
+    result = SHAPES["iv_2sls"]["result"]
+    severities = [
+        (name, path) for name, shape, path, _ in _asked(result)
+        if shape == "data_gap_report.gaps.[].severity"]
+    kinds = {gap["kind"] for gap in result["data_gap_report"]["gaps"]}
+    assert len(kinds) == len(severities) > 1
+    named = {name for name, _ in severities}
+    assert "data_gap_report.gaps.[].severity" in named
+    assert any("iv_identification_assumption_required" in name
+               for name in named)
+
+
+def test_the_name_of_a_sort_is_added_beside_the_shape_never_instead_of_it():
+    """What keeps the declared remainder a comparable number.
+
+    Every line already in the declared file names a bare shape, so the
+    first sort of every shape must keep that bare name; a qualified name
+    is only ever a question that was not being asked before. A change that
+    renamed the existing lines would move the remainder by its own
+    bookkeeping and there would be no reading of the two numbers that
+    meant anything.
+    """
+    for pair in SHAPES.values():
+        first: set[str] = set()
+        for name, shape, _, _ in _asked(pair["result"]):
+            if shape not in first:
+                first.add(shape)
+                assert name == shape
+            else:
+                assert name.startswith(shape + "@")
+    declared = {name for names in UNWITNESSED.values() for name in names}
+    assert declared, "nothing declared; this check is measuring nothing"
+
+
+def test_a_sort_is_told_apart_by_the_words_its_own_contract_declares():
+    """Read off the domains rather than a list of field names kept here,
+    and the leaf's own field left out of its own identity — otherwise
+    every value would be its own sort and every leaf would be asked once
+    per value it happens to take."""
+    result = SHAPES["iv_2sls"]["result"]
+    path = next(
+        p for p, _ in _leaves(result)
+        if _shape_of(p) == "data_gap_report.gaps.[].severity")
+    words = dict(_the_words_that_say_which_sort(result, path))
+    assert "severity" not in words
+    assert words.get("kind") in {gap["kind"]
+                                 for gap in result["data_gap_report"]["gaps"]}
+    for field in words:
+        assert f"data_gap_report.gaps.[].{field}" in _DOMAIN
 
 
 def test_what_this_sweep_calls_a_lie_is_asked_of_the_difference():
@@ -925,9 +1077,31 @@ def test_the_declared_remainder_is_what_it_is():
     another sample size. The remainder would have moved for two reasons at
     once — which is the same lesson the opened row above teaches from the
     other side, and the reason this number is worth anything.
+
+    And it went up by 272 on the day the unit stopped being the shape and
+    became the SORT of record, which is this file's fourth report about its
+    own reach and the largest. Not one of those leaves became unheld: they
+    had never been asked, because the first record of a shape was standing
+    for records of other species that other rules decide. Every line the
+    file already had is untouched — the first sort of a shape keeps the
+    bare name it has always had, and only the sorts nobody was asking take
+    a qualified one — so the two numbers are the same measurement widened
+    rather than a new instrument reading its own scale.
+
+    What that widening found is one already-registered hole at nine times
+    the size it was registered at, and three that were not. 88 of the 272
+    are a gap's ``provenance[].ref_id`` where the ref is a ``program_site``
+    — a ref kind whose referent is the program rather than anything on the
+    envelope, filed as ten slices because ten was how many the old unit
+    could see. 41 are the ``gap`` an investigation item points at when the
+    ask is for framing fields nobody filled. 24 are a ledger line's
+    ``provenance``, told apart by the layer and severity of the line it
+    sits on. 30 are the two endpoints and the reference value of a
+    Balke-Pearl bounds row, whose sort is its method and its sharpness.
+    The rest are a long tail across the words a gap quotes back.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2528, total
+    assert total == 2800, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1002,22 +1176,28 @@ def test_the_sweep_asks_about_the_whole_envelope():
     against the contract rather than against the corpus, above.
 
     It also moves when a refresh changes what the rows carry, and both
-    directions happened at once here: eight rows were re-collected, six of
+    directions once happened at once: eight rows were re-collected, six of
     them picked up a framing note and a gap their producer had grown since
     they were stored, and two mediation rows lost every interval endpoint
     they had — the callers producing them ask for no bootstrap, and the day
     that ask began to be honoured the endpoints stopped being reported at
     all rather than being reported equal to the point.
+
+    And it moves when the UNIT moves, which is what happened here: 27988
+    was one question per shape per row, and a row's gaps are records of
+    different species whose weights are decided by different rules. Asking
+    one sort per shape instead makes it 31149 — 3161 questions that were
+    never put, at eleven percent more of this gate's wall clock.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
     for pair in SHAPES.values():
         top_level.update(pair["result"])
-        shapes = [shape for shape, _, _ in _asked(pair["result"])]
-        asked_total += len(shapes)
-        asked_top.update(shape.split(".")[0] for shape in shapes)
+        names = [name for name, _, _, _ in _asked(pair["result"])]
+        asked_total += len(names)
+        asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 27988, asked_total
+    assert asked_total == 31149, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [
