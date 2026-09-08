@@ -613,7 +613,7 @@ The system must:
   `themis/output/data_gap_report.py`)
 - Sort gaps by severity (blocking → important → informational) and
   expose all of them
-- Independently verify the report via T10-1 / T10-2 / T10-3 / T10-5
+- Independently verify the report via T10-1 / T10-2 / T10-3 / T10-5 / T10-6
   (`themis/verifier/data_gap_rules.py`) so a generator bug cannot
   silently drop a gap
 - Render the gap section per `themis/prompts/response_rendering.md`

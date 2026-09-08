@@ -20,6 +20,7 @@ from themis.kb.translator import (
 from themis.gaps import Sentence, sentence
 from themis.types import (
     BLOCKS_TURN_ON,
+    DATA_TYPE_TURNS_ON,
     SEVERITY_TURNS_ON,
     DataGap,
     GapBlocks,
@@ -38,15 +39,21 @@ def _gap(
     signature: str | None = "conditional",
     population: str | None = "adult_us",
 ) -> DataGap:
-    """A gap of this species. Severity and blocks are the species' own —
-    stated here only for the kinds whose declaration says the value is an
-    occasion's, since the rest fill themselves and refuse a fixture's
-    guess."""
+    """A gap of this species. Severity, blocks and the shape of data it
+    asks for are the species' own — stated here only for the kinds whose
+    declaration says the value is an occasion's, since the rest fill
+    themselves and refuse a fixture's guess."""
     occasion = {}
     if kind in SEVERITY_TURNS_ON:
         occasion["severity"] = GapSeverity.BLOCKING
     if kind in BLOCKS_TURN_ON:
         occasion["blocks"] = GapBlocks.POINT_ESTIMATE
+    shape = {}
+    if kind in DATA_TYPE_TURNS_ON:
+        shape["data_type"] = (
+            RequiredDataType.MARGINAL if signature == "marginal"
+            else RequiredDataType.IPD
+        )
     return DataGap(
         kind=kind,
         **occasion,
@@ -55,7 +62,7 @@ def _gap(
         provenance=(GapProvenanceRef(GapRefKind.INVESTIGATION_REQUEST, "P(y|x)"),),
         signature=signature,
         required_data=GapRequiredData(
-            data_type=RequiredDataType.IPD,
+            **shape,
             population=population,
             variables=("x", "y"),
         ),

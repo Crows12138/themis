@@ -2169,6 +2169,9 @@ def _species_missing_distribution(
         describes=(_sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
                              what=display),),
         signature=signature,
+        # The one species that has to say which, because for this one the
+        # shape is the occasion's — see ``DATA_TYPE_TURNS_ON``. It is the
+        # same fact as the signature, spelled in the reader's terms.
         required_data=GapRequiredData(
             data_type=(
                 RequiredDataType.IPD
@@ -2480,7 +2483,6 @@ def _classify_missing_mediator(
                     mediator=mediator, target=item.target,
                 ),),
                 required_data=GapRequiredData(
-                    data_type=RequiredDataType.IPD,
                     variables=touched,
                     min_sample_size=min_n,
                     precision_target=precision,
@@ -2561,7 +2563,6 @@ def _transport_source_data_needs(
             variables=z_names,
         ),),
         required_data=GapRequiredData(
-            data_type=RequiredDataType.MARGINAL,
             population=target_pop,
             variables=tuple(_atom_label(a) for a in adjustment_set),
             min_sample_size=target_n,
@@ -2594,7 +2595,6 @@ def _transport_source_data_needs(
             formula=formula_repr,
         ),),
         required_data=GapRequiredData(
-            data_type=RequiredDataType.IPD,
             population=source_pop,
             variables=tuple(_atom_label(a) for a in adjustment_set),
             min_sample_size=source_n,
@@ -2724,7 +2724,6 @@ def _classify_dose_response_data(
         kind=GapKind.DOSE_RESPONSE_DATA_REQUIRED,
         describes=tuple(said),
         required_data=GapRequiredData(
-            data_type=RequiredDataType.IPD,
             sampling_point_count=K,
             min_sample_size=total,
             precision_target=language.state(

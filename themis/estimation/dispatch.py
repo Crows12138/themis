@@ -43,7 +43,6 @@ from ..types import (
     GapSeverity,
     NO_SUBJECT,
     Priority,
-    RequiredDataType,
     envelope_scalar,
     raised_by_ref,
 )
@@ -7274,7 +7273,6 @@ def _attach_iv_estimand_fallback_warning(result: dict, iv_estimate) -> None:
         kind=GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR,
         describes=(unstratified,),
         required_data=GapRequiredData(
-            data_type=RequiredDataType.IPD,
             # A characterisation rather than a name: no population here
             # was ever given one, and the field takes either.
             population=_lang.state(

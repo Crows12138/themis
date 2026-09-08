@@ -801,6 +801,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
     "themis/types.py::BLOCKS_TURN_ON[]": (
         Wrote.INVARIANT,
         "the same, for what a gap of that species stands in the way of"),
+    "themis/types.py::DATA_TYPE_TURNS_ON[]": (
+        Wrote.INVARIANT,
+        "what the shape of data a species asks for turns on, quoted by the "
+        "ValueError ``DataGap`` raises when a gap of that species states no "
+        "shape, and by the T10-6 refusal when it states the wrong one. Both "
+        "are read by whoever is checking the kernel; the rule beside the "
+        "table reads its KEYS, to know which species has an occasion to go "
+        "and read"),
     "themis/types.py::RAISED_BY_TURNS_ON[]": (
         Wrote.INVARIANT,
         "what the choice between a species' two checks turns on, quoted by "

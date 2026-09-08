@@ -23,6 +23,12 @@ Three rules audit a generated DataGapReport for honesty:
   ``blocks`` must be what its species declares. The few species whose
   value is an occasion's say so in code, and this rule is silent on
   exactly those.
+- **T10-6 ``data_gap_required_data_check``** — the shape of data a gap
+  asks for must be one its species asks for, and for the one species
+  whose shape is an occasion's, the one the statement it was filed for
+  needs. That statement is on the item the gap cites, so the ``signature``
+  and the ``data_type`` are both held to a second record rather than to
+  each other.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -44,11 +50,13 @@ from typing import Any, Mapping
 from ..types import (
     BLOCKS_OF,
     BLOCKS_TURN_ON,
+    DATA_TYPE_TURNS_ON,
     GapKind,
     NO_SUBJECT,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
     raised_by,
+    required_data_type,
 )
 from .errors import VerificationError
 from .program_copy_rules import query_of
@@ -1163,6 +1171,160 @@ def _verify_t10_5_species_properties(
             )
 
 
+# ============================== T10-6 what shape of data a gap asks for
+#
+# ``required_data.data_type`` is the third field to be held this way and the
+# first that does not sit on the gap: it lives on the block saying what would
+# fill the gap, one object down, which is how a word belonging to the species
+# came to have six authors and no declaration. What it costs a reader is the
+# whole difference between "someone has to publish one number" and "someone
+# has to obtain records", and until now the only sentence about it anywhere
+# was the producer's own line.
+#
+# :data:`themis.types.DATA_TYPE_OF` and
+# :data:`~themis.types.DATA_TYPE_TURNS_ON` are imported rather than restated,
+# on the terms the T10-5 comment above sets out: a restatement buys
+# independence from a PRODUCER's roster, and these are not a producer's
+# roster but the contract layer's statement of what the word means.
+#
+# The one species whose shape is an occasion's is read here from the ask
+# itself. That is what makes this more than two fields agreed with each
+# other: the gap cites an investigation item, the item carries the statement
+# the distribution is missing FROM, and whether that statement conditions on
+# anything is a fact about the answer rather than about either word the gap
+# wrote. So the same reading holds both — the ``signature`` naming the shape
+# and the ``data_type`` naming what would supply it are one fact spelled
+# twice, and a gap that gets either one wrong is refused by the ask.
+
+_SHAPE_RULE = "data_gap_required_data_check"
+
+#: What a reader does with the shape, so a refusal names what goes wrong
+#: rather than only which word was unexpected.
+_WHAT_A_COLLECTOR_DOES_WITH_IT = (
+    "reads it as whether one published number closes this, or whether "
+    "records have to be obtained"
+)
+
+#: What supplies each shape of ask. Two sides of one statement, which is why
+#: one reading settles the ``signature`` and the ``data_type`` together.
+_WHAT_A_SHAPE_OF_ASK_NEEDS = {
+    "conditional": "ipd",
+    "marginal": "marginal",
+}
+
+
+def _the_shape_of_the_ask(item: Mapping) -> str | None:
+    """Whether the statement this item filed conditions on anything.
+
+    ``None`` where the item stated no probability — an ask with no target
+    is a shortfall with nothing behind it, and guessing a shape here would
+    invent the fact this rule exists to check against.
+    """
+    skeleton = item.get("skeleton")
+    if not isinstance(skeleton, Mapping):
+        return None
+    if not isinstance(skeleton.get("target"), Mapping):
+        return None
+    given = skeleton.get("given")
+    return "conditional" if isinstance(given, list) and given else "marginal"
+
+
+#: The species whose shape is the occasion's, and where that occasion is read.
+_THE_ASK_READ_HERE = {
+    GapKind.MISSING_DISTRIBUTION: _the_shape_of_the_ask,
+}
+
+
+def _the_ask_a_gap_was_filed_for(
+    gap: Mapping, asks: Mapping[str, Mapping],
+) -> Mapping | None:
+    """The investigation item this gap points at, where it points at one."""
+    for ref in gap.get("provenance") or ():
+        if not isinstance(ref, dict):
+            continue
+        if ref.get("ref_kind") != "investigation_request":
+            continue
+        ref_id = ref.get("ref_id")
+        if not isinstance(ref_id, str):
+            continue
+        item = asks.get(ref_id)
+        if item is not None:
+            return item
+    return None
+
+
+def _verify_t10_6_shape_of_data(
+    report: dict, *, investigation_requests: list[dict],
+) -> None:
+    """What each gap asks a reader to go and get, against its species."""
+    asks: dict[str, Mapping] = {}
+    for request in investigation_requests:
+        if not isinstance(request, dict):
+            continue
+        for item in request.get("items") or ():
+            if isinstance(item, dict) and isinstance(item.get("target"), str):
+                asks.setdefault(item["target"], item)
+
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, dict):
+            continue
+        kind = gap.get("kind")
+        species = _SPECIES_NAMED.get(kind) if isinstance(kind, str) else None
+        if species is None:
+            continue
+        wanted = gap.get("required_data")
+        if not isinstance(wanted, dict):
+            continue
+        shown = wanted.get("data_type")
+        allowed = {shape.value for shape in required_data_type(species)}
+        if not allowed:
+            if shown is not None:
+                raise VerificationError(
+                    f"T10-6: gap[{gap_index}] kind={species.value!r} asks for "
+                    f"{shown!r} data, and this species asks for no particular "
+                    f"shape; a collector {_WHAT_A_COLLECTOR_DOES_WITH_IT}",
+                    step_index=None, rule=_SHAPE_RULE,
+                )
+            continue
+        if shown not in allowed:
+            raise VerificationError(
+                f"T10-6: gap[{gap_index}] kind={species.value!r} asks for "
+                f"{shown!r} data, and a gap of this species asks for "
+                f"{sorted(allowed)}; a collector "
+                f"{_WHAT_A_COLLECTOR_DOES_WITH_IT}",
+                step_index=None, rule=_SHAPE_RULE,
+            )
+        reader = _THE_ASK_READ_HERE.get(species)
+        if reader is None:
+            continue
+        # Silent where there is no ask to read — a gap of this species that
+        # cites no item, or an item that filed no statement, leaves this rule
+        # nothing to hold either word against, and a guess here would be the
+        # rule answering a question nobody asked it.
+        item = _the_ask_a_gap_was_filed_for(gap, asks)
+        shape = _the_shape_of_the_ask(item) if item is not None else None
+        if shape is None:
+            continue
+        owed = _WHAT_A_SHAPE_OF_ASK_NEEDS[shape]
+        if shown != owed:
+            raise VerificationError(
+                f"T10-6: gap[{gap_index}] kind={species.value!r} asks for "
+                f"{shown!r} data, and the statement it was filed for is "
+                f"{shape}, which needs {owed!r}: "
+                f"{DATA_TYPE_TURNS_ON[species][1]}",
+                step_index=None, rule=_SHAPE_RULE,
+            )
+        if gap.get("signature") != shape:
+            raise VerificationError(
+                f"T10-6: gap[{gap_index}] kind={species.value!r} says its "
+                f"signature is {gap.get('signature')!r}, and the statement it "
+                f"was filed for is {shape}. The signature and the shape of "
+                f"data are one fact spelled twice, and this one is read off "
+                f"the statement rather than off either spelling",
+                step_index=None, rule=_SHAPE_RULE,
+            )
+
+
 # ============================================ public entry
 
 
@@ -1174,7 +1336,7 @@ def verify_data_gap_report(
     framing_notes: list[dict] | None = None,
     envelope: dict | None = None,
 ) -> None:
-    """Run T10-1 / T10-2 / T10-3 / T10-5 against ``report``.
+    """Run T10-1 / T10-2 / T10-3 / T10-5 / T10-6 against ``report``.
 
     Inputs are dicts (as serialized in the result envelope) so the audit
     catches serialization bugs in addition to generator bugs.
@@ -1218,6 +1380,9 @@ def verify_data_gap_report(
         derivation_steps=derivation_steps,
     )
     _verify_t10_5_species_properties(report, envelope)
+    _verify_t10_6_shape_of_data(
+        report, investigation_requests=investigation_requests,
+    )
 
 
 # ==================================== T10-4: the tier the report announces

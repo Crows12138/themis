@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field, fields as dc_fields, is_dataclass
+from dataclasses import (
+    dataclass, field, fields as dc_fields, is_dataclass, replace as dc_replace,
+)
 from enum import StrEnum
 from typing import TYPE_CHECKING, Union
 
@@ -2511,6 +2513,89 @@ class RequiredDataType(StrEnum):
     EXPERT_JUDGMENT = "expert_judgment"
 
 
+# --- what shape of data would fill a species --------------------------------
+#
+# The third field to arrive here for the reason the first two did: written at
+# every construction site that has one — six of them — and declared nowhere,
+# so a rule holding it could only restate the sites, and restating a
+# producer's layout is agreeing with it by construction. What the word costs
+# a reader is not small: it is the difference between "someone has to publish
+# one number" and "someone has to collect records".
+#
+# Only species that ASK for data appear here, so totality is a runtime fact
+# rather than a partition of the enum, the arrangement ``RAISED_BY`` uses:
+# :func:`required_data_type` refuses a species that declared nothing, which
+# means a site cannot invent a shape by being the only place that says it.
+#
+# Measured before they were moved: five of the six species write one shape at
+# every site, and the sixth writes both — its row below says what that turns
+# on, and the audit reads that occasion off the envelope rather than trusting
+# either word.
+
+#: The species that ask for one shape of data, whichever occasion raises them.
+DATA_TYPE_OF: dict["GapKind", RequiredDataType] = {
+    GapKind.MISSING_MEDIATOR_DATA: RequiredDataType.IPD,
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: RequiredDataType.IPD,
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: RequiredDataType.IPD,
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: RequiredDataType.IPD,
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: RequiredDataType.MARGINAL,
+    # Nothing in this tree builds one, the same as in its severity row, and
+    # declared here for the same reason: it is a transport ask, the KB
+    # translator sends it to the same target-population marginal its sibling
+    # above goes to, and a producer that disagrees has to change THIS line
+    # rather than type its own shape.
+    GapKind.MISSING_POPULATION_DISTRIBUTION: RequiredDataType.MARGINAL,
+}
+
+#: And the species whose shape is the occasion's, saying what it turns on and
+#: which shapes the occasion chooses between. A sentence rather than a flag,
+#: for the reason :data:`SEVERITY_TURNS_ON` gives: the next producer of this
+#: species has to answer the same question, and an auditor needs to know
+#: where to look instead of at a table.
+DATA_TYPE_TURNS_ON: dict[
+    "GapKind", tuple[frozenset[RequiredDataType], str]
+] = {
+    GapKind.MISSING_DISTRIBUTION: (
+        frozenset({RequiredDataType.IPD, RequiredDataType.MARGINAL}),
+        "whether the distribution it is missing conditions on anything. A "
+        "conditional can only come from records carrying every half of it "
+        "at once; a marginal is one number, and asking for records to get "
+        "it sends a reader after data nobody needs to hand over",
+    ),
+}
+
+if DATA_TYPE_OF.keys() & DATA_TYPE_TURNS_ON.keys():
+    raise ValueError(
+        "a species asks for one shape of data or chooses between shapes, "
+        "not both: "
+        + str(sorted(k.value for k in
+                     DATA_TYPE_OF.keys() & DATA_TYPE_TURNS_ON.keys()))
+    )
+for _kind, _shapes in DATA_TYPE_TURNS_ON.items():
+    if len(_shapes[0]) < 2:
+        raise ValueError(
+            f"{_kind.value} declares that the shape of data it asks for is "
+            f"the occasion's but names fewer than two — a species with one "
+            f"shape belongs in DATA_TYPE_OF, where nothing has to choose"
+        )
+del _kind, _shapes
+
+
+def required_data_type(kind: "GapKind") -> frozenset[RequiredDataType]:
+    """The shapes of data this species may ask for, or nothing if it asks
+    for no particular shape.
+
+    Total in the direction that matters, the same as :func:`raised_by`: a
+    species with no row gets an empty set and every caller reads that as a
+    refusal rather than as permission, because defaulting to "any shape" is
+    the arrangement this table was written to end.
+    """
+    if kind in DATA_TYPE_OF:
+        return frozenset({DATA_TYPE_OF[kind]})
+    declared = DATA_TYPE_TURNS_ON.get(kind)
+    return declared[0] if declared else frozenset()
+
+
 # --- which check raises each species that cites one -------------------------
 #
 # A ``VERIFIER_CHECK`` ref says two things: which check found this, and what
@@ -2806,6 +2891,12 @@ class DataGap:
     construction site, which is how a field belonging to the species came
     to have 45 authors and no declaration.
 
+    ``required_data.data_type`` is settled here too, from
+    :data:`DATA_TYPE_OF` and :data:`DATA_TYPE_TURNS_ON`, for the same
+    reason and against the same objection: the field lives one object down,
+    on something that does not know which species it is describing, so
+    nothing but this constructor is in a position to hold it.
+
     Passing one is still allowed where it agrees, because
     ``dataclasses.replace`` re-enters this constructor with the gap's own
     values and a gap must survive being rewritten. What is refused is a
@@ -2850,6 +2941,51 @@ class DataGap:
                     f"this occasion's really differs, the species belongs in "
                     f"{where} with the sentence saying what it turns on"
                 )
+        self._settle_the_shape_of_data_it_asks_for()
+
+    def _settle_the_shape_of_data_it_asks_for(self) -> None:
+        """``required_data.data_type`` on the same terms, one field down.
+
+        It sits on :class:`GapRequiredData`, which does not know the species,
+        so the species has to reach it from here — that distance is how the
+        word came to have six authors and no declaration.
+        """
+        wanted = self.required_data
+        if wanted is None:
+            return
+        allowed = required_data_type(self.kind)
+        stated = wanted.data_type
+        if not allowed:
+            if stated is not None:
+                raise ValueError(
+                    f"this gap asks for {stated.value!r} data and "
+                    f"{self.kind.value} declares no shape it asks for — add "
+                    f"it to DATA_TYPE_OF, or to DATA_TYPE_TURNS_ON with the "
+                    f"sentence saying what the choice turns on"
+                )
+            return
+        if stated is None:
+            if len(allowed) > 1:
+                raise ValueError(
+                    f"{self.kind.value} asks for any of "
+                    f"{sorted(shape.value for shape in allowed)} and this "
+                    f"gap did not say which — it turns on "
+                    + DATA_TYPE_TURNS_ON[self.kind][1]
+                )
+            object.__setattr__(
+                self, "required_data",
+                dc_replace(wanted, data_type=next(iter(allowed))),
+            )
+            return
+        if stated not in allowed:
+            raise ValueError(
+                f"this gap asks for {stated.value!r} data and "
+                f"{self.kind.value} asks for "
+                f"{sorted(shape.value for shape in allowed)}; a species' "
+                f"value is not a site's to set. If this occasion's really "
+                f"differs, the species belongs in DATA_TYPE_TURNS_ON with "
+                f"the sentence saying what it turns on"
+            )
 
 
 class AnswerTier(StrEnum):

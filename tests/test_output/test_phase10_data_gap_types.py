@@ -334,13 +334,16 @@ def test_data_gap_required_data_omits_unset_subfields():
 
 def test_data_gap_required_data_entirely_empty_omits_block():
     """If RequiredData has all None / empty fields, the block itself is
-    omitted from the JSON (rather than emitting an empty object)."""
+    omitted from the JSON (rather than emitting an empty object).
+
+    A species that asks for no shape of data, because that is the only
+    species whose block CAN be entirely empty: one that asks for a shape
+    has it filled in from its declaration, and the one whose shape is the
+    occasion's has to say which — see ``DATA_TYPE_OF``."""
     gap = DataGap(
-        kind=GapKind.MISSING_DISTRIBUTION,
-        severity=GapSeverity.BLOCKING,
-        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
-                            what="P(x)"),),
-        blocks=GapBlocks.POINT_ESTIMATE,
+        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+        describes=(sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
+                            why="no admissible set"),),
         required_data=GapRequiredData(),
         provenance=(
             GapProvenanceRef(

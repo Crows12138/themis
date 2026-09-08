@@ -1123,9 +1123,18 @@ def test_the_declared_remainder_is_what_it_is():
     ask may point at was settled all along. 41 qualified slices and the 9
     bare ones close together, which is the second time in two rounds that
     a hole was being counted twice under two units.
+
+    Then 77, and this file was counting one hole as two families. What
+    shape of data a gap asks for was typed at every construction site that
+    has one and declared nowhere, so the only thing a rule could hold it
+    against was the producer's layout; and for the one species whose shape
+    is an occasion's, the gap's ``signature`` and its ``data_type`` are
+    that occasion spelled twice. Both are now read off the statement the
+    gap was filed for, which the item it cites carries, so all 50 of one
+    and all 27 of the other leave together.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2653, total
+    assert total == 2576, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
