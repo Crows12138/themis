@@ -359,6 +359,232 @@ def _at_path(envelope: dict, path: object) -> tuple[bool, str]:
     return True, ""
 
 
+# ============================================ T10-1, the other document
+#
+# A ``program_site`` ref makes the same claim an ``envelope_path`` ref does
+# — "what this gap says comes from THERE" — about the other document. The
+# envelope half is followed above and refused where it lands on nothing.
+# The program half was the same claim with nothing behind it: the audit
+# that reads a report is result-only by contract, so the program a site
+# would be found in is not there to look in, and that was written down as
+# the reason rather than as a place the check still had to go. It goes
+# where the program already is, beside the other rules in ``verify`` that
+# ask the problem rather than the answer, and it raises under T10-1's own
+# rule name because it is T10-1's other half rather than a rule of its own.
+
+
+def _statements_of(program: Mapping, kind: str):
+    for statement in program.get("statements") or ():
+        if isinstance(statement, Mapping) and statement.get("kind") == kind:
+            yield statement
+
+
+def _predicate(end: object) -> object:
+    return end.get("predicate") if isinstance(end, Mapping) else None
+
+
+#: What each kind of edge calls its two ends, and whether swapping them
+#: names the same edge. A directed edge is its direction; a bidirected one
+#: is a pair, so a ref that spells the pair the other way round names the
+#: same statement and refusing it would refuse an honest report.
+_THE_ENDS_OF: dict[str, tuple[str, str, bool]] = {
+    "cause": ("from", "to", False),
+    "bidirected": ("left", "right", True),
+}
+
+
+def _an_edge_with_a_source(program: Mapping, kind: str, spelling: str,
+                           arrow: str) -> tuple[bool, str]:
+    """An edge of this shape, carrying the annotation the ref names."""
+    if arrow not in spelling:
+        return False, f"{spelling!r} does not name two ends"
+    first, second = spelling.split(arrow, 1)
+    one, other, either_way = _THE_ENDS_OF[kind]
+    seen = False
+    for statement in _statements_of(program, kind):
+        ends = (_predicate(statement.get(one)),
+                _predicate(statement.get(other)))
+        if ends != (first, second) and not (
+                either_way and ends == (second, first)):
+            continue
+        seen = True
+        annotations = statement.get("annotations")
+        if isinstance(annotations, Mapping) and "source" in annotations:
+            return True, ""
+    if not seen:
+        return False, (f"the program declares no {kind} edge between "
+                       f"{first!r} and {second!r}")
+    return False, f"that {kind} edge carries no annotations.source"
+
+
+def _a_variable_field_containing(program: Mapping, rest: str
+                                 ) -> tuple[bool, str]:
+    """``<predicate>:<field>:contains:<needle>``, read off the declaration."""
+    parts = rest.split(":", 2)
+    if len(parts) != 3 or not parts[2].startswith("contains:"):
+        return False, f"{rest!r} is not a field of a variable"
+    predicate, field, needle = parts[0], parts[1], parts[2][len("contains:"):]
+    for statement in _statements_of(program, "variable"):
+        if statement.get("predicate") != predicate:
+            continue
+        value = statement.get(field)
+        if isinstance(value, str) and needle in value:
+            return True, ""
+        return False, (f"variable {predicate!r} has no {field!r} saying "
+                       f"{needle!r}")
+    return False, f"the program declares no variable {predicate!r}"
+
+
+def _a_variable_threshold(program: Mapping, rest: str) -> tuple[bool, str]:
+    predicate, _, cut = rest.partition(":")
+    if not cut.startswith("threshold:"):
+        return False, f"{rest!r} is not a threshold on a variable"
+    wanted = cut[len("threshold:"):]
+    for statement in _statements_of(program, "variable"):
+        if statement.get("predicate") != predicate:
+            continue
+        if statement.get("threshold") == wanted:
+            return True, ""
+        return False, (f"variable {predicate!r} declares no threshold "
+                       f"{wanted!r}")
+    return False, f"the program declares no variable {predicate!r}"
+
+
+def _how_many_unmeasured_confounders(program: Mapping) -> int:
+    return sum(1 for _ in _statements_of(program, "bidirected"))
+
+
+def _under_the_programs_extensions(program: Mapping, path: str
+                                   ) -> tuple[bool, str]:
+    """A dotted place under the program's own extensions.
+
+    Not :func:`_at_path`, and the difference is the document rather than
+    the walk. There a member of a list is picked with ``key[kind]``; here
+    a site is spelled in dots throughout, so a segment naming no key is
+    read as the KIND of a member of the list the last key held — which is
+    how a program says which of its declared ambiguities a gap came from.
+    Widening the envelope walk to accept that would make the envelope half
+    accept paths that do not exist there, and the two documents are not
+    obliged to be spelled the same way.
+    """
+    node: object = program
+    for segment in path.split("."):
+        if isinstance(node, Mapping) and segment in node:
+            node = node[segment]
+            continue
+        if isinstance(node, list):
+            member = next((entry for entry in node
+                           if isinstance(entry, Mapping)
+                           and entry.get("kind") == segment), None)
+            if member is not None:
+                node = member
+                continue
+            return False, f"no entry there has kind {segment!r}"
+        return False, f"nothing named {segment!r} there"
+    return True, ""
+
+
+def _resolve_program_site(program: Mapping, ref_id: str) -> tuple[bool, str]:
+    """Whether a cited program site is one this program has.
+
+    Seven spellings, and they divide into three questions rather than
+    seven. A site names an EDGE and the annotation it carries; or a
+    VARIABLE and a field of its declaration; or a place under the
+    program's own extensions, followed the way an envelope path is. And
+    two of them name no site at all but a SHAPE the program is in — one
+    saying it declares an unmeasured confounder and one saying it declares
+    none, which are the two sides of a single question about the same
+    statements, and both are answered by counting them.
+
+    An unknown spelling is refused rather than passed. A ref nothing can
+    follow is the state this whole rule exists to end, and letting one
+    through in silence would rebuild it one spelling at a time.
+    """
+    if ref_id == "program:confounder_pattern:no_bidirected":
+        found = _how_many_unmeasured_confounders(program)
+        if found:
+            return False, (f"the program declares {found} bidirected "
+                           f"edge(s), so this is not a graph with no "
+                           f"unmeasured confounding")
+        return True, ""
+    if ref_id == "program:front_door_pattern":
+        if not _how_many_unmeasured_confounders(program):
+            return False, ("the program declares no bidirected edge, and a "
+                           "front-door reading is what a graph with "
+                           "unmeasured confounding needs")
+        return True, ""
+    if ref_id.startswith("program:cause:"):
+        return _an_edge_with_a_source(
+            program, "cause",
+            ref_id[len("program:cause:"):].removesuffix(":annotations.source"),
+            "->")
+    if ref_id.startswith("program:bidirected:"):
+        return _an_edge_with_a_source(
+            program, "bidirected",
+            ref_id[len("program:bidirected:"):].removesuffix(
+                ":annotations.source"),
+            "↔")
+    if ref_id.startswith("program:variable:"):
+        rest = ref_id[len("program:variable:"):]
+        if ":threshold:" in rest:
+            return _a_variable_threshold(program, rest)
+        return _a_variable_field_containing(program, rest)
+    if ref_id.startswith("program:extensions."):
+        return _under_the_programs_extensions(
+            program, ref_id[len("program:"):])
+    return False, "no site of the program is spelled this way"
+
+
+#: The one cited site that is not one. A dispatch conflict names which
+#: layer answered and which was skipped, which is a fact about this RUN
+#: and not about the problem — so following it into the program is
+#: impossible, and refusing it would refuse an honest answer. Exempted
+#: here rather than resolved, because what is wrong there is the ref's
+#: KIND rather than the ref, and moving a kind moves the contract.
+_NOT_A_PROGRAM_SITE_AT_ALL = "query:"
+
+
+def verify_gap_program_sites(result: object, program: object) -> None:
+    """T10-1's other half: a cited program site, found in the program.
+
+    The program is the caller's own document rather than anything parsed
+    out of it, and a caller handing over something else is refused rather
+    than skipped: a rule that returns quietly on an argument it does not
+    recognise reads as a rule that ran, which is how the first draft of
+    this one passed every forgery while being wired to a typed object.
+    """
+    if not isinstance(program, Mapping):
+        raise TypeError(
+            "verify_gap_program_sites needs the program document itself; "
+            f"got {type(program).__name__}")
+    if not isinstance(result, Mapping):
+        return
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, Mapping):
+            continue
+        for ref_index, ref in enumerate(gap.get("provenance") or ()):
+            if not isinstance(ref, Mapping):
+                continue
+            if ref.get("ref_kind") != "program_site":
+                continue
+            ref_id = ref.get("ref_id")
+            if not isinstance(ref_id, str):
+                continue
+            if ref_id.startswith(_NOT_A_PROGRAM_SITE_AT_ALL):
+                continue
+            found, why = _resolve_program_site(program, ref_id)
+            if not found:
+                raise VerificationError(
+                    f"T10-1: gap[{gap_index}].provenance[{ref_index}] cites "
+                    f"program_site={ref_id!r} which this problem does not "
+                    f"have: {why}",
+                    step_index=None, rule="data_gap_provenance_check",
+                )
+
+
 # ============================================ T10-2 completeness
 
 

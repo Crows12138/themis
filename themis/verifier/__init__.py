@@ -553,6 +553,18 @@ Public surface (re-exports from sub-modules):
   T10-1 already holds that ref, so the two were verified separately
   and never joined; the fields it says are unset are asked of the
   program, which is not the answer's to arrange)
+- And whether the place a gap cites is a place the problem HAS:
+  ``verify_gap_program_sites`` (T10-1 follows a gap's envelope refs and
+  refuses one that lands on nothing; a ``program_site`` ref makes the same
+  claim about the other document and nothing followed it, because the
+  audit that runs T10-1 is result-only by contract and the program is not
+  there to look in. Seven spellings, three questions — an edge and the
+  annotation it carries, a variable and a field of its declaration, a
+  place under the program's extensions — plus two that name no site but a
+  shape, one saying the problem declares an unmeasured confounder and one
+  saying it declares none, which are the same count read both ways. An
+  unrecognised spelling is refused, or the hole comes back one spelling
+  at a time)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -787,7 +799,7 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
-from .data_gap_rules import verify_answer_tier
+from .data_gap_rules import verify_answer_tier, verify_gap_program_sites
 from .statement_rules import verify_statements_carry_their_facts
 from .status_rules import (
     verify_answer_status,
@@ -842,6 +854,7 @@ __all__ = [
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",
+    "verify_gap_program_sites",
     "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_refusal_block",

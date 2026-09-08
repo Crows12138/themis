@@ -1099,9 +1099,22 @@ def test_the_declared_remainder_is_what_it_is():
     sits on. 30 are the two endpoints and the reference value of a
     Balke-Pearl bounds row, whose sort is its method and its sharpness.
     The rest are a long tail across the words a gap quotes back.
+
+    Then 97 of those 272 went straight back off, and the two numbers that
+    went with them are the same hole measured in two units. A gap's ref
+    saying "this came from THERE" is followed onto the answer by T10-1 and
+    refused where it lands on nothing; the same ref pointing into the
+    PROBLEM was followed by nobody, because the audit that runs T10-1 is
+    result-only by contract. Following it where the program already is
+    closes 87 of the qualified slices and the 10 bare ones at once — 10
+    was what the old unit could see of it and 88 what the new one could,
+    and they close together because they were never two things. The one
+    qualified slice that stays cites a dispatch conflict: its kind says
+    program and its content is about this run, so there is nothing in the
+    problem to find, and refusing it would refuse an honest report.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2800, total
+    assert total == 2703, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

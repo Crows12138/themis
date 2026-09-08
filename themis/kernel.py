@@ -148,6 +148,7 @@ from .verifier import (
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_gap_program_sites,
     verify_gap_quotes,
     verify_refusal_block,
     verify_required_data,
@@ -1665,6 +1666,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # provenance says which one it is about, and T10-1 already holds
     # that ref — the two had never been joined.
     verify_gap_subjects(result, ast)
+
+    # And whether the place a gap cites is a place the problem has. T10-1
+    # follows a gap's envelope refs and refuses one that lands on nothing;
+    # a program site is the same claim about the other document, and the
+    # audit that runs T10-1 is result-only by contract, so that half could
+    # not be asked there. It is asked here, where the program already is.
+    verify_gap_program_sites(result, ast)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which
