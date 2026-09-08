@@ -85,11 +85,101 @@
           ] } } }
         },
         {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "bridge_side" } } },
+          "then": { "properties": { "token": { "enum": ["bridge_moments", "bridge_span"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "consistency_constraint" } } },
+          "then": { "properties": { "token": { "enum": ["a_risk_sits_outside_its_bound"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "data_contract_warning" } } },
+          "then": { "properties": { "token": { "enum": ["sample_is_below_the_advisory"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "described_population" } } },
+          "then": { "properties": { "token": { "enum": ["the_strata_with_one_instrument_arm"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "dose_response_routing" } } },
+          "then": { "properties": { "token": { "enum": [
+            "every_effect_query_is_a_mediation",
+            "no_effect_query_to_attach_to",
+            "no_query_id_so_the_first_eligible_won",
+            "the_query_id_matches_nothing",
+            "the_query_id_names_a_mediation",
+            "the_treatment_is_binary"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "e_value_undefined" } } },
+          "then": { "properties": { "token": { "enum": [
+            "ate_not_finite",
+            "baseline_on_boundary",
+            "outcome_sd_not_usable",
+            "treated_rate_out_of_range"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "four_way_unavailable" } } },
+          "then": { "properties": { "token": { "enum": ["the_mediator_is_continuous_under_a_nonlinear_outcome"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "instrument_route_note" } } },
+          "then": { "properties": { "token": { "enum": [
+            "the_polytope_rules_nothing_out",
+            "the_program_did_not_solve",
+            "theta_gives_a_level_no_mass"
+          ] } } }
+        },
+        {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "iv_required_assumption" } } },
           "then": { "properties": { "token": { "enum": [
             "linear_simultaneous_system",
             "monotonicity_as_declared",
             "monotonicity_or_linearity"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "late_caveat" } } },
+          "then": { "properties": { "token": { "enum": [
+            "late_is_not_the_ate",
+            "strata_weighted_by_complier_share"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "malformed_program" } } },
+          "then": { "properties": { "token": { "enum": [
+            "bridge_under_determined",
+            "bridges_are_each_others_mirror",
+            "cause_runs_backwards",
+            "const_not_in_domain",
+            "covariate_not_on_both_sides",
+            "discrete_channel_takes_no_covariates",
+            "discrete_channel_takes_one_proxy_each",
+            "forall_variable_unused",
+            "free_variable_in_formula",
+            "given_not_parents",
+            "identify_query_cannot_transport",
+            "latent_unread_by_this_query",
+            "llm_prior_without_source",
+            "loop_across_time_steps",
+            "loop_has_one_end",
+            "no_diagram_for_this_target",
+            "observation_not_ground",
+            "predicate_declared_twice",
+            "query_atom_not_in_graph",
+            "query_atom_only_bidirected",
+            "query_not_ground",
+            "selection_nodes_disagree_on_target",
+            "sieve_basis_too_narrow",
+            "sieve_leaves_a_proxy_unused",
+            "sieve_term_names_a_stranger_to_outcome_proxy",
+            "sieve_term_names_a_stranger_to_treatment_proxy",
+            "sum_over_not_ground",
+            "treatment_bridge_not_declared",
+            "treatment_bridge_unused",
+            "variable_not_in_forall"
           ] } } }
         },
         {
@@ -104,16 +194,136 @@
           "then": { "properties": { "token": { "enum": ["binary", "continuous", "discrete", "nominal"] } } }
         },
         {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "missing_data_shortfall" } } },
+          "then": { "properties": { "token": { "enum": [
+            "a_product_is_blocked_by_its_factors",
+            "no_recoverable_ordered_factorization",
+            "the_adjusted_conditional",
+            "the_covariate_marginal"
+          ] } } }
+        },
+        {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "monotonicity" } } },
           "then": { "properties": { "token": { "enum": ["non_decreasing", "non_increasing"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "monotonicity_refutation" } } },
+          "then": { "properties": { "token": { "enum": ["cell_feasible_set", "response_type_polytope"] } } }
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "observable_required" } } },
           "then": { "properties": { "token": { "enum": ["a_full_table_of_cells", "a_joint_distribution"] } } }
         },
         {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "outcome_error_premise" } } },
+          "then": { "properties": { "token": { "enum": ["instruments", "mediators", "treatment_coefficient"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "precision_target" } } },
+          "then": { "properties": { "token": { "enum": [
+            "detect_a_binary_effect",
+            "detect_a_continuous_effect",
+            "detect_both_mediation_paths",
+            "detect_the_effect_in_every_stratum",
+            "pin_one_proportion",
+            "pin_the_target_distribution",
+            "trace_a_dose_response_curve"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "proximal_criterion_failure" } } },
+          "then": { "properties": { "token": { "enum": [
+            "covariate_is_descendant",
+            "degenerate_latent",
+            "latent_is_descendant",
+            "latent_not_sufficient",
+            "missing_node",
+            "outcome_proxy_leaks_to_treatment",
+            "outcome_proxy_leaks_to_treatment_proxy",
+            "roles_not_distinct",
+            "treatment_proxy_leaks_to_outcome"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "proximal_role" } } },
+          "then": { "properties": { "token": { "enum": [
+            "covariate",
+            "latent",
+            "outcome",
+            "outcome_proxy",
+            "treatment",
+            "treatment_proxy"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "query_part" } } },
+          "then": { "properties": { "token": { "enum": [
+            "causation_query",
+            "counterfactual_event",
+            "longitudinal_spec",
+            "proximal_role",
+            "query",
+            "scm_counterfactual_query"
+          ] } } }
+        },
+        {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "query_role" } } },
           "then": { "properties": { "token": { "enum": ["exposure", "instrument", "on_path_covariate", "outcome"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "recovery_factor" } } },
+          "then": { "properties": { "token": { "enum": ["adjusted_conditional", "covariate_marginal"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "recovery_mechanism" } } },
+          "then": { "properties": { "token": { "enum": ["from_missingness", "from_selection"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "selection_recovery_shortfall" } } },
+          "then": { "properties": { "token": { "enum": [
+            "no_admissible_selection_backdoor_set",
+            "outcome_not_separable_from_selection",
+            "treatment_or_outcome_not_in_graph"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "singular_matrix" } } },
+          "then": { "properties": { "token": { "enum": [
+            "bridge_instrument_moments",
+            "bridge_outcome_moments",
+            "design_covariance",
+            "instrument_gram",
+            "non_exposure_design_covariance",
+            "outcome_and_mediator_fit",
+            "robust_weight_matrix",
+            "saturated_joint_design"
+          ] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "sutva_concern" } } },
+          "then": { "properties": { "token": { "enum": ["spillover_must_be_recorded", "units_must_not_coordinate"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "theta_prior_claim" } } },
+          "then": { "properties": { "token": { "enum": ["a_commonsense_prior"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "time_window" } } },
+          "then": { "properties": { "token": { "enum": ["baseline_and_two_follow_ups"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "unbiased_distribution" } } },
+          "then": { "properties": { "token": { "enum": ["the_weights", "unbiased"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "unnamed_thing" } } },
+          "then": { "properties": { "token": { "enum": [
+            "intervention",
+            "outcome",
+            "population",
+            "source_population",
+            "target_population"
+          ] } } }
         }
       ]
     }

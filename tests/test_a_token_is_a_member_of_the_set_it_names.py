@@ -71,13 +71,46 @@ def _statements(node):
 
 
 def _carrier(vocabulary):
-    """A shape whose result carries a statement of this set, and it."""
+    """A shape this gate can put a forgery through for this set, and it.
+
+    Two conditions, not one. The row has to CARRY a statement of the set,
+    and ``verify`` has to READ the row — most rows carrying a gap report
+    have no derivation and ``verify`` raises on them rather than reading
+    them, so a pairing built on one would show a refusal that was already
+    there before the edit. Which rows qualify is a fact about the corpus,
+    so it is measured and pinned rather than assumed.
+    """
     for name in sorted(SHAPES):
         program, result = _pair(name)
+        if not any(s["vocabulary"] == vocabulary for s in _statements(result)):
+            continue
+        try:
+            themis.verify(program, result)
+        except Exception:
+            continue
         for statement in _statements(result):
             if statement["vocabulary"] == vocabulary:
                 return name, program, result, statement
-    raise AssertionError(f"no answer shape carries a {vocabulary} statement")
+    return None
+
+
+#: Sets the contract now enumerates that no answer in the corpus puts
+#: through ``verify`` — either nothing carries one, or the rows that do are
+#: gap diagnoses ``verify`` declines to read. The enumeration still holds
+#: them: what is missing is a row to demonstrate it on, and that is a fact
+#: about the corpus rather than about the contract. Written down because a
+#: gate that quietly parametrizes over fewer sets each round is a gate that
+#: stops measuring without failing.
+NO_ROW_TO_FORGE_ON = frozenset({
+    "bridge_side", "consistency_constraint", "data_contract_warning",
+    "instrument_route_note", "malformed_program", "missing_data_shortfall",
+    "monotonicity_refutation", "outcome_error_premise",
+    "proximal_criterion_failure", "proximal_role", "query_part",
+    "recovery_factor", "recovery_mechanism", "selection_recovery_shortfall",
+    "unbiased_distribution",
+})
+
+FORGEABLE = sorted(set(LISTED) - NO_ROW_TO_FORGE_ON)
 
 
 # ------------------------------------------- the contract says what it says
@@ -99,14 +132,78 @@ def test_a_listed_set_is_enumerated_as_the_kernel_has_it(vocabulary):
         reader_words.GLOSSED[vocabulary].members()), vocabulary
 
 
-def test_the_listed_sets_are_the_ones_whose_members_the_kernel_owns():
-    """Stated as the boundary rather than as a list, so that adding a set
-    whose tokens another layer coins fails here."""
+#: The sets whose members the kernel owns that are deliberately NOT listed,
+#: each with the reason the ``closedSets`` description gives. A row here is
+#: how a set stays out on purpose; without one, the gate below has nowhere
+#: to put an exception and would be argued with by deleting it.
+NOT_LISTED_ON_PURPOSE = {
+    "proximal_data_condition":
+        "the artifact's own schema already enumerates it, and the shared "
+        "carrier must not reach back into that",
+}
+
+#: Sets this build declares that have no glossed row at all, so nothing here
+#: can read their members. Pinned rather than skipped: a set that quietly
+#: stops being readable is a set that quietly stops being asked.
+NO_ROW_TO_READ = {"gap_routes"}
+
+
+def _the_kernel_owns_the_members_of() -> set[str]:
+    """Every declared set whose member list this build writes itself.
+
+    The same question ``closedSets`` answers, asked of the kernel instead of
+    the contract — which is what makes holding the two equal mean anything.
+    """
     import inspect
 
-    for vocabulary in LISTED:
-        source = inspect.getsource(reader_words.GLOSSED[vocabulary].members)
-        assert "_stated(" in source, (vocabulary, source)
+    owns = set()
+    for vocabulary in language.VOCABULARIES:
+        row = reader_words.GLOSSED.get(vocabulary)
+        if row is None:
+            continue
+        try:
+            source = inspect.getsource(row.members)
+            row.members()
+        except Exception:
+            continue
+        if "_stated(" in source:
+            owns.add(vocabulary)
+    return owns
+
+
+def test_the_listed_sets_are_the_ones_whose_members_the_kernel_owns():
+    """The boundary, asked in BOTH directions.
+
+    It was asked in one: every listed set had to be one the kernel owns, so
+    listing somebody else's set failed here. Nothing asked the converse, and
+    a list can only be wrong in the direction nobody checks — measured when
+    that side was added, the kernel owned the members of 35 sets and 8 were
+    listed. Of the 27 that were not, one has a reason and is written down
+    below; the other 26 are not a decision anybody recorded. They are what a
+    one-sided gate lets accumulate, and a reader's surface met every one of
+    them as a token nothing could disagree with.
+
+    So the omissions are enumerated now, with their reasons, and a set that
+    joins the kernel's own without joining the contract fails here.
+    """
+    reader_words.load()
+    owned = _the_kernel_owns_the_members_of()
+    listed = set(LISTED)
+    assert listed <= owned, (
+        "listed as the kernel's own, and its members are coined elsewhere: "
+        f"{sorted(listed - owned)}")
+    assert owned - listed == set(NOT_LISTED_ON_PURPOSE), (
+        "the kernel owns these sets' members and the contract does not say "
+        f"which: {sorted(owned - listed - set(NOT_LISTED_ON_PURPOSE))}")
+
+
+def test_every_declared_set_has_a_row_to_read_or_is_named_here():
+    """The gate above skips a set it cannot read, which is how it would
+    stop measuring without failing. What it skips is written down."""
+    reader_words.load()
+    unreadable = {name for name in language.VOCABULARIES
+                  if reader_words.GLOSSED.get(name) is None}
+    assert unreadable == NO_ROW_TO_READ, sorted(unreadable)
 
 
 def test_every_honest_answer_shape_is_still_accepted():
@@ -125,19 +222,38 @@ def _only_this_edit_refuses(vocabulary, field, value):
     a statement or a list of them. What the pairing establishes instead is
     sharper than any wording: nothing else about the answer moved.
     """
-    _, program, result, statement = _carrier(vocabulary)
+    found = _carrier(vocabulary)
+    assert found is not None, (
+        f"{vocabulary} has no row to forge on; if that is now true, it "
+        f"belongs in NO_ROW_TO_FORGE_ON with the rest")
+    _, program, result, statement = found
     themis.verify(program, result)
     statement[field] = value
     with pytest.raises(SyntacticError):
         themis.verify(program, result)
 
 
-@pytest.mark.parametrize("vocabulary", sorted(LISTED))
+def test_the_sets_a_forgery_can_be_shown_on_are_the_ones_that_have_a_row():
+    """The gate's own scope, asserted rather than left to the parametrize.
+
+    A set moving into ``NO_ROW_TO_FORGE_ON`` is the corpus losing a witness
+    and has to be a deliberate edit; a set moving out is a witness gained
+    and has to be exercised. Either way it is visible in a diff, which a
+    shrinking parametrize list is not.
+    """
+    without = {name for name in LISTED if _carrier(name) is None}
+    assert without == NO_ROW_TO_FORGE_ON, {
+        "no longer forgeable": sorted(without - NO_ROW_TO_FORGE_ON),
+        "forgeable now": sorted(NO_ROW_TO_FORGE_ON - without),
+    }
+
+
+@pytest.mark.parametrize("vocabulary", FORGEABLE)
 def test_a_word_that_set_does_not_have(vocabulary):
     _only_this_edit_refuses(vocabulary, "token", "x")
 
 
-@pytest.mark.parametrize("vocabulary", sorted(LISTED))
+@pytest.mark.parametrize("vocabulary", FORGEABLE)
 def test_a_word_borrowed_from_another_real_set(vocabulary):
     """The forgery a membership check has to catch and a spelling check
     cannot: every word is real, and it is not this set's."""

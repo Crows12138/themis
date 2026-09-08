@@ -1132,9 +1132,27 @@ def test_the_declared_remainder_is_what_it_is():
     that occasion spelled twice. Both are now read off the statement the
     gap was filed for, which the item it cites carries, so all 50 of one
     and all 27 of the other leave together.
+
+    Then 105, and they left by the CONTRACT rather than by a rule, which is
+    worth saying plainly. A statement carries which closed set it is from
+    beside the token, and the shared schema has stated the members of a set
+    since #544 — for eight of them. The gate holding that list to the kernel
+    asked only whether every listed set was one the kernel owns, never
+    whether every set the kernel owns was listed, and the kernel owns 35. So
+    the 26 that were missing are now enumerated and a bent token is refused
+    before any rule reads it.
+
+    What this sweep is therefore NOT asking about those leaves: whether the
+    token is the right member. ``_bends`` draws from ``_DOMAIN``, which is
+    built from unconditional enums, and a ``closedSets`` enum is conditioned
+    on the sibling ``vocabulary`` — which a shape path cannot express, since
+    the shape is the same for every set the carrier holds. A leaf that is
+    held here is held against nonsense and not against another real member
+    of another real set. That is a limit of this instrument, and it is
+    written here rather than left to be discovered from a passing test.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2576, total
+    assert total == 2471, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

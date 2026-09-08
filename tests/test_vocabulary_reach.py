@@ -146,6 +146,12 @@ class Vocabulary:
     ``sites`` and ``off_envelope`` are exclusive the same way: the union of
     the sites has to be exactly the members, and a vocabulary no schema
     states has to say why the envelope never carries it.
+
+    ``carried_by`` is neither, and that is the point of it. Where a token
+    travels is a fact whether or not a schema states the set, and while the
+    only field for saying it was the one meaning "no schema states this",
+    saying it committed a row to the claim that none did. Twenty-six rows
+    said it and had stopped being right.
     """
 
     declares: str = ""
@@ -177,6 +183,23 @@ class Vocabulary:
     off_envelope: str = ""
     """Why no schema states it — it reaches a reader some other way, or not
     at all, and saying which is the point."""
+
+    carried_by: str = ""
+    """Where the token reaches a reader, for a set the schema DOES state.
+
+    These paragraphs were written under ``off_envelope``, and most of what
+    each says is still true: it says which field carries the token, which
+    frame is around it, and what a reader would meet if it were absent.
+    What has stopped being true is the clause several of them end on — that
+    no schema states the set, because the shared carrier types every
+    ``token`` as a string and cannot enumerate a set it does not know. The
+    carrier CAN: ``closedSets`` conditions on the ``vocabulary`` beside the
+    token, which is what those paragraphs already say closes the set, and
+    the branch is named in ``sites``.
+
+    Said here once rather than edited into twenty-six paragraphs, because
+    what changed is one fact about the contract and not twenty-six facts
+    about where these tokens travel."""
 
     glossed_by: str = ""
     """Dotted name of the mapping or callable that gives the reader's word.
@@ -223,16 +246,27 @@ _QR = "query_result.schema.json"
 _KA = "kernel_ast.schema.json"
 _ST = "statement.schema.json"
 
+#: The shared carrier's branches, in the order they sit in. Read once so a
+#: row can name the set it is about instead of the place it sits at.
+_CLOSED_SETS = json.loads(
+    (SCHEMAS / _ST).read_text(encoding="utf-8"))["$defs"]["closedSets"]["allOf"]
 
-def _closed(index: int) -> Site:
+
+def _closed(vocabulary: str) -> Site:
     """The site where the shared statement carrier states one set's members.
 
     A statement's token was a free string until #544, so eight of the rows
-    below said "no schema states it" and meant it. The branches are ordered
-    by vocabulary name and the index is the branch's place in that order,
-    so a row pointing at the wrong one fails here rather than agreeing with
-    somebody else's members.
+    below said "no schema states it" and meant it.
+
+    Addressed by the set it is about, and the index looked up here. A row
+    used to carry the branch's PLACE in the file, which made the ordering a
+    second record: inserting a branch renumbered every row after it, and a
+    renumbered row does not fail — it points at a different set and agrees
+    with somebody else's members.
     """
+    index = next(
+        i for i, branch in enumerate(_CLOSED_SETS)
+        if branch["if"]["properties"]["vocabulary"]["const"] == vocabulary)
     return (_ST, "$defs", "closedSets", "allOf", str(index), "then",
             "properties", "token")
 _EXT = (_QR, "properties", "extensions", "properties")
@@ -348,8 +382,9 @@ _ROWS: dict[str, Vocabulary] = {
                  "algebra does not reach.",
     ),
     "malformed_program": Vocabulary(
+        sites=(_closed("malformed_program"),),
         declares="themis.input.semantic_validator.Malformed",
-        off_envelope="Why a program cannot be run at all. The one "
+        carried_by="Why a program cannot be run at all. The one "
                      "vocabulary here that no result contract states, and "
                      "for the strongest reason any of them has: a program "
                      "refused at this door produces a SemanticError and no "
@@ -360,8 +395,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "down, where there IS a result to put it on.",
     ),
     "proximal_criterion_failure": Vocabulary(
+        sites=(_closed("proximal_criterion_failure"),),
         declares="themis.runtime.proximal_identify.Criterion",
-        off_envelope="Which precondition of Miao model (f) the declared "
+        carried_by="Which precondition of Miao model (f) the declared "
                      "variables broke, and the sentence that says so. It "
                      "reaches the envelope as a STATEMENT rather than as a "
                      "value on a row — inside `missing_information[].words."
@@ -372,8 +408,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "own, and the diagnosis is the same statement in both.",
     ),
     "proximal_role": Vocabulary(
+        sites=(_closed("proximal_role"),),
         declares="themis.runtime.proximal_identify.Role",
-        off_envelope="Which of the five parts of model (f) a variable was "
+        carried_by="Which of the five parts of model (f) a variable was "
                      "declared to play. One rung further in than the row "
                      "above: it fills a hole in that sentence, so it "
                      "travels inside a statement that is itself inside a "
@@ -510,7 +547,7 @@ _ROWS: dict[str, Vocabulary] = {
              "properties", "declared_scale"),
             (*_EXT, "type_reconciliation", "properties", "checks", "items",
              "properties", "observed_scale"),
-            _closed(4),
+            _closed("measurement_scale"),
         ),
     ),
     "dtype_kind": Vocabulary(
@@ -597,8 +634,9 @@ _ROWS: dict[str, Vocabulary] = {
         # browser, where the substring was Chinese.
     ),
     "unnamed_thing": Vocabulary(
+        sites=(_closed("unnamed_thing"),),
         declares="themis.gaps.Unnamed",
-        off_envelope="What stands in a statement's slot where the occasion "
+        carried_by="What stands in a statement's slot where the occasion "
                      "has no name for the thing. It rides on a statement's "
                      "`words`, as the set and the token, for the reason "
                      "`query_part` rides on a shortfall's: the occasion has "
@@ -616,8 +654,9 @@ _ROWS: dict[str, Vocabulary] = {
         # searching the rendered sentence for three substrings (#438).
     ),
     "query_part": Vocabulary(
+        sites=(_closed("query_part"),),
         declares="themis.gaps.QueryPart",
-        off_envelope="Which part of a program named an atom the graph does "
+        carried_by="Which part of a program named an atom the graph does "
                      "not have. It rides on `missing_information[].words`, "
                      "as the set and the token, for the reason `query_role` "
                      "rides on a refusal's — a slot inside a sentence is "
@@ -750,7 +789,7 @@ _ROWS: dict[str, Vocabulary] = {
              "counterfactual_assumptions", "properties", "monotonicity"),
             # And the hole in a bounds note that says which direction the
             # assumption ran, which is the same set one level in.
-            _closed(5),
+            _closed("monotonicity"),
         ),
         # This row used to carry that sentence as a `no_gloss` reason, and
         # the sentence was false: the ledger line printed the token
@@ -1068,8 +1107,9 @@ _ROWS: dict[str, Vocabulary] = {
     ),
     # --- a vocabulary that is read INSIDE a sentence ------------------------
     "singular_matrix": Vocabulary(
+        sites=(_closed("singular_matrix"),),
         declares="themis.refusals.Design",
-        off_envelope="Which matrix a fit could not invert. It travels on "
+        carried_by="Which matrix a fit could not invert. It travels on "
                      "`estimator_failure.details`, which the schema types "
                      "`object` and names no key of — the occasion's own "
                      "facts, whose shape is the raise site's. So no enum "
@@ -1078,8 +1118,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "vocabulary the envelope closes.",
     ),
     "bridge_side": Vocabulary(
+        sites=(_closed("bridge_side"),),
         declares="themis.refusals.BridgeSide",
-        off_envelope="Which of a bridge's two declared designs a refusal is "
+        carried_by="Which of a bridge's two declared designs a refusal is "
                      "about — the span the bridge is searched for in, or the "
                      "moments it is asked to hold along. It rides on "
                      "`estimator_failure.details` beside `singular_matrix` "
@@ -1092,8 +1133,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "mention the treatment' names no field until this does.",
     ),
     "outcome_error_premise": Vocabulary(
+        sites=(_closed("outcome_error_premise"),),
         declares="themis.estimation.outcome_error.Premise",
-        off_envelope="Why one optional argument of an outcome-error design "
+        carried_by="Why one optional argument of an outcome-error design "
                      "exists — the premise the design would rest on if it "
                      "were given. It rides on `estimator_failure.details` "
                      "like `query_role` does, and for the same reason: the "
@@ -1102,8 +1144,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "typed as an open object with no named key.",
     ),
     "e_value_undefined": Vocabulary(
+        sites=(_closed("e_value_undefined"),),
         declares="themis.estimation.sensitivity.Undefined",
-        off_envelope="Why no E-value came out. The token DOES reach the "
+        carried_by="Why no E-value came out. The token DOES reach the "
                      "envelope — `sensitivity_analysis.undefined_because` — "
                      "but through the generic statement carrier, which types "
                      "its `token` as a string because the carrier is one "
@@ -1113,8 +1156,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "row is what holds the two ends together.",
     ),
     "precision_target": Vocabulary(
+        sites=(_closed("precision_target"),),
         declares="themis.output.sample_size.Precision",
-        off_envelope="What a sample of `required_data.min_sample_size` "
+        carried_by="What a sample of `required_data.min_sample_size` "
                      "would buy. The token reaches the envelope through the "
                      "statement carrier, whose `token` the schema types as "
                      "a string because the carrier is one shape over every "
@@ -1122,16 +1166,18 @@ _ROWS: dict[str, Vocabulary] = {
                      "and this row holds the two ends together.",
     ),
     "time_window": Vocabulary(
+        sites=(_closed("time_window"),),
         declares="themis.output.data_gap_report.Window",
-        off_envelope="When the measurements a gap asks for would have to be "
+        carried_by="When the measurements a gap asks for would have to be "
                      "taken. Through the carrier, like the row above. Not "
                      "to be confused with the FRAMING field of the same "
                      "name on a variable declaration, which is the caller's "
                      "own text and is not a vocabulary at all.",
     ),
     "sutva_concern": Vocabulary(
+        sites=(_closed("sutva_concern"),),
         declares="themis.output.data_gap_report.Sutva",
-        off_envelope="How a study design could break SUTVA. Through the "
+        carried_by="How a study design could break SUTVA. Through the "
                      "carrier, and as a LIST of them, since a design breaks "
                      "it in more than one way at once.",
     ),
@@ -1177,8 +1223,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "table would ever reference.",
     ),
     "theta_prior_claim": Vocabulary(
+        sites=(_closed("theta_prior_claim"),),
         declares="themis.output.result_orchestrator.Prior",
-        off_envelope="A number the language model supplied, as the ledger "
+        carried_by="A number the language model supplied, as the ledger "
                      "line it becomes. Through the carrier, into the same "
                      "field as the row above — which is what a statement "
                      "carrying its own vocabulary is for: one field, three "
@@ -1193,18 +1240,19 @@ _ROWS: dict[str, Vocabulary] = {
     # itself stated the members.
     "bounds_note": Vocabulary(
         declares="themis.output.bounds.Note",
-        sites=(_closed(1),),
+        sites=(_closed("bounds_note"),),
     ),
     # One distribution a client must supply to evaluate the expressions, and
     # how many cells its table has. Through the carrier, like the row above;
     # the second half used to be glued onto the formula with a `#`.
     "observable_required": Vocabulary(
         declares="themis.output.bounds.Observable",
-        sites=(_closed(6),),
+        sites=(_closed("observable_required"),),
     ),
     "selection_recovery_shortfall": Vocabulary(
+        sites=(_closed("selection_recovery_shortfall"),),
         declares="themis.runtime.selection_recovery.Shortfall",
-        off_envelope="Which condition a selection-recovery verdict came "
+        carried_by="Which condition a selection-recovery verdict came "
                      "back empty on. Its counterpart on the same row is "
                      "`criterion`, which names the theorem that carried a "
                      "POSITIVE verdict and is null on every negative — so "
@@ -1212,16 +1260,18 @@ _ROWS: dict[str, Vocabulary] = {
                      "and the whole of a negative was one free-text field.",
     ),
     "unbiased_distribution": Vocabulary(
+        sites=(_closed("unbiased_distribution"),),
         declares="themis.runtime.selection_recovery.External",
-        off_envelope="What a sample selection did not touch would have to "
+        carried_by="What a sample selection did not touch would have to "
                      "carry. The expression beside it is symbolic and reads "
                      "the same to everyone; the role in front of it is the "
                      "reader's, and the two used to be one string with the "
                      "English glued on the front.",
     ),
     "missing_data_shortfall": Vocabulary(
+        sites=(_closed("missing_data_shortfall"),),
         declares="themis.runtime.missing_data.Shortfall",
-        off_envelope="Which factor a missing-data verdict came back not "
+        carried_by="Which factor a missing-data verdict came back not "
                      "recoverable on. Twin of the selection one; the "
                      "estimand's member holds a LIST of the others in one "
                      "hole, because a product is blocked by whichever of "
@@ -1229,8 +1279,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "to whoever is reading.",
     ),
     "recovery_factor": Vocabulary(
+        sites=(_closed("recovery_factor"),),
         declares="themis.runtime.missing_data.Factor",
-        off_envelope="Which factor of the interventional estimand this is, "
+        carried_by="Which factor of the interventional estimand this is, "
                      "around the target carried on the row it came from. "
                      "Two hardcoded strings used to say it, with a literal "
                      "`P(Y|X,Z)` in them rather than those targets — a "
@@ -1245,14 +1296,14 @@ _ROWS: dict[str, Vocabulary] = {
     # string, so nothing closed anything. The site is where it now does.
     "bound_side": Vocabulary(
         declares="themis.output.bounds.Side",
-        sites=(_closed(0),),
+        sites=(_closed("bound_side"),),
     ),
     # What one variable's declaration says about how it was measured. The
     # token reaches the envelope one level further in than the carrier
     # above: it sits in a HOLE of a gap's own sentence, for the same reason.
     "measurement_note": Vocabulary(
         declares="themis.output.data_gap_report.Measurement",
-        sites=(_closed(3),),
+        sites=(_closed("measurement_note"),),
     ),
     # Which variable of the query a sentence is about. It rides on
     # `estimator_failure.details` for the same reason `singular_matrix`
@@ -1261,11 +1312,12 @@ _ROWS: dict[str, Vocabulary] = {
     # travels as a statement, and that is a path.
     "query_role": Vocabulary(
         declares="themis.refusals.QueryRole",
-        sites=(_closed(7),),
+        sites=(_closed("query_role"),),
     ),
     "recovery_mechanism": Vocabulary(
+        sites=(_closed("recovery_mechanism"),),
         declares="themis.refusals.Recovery",
-        off_envelope="Which mechanism an estimand was asked to be recovered "
+        carried_by="Which mechanism an estimand was asked to be recovered "
                      "from — a declared missingness pattern or a declared "
                      "selection. It rides on `estimator_failure.details` for "
                      "the same reason the two above it do. The mechanism IS "
@@ -1276,8 +1328,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "block field does.",
     ),
     "monotonicity_refutation": Vocabulary(
+        sites=(_closed("monotonicity_refutation"),),
         declares="themis.refusals.Refutation",
-        off_envelope="Which evidence refuted a declared monotonicity. Two "
+        carried_by="Which evidence refuted a declared monotonicity. Two "
                      "routes reach the same finding — a response-type "
                      "polytope over an instrument's table, and a "
                      "counterfactual cell whose feasible set the joint and "
@@ -1547,11 +1600,12 @@ _ROWS: dict[str, Vocabulary] = {
     # is what four producers used to interpolate.
     "iv_required_assumption": Vocabulary(
         declares="themis.runtime.iv_words.Premise",
-        sites=(_closed(2),),
+        sites=(_closed("iv_required_assumption"),),
     ),
     "late_caveat": Vocabulary(
+        sites=(_closed("late_caveat"),),
         declares="themis.runtime.iv_words.Complier",
-        off_envelope="Whose effect the Wald ratio is, on "
+        carried_by="Whose effect the Wald ratio is, on "
                      "`iv_identification.late_caveat` — the paragraph "
                      "`test_no_sentence_reaches_the_reader_in_the_wrong_"
                      "language` opens with, which was English prose in a "
@@ -1561,8 +1615,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "by `+=`.",
     ),
     "instrument_route_note": Vocabulary(
+        sites=(_closed("instrument_route_note"),),
         declares="themis.runtime.scheduler_words.Tried",
-        off_envelope="What became of the instrument the response polytope "
+        carried_by="What became of the instrument the response polytope "
                      "was offered, in the `{note}` hole of the three "
                      "interventional-risk gap sentences. A gap saying no "
                      "interventional risk is obtainable is true and "
@@ -1616,8 +1671,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "rather than a value prevents.",
     ),
     "described_population": Vocabulary(
+        sites=(_closed("described_population"),),
         declares="themis.gaps.Population",
-        off_envelope="Which population to collect from, on "
+        carried_by="Which population to collect from, on "
                      "`required_data.population` — the field that holds a "
                      "NAME. Beside `unnamed_thing` and not inside it: a "
                      "placeholder stands where the occasion has no value, "
@@ -1627,8 +1683,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "is how prose gets into a name's slot.",
     ),
     "four_way_unavailable": Vocabulary(
+        sites=(_closed("four_way_unavailable"),),
         declares="themis.estimation.warning_words.FourWay",
-        off_envelope="Why the difference-scale four-way split was "
+        carried_by="Why the difference-scale four-way split was "
                      "withheld, on `numeric_estimate.four_way_unavailable`. "
                      "Withheld rather than skipped — the components were "
                      "computable and do not sum to the total effect for "
@@ -1638,8 +1695,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "the negative came to be one string.",
     ),
     "consistency_constraint": Vocabulary(
+        sites=(_closed("consistency_constraint"),),
         declares="themis.runtime.scheduler_words.Feasibility",
-        off_envelope="Which consistency inequality a supplied "
+        carried_by="Which consistency inequality a supplied "
                      "interventional risk broke, in the `{detail}` hole of "
                      "`interventional_risks_contradict_the_joint`. One "
                      "member on two occasions: the arms differ by which "
@@ -1648,8 +1706,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "site chose.",
     ),
     "data_contract_warning": Vocabulary(
+        sites=(_closed("data_contract_warning"),),
         declares="themis.estimation.warning_words.Contract",
-        off_envelope="What was suspicious about the data where estimation "
+        carried_by="What was suspicious about the data where estimation "
                      "went ahead anyway, on "
                      "`estimation_context.data_contract_warnings`. The line "
                      "between this and `estimation_refusal` above is whether "
@@ -1657,8 +1716,9 @@ _ROWS: dict[str, Vocabulary] = {
                      "and it is worth less than seeing it suggests.",
     ),
     "dose_response_routing": Vocabulary(
+        sites=(_closed("dose_response_routing"),),
         declares="themis.estimation.warning_words.DoseResponse",
-        off_envelope="Where a dose-response request went when it did not go "
+        carried_by="Where a dose-response request went when it did not go "
                      "where it said, on the same field as the one above — "
                      "which is that field's own finding, since these are "
                      "about the PROGRAM and not about the data. Five are "

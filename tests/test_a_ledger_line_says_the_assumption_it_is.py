@@ -39,6 +39,7 @@ from tests.answer_corpus import the_door_for
 from themis.verifier.assumption_ledger_rules import (
     _ESTIMATOR_CLAIM_VOCABULARY,
 )
+from themis.input.syntactic_validator import SyntacticError
 from themis.verifier.errors import VerificationError
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -217,11 +218,37 @@ def test_a_line_may_not_tell_a_reader_it_is_a_different_assumption(shape):
 def test_a_declared_line_may_not_send_a_reader_to_another_glossary(shape):
     """The forgery is a REAL other vocabulary, not a nonsense one: the
     failure this prevents is a lookup that lands in the wrong table, and a
-    nonsense name would be refused by a weaker rule than this."""
+    nonsense name would be refused by a weaker rule than this.
+
+    It names ``gap_describes`` rather than ``theta_prior_claim``, which it
+    named while the contract enumerated the members of eight sets. It
+    enumerates thirty-four now, ``theta_prior_claim`` among them, so that
+    forgery is refused by validation before this rule reads it — the token
+    stays and no longer belongs to the set the line claims. The refusal was
+    still a refusal, which is exactly why the substitution matters: a test
+    whose subject is WHICH rule objects has to keep handing that rule
+    something to object to. ``gap_describes`` is a table of ids another
+    layer coins, so no enumeration stands in front of it, and the two are
+    the two sets a ledger claim may honestly quote.
+    """
     program, result = _pair(shape)
     i, entry = _first_anchored(result)
-    entry["claim"][0]["vocabulary"] = "theta_prior_claim"
+    entry["claim"][0]["vocabulary"] = "gap_describes"
     with pytest.raises(VerificationError, match="states its sentence from"):
+        the_door_for(result)(program, result)
+
+
+@pytest.mark.parametrize("shape", ANCHORED[:3])
+def test_the_glossary_a_line_names_is_now_refused_earlier_where_it_can_be(
+        shape):
+    """And the other half of that substitution, so the reason for it is
+    held rather than only written above: where the set a line falsely
+    claims IS one the contract enumerates, the contract refuses it, and
+    the token it kept is what gives it away."""
+    program, result = _pair(shape)
+    _i, entry = _first_anchored(result)
+    entry["claim"][0]["vocabulary"] = "theta_prior_claim"
+    with pytest.raises(SyntacticError, match="is not one of"):
         the_door_for(result)(program, result)
 
 
@@ -267,10 +294,16 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ledger leaf shape, bent the census's three ways.
 
-    Sixty-four survive over nine shapes, and they fall in two parts.
+    Sixty-three survive over nine shapes, and they fall in two parts.
 
-    **Sixty-one are lines that name no assumption**, counted once per field
-    of theirs a bend gets through: ``claim.token`` (19), ``testable`` (19),
+    It was sixty-four until the contract enumerated the members of the sets
+    whose members the kernel owns. One of these lines quotes such a set, so
+    a bent token of it is now refused by validation — which is the same
+    answer this file gives about ``claim.vocabulary`` below, arriving one
+    field over.
+
+    **Sixty are lines that name no assumption**, counted once per field
+    of theirs a bend gets through: ``claim.token`` (18), ``testable`` (19),
     ``said.edge`` (18), ``said.algorithm`` (2), and ``said.key`` /
     ``said.value`` / ``said.confidence`` (1 each) — the proposal channels
     and the supplied prior, which state their line from the gap vocabulary
@@ -371,4 +404,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 64, survived
+    assert survived == 63, survived
