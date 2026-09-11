@@ -2759,6 +2759,330 @@ def raised_by_ref(
     ),)
 
 
+#: Nine species share this because they share the reason.
+_A_STEP_OR_THE_ASK = (
+    "whether the identification attempt recorded a step before this "
+    "gap was filed — with a chain to cite the ref names the step, and "
+    "with none it names the ask the gap was pushed as"
+)
+
+
+#: Which space a species' provenance ids live in, as its own sites type
+#: it. Lived in ``verifier.data_gap_rules._KIND_ACCEPTS_REF`` until #618,
+#: where the producer could not read it: every site typed the kind beside
+#: the id, nothing checked the two against each other, and the only rule
+#: that consulted the table asked whether a gap carried AT LEAST ONE ref
+#: of an acceptable kind — so a second ref of any other kind rode along
+#: unasked. Thirteen rows are absent and a fourteenth is short a
+#: member, because :func:`_bind_ref_kinds` folds the checks in; see
+#: it for why they cannot be written here.
+_REF_KINDS_TYPED_AT_SITES: dict["GapKind", frozenset[GapRefKind]] = {
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.MISSING_DISTRIBUTION: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    # Both of these listed verifier_check with no reason beside it, alone
+    # among the entries here — and neither species declares a check, so
+    # what the row promised was a shape T10-1 refuses on sight. Widening a
+    # row to let something through is how an entry ends up with nothing to
+    # say for itself; a species that may cite a check has to name it.
+    GapKind.MISSING_POPULATION_DISTRIBUTION: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.MISSING_ASSUMPTION: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    # Unit-level reading an SCM counterfactual needs for abduction, and
+    # the residual for any structural requirement no more specific
+    # classifier claimed. Both are raised only through the
+    # missing-information channel — the producers return before any
+    # derivation step is recorded — so the investigation_request ref is
+    # the only citation available.
+    GapKind.MISSING_UNIT_OBSERVATION: frozenset({
+        GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.MISSING_STRUCTURAL_INPUT: frozenset({
+        GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.MISSING_IV_CANDIDATE: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.MISSING_MEDIATOR_DATA: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+    # Two declared source domains carried one target quantity to two
+    # numbers. Raised in the kernel as an assumption-group item, so the
+    # provenance is the request that item was pushed as — the same channel
+    # every other kernel-raised species uses, and not a verifier_check:
+    # this falsification is found while identifying, not while estimating.
+    GapKind.TRANSPORT_SOURCES_DISAGREE: frozenset({
+        GapRefKind.INVESTIGATION_REQUEST
+    }),
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: frozenset({
+        GapRefKind.FRAMING_NOTE
+    }),
+    # Phase 13: dose-response data spec — triggered by a program-level
+    # ambiguity rather than a failed derivation rule, so there is no step
+    # to cite and the ref names the place in the program it was found.
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: frozenset({GapRefKind.PROGRAM_SITE}),
+    # Phase 11.x §C: the ref names the cause-statement annotation that
+    # flagged the path edge as an LLM hypothesis — a place in the program,
+    # shaped program:cause:<from>-><to>:annotations.source.
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH: frozenset({
+        GapRefKind.PROGRAM_SITE
+    }),
+    # Must-disclose caveat kinds — the caveat is derived from a block of
+    # the answer itself, so the ref is the path to that block. That
+    # sentence used to be a comment because no member of the vocabulary
+    # could say it, and a ref nothing could locate is a ref nothing could
+    # check.
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        GapRefKind.ENVELOPE_PATH
+    }),
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        GapRefKind.ENVELOPE_PATH
+    }),
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        GapRefKind.ENVELOPE_PATH
+    }),
+    GapKind.LLM_DECLARED_AMBIGUITY: frozenset({GapRefKind.ENVELOPE_PATH}),
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: frozenset({
+        GapRefKind.ENVELOPE_PATH
+    }),
+    GapKind.LOW_CONFIDENCE_INPUT_DATA: frozenset({GapRefKind.ENVELOPE_PATH}),
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.PROGRAM_SITE
+    }),
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        GapRefKind.DERIVATION_STEP
+    }),
+    # The signal is in the PROGRAM — the producer reads
+    # ``program.extensions.discovery_metadata`` and says so in its own
+    # docstring, while the ref it wrote was spelled as a path into the
+    # answer, naming a block no answer carries.
+    GapKind.GRAPH_LEARNED_FROM_DATA: frozenset({GapRefKind.PROGRAM_SITE}),
+    # Program-shape signal: declared confounder pattern (Z->X & Z->Y) with no
+    # bidirected edges. Trigger does not require a recorded derivation step
+    # (the kernel may skip identify_via_backdoor when status is
+    # NEEDS_INVESTIGATION due to missing theta), so the ref names the
+    # program-shape predicate it matched.
+    GapKind.UNMEASURED_CONFOUNDER_RISK: frozenset({GapRefKind.PROGRAM_SITE}),
+    # Trigger compares query fields against result.extensions; the ref
+    # names the conflict in the program that produced it.
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT: frozenset({
+        GapRefKind.PROGRAM_SITE
+    }),
+    # Structural-input signal routed via the same
+    # investigation_request channel that carries MISSING_DISTRIBUTION,
+    # but the item.reason carries the d-sep refusal signature
+    # ("d-separation 拒绝"). Same provenance shape as
+    # missing_distribution because both originate from the formula-
+    # evaluator's InsufficientTheta path; the classifier branches on
+    # the reason text. Marked must-disclose IMPORTANT — graph and CPT
+    # disagree, the user needs to fix one of them, not just supply more
+    # theta.
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: frozenset({
+        GapRefKind.INVESTIGATION_REQUEST
+    }),
+    # Program-shape signal — variable on the identification path
+    # declares a (measurement | observability) field whose value names a
+    # known noisy-measurement pattern (self-report / questionnaire /
+    # single-occasion / proxy / 24h recall etc.). The ref names the
+    # (variable, field) pair in the program; classifier-driven, no
+    # derivation step exists.
+    GapKind.MEASUREMENT_ERROR_CONCERN: frozenset({GapRefKind.PROGRAM_SITE}),
+    # 2026-06-18 dichotomization: a path variable's ``threshold`` field
+    # encodes a continuous measure cut at a cutpoint. The ref names the
+    # program variable + threshold value (no derivation step — program-shape
+    # detection like measurement_error / ill_defined).
+    # Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127.
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: frozenset({
+        GapRefKind.PROGRAM_SITE
+    }),
+    # #450. Raised by the identification layer, so it cites the
+    # investigation request that carries the ask — the same signal
+    # ``missing_iv_candidate`` cites when a loop leaves an instrument as
+    # the only route.
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: frozenset({
+        GapRefKind.DERIVATION_STEP, GapRefKind.INVESTIGATION_REQUEST
+    }),
+}
+
+#: And where the occasion settles it, each row saying what it turns on.
+#: One question stands behind every row — had the identification attempt
+#: recorded a step by the time this gap was filed — and the rows differ
+#: only in where they fall back when it had not. The thirteen species
+#: folded in below are the same question's third answer: never.
+REF_KIND_TURNS_ON: dict["GapKind", str] = {
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: _A_STEP_OR_THE_ASK,
+    GapKind.MISSING_DISTRIBUTION: _A_STEP_OR_THE_ASK,
+    GapKind.MISSING_POPULATION_DISTRIBUTION: _A_STEP_OR_THE_ASK,
+    GapKind.MISSING_ASSUMPTION: _A_STEP_OR_THE_ASK,
+    GapKind.MISSING_IV_CANDIDATE: _A_STEP_OR_THE_ASK,
+    GapKind.MISSING_MEDIATOR_DATA: _A_STEP_OR_THE_ASK,
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: _A_STEP_OR_THE_ASK,
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: _A_STEP_OR_THE_ASK,
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: _A_STEP_OR_THE_ASK,
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "the same question, falling back elsewhere: with a recorded "
+        "identify_via_front_door step the ref names it, and where the run "
+        "stopped at NEEDS_INVESTIGATION before any step was written it "
+        "names the program shape that matched"
+    ),
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: (
+        "the same question again, and the third place it falls back to: "
+        "with a counterfactual derivation step recorded the ref names it, "
+        "and with none it names the check that classified the query — "
+        "which is why this species is in RAISED_BY_TURNS_ON too, and why "
+        "VERIFIER_CHECK reaches its row through the fold below rather "
+        "than being written here a second time"
+    ),
+}
+
+
+def _bind_ref_kinds(
+    typed: dict["GapKind", frozenset[GapRefKind]],
+) -> dict["GapKind", frozenset[GapRefKind]]:
+    """Fold the checks in, then hold the result to the space it covers.
+
+    Which species may cite a check is settled already: it is exactly the
+    species :data:`RAISED_BY` and :data:`RAISED_BY_TURNS_ON` name,
+    because :func:`raised_by_ref` is the only way to build one of those
+    refs. A row saying so again would be a second copy of a fact that has
+    an owner, free to drift from it, so the rows are folded in here and a
+    table that states one anyway is refused.
+
+    Four things are checked, and the last is the one worth naming: a
+    species has a sentence in :data:`REF_KIND_TURNS_ON` if and only if
+    the bound row leaves it a choice. That is the partition
+    :data:`SEVERITY_OF` and :data:`SEVERITY_TURNS_ON` keep, asked of the
+    result rather than of the two tables, which is stronger — neither
+    table can be read on its own to answer it.
+    """
+    restated = sorted(kind.value for kind, members in typed.items()
+                      if GapRefKind.VERIFIER_CHECK in members)
+    if restated:
+        raise ValueError(
+            f"{restated} declare VERIFIER_CHECK, which RAISED_BY and "
+            f"RAISED_BY_TURNS_ON already settle; drop the member and let "
+            f"the fold place it, or the two tables will disagree"
+        )
+    bound: dict["GapKind", set[GapRefKind]] = {
+        kind: set(members) for kind, members in typed.items()}
+    for kind in GapKind:
+        if raised_by(kind):
+            bound.setdefault(kind, set()).add(GapRefKind.VERIFIER_CHECK)
+
+    outside = sorted(str(kind) for kind in bound if not isinstance(kind, GapKind))
+    missing = sorted(kind.value for kind in GapKind if kind not in bound)
+    if outside or missing:
+        raise ValueError(
+            f"a species' provenance has to point somewhere: "
+            f"{missing} have no row and {outside} are not species"
+        )
+    empty = sorted(kind.value for kind, members in bound.items()
+                   if not members)
+    if empty:
+        raise ValueError(
+            f"{empty} declare an empty row, which reads as a refusal of "
+            f"every ref and would leave the species unbuildable"
+        )
+    unreachable = sorted(
+        str(member) for member in GapRefKind
+        if not any(member in members for members in bound.values()))
+    if unreachable:
+        raise ValueError(
+            f"{unreachable} is a space no species cites, so nothing can "
+            f"put a ref there; drop the member or give it a species"
+        )
+    choosing = {kind for kind, members in bound.items() if len(members) > 1}
+    sentenced = set(REF_KIND_TURNS_ON)
+    if choosing != sentenced:
+        raise ValueError(
+            f"a species whose ref kind the occasion settles owes a "
+            f"sentence saying what it turns on: "
+            f"{sorted(k.value for k in choosing - sentenced)} have a "
+            f"choice and no sentence, and "
+            f"{sorted(k.value for k in sentenced - choosing)} have a "
+            f"sentence and no choice"
+        )
+    return {kind: frozenset(members) for kind, members in bound.items()}
+
+
+#: Every species, and the spaces its provenance may point into.
+REF_KINDS_OF: dict["GapKind", frozenset[GapRefKind]] = _bind_ref_kinds(
+    _REF_KINDS_TYPED_AT_SITES)
+
+
+def ref_kinds_of(kind: "GapKind") -> frozenset[GapRefKind]:
+    """The spaces this species may cite, empty for one it does not name."""
+    member = kind if isinstance(kind, GapKind) else GapKind(str(kind))
+    return REF_KINDS_OF.get(member, frozenset())
+
+
+def cites(
+    kind: "GapKind", *ref_ids: str, ref_kind: GapRefKind | None = None,
+) -> tuple[GapProvenanceRef, ...]:
+    """A gap's provenance, with the space read off the species.
+
+    What :func:`raised_by_ref` is for a check, this is for every other
+    channel: the site brings the id, which is the half only it knows, and
+    the space comes from the declaration. Species the occasion settles
+    say which via ``ref_kind`` and are held to what they declared, and a
+    site that does not say is told what the choice turns on.
+
+    A check ref is refused here whichever way it arrives, including by
+    the fold filling one in. Its id carries the check's NAME, and that
+    name is :data:`RAISED_BY`'s to supply — a second constructor able to
+    emit one is a second place the name could come from.
+
+    Several ids give several refs, because two producers file one gap
+    over every program site that triggered it. An empty call is refused:
+    a gap with no provenance is one nothing can be asked about, and the
+    site that built it is a better place to learn that than the audit.
+    """
+    if not ref_ids:
+        raise ValueError(
+            f"{kind.value} cited nothing, and a gap whose provenance is "
+            f"empty is one no rule can follow back to a signal"
+        )
+    allowed = ref_kinds_of(kind)
+    if not allowed:
+        raise ValueError(
+            f"{kind.value} cited {list(ref_ids)} and declares no space to "
+            f"cite it in — give it a row in _REF_KINDS_TYPED_AT_SITES"
+        )
+    if ref_kind is None:
+        if len(allowed) > 1:
+            raise ValueError(
+                f"{kind.value} may cite any of "
+                f"{sorted(str(m) for m in allowed)} and this site did not "
+                f"say which — it turns on " + REF_KIND_TURNS_ON[kind]
+            )
+        (ref_kind,) = allowed
+    elif ref_kind not in allowed:
+        raise ValueError(
+            f"{kind.value} cited {str(ref_kind)!r}, which is not a space "
+            f"it declares: {sorted(str(m) for m in allowed)}"
+        )
+    if ref_kind is GapRefKind.VERIFIER_CHECK:
+        raise ValueError(
+            f"{kind.value} cites a check, and raised_by_ref is the one "
+            f"way to build that ref so the check's name comes from "
+            f"RAISED_BY rather than from this site"
+        )
+    return tuple(GapProvenanceRef(ref_kind=ref_kind, ref_id=one)
+                 for one in ref_ids)
+
+
 @dataclass(frozen=True)
 class GapRequiredData:
     """Optional 'what kind of data closes this gap' block. Generator fills
@@ -2952,6 +3276,7 @@ class DataGap:
         self._settle_the_shape_of_data_it_asks_for()
         self._settle_the_ways_past_it_offers()
         self._settle_the_statements_it_makes()
+        self._settle_the_spaces_it_cites()
 
     def _settle_the_ways_past_it_offers(self) -> None:
         """The routes on this gap are ways past the gap it is.
@@ -3034,6 +3359,36 @@ class DataGap:
             f"{sorted(str(entry) for entry in allowed)}); what a gap tells a "
             f"reader it IS belongs to the gap it is, so a statement a site "
             f"writes is one the species has to declare"
+        )
+
+
+    def _settle_the_spaces_it_cites(self) -> None:
+        """Where this gap's provenance points is settled by the gap it is.
+
+        A ref is only checkable because its kind says where to look, so
+        the kind a site types beside an id is a claim about the species
+        as much as about the id. The declaration is
+        :data:`REF_KINDS_OF`, and :func:`cites` fills it in for sites
+        that do not have a choice; this refuses the rest, which is what
+        makes the two agree rather than merely coincide.
+
+        Silent where the kind is not one this build names, for the reason
+        :meth:`_settle_the_statements_it_makes` gives.
+        """
+        if not self.provenance or not isinstance(self.kind, GapKind):
+            return
+        allowed = ref_kinds_of(self.kind)
+        cited = {ref.ref_kind for ref in self.provenance}
+        stray = sorted(str(member) for member in cited - allowed)
+        if not stray:
+            return
+        raise ValueError(
+            f"this gap cites {stray}, which {self.kind.value} does not "
+            f"declare as a space its provenance points into "
+            f"(REF_KINDS_OF holds "
+            f"{sorted(str(m) for m in allowed)}); where a gap's evidence "
+            f"lives belongs to the gap it is, so a space a site cites is "
+            f"one the species has to declare"
         )
 
     def _settle_the_shape_of_data_it_asks_for(self) -> None:

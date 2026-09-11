@@ -202,23 +202,27 @@ def test_missing_item_gaps_synced_with_schema():
 
 
 def test_gap_kind_enum_synced_with_verifier_registry():
-    """The verifier's _KIND_ACCEPTS_REF must have an entry for
-    every GapKind enum value. T10-3 raises VerificationError when a gap
-    has an unregistered kind, so missing registrations cause silent
-    test failures the moment the gap fires — which is how it was found,
-    with test_t10_passes_on_real_dispatch_output failing before the
-    verifier registration was added)."""
-    from themis.verifier.data_gap_rules import _KIND_ACCEPTS_REF
-    registry_kinds = set(_KIND_ACCEPTS_REF.keys())
+    """REF_KINDS_OF must have an entry for every GapKind enum value.
+
+    T10-3 raises when a gap has an unregistered kind, so a missing row
+    used to cause a silent failure the moment that gap first fired —
+    which is how it was found, with test_t10_passes_on_real_dispatch_
+    output failing before the registration was added. Since #618 the
+    table is bound at import and this cannot survive to a test run at
+    all; the assertion stays because what it names is the reason the
+    binding is there, and a reader of this file should not have to go
+    read _bind_ref_kinds to learn it."""
+    from themis.types import REF_KINDS_OF
+    registry_kinds = {k.value for k in REF_KINDS_OF}
     enum_kinds = {k.value for k in GapKind}
     only_in_registry = registry_kinds - enum_kinds
     only_in_enum = enum_kinds - registry_kinds
     assert not only_in_registry, (
-        f"verifier registry has unknown gap_kinds: {only_in_registry}"
+        f"the declaration has unknown gap_kinds: {only_in_registry}"
     )
     assert not only_in_enum, (
-        f"GapKind values missing from verifier registry: {only_in_enum}. "
-        f"Add to themis/verifier/data_gap_rules.py _KIND_ACCEPTS_REF."
+        f"GapKind values with no row: {only_in_enum}. Add to "
+        f"themis/types.py _REF_KINDS_TYPED_AT_SITES."
     )
 
 

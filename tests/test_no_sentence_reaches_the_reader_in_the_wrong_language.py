@@ -816,6 +816,20 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "neither. A ref that fails to construct never reaches an envelope, "
         "and the rule beside it reads the NAMES — the sentence is for "
         "whoever writes the next producer of that species"),
+    "themis/types.py::REF_KIND_TURNS_ON[]": (
+        Wrote.INVARIANT,
+        "what the choice of space a species' provenance points into turns "
+        "on, quoted by the ValueError ``cites`` raises at a site that did "
+        "not say which. The same arrangement as the four above: a ref that "
+        "fails to construct never reaches an envelope, the rule beside the "
+        "table reads its KEYS to know which species has a choice, and the "
+        "sentence is for whoever writes the next producer of that species"),
+    "themis/types.py::_A_STEP_OR_THE_ASK": (
+        Wrote.INVARIANT,
+        "the sentence nine of those eleven species share, held in one name "
+        "rather than copied into nine rows — they differ in where they fall "
+        "back, not in what the choice turns on. Read only through the table "
+        "above, and reaching a person by exactly the same route: none"),
     "themis/estimation/form.py::FITS_TURNS_ON[]": (
         Wrote.INVARIANT,
         "what the choice among a method's shapes turns on — the outcome's "

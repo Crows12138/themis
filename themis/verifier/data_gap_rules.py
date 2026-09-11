@@ -15,10 +15,14 @@ Seven rules audit a generated DataGapReport for honesty:
   signal that the schema can detect (failed derivation step / parameter
   investigation / framing note) must be covered by at least one gap.
 - **T10-3 ``data_gap_kind_consistency_check``** — each gap's ``kind`` must
-  be coherent with the upstream signal it cites in provenance (e.g. a
-  gap labelled ``unidentifiable_no_admissible_set`` cited as
-  ``derivation_step`` must reference a step that actually represents a
-  structural failure, not a successful identification).
+  be coherent with the upstream signal it cites in provenance: every ref
+  must point into a space the species declares, at least one must be
+  there, and a gap labelled ``unidentifiable_no_admissible_set`` or
+  ``missing_iv_candidate`` citing a ``derivation_step`` must reference a
+  step that actually failed rather than a successful identification. The
+  first of those is the direction nobody asked until #618 — the table was
+  read for whether a gap carried AT LEAST ONE acceptable ref, so anything
+  could ride along beside one that was.
 - **T10-5 ``data_gap_species_check``** — each gap's ``severity`` and
   ``blocks`` must be what its species declares. The few species whose
   value is an occasion's say so in code, and this rule is silent on
@@ -63,6 +67,7 @@ from ..types import (
     GapKind,
     GapSeverity,
     NO_SUBJECT,
+    REF_KINDS_OF,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
     raised_by,
@@ -727,226 +732,11 @@ def _verify_t10_2_completeness(
 # ============================================ T10-3 kind consistency
 
 
-# What gap_kinds are valid for each provenance ref_kind. A gap whose
-# provenance does not contain at least one ref of an acceptable kind for
-# its declared gap_kind is flagged as an inconsistency.
-_KIND_ACCEPTS_REF: dict[str, frozenset[str]] = {
-    "unidentifiable_no_admissible_set": frozenset(
-        {"derivation_step", "investigation_request"}
-    ),
-    "missing_distribution": frozenset(
-        {"investigation_request", "derivation_step"}
-    ),
-    # Both of these listed verifier_check with no reason beside it, alone
-    # among the entries here — and neither species declares a check, so
-    # what the row promised was a shape T10-1 refuses on sight. Widening a
-    # row to let something through is how an entry ends up with nothing to
-    # say for itself; a species that may cite a check has to name it.
-    "missing_population_distribution": frozenset(
-        {"derivation_step", "investigation_request"}
-    ),
-    "missing_assumption": frozenset(
-        {"investigation_request", "derivation_step"}
-    ),
-    # Unit-level reading an SCM counterfactual needs for abduction, and
-    # the residual for any structural requirement no more specific
-    # classifier claimed. Both are raised only through the
-    # missing-information channel — the producers return before any
-    # derivation step is recorded — so the investigation_request ref is
-    # the only citation available.
-    "missing_unit_observation": frozenset({"investigation_request"}),
-    "missing_structural_input": frozenset({"investigation_request"}),
-    "missing_iv_candidate": frozenset(
-        {"derivation_step", "investigation_request"}
-    ),
-    "missing_mediator_data": frozenset(
-        {"investigation_request", "derivation_step"}
-    ),
-    "transport_target_distribution_unknown": frozenset(
-        {"derivation_step", "investigation_request"}
-    ),
-    "transport_source_conditional_unknown": frozenset(
-        {"derivation_step", "investigation_request"}
-    ),
-    # Two declared source domains carried one target quantity to two
-    # numbers. Raised in the kernel as an assumption-group item, so the
-    # provenance is the request that item was pushed as — the same channel
-    # every other kernel-raised species uses, and not a verifier_check:
-    # this falsification is found while identifying, not while estimating.
-    "transport_sources_disagree": frozenset({"investigation_request"}),
-    "ambiguous_variable_definition": frozenset({"framing_note"}),
-    # Phase 13: dose-response data spec — triggered by a program-level
-    # ambiguity rather than a failed derivation rule, so there is no step
-    # to cite and the ref names the place in the program it was found.
-    "dose_response_data_required": frozenset({"program_site"}),
-    # Phase 11.x §C: the ref names the cause-statement annotation that
-    # flagged the path edge as an LLM hypothesis — a place in the program,
-    # shaped program:cause:<from>-><to>:annotations.source.
-    "unverified_proposal_edge_on_query_path": frozenset({"program_site"}),
-    # Must-disclose caveat kinds — the caveat is derived from a block of
-    # the answer itself, so the ref is the path to that block. That
-    # sentence used to be a comment because no member of the vocabulary
-    # could say it, and a ref nothing could locate is a ref nothing could
-    # check.
-    "iv_identification_assumption_required": frozenset({"envelope_path"}),
-    "mediation_identification_assumption_required": frozenset(
-        {"envelope_path"}
-    ),
-    "transport_identification_assumption_required": frozenset(
-        {"envelope_path"}
-    ),
-    "llm_declared_ambiguity": frozenset({"envelope_path"}),
-    "answer_is_bounds_not_point_estimate": frozenset({"envelope_path"}),
-    "low_confidence_input_data": frozenset({"envelope_path"}),
-    "front_door_identification_assumption_required": frozenset(
-        # derivation_step when identify_via_front_door step is recorded;
-        # the program site (program:front_door_pattern) when status is
-        # NEEDS_INVESTIGATION and the kernel skipped recording the step.
-        {"derivation_step", "program_site"}
-    ),
-    "counterfactual_identification_assumption_required": frozenset(
-        # derivation_step when a counterfactual derivation step (twin
-        # network / monotone bounds / consistency) is recorded; verifier_
-        # check ("counterfactual_status" / "counterfactual_query_kind")
-        # when the query is NEEDS_ASSUMPTION / counterfactual-kind and
-        # carries no derivation chain to cite. Same status-derived
-        # fallback shape as front_door_identification_assumption_required.
-        {"derivation_step", "verifier_check"}
-    ),
-    # The signal is in the PROGRAM — the producer reads
-    # ``program.extensions.discovery_metadata`` and says so in its own
-    # docstring, while the ref it wrote was spelled as a path into the
-    # answer, naming a block no answer carries.
-    "graph_learned_from_data": frozenset({"program_site"}),
-    # Program-shape signal: declared confounder pattern (Z->X & Z->Y) with no
-    # bidirected edges. Trigger does not require a recorded derivation step
-    # (the kernel may skip identify_via_backdoor when status is
-    # NEEDS_INVESTIGATION due to missing theta), so the ref names the
-    # program-shape predicate it matched.
-    "unmeasured_confounder_risk": frozenset({"program_site"}),
-    # Trigger compares query fields against result.extensions; the ref
-    # names the conflict in the program that produced it.
-    "unattempted_layer_due_to_dispatch_conflict": frozenset({"program_site"}),
-    # Estimator-time signal — first-stage F-stat from IV
-    # estimator falls below Stock-Yogo (2005) threshold. Provenance is
-    # a verifier_check ref naming the (instrument -> treatment) pair;
-    # no derivation step exists because the trigger fires after the
-    # numeric_estimate has been attached.
-    "weak_iv_instrument": frozenset({"verifier_check"}),
-    # Over-identified 2SLS — the Sargan test rejected the instruments' joint
-    # validity. Estimator-time falsification signal; provenance is a
-    # verifier_check ref naming the treatment, same posture as weak_iv_instrument.
-    "overidentification_rejected": frozenset({"verifier_check"}),
-    # A conditional binary IV design could not be stratified on this
-    # sample, so the reported estimand fell back from the LATE to the
-    # linear-IV coefficient. Estimator-time signal; provenance is a
-    # verifier_check ref naming the (instrument | conditioning) pair,
-    # same posture as weak_iv_instrument — no derivation step, because
-    # the trigger fires once the estimator has already chosen.
-    "iv_estimand_fallback_to_linear": frozenset({"verifier_check"}),
-    # Estimator-time signal — propensity P(X=1|Z) bounded
-    # away from {0,1} for too few observations under backdoor
-    # adjustment. Provenance is a verifier_check ref naming the
-    # (treatment, adjustment) pair; same posture as weak_iv_instrument
-    # — runtime signal, no derivation step.
-    "propensity_overlap_violation": frozenset({"verifier_check"}),
-    # Structural signal — given (conditioning subgroup) in
-    # an EffectQuery contains a node where both X and Y are ancestors
-    # (collider). Provenance is a verifier_check ref naming the
-    # (collider, intervention -> target) trio; classifier-driven, no
-    # derivation step (fires on program shape regardless of result
-    # status).
-    "collider_conditioning_opens_backdoor": frozenset({"verifier_check"}),
-    # Estimator-time signal — backdoor logistic fitted but
-    # training-set fitted P(Y|X,Z) clusters near 0/1 (quasi-separation).
-    # Provenance is a verifier_check ref naming the
-    # (outcome, treatment, adjustment) trio.
-    "outcome_model_quasi_separation": frozenset({"verifier_check"}),
-    # Structural-input signal routed via the same
-    # investigation_request channel that carries MISSING_DISTRIBUTION,
-    # but the item.reason carries the d-sep refusal signature
-    # ("d-separation 拒绝"). Same provenance shape as
-    # missing_distribution because both originate from the formula-
-    # evaluator's InsufficientTheta path; the classifier branches on
-    # the reason text. Marked must-disclose IMPORTANT — graph and CPT
-    # disagree, the user needs to fix one of them, not just supply more
-    # theta.
-    "graph_theta_independence_mismatch": frozenset(
-        {"investigation_request"}
-    ),
-    # Program-shape signal — variable on the identification path
-    # declares a (measurement | observability) field whose value names a
-    # known noisy-measurement pattern (self-report / questionnaire /
-    # single-occasion / proxy / 24h recall etc.). The ref names the
-    # (variable, field) pair in the program; classifier-driven, no
-    # derivation step exists.
-    "measurement_error_concern": frozenset({"program_site"}),
-    # Structural signal — an ObservationStatement on node W
-    # (encoding implicit sample restriction to W=observed-value) where
-    # both intervention X and target Y are directed ancestors of W.
-    # Provenance is a verifier_check ref naming the
-    # (observed_node, intervention -> target) trio; classifier-driven,
-    # no derivation step. Hernán-Hernández-Díaz-Robins 2004 selection
-    # bias structural pattern.
-    "selection_on_collider_opens_path": frozenset({"verifier_check"}),
-    # Program-shape signal — intervention atom names a
-    # predicate whose VariableDeclaration declares
-    # ``state_vs_event = "state"`` while no ``time_window`` is declared
-    # on the same predicate. The schema admits both fields, so without
-    # this classifier nothing reads state_vs_event's VALUE.
-    # Provenance is a verifier_check ref naming the offending
-    # (intervention_predicate, "state without time_window") pair;
-    # classifier-driven, no derivation step. Authoritative source:
-    # Hernán & Taubman 2008 IJO 32(S3):S8-S14 "Does obesity shorten
-    # life? The importance of well-defined interventions to answer
-    # causal questions"; consistency assumption framing in Hernán &
-    # Robins What If §3.4.
-    "ill_defined_intervention_versions": frozenset({"verifier_check"}),
-    # 2026-06-18 dichotomization: a path variable's ``threshold`` field
-    # encodes a continuous measure cut at a cutpoint. The ref names the
-    # program variable + threshold value (no derivation step — program-shape
-    # detection like measurement_error / ill_defined).
-    # Royston-Altman-Sauerbrei 2006 *Stat Med* 25:127.
-    "dichotomized_continuous_measure": frozenset({"program_site"}),
-    # 2026-07-11 pre-flight data diagnostic: CSV data contradicts a
-    # variable's declared scale / domain. Provenance is a verifier_check ref
-    # naming the offending predicate; the reconciliation evidence lives in
-    # extensions.type_reconciliation and is independently re-derived by
-    # verify_type_reconciliation (no derivation step — data-vs-declaration
-    # detection on the estimate path, like the propensity-overlap and
-    # quasi-separation estimator-runtime diagnostics).
-    "declared_type_data_mismatch": frozenset({"verifier_check"}),
-    # Estimator-time signal — a proximal query's proxies present some number
-    # of levels other than the k it posits for the latent, and no coarsening
-    # is declared. Provenance is a verifier_check ref naming the two proxies;
-    # no derivation step exists, because the estimator refused before writing
-    # one — which is the same posture as every other refusal-time diagnostic
-    # here.
-    "proxy_coarsening_undeclared": frozenset({"verifier_check"}),
-    # #450. Raised by the identification layer, so it cites the
-    # investigation request that carries the ask — the same signal
-    # ``missing_iv_candidate`` cites when a loop leaves an instrument as
-    # the only route.
-    "feedback_loop_reaches_the_estimand": frozenset(
-        {"investigation_request", "derivation_step"}
-    ),
-    # #451. Estimator-time, and unlike its neighbours above the estimator did
-    # NOT refuse: a number was produced and the finding is about how to read
-    # it. The ref is a verifier_check naming the pair, the same shape the
-    # other estimator-runtime diagnostics use, because the derivation step
-    # this is a fact about is written after the gap is filed.
-    "regularisation_is_moving_the_answer": frozenset({"verifier_check"}),
-    # The same channel for the same reason: a share counted while the
-    # estimator ran, filed before the derivation step it is a fact about
-    # exists to be pointed at.
-    "treatment_bridge_leaves_its_range": frozenset({"verifier_check"}),
-    # #457. Also estimator-time and also filed before its derivation step
-    # exists — but what it is a fact about is which QUESTION got answered,
-    # not how to read a number. There is a derivation step for the test, and
-    # it did not fail, so pointing at one would misdescribe the finding: the
-    # test succeeded and the estimate is what is absent.
-    "answer_is_a_test_not_an_effect_size": frozenset({"verifier_check"}),
-}
+# What space each species' provenance points into moved to
+# themis.types.REF_KINDS_OF in #618. It is a statement about the
+# species, so the producer has to be able to read it too — here it
+# could only ever be read after the fact, which is why every site
+# typed the kind again beside the id and nothing compared the two.
 
 
 def _verify_t10_3_kind_consistency(
@@ -957,12 +747,21 @@ def _verify_t10_3_kind_consistency(
     """T10-3: each gap.kind must be coherent with what the cited
     provenance signals can support.
 
-    Two checks:
-    (a) at least one ref in provenance must be of an acceptable kind for
-        the declared gap_kind (per ``_KIND_ACCEPTS_REF``);
-    (b) when an unidentifiable_no_admissible_set / missing_iv_candidate
+    Three checks:
+    (a) every ref must point into a space the species declares (per
+        :data:`themis.types.REF_KINDS_OF`);
+    (b) at least one ref has to be there to carry it;
+    (c) when an unidentifiable_no_admissible_set / missing_iv_candidate
         gap cites a derivation_step, that step must actually be a failed
         step (else the gap is a phantom).
+
+    (a) is the side that was missing. A declaration has been here since
+    this rule was written, but what it was asked was (b) alone — whether
+    SOME ref was acceptable — so a second ref of any kind rode along
+    beside an acceptable one, and every refusal that looked like this
+    rule's work was really T10-1 finding the id would not resolve in the
+    space its kind named. That is a refusal about the SPELLING of an id,
+    and it says nothing about whose evidence it is.
     """
     # Quick lookup of failure status by step_id / rule name.
     failed_step_ids: set[str] = set()
@@ -975,18 +774,29 @@ def _verify_t10_3_kind_consistency(
 
     for gap_index, gap in enumerate(report.get("gaps", [])):
         kind = gap.get("kind")
-        if kind not in _KIND_ACCEPTS_REF:
+        try:
+            species = GapKind(kind)
+        except ValueError:
             raise VerificationError(
                 f"T10-3: gap[{gap_index}] has unknown kind={kind!r}",
                 step_index=None, rule="data_gap_kind_consistency_check",
-            )
-        accepts = _KIND_ACCEPTS_REF[kind]
+            ) from None
+        accepts = {member.value for member in REF_KINDS_OF[species]}
         provenance = gap.get("provenance", []) or []
         ref_kinds = {ref.get("ref_kind") for ref in provenance}
+        stray = sorted(str(one) for one in ref_kinds - accepts)
+        if stray:
+            raise VerificationError(
+                f"T10-3: gap[{gap_index}] kind={kind!r} cites {stray}, "
+                f"which it does not declare as a space its provenance "
+                f"points into; it may cite {sorted(accepts)}",
+                step_index=None, rule="data_gap_kind_consistency_check",
+            )
         if not (ref_kinds & accepts):
             raise VerificationError(
                 f"T10-3: gap[{gap_index}] kind={kind!r} requires at least "
-                f"one provenance ref of {sorted(accepts)}; got {sorted(ref_kinds)}",
+                f"one provenance ref of {sorted(accepts)}; got "
+                f"{sorted(str(one) for one in ref_kinds)}",
                 step_index=None, rule="data_gap_kind_consistency_check",
             )
         # Failure-only gap kinds: the cited derivation step must be a

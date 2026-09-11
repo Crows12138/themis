@@ -28,6 +28,7 @@ from themis.types import (
     GapBlocks,
     GapKind,
     GapProvenanceRef,
+    cites,
     GapRefKind,
     GapRequiredData,
     GapSeverity,
@@ -421,12 +422,13 @@ def test_a_serialized_gap_reads_back_to_the_gap_it_came_from():
             Sentence.THE_QUESTION_ASKS_FOR_A_DOSE_RESPONSE_CURVE,
             intervention="dose", target="response"),),
         blocks=GapBlocks.POINT_ESTIMATE,
-        provenance=(
-            GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK, ref_id="v"),
-            GapProvenanceRef(
-                ref_kind=GapRefKind.INVESTIGATION_REQUEST, ref_id="parameter:P(y)"
-            ),
-        ),
+        # Two of them, because the decoder has to carry a tuple rather
+        # than the first entry — and both in the one space this species
+        # declares, which is what makes the gap buildable at all.
+        provenance=cites(
+            GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+            "program:extensions.ambiguities.dose_response_query",
+            "program:variable:dose:threshold:3"),
         signature="conditional",
         required_data=GapRequiredData(
             data_type=RequiredDataType.IPD,

@@ -41,7 +41,15 @@ _TREE = ast.parse(_SOURCE)
 
 #: Calls whose arguments are written for a person: the sentence they read,
 #: the route they are offered, and the id that points back at the ask.
-_FOR_THE_READER = frozenset({"_sentence", "_route", "GapProvenanceRef"})
+#:
+#: The last of those was one name until #618, when the id stopped being
+#: written beside a ref kind the site chose and started being handed to a
+#: constructor that reads the kind off the species. Three names now, for
+#: the one thing they all do: carry an id to a reader.
+_FOR_THE_READER = frozenset({
+    "_sentence", "_route", "GapProvenanceRef",
+    "cites", "_item_ref", "_step_ref",
+})
 
 
 def _function(name: str) -> ast.FunctionDef:

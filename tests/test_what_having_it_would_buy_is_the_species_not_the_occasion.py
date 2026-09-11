@@ -49,14 +49,9 @@ from themis import gaps, language
 from themis.output import reader_words
 from themis.output.result_orchestrator import data_gap_to_dict
 from themis.types import (
-    BLOCKS_TURN_ON,
-    SEVERITY_TURNS_ON,
-    DataGap,
-    GapBlocks,
-    GapKind,
-    GapProvenanceRef,
-    GapRefKind,
-    GapSeverity,
+    BLOCKS_TURN_ON, DataGap, GapBlocks, GapKind, GapProvenanceRef, GapRefKind,
+    GapSeverity, SEVERITY_TURNS_ON, cites, raised_by, raised_by_ref,
+    ref_kinds_of,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -104,6 +99,19 @@ def _a_statement_it_makes(kind: GapKind):
     return said[0]
 
 
+
+def _a_space_it_cites(kind: GapKind) -> tuple:
+    """Provenance in a space this species declares.
+
+    A fixture that types one is making up a value it does not own, which
+    is what the helper below stopped doing for severity and blocks. The
+    ref kind was the last literal it had left.
+    """
+    space = sorted(ref_kinds_of(kind), key=str)[0]
+    if space is GapRefKind.VERIFIER_CHECK:
+        return raised_by_ref(kind, "x", check=sorted(raised_by(kind))[0])
+    return cites(kind, "x", ref_kind=space)
+
 def _gap(kind: GapKind, **kw) -> DataGap:
     """A gap of this species, saying only what the species leaves open.
 
@@ -117,8 +125,7 @@ def _gap(kind: GapKind, **kw) -> DataGap:
     fields_ = {
         "kind": kind,
         "describes": (gaps.sentence(_a_statement_it_makes(kind)),),
-        "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
-                                        ref_id="x"),),
+        "provenance": _a_space_it_cites(kind),
     }
     if kind in SEVERITY_TURNS_ON:
         fields_["severity"] = GapSeverity.BLOCKING

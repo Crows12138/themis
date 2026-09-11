@@ -20,17 +20,9 @@ from themis.kb.translator import (
 from themis.gaps import Sentence, sentence
 from themis import gaps as _gaps
 from themis.types import (
-    BLOCKS_TURN_ON,
-    DATA_TYPE_TURNS_ON,
-    SEVERITY_TURNS_ON,
-    DataGap,
-    GapBlocks,
-    GapKind,
-    GapProvenanceRef,
-    GapRefKind,
-    GapRequiredData,
-    GapSeverity,
-    RequiredDataType,
+    BLOCKS_TURN_ON, DATA_TYPE_TURNS_ON, DataGap, GapBlocks, GapKind,
+    GapProvenanceRef, GapRefKind, GapRequiredData, GapSeverity,
+    RequiredDataType, SEVERITY_TURNS_ON, cites, ref_kinds_of,
 )
 
 
@@ -64,7 +56,8 @@ def _gap(
         describes=tuple(
             sentence(said, what="P(y | x)")
             for said in sorted(_gaps.says_of(kind), key=str)[:1]),
-        provenance=(GapProvenanceRef(GapRefKind.INVESTIGATION_REQUEST, "P(y|x)"),),
+        provenance=cites(kind, "P(y|x)",
+                         ref_kind=sorted(ref_kinds_of(kind), key=str)[0]),
         signature=signature,
         required_data=GapRequiredData(
             **shape,

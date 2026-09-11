@@ -169,10 +169,16 @@ def test_the_two_rules_agree_on_who_may_cite_a_check():
     declaring no check, and they were the only two in that table with no
     reason written beside them — the signature of a row widened to let
     something through rather than because a producer emits it.
+
+    Since #618 the two cannot disagree: which species may cite a check is
+    no longer written twice, it is folded into REF_KINDS_OF from these
+    same two tables. So this now measures the fold rather than a
+    coincidence between two hand-kept lists — and it is the only place
+    that says out loud what the fold is for.
     """
-    from themis.verifier.data_gap_rules import _KIND_ACCEPTS_REF
-    may_cite = {kind for kind, kinds in _KIND_ACCEPTS_REF.items()
-                if "verifier_check" in kinds}
+    from themis.types import REF_KINDS_OF, GapRefKind
+    may_cite = {kind.value for kind, kinds in REF_KINDS_OF.items()
+                if GapRefKind.VERIFIER_CHECK in kinds}
     declares = {kind.value for kind in RAISED_BY}
     declares |= {kind.value for kind in RAISED_BY_TURNS_ON}
     assert may_cite == declares, {

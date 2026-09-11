@@ -221,6 +221,7 @@ from ..types import (
     ResultStatus,
     VariableDeclaration,
     atoms_named_by,
+    cites,
     raised_by_ref,
 )
 
@@ -749,15 +750,11 @@ def _classify_unverified_proposal_edges(
                 _route(Route.SUPPLY_A_SOURCE_FOR_THE_EDGE),
                 _route(Route.ASK_CONDITIONALLY),
             ),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.PROGRAM_SITE,
-                    ref_id=(
-                        f"program:bidirected:{frm}↔{clean_to}:annotations.source"
+            provenance=cites(
+                GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH,
+                f"program:bidirected:{frm}↔{clean_to}:annotations.source"
                         if bidirected
-                        else f"program:cause:{frm}->{to}:annotations.source"
-                    ),
-                ),
+                        else f"program:cause:{frm}->{to}:annotations.source",
             ),
         )
 
@@ -913,11 +910,9 @@ def _classify_iv_assumption(
         describes=(_sentence(Sentence.IV_RESTS_ON_THIS_ASSUMPTION,
                              instrument=instrument,
                              assumption=language.Statement(assumption)),),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.ENVELOPE_PATH,
-                ref_id="extensions.iv_identification.required_assumption",
-            ),
+        provenance=cites(
+            GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            "extensions.iv_identification.required_assumption",
         ),
     )
 
@@ -966,11 +961,9 @@ def _classify_feedback_loop(
                    outcome=loop.get("outcome", "")),
             _route(Route.WITHDRAW_THE_DECLARED_LOOP),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.ENVELOPE_PATH,
-                ref_id="extensions.feedback_loop",
-            ),
+        provenance=cites(
+            GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED,
+            "extensions.feedback_loop",
         ),
     )
 
@@ -1058,11 +1051,9 @@ def _classify_mediation_assumptions(
                 said, branch=branch_name, subject=view.subject,
                 assumptions=", ".join(assumptions),
             ),),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.ENVELOPE_PATH,
-                    ref_id=f"extensions.{view.key}.{branch_key}.assumptions",
-                ),
+            provenance=cites(
+                GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                f"extensions.{view.key}.{branch_key}.assumptions",
             ),
         )
 
@@ -1091,11 +1082,9 @@ def _classify_transport_assumptions(
                 source=route.get("source_population")
                 or Unnamed.SOURCE_POPULATION,
                 target=tgt_pop),),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.ENVELOPE_PATH,
-                    ref_id="extensions.transport_identification",
-                ),
+            provenance=cites(
+                GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                "extensions.transport_identification",
             ),
         )
 
@@ -1127,11 +1116,9 @@ def _classify_llm_ambiguities(
                 _sentence(Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY,
                           kind=kind),
             ),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.ENVELOPE_PATH,
-                    ref_id=f"extensions.ambiguities[{kind}]",
-                ),
+            provenance=cites(
+                GapKind.LLM_DECLARED_AMBIGUITY,
+                f"extensions.ambiguities[{kind}]",
             ),
         )
 
@@ -1161,12 +1148,7 @@ def _classify_low_confidence(
             confidence=f"{confidence:.2f}",
             threshold=_LOW_CONFIDENCE_THRESHOLD,
         ),),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.ENVELOPE_PATH,
-                ref_id="confidence",
-            ),
-        ),
+        provenance=cites(GapKind.LOW_CONFIDENCE_INPUT_DATA, "confidence"),
     )
 
 
@@ -1204,11 +1186,10 @@ def _classify_front_door_assumptions(
         yield DataGap(
             kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
             describes=said,
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.DERIVATION_STEP,
-                    ref_id=triggering.step_id or triggering.rule,
-                ),
+            provenance=cites(
+                GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                triggering.step_id or triggering.rule,
+                ref_kind=GapRefKind.DERIVATION_STEP,
             ),
         )
         return
@@ -1216,11 +1197,10 @@ def _classify_front_door_assumptions(
         yield DataGap(
             kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
             describes=said,
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.PROGRAM_SITE,
-                    ref_id="program:front_door_pattern",
-                ),
+            provenance=cites(
+                GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                "program:front_door_pattern",
+                ref_kind=GapRefKind.PROGRAM_SITE,
             ),
         )
 
@@ -1322,10 +1302,9 @@ def _classify_counterfactual_assumptions(
         describes=(_sentence(
             Sentence.THE_COUNTERFACTUAL_RESTS_ON_CROSS_WORLD_PREMISES),),
         provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP,
-                ref_id=triggering.step_id or triggering.rule,
-            )
+            _step_ref(
+                GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
+                triggering)
             if triggering
             # The common counterfactual case is NEEDS_ASSUMPTION /
             # counterfactual-query-kind, which carries no derivation
@@ -1342,7 +1321,7 @@ def _classify_counterfactual_assumptions(
                 check=("counterfactual_status"
                        if is_counterfactual_status
                        else "counterfactual_query_kind"),
-            )[0],
+            )
         ),
     )
 
@@ -1388,11 +1367,9 @@ def _classify_bounds_not_point(
     yield DataGap(
         kind=GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
         describes=tuple(said),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.ENVELOPE_PATH,
-                ref_id="bounds_results",
-            ),
+        provenance=cites(
+            GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE,
+            "bounds_results",
         ),
     )
 
@@ -1439,11 +1416,9 @@ def _classify_graph_learned_from_data(
     yield DataGap(
         kind=GapKind.GRAPH_LEARNED_FROM_DATA,
         describes=tuple(said),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id="program:extensions.discovery_metadata",
-            ),
+        provenance=cites(
+            GapKind.GRAPH_LEARNED_FROM_DATA,
+            "program:extensions.discovery_metadata",
         ),
     )
 
@@ -1529,11 +1504,9 @@ def _classify_unmeasured_confounder_risk(
             _route(Route.CROSS_CHECK_AN_EXPERIMENT),
             _route(Route.EMULATE_A_TARGET_TRIAL),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id="program:confounder_pattern:no_bidirected",
-            ),
+        provenance=cites(
+            GapKind.UNMEASURED_CONFOUNDER_RISK,
+            "program:confounder_pattern:no_bidirected",
         ),
     )
 
@@ -1783,12 +1756,10 @@ def _classify_measurement_error_concern(
             _route(Route.RETEST_RELIABILITY),
             _route(Route.REPORT_ATTENUATION_RANGE),
         ),
-        provenance=tuple(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id=f"program:variable:{pred}:{field}:contains:{needle}",
-            )
-            for pred, field, needle in flagged
+        provenance=cites(
+            GapKind.MEASUREMENT_ERROR_CONCERN,
+            *(f"program:variable:{pred}:{field}:contains:{needle}"
+              for pred, field, needle in flagged),
         ),
     )
 
@@ -1908,12 +1879,10 @@ def _classify_dichotomized_continuous_measure(
             _route(Route.REPORT_CUTPOINT_SENSITIVITY),
             _route(Route.STRATIFY_MORE_FINELY),
         ),
-        provenance=tuple(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id=f"program:variable:{pred}:threshold:{cut}",
-            )
-            for pred, cut in flagged
+        provenance=cites(
+            GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE,
+            *(f"program:variable:{pred}:threshold:{cut}"
+              for pred, cut in flagged),
         ),
     )
 
@@ -1972,7 +1941,8 @@ def _classify_unidentifiable(
         yield DataGap(
             kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
             describes=(_sentence(Sentence.TIAN_FOUND_A_HEDGE),),
-            provenance=(_step_ref(step),),
+            provenance=_step_ref(
+                GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET, step),
             alternative_paths=(
                 _route(Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE),
                 _route(Route.RUN_AN_RCT_PAST_THE_HEDGE),
@@ -2064,7 +2034,7 @@ def _species_unidentifiable(
         describes=(_sentence(Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
                              why=gaps.shortfall(item)),),
         alternative_paths=_escapes(item),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET, item),
     )
 
 
@@ -2094,7 +2064,7 @@ def _species_structural_input(
         describes=(_sentence(Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
                              why=gaps.shortfall(item)),),
         alternative_paths=_escapes(item) + _layer_to_drop(item),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.MISSING_STRUCTURAL_INPUT, item),
     )
 
 
@@ -2137,7 +2107,7 @@ def _species_unit_observation(
         kind=GapKind.MISSING_UNIT_OBSERVATION,
         describes=(_sentence(Sentence.THIS_UNITS_OBSERVATIONS_ARE_MISSING,
                              why=gaps.shortfall(item)),),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.MISSING_UNIT_OBSERVATION, item),
     )
 
 
@@ -2182,7 +2152,7 @@ def _species_missing_distribution(
             precision_target=precision,
         ),
         alternative_paths=alt_paths,
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.MISSING_DISTRIBUTION, item),
     )
 
 
@@ -2206,7 +2176,7 @@ def _species_theta_graph_mismatch(
             _route(Route.DROP_THE_CONTRADICTING_EDGE),
         ) + tuple(o for o in (_interval_offer(query_kind),)
                   if o is not None),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH, item),
     )
 
 
@@ -2235,7 +2205,7 @@ def _species_missing_assumption(
         describes=(_sentence(Sentence.AN_IDENTIFICATION_PREMISE_IS_MISSING,
                              why=gaps.shortfall(item)),),
         alternative_paths=_escapes(item),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.MISSING_ASSUMPTION, item),
     )
 
 
@@ -2259,7 +2229,7 @@ def _species_transport_sources_disagree(
         kind=GapKind.TRANSPORT_SOURCES_DISAGREE,
         describes=(_sentence(Sentence.THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER,
                              why=gaps.shortfall(item)),),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.TRANSPORT_SOURCES_DISAGREE, item),
     )
 
 
@@ -2312,7 +2282,7 @@ def _species_feedback_loop_needs_an_instrument(
                    treatment=where["treatment"], outcome=where["outcome"]),
             _route(Route.WITHDRAW_THE_DECLARED_LOOP),
         ),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.MISSING_IV_CANDIDATE, item),
     )
 
 
@@ -2343,7 +2313,7 @@ def _species_feedback_loop_reaches_the_estimand(
                    treatment=where["treatment"], outcome=where["outcome"]),
             _route(Route.WITHDRAW_THE_DECLARED_LOOP),
         ),
-        provenance=(_item_ref(item),),
+        provenance=_item_ref(GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND, item),
     )
 
 
@@ -2393,10 +2363,18 @@ _ITEM_SPECIES: dict[GapKind, _Renderer] = _bind_item_species({
 })
 
 
-def _item_ref(item: InvestigationItem) -> GapProvenanceRef:
-    return GapProvenanceRef(
-        ref_kind=GapRefKind.INVESTIGATION_REQUEST, ref_id=item.target,
-    )
+def _item_ref(
+    kind: GapKind, item: InvestigationItem,
+) -> tuple[GapProvenanceRef, ...]:
+    """Grounded in the ask this gap was pushed as.
+
+    Nine species file through this channel and eight of them could have
+    cited a derivation step instead, so naming the channel here is the
+    occasion making its choice once rather than at each of the nine.
+    :func:`themis.types.cites` holds it to what the species declares.
+    """
+    return cites(kind, item.target,
+                 ref_kind=GapRefKind.INVESTIGATION_REQUEST)
 
 
 def _strip_parameter_prefix(target: str) -> str:
@@ -2491,11 +2469,10 @@ def _classify_missing_mediator(
                     _route(Route.FALL_BACK_TO_CDE),
                     _route(Route.FALL_BACK_TO_THE_TOTAL_EFFECT),
                 ),
-                provenance=(
-                    GapProvenanceRef(
-                        ref_kind=GapRefKind.INVESTIGATION_REQUEST,
-                        ref_id=item.target,
-                    ),
+                provenance=cites(
+                    GapKind.MISSING_MEDIATOR_DATA,
+                    item.target,
+                    ref_kind=GapRefKind.INVESTIGATION_REQUEST,
                 ),
             )
 
@@ -2571,10 +2548,10 @@ def _transport_source_data_needs(
         alternative_paths=(
             _route(Route.ACCEPT_THE_SOURCE_ATE),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP, ref_id=step_id
-            ),
+        provenance=cites(
+            GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
+            step_id,
+            ref_kind=GapRefKind.DERIVATION_STEP,
         ),
     )
 
@@ -2605,10 +2582,10 @@ def _transport_source_data_needs(
             _route(Route.FIND_A_SUBGROUP_ANALYSIS),
             _route(Route.FIND_A_MATCHED_RCT),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.DERIVATION_STEP, ref_id=step_id
-            ),
+        provenance=cites(
+            GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
+            step_id,
+            ref_kind=GapRefKind.DERIVATION_STEP,
         ),
     )
 
@@ -2740,11 +2717,9 @@ def _classify_dose_response_data(
         alternative_paths=(
             _route(Route.FALL_BACK_TO_A_BINARY_CONTRAST),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id="program:extensions.ambiguities.dose_response_query",
-            ),
+        provenance=cites(
+            GapKind.DOSE_RESPONSE_DATA_REQUIRED,
+            "program:extensions.ambiguities.dose_response_query",
         ),
     )
 
@@ -3205,14 +3180,10 @@ def _dispatch_conflict_gap(
             _route(Route.DROP_THE_OTHER_LAYER,
                           wanted=skipped.id, drop=won),
         ),
-        provenance=(
-            GapProvenanceRef(
-                ref_kind=GapRefKind.PROGRAM_SITE,
-                ref_id=(
-                    f"query:dispatch_conflict:{winner.id}_dispatched_"
-                    f"{skipped.id}_skipped"
-                ),
-            ),
+        provenance=cites(
+            GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT,
+            f"query:dispatch_conflict:{winner.id}_dispatched_"
+                    f"{skipped.id}_skipped",
         ),
     )
 
@@ -3354,10 +3325,9 @@ def _classify_ambiguous_variable(
                 Sentence.THE_VARIABLE_HAS_NO_OPERATIONAL_DEFINITION,
                 variable=note.predicate, missing=missing_str,
             ),),
-            provenance=(
-                GapProvenanceRef(
-                    ref_kind=GapRefKind.FRAMING_NOTE, ref_id=note.predicate
-                ),
+            provenance=cites(
+                GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
+                note.predicate,
             ),
         )
 
@@ -3528,11 +3498,12 @@ def _estimate_sample_size_for_distribution(
     return None, None
 
 
-def _step_ref(step: DerivationStep) -> GapProvenanceRef:
-    return GapProvenanceRef(
-        ref_kind=GapRefKind.DERIVATION_STEP,
-        ref_id=step.step_id or step.rule,
-    )
+def _step_ref(
+    kind: GapKind, step: DerivationStep,
+) -> tuple[GapProvenanceRef, ...]:
+    """Grounded in the chain — the other answer to the same question."""
+    return cites(kind, step.step_id or step.rule,
+                 ref_kind=GapRefKind.DERIVATION_STEP)
 
 
 def _atom_label(atom_dict: dict) -> str:
@@ -3575,6 +3546,11 @@ def data_gap_from_dict(d: dict) -> DataGap:
             ) if entry is not None
         ),
         blocks=GapBlocks(d["blocks"]),
+        # The one place the raw constructor is right: this is not
+        # authoring a ref, it is reading one back, and a check ref has to
+        # survive the round trip — which cites() refuses to build, since
+        # the check's name is RAISED_BY's to supply. What the species
+        # allows is still enforced one frame up, by DataGap itself.
         provenance=tuple(
             GapProvenanceRef(
                 ref_kind=GapRefKind(ref["ref_kind"]), ref_id=ref["ref_id"],

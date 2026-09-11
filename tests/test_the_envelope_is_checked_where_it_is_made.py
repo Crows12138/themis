@@ -37,13 +37,8 @@ import themis
 from themis import kernel
 from themis.input.syntactic_validator import SyntacticError
 from themis.types import (
-    DataGap,
-    DataGapReport,
-    GapBlocks,
-    GapKind,
-    GapProvenanceRef,
-    GapRefKind,
-    GapSeverity,
+    DataGap, DataGapReport, GapBlocks, GapKind, GapProvenanceRef, GapRefKind,
+    GapSeverity, cites,
 )
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -185,8 +180,8 @@ def _gap() -> DataGap:
         describes=(gaps.sentence(
             sorted(gaps.says_of(GapKind.MISSING_DISTRIBUTION), key=str)[0],
             what="P(y|x)"),),
-        provenance=(GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
-                                     ref_id="x"),),
+        provenance=cites(GapKind.MISSING_DISTRIBUTION, "x",
+                         ref_kind=GapRefKind.INVESTIGATION_REQUEST),
     )
 
 

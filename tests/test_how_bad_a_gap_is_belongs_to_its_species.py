@@ -54,17 +54,9 @@ import pytest
 from themis.output.data_gap_report import data_gap_from_dict
 from themis.output.result_orchestrator import data_gap_to_dict
 from themis.types import (
-    BLOCKS_OF,
-    BLOCKS_TURN_ON,
-    SEVERITY_OF,
-    SEVERITY_TURNS_ON,
-    raised_by,
-    DataGap,
-    GapBlocks,
-    GapKind,
-    GapProvenanceRef,
-    GapRefKind,
-    GapSeverity,
+    BLOCKS_OF, BLOCKS_TURN_ON, DataGap, GapBlocks, GapKind, GapProvenanceRef,
+    GapRefKind, GapSeverity, SEVERITY_OF, SEVERITY_TURNS_ON, cites, raised_by,
+    raised_by_ref, ref_kinds_of,
 )
 from themis.verifier import data_gap_rules
 from themis.verifier.errors import VerificationError
@@ -79,10 +71,23 @@ _AN_OCCASION = {"severity": GapSeverity.IMPORTANT,
                 "blocks": GapBlocks.INTERPRETATION}
 
 
+
+def _a_space_it_cites(kind: GapKind) -> tuple:
+    """Provenance in a space this species declares.
+
+    A fixture that types one is making up a value it does not own, which
+    is what the helper below stopped doing for severity and blocks. The
+    ref kind was the last literal it had left.
+    """
+    space = sorted(ref_kinds_of(kind), key=str)[0]
+    if space is GapRefKind.VERIFIER_CHECK:
+        return raised_by_ref(kind, "x", check=sorted(raised_by(kind))[0])
+    return cites(kind, "x", ref_kind=space)
+
 def _gap(kind: GapKind, **kw) -> DataGap:
     """A gap of this species, saying only what the species leaves open."""
-    fields = {"kind": kind, "describes": (), "provenance": (
-        GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK, ref_id="x"),)}
+    fields = {"kind": kind, "describes": (),
+              "provenance": _a_space_it_cites(kind)}
     if kind in SEVERITY_TURNS_ON:
         fields["severity"] = _AN_OCCASION["severity"]
     if kind in BLOCKS_TURN_ON:

@@ -61,38 +61,25 @@ def _named(node):
 
 
 def _species_by_ref_kind() -> dict[str, set[str]]:
-    """Which gap species the producer cites under each ref kind.
+    """Which gap species cite under each ref kind.
 
-    Read from the sites, because the sites are what decides it. A species
-    appears under a kind if any ``DataGap`` built with a literal ``kind``
-    carries a ref of that kind — directly, or through the estimation
-    layer's one-line wrapper.
+    Read from the declaration since #618. It used to be read off the
+    construction sites, and the reason written here was that a list in
+    this file would be this file's own guess at the producer's layout.
+    That reason stopped holding the moment the producer began filling the
+    kind FROM the declaration instead of typing it beside the id: reading
+    :data:`themis.types.REF_KINDS_OF` is reading what the sites read, and
+    an AST scan would now be reading the shape of a call.
+
+    Wider than the sites by exactly the species whose row leaves a
+    choice, which is the right direction for this file to be wrong in —
+    it replays programs and asserts on the refs that actually come out.
     """
+    from themis.types import REF_KINDS_OF
     out: dict[str, set[str]] = {}
-    for rel in PRODUCERS:
-        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call)
-                    and _named(node.func) == "DataGap"):
-                continue
-            species = next((_named(kw.value) for kw in node.keywords
-                            if kw.arg == "kind"), None)
-            if species is None:
-                continue
-            for kw in node.keywords:
-                if kw.arg != "provenance":
-                    continue
-                for sub in ast.walk(kw.value):
-                    if not isinstance(sub, ast.Call):
-                        continue
-                    if _named(sub.func) == "_verifier_check":
-                        out.setdefault("VERIFIER_CHECK", set()).add(species)
-                    if _named(sub.func) != "GapProvenanceRef":
-                        continue
-                    kind = next((_named(k.value) for k in sub.keywords
-                                 if k.arg == "ref_kind"), None)
-                    if kind:
-                        out.setdefault(kind, set()).add(species)
+    for species, spaces in REF_KINDS_OF.items():
+        for space in spaces:
+            out.setdefault(space.name, set()).add(species.name)
     return out
 
 
