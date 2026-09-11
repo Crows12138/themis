@@ -271,24 +271,32 @@ def _tamper(result, path, value):
     return bad
 
 
-def _the_record_this_leaf_sits_in(result, path):
-    """The nearest list element above a leaf, and its path.
+def _the_records_this_leaf_sits_in(result, path):
+    """Every list element above a leaf, outermost first, with its path.
 
     A list element is where a record begins: an answer's gaps, its ledger
     lines, its bounds rows. Everything above that is the envelope's
     furniture, which one row has one of.
+
+    A record inside a record is inside BOTH, and this returned only the
+    innermost. A way past sits in its own entry and in the gap offering
+    it; the word that decides which ways past are even available is the
+    GAP's kind, one level out. Reading the nearest record only, that word
+    was not part of the leaf's identity, so every way past in an answer
+    was one sort and the first one asked stood for all of them.
     """
     node = result
-    record, record_path = None, ()
+    records = []
     for depth, step in enumerate(path):
         if isinstance(node, list) and isinstance(node[step], dict):
-            record, record_path = node[step], path[:depth + 1]
+            records.append((node[step], path[:depth + 1]))
         node = node[step]
-    return record, record_path
+    return records
 
 
 def _the_words_that_say_which_sort(result, path) -> tuple:
-    """What a record takes from a closed vocabulary, minus the leaf itself.
+    """What the records a leaf sits in take from a closed vocabulary,
+    minus the leaf itself.
 
     The identity this gate needs and did not have. Two records in one list
     are the same SORT of record exactly when every word they take from a
@@ -298,21 +306,28 @@ def _the_words_that_say_which_sort(result, path) -> tuple:
     of field names kept here, so a record that grows a vocabulary field is
     told apart by it without anybody remembering to say so.
 
+    ASKED OF EVERY ENCLOSING RECORD, not the innermost. The innermost was
+    the same defect ``_asked`` records one level up: a unit that stops
+    short lets one record stand for others that no rule reads the same
+    way. Measured on this corpus, 1541 (shape, sort) pairs existed that
+    nothing ever asked — a gap's ``describes[].sentence`` and its
+    ``provenance[].ref_kind`` worst of all, then the ways past it offers.
+
     The leaf's own field is excluded, or the sort would be the value under
     test and every value would be its own sort — and only where the leaf
     IS that field of this record, since a field of the same name deeper
     inside it is a different field and describes the sort as much as any
     other word does.
     """
-    record, record_path = _the_record_this_leaf_sits_in(result, path)
-    if not isinstance(record, dict):
-        return ()
-    itself = path[-1] if len(path) == len(record_path) + 1 else None
-    return tuple(
-        (key, value) for key, value in sorted(record.items())
-        if key != itself and isinstance(value, str)
-        and _shape_of(record_path + (key,)) in _DOMAIN
-    )
+    words = []
+    for record, record_path in _the_records_this_leaf_sits_in(result, path):
+        itself = path[-1] if len(path) == len(record_path) + 1 else None
+        words.extend(
+            (key, value) for key, value in sorted(record.items())
+            if key != itself and isinstance(value, str)
+            and _shape_of(record_path + (key,)) in _DOMAIN
+        )
+    return tuple(words)
 
 
 def _named(shape: str, words: tuple) -> str:
@@ -343,6 +358,13 @@ def _asked(result):
     shape scored held, and the fourth — whose weight is an occasion's and
     whose occasion nothing read — was never asked at all. So the unit is
     the sort of record, and a shape is asked once per sort that appears.
+
+    And the sort itself stopped one level short for the same reason: it
+    was read from the nearest enclosing record, so a leaf inside a record
+    inside a record — a way past inside a gap, a sentence inside a gap —
+    took its identity from the inner one, where the word that decides its
+    vocabulary sits in the outer one. See
+    :func:`_the_words_that_say_which_sort`.
 
     Yields the NAME to report under and the SHAPE to bend by, which are no
     longer the same string: the vocabulary a leaf's lies must come out of
@@ -625,6 +647,56 @@ def test_a_sort_is_told_apart_by_the_words_its_own_contract_declares():
                                  for gap in result["data_gap_report"]["gaps"]}
     for field in words:
         assert f"data_gap_report.gaps.[].{field}" in _DOMAIN
+
+
+def test_a_leaf_inside_two_records_is_asked_once_per_outer_sort():
+    """The unit, at the level it used to stop short of.
+
+    A way past sits in its own entry and in the gap that offers it. The
+    entry's own words cannot tell two of them apart — the route is the
+    leaf under test and the rest of the entry is free text — so under the
+    old unit every way past in an answer was ONE sort, and whichever gap
+    happened to come first stood for all the others. Which ways past are
+    even available is the gap's kind, one level out.
+
+    Built from the corpus rather than asserted at the implementation: a
+    row carrying two gaps of different kinds that both offer a way past.
+    """
+    shape = "data_gap_report.gaps.[].alternative_paths.[].route"
+    for name in sorted(SHAPES):
+        result = SHAPES[name]["result"]
+        report = result.get("data_gap_report")
+        if not isinstance(report, dict):
+            continue
+        kinds = {gap.get("kind") for gap in report.get("gaps") or []
+                 if gap.get("alternative_paths")}
+        if len(kinds) < 2:
+            continue
+        sorts = {words for asked, _, path, _ in _asked(result)
+                 for words in [_the_words_that_say_which_sort(result, path)]
+                 if _shape_of(path) == shape}
+        assert len(sorts) >= 2, (name, sorts)
+        assert all(dict(words).get("kind") in kinds for words in sorts), sorts
+        return
+    raise AssertionError(
+        "no corpus row offers ways past on two kinds of gap; this gate is "
+        "measuring nothing")
+
+
+def test_the_sort_of_a_leaf_names_no_record_it_is_not_inside():
+    """The other side. A sort that grew to every record above it would be
+    just as wrong the other way: the words have to come from records this
+    leaf actually sits in, and from the fields the contract gives a
+    vocabulary to."""
+    result = SHAPES["iv_2sls"]["result"]
+    for path, _ in _leaves(result):
+        words = _the_words_that_say_which_sort(result, path)
+        if not words:
+            continue
+        inside = _the_records_this_leaf_sits_in(result, path)
+        for key, value in words:
+            assert any(record.get(key) == value for record, _ in inside), (
+                path, key, value)
 
 
 def test_what_this_sweep_calls_a_lie_is_asked_of_the_difference():
@@ -1167,9 +1239,30 @@ def test_the_declared_remainder_is_what_it_is():
     drawn from across the vocabulary land on one only by chance. The family
     reads closed because the lies this instrument asks are refused, not
     because every lie in it is.
+
+    Then it went UP by 36, and nothing got worse. The sort a leaf is asked
+    under was read from the nearest enclosing record, so a leaf inside a
+    record inside a record took its identity from the inner one — and the
+    word that decides its vocabulary sits in the outer one. Every way past
+    in an answer was one sort and the first stood for the rest. Reading
+    every enclosing record instead: 25 of the 36 are a shape a row had
+    never had asked of it at all, and 11 are a shape already open on its
+    row that turns out to be several sorts.
+
+    Of the 25, twenty-one are a gap's ``describes[].sentence`` — which
+    sentences a species may say is typed at every site and declared
+    nowhere, the same disease this file has now watched close four times
+    and which is open here rather than closed quietly. Three are the
+    expression a Balke-Pearl row says it needs. The last one is the
+    CEILING declared in the paragraph above, measured at last: on
+    ``iv_estimand_fallback_to_linear`` the bend landed on
+    ``coarsen_the_conditioning_set``, which is that species' own other way
+    past, and nothing refuses it because nothing should. A ceiling written
+    only in prose is one the next reader takes for a floor; this line is
+    it in the remainder, where it can be counted.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2445, total
+    assert total == 2481, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1256,6 +1349,13 @@ def test_the_sweep_asks_about_the_whole_envelope():
     different species whose weights are decided by different rules. Asking
     one sort per shape instead makes it 31149 — 3161 questions that were
     never put, at eleven percent more of this gate's wall clock.
+
+    Then 32690, and it is the same correction one level further in. A sort
+    was read from the nearest record a leaf sits in, so a leaf inside a
+    record inside a record — a way past inside a gap, a sentence inside a
+    gap — was one sort however many gaps the answer held. Reading every
+    enclosing record puts 1541 more questions, and this gate's share of
+    the suite's wall clock rises with them.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1265,7 +1365,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 31149, asked_total
+    assert asked_total == 32690, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [
