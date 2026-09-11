@@ -199,12 +199,15 @@ def test_filing_nothing_does_not_invent_a_report():
 def test_a_second_gap_joins_the_report_the_first_one_made():
     result: dict = {}
     _file_gaps(result, [_gap()])
-    _file_gaps(result, [_gap(describes=(
-        _gaps.sentence(_gaps.Sentence.TIAN_FOUND_A_HEDGE),))])
+    # The species' OTHER statement: a gap may only say what its own
+    # species says, and a hedge Tian found belongs to a different failure.
+    _file_gaps(result, [_gap(describes=(_gaps.sentence(
+        _gaps.Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
+        cells=4, bad=1, share="25%", strata="`z=1`"),))])
     report = result["data_gap_report"]
     assert [g["describes"][0]["sentence"] for g in report["gaps"]] == [
         "the_fitted_propensity_leaves_part_of_the_sample_unsupported",
-        "tian_found_a_hedge",
+        "every_stratum_should_have_both_arms_and_some_do_not",
     ]
 
 

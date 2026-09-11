@@ -3140,53 +3140,10 @@ def _classify_ill_defined_intervention_versions(
     )
 
 
-# Why each displaced layer cannot be done in the same dispatch, in the
-# reader's language. The pairs themselves are declared in
-# :mod:`themis.routing`; this table only translates them, and a gate holds
-# the two to exactly the same key set, so a pair added to the route table
-# without a sentence here fails rather than reaching a reader as a blank.
-_DISPLACED_BECAUSE: dict[tuple[str, str], Sentence] = {
-    # #450. One sentence for all four, because the reason is one reason and
-    # does not vary with which layer lost: each of them operates on an
-    # effect a DAG identifies, and under a declared loop there is not one
-    # yet to operate on.
-    ("feedback_loop", "joint_intervention"):
-        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
-    ("feedback_loop", "transport"):
-        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
-    ("feedback_loop", "mediation_joint"):
-        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
-    ("feedback_loop", "mediation_single"):
-        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
-    ("longitudinal", "joint_intervention"):
-        Sentence.A_LONGITUDINAL_ROUTE_DOES_NOT_DO_A_JOINT_INTERVENTION,
-    ("longitudinal", "transport"):
-        Sentence.A_LONGITUDINAL_ROUTE_DOES_NOT_TRANSPORT,
-    ("longitudinal", "mediation_joint"):
-        Sentence.A_LONGITUDINAL_ROUTE_GIVES_THE_TOTAL_EFFECT_ONLY,
-    ("longitudinal", "mediation_single"):
-        Sentence.A_LONGITUDINAL_ROUTE_GIVES_THE_TOTAL_EFFECT_ONLY,
-    ("joint_intervention", "transport"):
-        Sentence.A_JOINT_INTERVENTION_DOES_NOT_TRANSPORT,
-    ("joint_intervention", "mediation_joint"):
-        Sentence.A_JOINT_INTERVENTION_DOES_NOT_DECOMPOSE,
-    ("joint_intervention", "mediation_single"):
-        Sentence.A_JOINT_INTERVENTION_DOES_NOT_DECOMPOSE,
-    ("transport", "mediation_joint"):
-        Sentence.MEDIATION_AND_TRANSPORT_ARE_SEQUENTIAL,
-    ("transport", "mediation_single"):
-        Sentence.MEDIATION_AND_TRANSPORT_ARE_SEQUENTIAL,
-    ("mediation_joint", "mediation_single"):
-        Sentence.A_BLOCK_DECOMPOSITION_DOES_NOT_SPLIT_A_PATH,
-}
-"""Which statement each displaced pair is owed.
-
-Ten pairs and seven statements: the two mediation routes are displaced for
-the same reason by every route above them, and the table said so twice
-because it held the wording rather than a name for it. The wording is one
-author's, in :data:`themis.gaps.DESCRIBES`; what is decided here is which
-of them this pair is.
-"""
+# ``_DISPLACED_BECAUSE`` moved to :data:`themis.gaps.DISPLACED_BECAUSE` in
+# #617. It is a table of SENTENCES, and which statements a species may make
+# is declared there now — leaving it here would have forced that
+# declaration to list its eight members a second time.
 
 
 def _classify_unattempted_layer_dispatch_conflict(
@@ -3237,7 +3194,7 @@ def _dispatch_conflict_gap(
             _sentence(Sentence.ONLY_ONE_DECLARED_LAYER_WAS_RUN,
                       won=won, lost=lost,
                       winner=winner.id, skipped=skipped.id),
-            _sentence(_DISPLACED_BECAUSE[winner.id, skipped.id]),
+            _sentence(gaps.DISPLACED_BECAUSE[winner.id, skipped.id]),
             _sentence(Sentence.THE_RESULT_REFLECTS_ONE_LAYER_ONLY,
                       winner=winner.id, skipped=skipped.id),
         ),

@@ -18,6 +18,7 @@ from themis.kb.translator import (
     kb_results_to_bundle,
 )
 from themis.gaps import Sentence, sentence
+from themis import gaps as _gaps
 from themis.types import (
     BLOCKS_TURN_ON,
     DATA_TYPE_TURNS_ON,
@@ -39,10 +40,10 @@ def _gap(
     signature: str | None = "conditional",
     population: str | None = "adult_us",
 ) -> DataGap:
-    """A gap of this species. Severity, blocks and the shape of data it
-    asks for are the species' own — stated here only for the kinds whose
-    declaration says the value is an occasion's, since the rest fill
-    themselves and refuse a fixture's guess."""
+    """A gap of this species. Severity, blocks, the shape of data it asks
+    for and what it says about itself are the species' own — stated here
+    only for the kinds whose declaration says the value is an occasion's,
+    since the rest fill themselves and refuse a fixture's guess."""
     occasion = {}
     if kind in SEVERITY_TURNS_ON:
         occasion["severity"] = GapSeverity.BLOCKING
@@ -57,8 +58,12 @@ def _gap(
     return DataGap(
         kind=kind,
         **occasion,
-        describes=(sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
-                            what="P(y | x)"),),
+        # Nothing for a species nothing builds: it declares no statement
+        # because no site files it, and an empty description is what the
+        # constructor takes from one.
+        describes=tuple(
+            sentence(said, what="P(y | x)")
+            for said in sorted(_gaps.says_of(kind), key=str)[:1]),
         provenance=(GapProvenanceRef(GapRefKind.INVESTIGATION_REQUEST, "P(y|x)"),),
         signature=signature,
         required_data=GapRequiredData(

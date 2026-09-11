@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 from themis.types import BLOCKS_OF, SEVERITY_OF, GapKind
+from themis import gaps as _gaps
 from themis.verifier.data_gap_rules import (
     _verify_t10_3_kind_consistency,
     verify_data_gap_report,
@@ -33,16 +34,25 @@ def _gap(**overrides) -> dict:
     the two behind built gaps that contradicted their own species, which
     T10-5 refuses and these tests are not about. Where the species says
     the value is an occasion's, the occasion here is this fixture's.
+
+    What the gap SAYS about itself is the same kind of value and was the
+    last literal here, so the same override described one species' failure
+    on another's gap — which T10-8 refuses, and these tests are not about
+    that either. Read off ``gaps.SENTENCES_OF``, lowest name first so the
+    fixture is stable.
     """
     kind = overrides.get("kind", "missing_distribution")
     # A kind outside the vocabulary is a fixture below, not an accident.
     species = {k.value: k for k in GapKind}.get(kind)
     severity = SEVERITY_OF.get(species)
     blocks = BLOCKS_OF.get(species)
+    says = sorted(str(said) for said in _gaps.says_of(species)) \
+        if species is not None else []
     base = {
         "kind": kind,
         "severity": severity.value if severity is not None else "important",
-        "describes": [{"sentence": "a_distribution_is_missing",
+        "describes": [{"sentence": says[0] if says
+                       else "a_distribution_is_missing",
                        "said": {"what": "P(y|x)"}}],
         "blocks": (blocks.value if blocks is not None else "point_estimate"),
         "provenance": [

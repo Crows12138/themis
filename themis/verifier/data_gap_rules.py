@@ -1,6 +1,6 @@
 """Phase 10 §10.4 — independent verification of DataGapReport.
 
-Six rules audit a generated DataGapReport for honesty:
+Seven rules audit a generated DataGapReport for honesty:
 
 - **T10-1 ``data_gap_provenance_check``** — every ref in every gap's
   provenance array must point at something that is there. What "there"
@@ -30,9 +30,13 @@ Six rules audit a generated DataGapReport for honesty:
   and the ``data_type`` are both held to a second record rather than to
   each other.
 - **T10-7 ``data_gap_route_check``** — every way past a gap must be one
-  its species declares. What a reader acts on had 38 authors and three
+  its species declares. What a reader acts on had 84 authors and three
   declarations; the ceiling this holds it to is the species', so two ways
   past of the SAME species stay interchangeable and nothing else does.
+- **T10-8 ``data_gap_sentence_check``** — every statement a gap makes
+  about itself must be one its species declares. The field a reader reads
+  first was typed at 78 sites out of a vocabulary of 88 and declared
+  nowhere; a species says between one and ten of them.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -1416,6 +1420,62 @@ def _verify_t10_7_ways_past(report: dict) -> None:
         )
 
 
+_SENTENCE_RULE = "data_gap_sentence_check"
+
+#: What a reader does with a gap's description, so a refusal says what goes
+#: wrong rather than only which word was unexpected.
+_WHAT_A_READER_DOES_WITH_A_DESCRIPTION = (
+    "reads it to learn what went wrong — it is the first thing the gap "
+    "says about itself, and the wrong one describes another study's problem"
+)
+
+
+def _verify_t10_8_what_it_says(report: dict) -> None:
+    """Every statement a gap makes is one its species declares.
+
+    Silent on the same terms as T10-7: an unknown kind belongs to T10-3
+    and an unknown statement to the contract's own enumeration, and a rule
+    refusing for a reason another authority owns reports that authority's
+    coverage as its own.
+    """
+    for gap_index, gap in enumerate(report.get("gaps", []) or []):
+        if not isinstance(gap, dict):
+            continue
+        kind = gap.get("kind")
+        if not isinstance(kind, str):
+            continue
+        try:
+            species = GapKind(kind)
+        except ValueError:
+            continue
+        said = []
+        for entry in gap.get("describes", []) or []:
+            if isinstance(entry, dict) and isinstance(
+                    entry.get("sentence"), str):
+                said.append(entry["sentence"])
+        if not said:
+            continue
+        allowed = {str(entry) for entry in _gaps.says_of(species)}
+        named = {entry for entry in said if entry in _gaps.BY_SENTENCE}
+        stray = sorted(named - allowed)
+        if not stray:
+            continue
+        if not allowed:
+            raise VerificationError(
+                f"T10-8: gap[{gap_index}] kind={species.value!r} says "
+                f"{stray} and nothing in this kernel builds this species, "
+                f"so it declares no statement of its own. A reader "
+                f"{_WHAT_A_READER_DOES_WITH_A_DESCRIPTION}",
+                step_index=None, rule=_SENTENCE_RULE,
+            )
+        raise VerificationError(
+            f"T10-8: gap[{gap_index}] kind={species.value!r} says {stray}, "
+            f"and what this species says about itself is {sorted(allowed)}. "
+            f"A reader {_WHAT_A_READER_DOES_WITH_A_DESCRIPTION}",
+            step_index=None, rule=_SENTENCE_RULE,
+        )
+
+
 # ============================================ public entry
 
 
@@ -1475,6 +1535,7 @@ def verify_data_gap_report(
         report, investigation_requests=investigation_requests,
     )
     _verify_t10_7_ways_past(report)
+    _verify_t10_8_what_it_says(report)
 
 
 # ==================================== T10-4: the tier the report announces

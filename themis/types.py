@@ -2951,6 +2951,7 @@ class DataGap:
                 )
         self._settle_the_shape_of_data_it_asks_for()
         self._settle_the_ways_past_it_offers()
+        self._settle_the_statements_it_makes()
 
     def _settle_the_ways_past_it_offers(self) -> None:
         """The routes on this gap are ways past the gap it is.
@@ -2988,6 +2989,51 @@ class DataGap:
             f"{sorted(str(route) for route in allowed)}); a way past a gap "
             f"belongs to the gap that offers it, so a route a site knows "
             f"about is one the species has to declare"
+        )
+
+    def _settle_the_statements_it_makes(self) -> None:
+        """What this gap says about itself is what its species says.
+
+        The field a reader reads FIRST, and the one nothing held. A
+        description is a list of statements from a closed vocabulary of
+        88, and which of them belong to a species was typed at every site
+        that builds one and declared nowhere — so a gap about measurement
+        error could describe itself as a weak first stage and three public
+        doors said yes.
+
+        Refused and never filled, for the reason
+        :meth:`_settle_the_ways_past_it_offers` gives: a species settles
+        WHICH statements are its own; which of them this occasion makes,
+        and what each names, is the renderer's.
+
+        Silent where the kind is not one this build names. Which species
+        exist is the contract's question, answered at the door that
+        serialises them, and a check refusing for a reason another
+        authority owns reports that authority's coverage as its own.
+        """
+        from .gaps import SENTENCES_OF, says_of
+
+        said = {entry.sentence for entry in self.describes}
+        if not said or not isinstance(self.kind, GapKind):
+            return
+        allowed = says_of(self.kind)
+        stray = sorted(str(entry) for entry in said - allowed)
+        if not stray:
+            return
+        if self.kind not in SENTENCES_OF:
+            raise ValueError(
+                f"this gap says {stray} and nothing in this kernel builds a "
+                f"{self.kind.value} at all, so it declares no statement of "
+                f"its own (see data_gap_report.GAP_KINDS_WITH_NO_PRODUCER). "
+                f"A species that has gained a producer gains a row in "
+                f"gaps._SENTENCES_TYPED_AT_SITES with what it says"
+            )
+        raise ValueError(
+            f"this gap says {stray}, which {self.kind.value} does not "
+            f"declare as a statement about itself (gaps.SENTENCES_OF holds "
+            f"{sorted(str(entry) for entry in allowed)}); what a gap tells a "
+            f"reader it IS belongs to the gap it is, so a statement a site "
+            f"writes is one the species has to declare"
         )
 
     def _settle_the_shape_of_data_it_asks_for(self) -> None:

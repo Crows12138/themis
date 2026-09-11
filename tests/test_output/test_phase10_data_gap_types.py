@@ -159,10 +159,14 @@ def test_data_gap_report_orders_preserved_in_construction():
         ),
     )
     g2 = DataGap(
+        # The one statement this species makes (``gaps.SENTENCES_OF``). A
+        # state with no time window stood here and belongs to
+        # ``ill_defined_intervention_versions``: what is ambiguous there is
+        # WHICH version was done, not whether the word has a definition.
         kind=GapKind.AMBIGUOUS_VARIABLE_DEFINITION,
         describes=(sentence(
-            Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW,
-            intervention="exercise"),),
+            Sentence.THE_VARIABLE_HAS_NO_OPERATIONAL_DEFINITION,
+            variable="exercise"),),
         provenance=(
             GapProvenanceRef(
                 ref_kind=GapRefKind.FRAMING_NOTE, ref_id="exercise"

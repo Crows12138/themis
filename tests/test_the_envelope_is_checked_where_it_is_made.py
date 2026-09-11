@@ -180,7 +180,11 @@ def _gap() -> DataGap:
         kind=GapKind.MISSING_DISTRIBUTION,
         severity=GapSeverity.BLOCKING,
         blocks=GapBlocks.POINT_ESTIMATE,
-        describes=(gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
+        # What this species says about itself is the species' own
+        # (``gaps.SENTENCES_OF``), like the severity and the blocks above.
+        describes=(gaps.sentence(
+            sorted(gaps.says_of(GapKind.MISSING_DISTRIBUTION), key=str)[0],
+            what="P(y|x)"),),
         provenance=(GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                      ref_id="x"),),
     )

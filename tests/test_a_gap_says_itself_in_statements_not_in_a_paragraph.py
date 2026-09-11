@@ -86,16 +86,45 @@ HOLED = 66
 DOOR = "sentence"
 
 
+def _a_species_saying(*said) -> GapKind:
+    """A species that makes all of these statements.
+
+    What this file is about is the STATEMENT, and the species carrying it
+    is scaffolding — but a gap may only say what its own species says
+    (:data:`themis.gaps.SENTENCES_OF`), so the scaffolding is read off
+    that table rather than picked. One fixed kind stood here and was right
+    for whichever statement was written first.
+    """
+    wanted = set(said)
+    for kind in sorted(gaps.SENTENCES_OF, key=lambda k: k.value):
+        if wanted <= gaps.SENTENCES_OF[kind]:
+            return kind
+    raise AssertionError(
+        f"no species says all of {sorted(str(one) for one in wanted)}; a "
+        f"gap saying two species' statements is what this build refuses")
+
+
 def _gap(**kw) -> DataGap:
     """A gap, saying only what its species leaves open.
 
     The severity and the blocks it used to type were the species', so
     overriding the kind and leaving them behind built a gap contradicting
-    itself — which the constructor now refuses.
+    itself — which the constructor refuses. What a gap SAYS is the same
+    kind of value: the two are one choice, and a caller fixes whichever of
+    them the test is about while this derives the other. Fixing one and
+    leaving the other behind is what every caller here used to do.
     """
+    kind, describes = kw.pop("kind", None), kw.pop("describes", None)
+    if describes is None:
+        describes = (gaps.sentence(
+            sorted(gaps.says_of(kind), key=str)[0]
+            if kind is not None else gaps.Sentence.A_DISTRIBUTION_IS_MISSING,
+            what="P(y|x)"),)
+    if kind is None:
+        kind = _a_species_saying(*(one.sentence for one in describes))
     fields_ = {
-        "kind": GapKind.MISSING_DISTRIBUTION,
-        "describes": (gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
+        "kind": kind,
+        "describes": describes,
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="x"),),
     }
@@ -243,6 +272,28 @@ def _calls_the_door(tree: ast.Module):
     return is_door
 
 
+def _declared_elsewhere(value: ast.AST) -> set[str] | None:
+    """The statements in a table :mod:`themis.gaps` declares, or None.
+
+    A site may read its statement out of a table in another module —
+    ``gaps.DISPLACED_BECAUSE`` decides which reason a displaced pair is
+    owed — and the scan saw only tables named locally. Resolving it means
+    reading the real object rather than the name, which is available
+    because the declaration is importable; a table that is not there is
+    not a table this scan may guess at, so it says None and the caller
+    raises.
+    """
+    if not (isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id in {"gaps", "_gaps"}):
+        return None
+    table = getattr(gaps, value.attr, None)
+    if not isinstance(table, dict):
+        return None
+    return {str(one) for one in table.values()
+            if isinstance(one, gaps.Sentence)} or None
+
+
 def _sites(path: str) -> list[tuple[int, set[str], set[str], bool]]:
     """Every statement built in one module.
 
@@ -288,6 +339,9 @@ def _sites(path: str) -> list[tuple[int, set[str], set[str], bool]]:
         elif isinstance(first, ast.Subscript) and isinstance(
                 first.value, ast.Name):
             named, literal = lookup(node, first.value.id, 0), False
+        elif isinstance(first, ast.Subscript) and _declared_elsewhere(
+                first.value) is not None:
+            named, literal = _declared_elsewhere(first.value), False
         else:
             raise AssertionError(
                 f"{path}:{node.lineno} builds a statement this scan cannot "
@@ -374,11 +428,19 @@ def test_the_seam_between_two_statements_is_the_language_s(lang):
     """Not either statement's. It was one statement's: a leading space so
     the English sentence before it would not run on, which in Chinese
     reached the reader as a gap mid-paragraph."""
-    two = _gap(describes=(
-        gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),
-        gaps.sentence(gaps.Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY,
-                      edge="a->b", algorithm="pc"),
-    ))
+    # Two statements of ONE species: a gap saying two species' statements
+    # is what the constructor refuses, and the seam is the same seam.
+    kind = max(gaps.SENTENCES_OF, key=lambda k: (len(gaps.SENTENCES_OF[k]),
+                                                 k.value))
+    first, second = sorted(gaps.SENTENCES_OF[kind], key=str)[:2]
+    filling = _holes()
+
+    def _said(one):
+        return gaps.sentence(
+            one, **{hole: hole.upper()
+                    for hole in filling.get(str(one), ())})
+
+    two = _gap(kind=kind, describes=(_said(first), _said(second)))
     seam = language.fill(language.BETWEEN_SENTENCES, lang)
     said = gaps.described(data_gap_to_dict(two), lang)
     assert said == seam.join(
@@ -417,9 +479,12 @@ def test_a_statement_round_trips_through_the_envelope():
 def test_the_language_is_the_reader_s_and_not_the_builder_s(lang):
     """The whole point of the cut. The same gap, asked twice, answers in
     two languages — which a paragraph on the envelope cannot do."""
-    said = gaps.described(data_gap_to_dict(_gap()), lang)
-    assert said == language.fill(
-        gaps.DESCRIBES[str(gaps.Sentence.TIAN_FOUND_A_HEDGE)], lang)
+    # A statement with no holes, so the comparison is against the text
+    # rather than against an assembly of it.
+    one = gaps.Sentence.TIAN_FOUND_A_HEDGE
+    said = gaps.described(
+        data_gap_to_dict(_gap(describes=(gaps.sentence(one),))), lang)
+    assert said == language.fill(gaps.DESCRIBES[str(one)], lang)
 
 
 # --- the one line the reader is led with -------------------------------------
@@ -443,10 +508,7 @@ def test_a_second_blocking_gap_is_counted_and_not_described():
     # blocking is what it IS, and the fixture that used to type the word
     # was filing a collider gap — which is important, not blocking.
     two = one + [data_gap_to_dict(_gap(
-        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-        describes=(gaps.sentence(
-            gaps.Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY,
-            edge="a->b", algorithm="pc"),)))]
+        kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET))]
     assert gaps.summary(one) == gaps.described(one[0])
     assert gaps.summary(two).startswith(gaps.described(one[0]))
     assert gaps.summary(two) != gaps.summary(one)

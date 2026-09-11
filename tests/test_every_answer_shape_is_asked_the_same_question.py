@@ -1260,9 +1260,24 @@ def test_the_declared_remainder_is_what_it_is():
     past, and nothing refuses it because nothing should. A ceiling written
     only in prose is one the next reader takes for a floor; this line is
     it in the remainder, where it can be counted.
+
+    Then 21 back off, and they are the same 21. Which statements a species
+    may make about itself was typed at 78 sites out of a vocabulary of 88
+    and declared nowhere — the fifth time this file has watched that
+    shape, and the first time it watched one open and close in
+    consecutive rounds. Nothing else moved and nothing opened, which is
+    what a declaration closing exactly the leaves it was written for looks
+    like.
+
+    The sampling caveat above still holds and is worth repeating here
+    rather than left two paragraphs up: three swaps per leaf out of 88
+    members, and a species says between one and ten of them, so a swap
+    landing on a statement the SAME species also makes is chance. What
+    closed is that a gap can no longer describe itself as another
+    species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2481, total
+    assert total == 2460, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

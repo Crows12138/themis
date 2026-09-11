@@ -4613,6 +4613,315 @@ def if_provided(gap, lang: language.Lang | str = language.DEFAULT) -> str:
         words, _read(gap, "said"), _read(gap, "words"), lang)
 
 
+#: Why each displaced layer cannot be done in the same dispatch, in the
+#: reader's language. The pairs themselves are declared in
+#: :mod:`themis.routing`; this table only translates them, and a gate holds
+#: the two to exactly the same key set, so a pair added to the route table
+#: without a sentence here fails rather than reaching a reader as a blank.
+DISPLACED_BECAUSE: dict[tuple[str, str], Sentence] = {
+    # #450. One sentence for all four, because the reason is one reason and
+    # does not vary with which layer lost: each of them operates on an
+    # effect a DAG identifies, and under a declared loop there is not one
+    # yet to operate on.
+    ("feedback_loop", "joint_intervention"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "transport"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "mediation_joint"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("feedback_loop", "mediation_single"):
+        Sentence.THE_LOOP_HAS_TO_BE_SETTLED_BEFORE_ANY_OF_THESE,
+    ("longitudinal", "joint_intervention"):
+        Sentence.A_LONGITUDINAL_ROUTE_DOES_NOT_DO_A_JOINT_INTERVENTION,
+    ("longitudinal", "transport"):
+        Sentence.A_LONGITUDINAL_ROUTE_DOES_NOT_TRANSPORT,
+    ("longitudinal", "mediation_joint"):
+        Sentence.A_LONGITUDINAL_ROUTE_GIVES_THE_TOTAL_EFFECT_ONLY,
+    ("longitudinal", "mediation_single"):
+        Sentence.A_LONGITUDINAL_ROUTE_GIVES_THE_TOTAL_EFFECT_ONLY,
+    ("joint_intervention", "transport"):
+        Sentence.A_JOINT_INTERVENTION_DOES_NOT_TRANSPORT,
+    ("joint_intervention", "mediation_joint"):
+        Sentence.A_JOINT_INTERVENTION_DOES_NOT_DECOMPOSE,
+    ("joint_intervention", "mediation_single"):
+        Sentence.A_JOINT_INTERVENTION_DOES_NOT_DECOMPOSE,
+    ("transport", "mediation_joint"):
+        Sentence.MEDIATION_AND_TRANSPORT_ARE_SEQUENTIAL,
+    ("transport", "mediation_single"):
+        Sentence.MEDIATION_AND_TRANSPORT_ARE_SEQUENTIAL,
+    ("mediation_joint", "mediation_single"):
+        Sentence.A_BLOCK_DECOMPOSITION_DOES_NOT_SPLIT_A_PATH,
+}
+"""Which statement each displaced pair is owed.
+
+Fourteen pairs and eight statements: several routes are displaced for the
+same reason by every route above them, and the table said so once per pair
+because it held the wording rather than a name for it. The wording is one
+author's, in :data:`DESCRIBES`; what is decided here is which of them this
+pair is.
+
+It lived in :mod:`themis.output.data_gap_report` until #617, beside the
+one function that reads it. That is where it is USED; this is where its
+values are declared, and :data:`SENTENCES_OF` folds it in rather than
+listing its eight members a second time.
+"""
+
+
+_SENTENCES_TYPED_AT_SITES: dict[GapKind, frozenset[Sentence]] = {
+    GapKind.AMBIGUOUS_VARIABLE_DEFINITION: frozenset({
+        Sentence.THE_VARIABLE_HAS_NO_OPERATIONAL_DEFINITION,
+    }),
+    GapKind.ANSWER_IS_A_TEST_NOT_AN_EFFECT_SIZE: frozenset({
+        Sentence.A_TEST_OF_THE_NULL_IS_WHAT_IS_LEFT,
+        Sentence.THE_DISCRETE_CONTRAST_NEEDS_TWO_ARMS,
+        Sentence.THE_PROXIES_SHOW_FEWER_STATES_THAN_THE_LATENT_HAS,
+        Sentence.THE_PROXY_CHANNEL_IS_SINGULAR,
+    }),
+    GapKind.ANSWER_IS_BOUNDS_NOT_POINT_ESTIMATE: frozenset({
+        Sentence.AND_THAT_INTERVAL_IS_UNINFORMATIVE,
+        Sentence.CHOOSE_BY_WHICH_ASSUMPTIONS_YOU_ACCEPT,
+        Sentence.ONE_INTERVAL_AND_WHAT_IT_RESTS_ON,
+        Sentence.ONE_INTERVAL_THAT_RESTS_ON_NOTHING,
+        Sentence.SEVERAL_INTERVALS_BOUND_THE_SAME_QUANTITY,
+        Sentence.THE_ANSWER_IS_AN_INTERVAL_NOT_A_POINT,
+    }),
+    GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR: frozenset({
+        Sentence.THE_CONDITIONING_NODE_IS_A_COLLIDER,
+    }),
+    GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Sentence.THE_COUNTERFACTUAL_RESTS_ON_CROSS_WORLD_PREMISES,
+    }),
+    GapKind.DECLARED_TYPE_DATA_MISMATCH: frozenset({
+        Sentence.DECLARED_BINARY_BUT_THE_COLUMN_HAS_MORE_LEVELS,
+        Sentence.DECLARED_CONTINUOUS_BUT_THE_COLUMN_IS_DISCRETE,
+        Sentence.DECLARED_DISCRETE_BUT_THE_VALUES_FORM_A_CONTINUUM,
+        Sentence.THE_COLUMN_HOLDS_VALUES_THE_DECLARATION_DOES_NOT_LIST,
+        Sentence.THE_NUMBER_ANSWERS_A_DIFFERENT_ESTIMAND_THAN_DECLARED,
+        Sentence.THIS_COLUMN_IS_NOT_IN_THIS_ESTIMAND,
+    }),
+    GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: frozenset({
+        Sentence.A_CONTINUOUS_MEASURE_WAS_CUT_IN_TWO,
+    }),
+    GapKind.DOSE_RESPONSE_DATA_REQUIRED: frozenset({
+        Sentence.THE_DAG_DECLARES_NO_CONFOUNDER_FOR_THE_CURVE,
+        Sentence.THE_QUESTION_ASKS_FOR_A_DOSE_RESPONSE_CURVE,
+    }),
+    GapKind.FEEDBACK_LOOP_REACHES_THE_ESTIMAND: frozenset({
+        Sentence.A_CYCLIC_MODEL_NEED_NOT_HAVE_THIS_QUANTITY,
+        Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
+    }),
+    GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Sentence.FRONT_DOOR_RESTS_ON_FOUR_PREMISES,
+    }),
+    GapKind.GRAPH_LEARNED_FROM_DATA: frozenset({
+        Sentence.A_LEARNED_GRAPH_INHERITS_THE_ALGORITHMS_ASSUMPTIONS,
+        Sentence.DISCOVERY_RAN_ON_THIS_MANY_ROWS,
+        Sentence.DISCOVERY_USED_THIS_SIGNIFICANCE_THRESHOLD,
+        Sentence.THE_ALGORITHMS_ASSUMPTIONS_WERE_VIOLATED_ON_THIS_DATA,
+        Sentence.THE_GRAPH_WAS_LEARNED_BY_AN_ALGORITHM,
+    }),
+    GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: frozenset({
+        Sentence.THE_GRAPH_AND_THE_CPTS_DISAGREE,
+    }),
+    GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: frozenset({
+        Sentence.THE_INTERVENTION_IS_A_STATE_WITH_NO_TIME_WINDOW,
+        Sentence.THE_INTERVENTION_SAYS_NEITHER_STATE_NOR_EVENT,
+    }),
+    GapKind.IV_ESTIMAND_FALLBACK_TO_LINEAR: frozenset({
+        Sentence.THE_SAMPLE_COULD_NOT_BE_CUT_INTO_THE_STRATA_THE_WALD_NEEDS,
+    }),
+    GapKind.IV_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Sentence.IV_RESTS_ON_THIS_ASSUMPTION,
+        Sentence.THE_NUMBER_IS_A_SINGLE_EQUATIONS_COEFFICIENT,
+    }),
+    GapKind.LLM_DECLARED_AMBIGUITY: frozenset({
+        Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY,
+        Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY_AND_SAID_WHY,
+    }),
+    GapKind.LOW_CONFIDENCE_INPUT_DATA: frozenset({
+        Sentence.THE_COMPOSITE_CONFIDENCE_IS_BELOW_THE_THRESHOLD,
+    }),
+    GapKind.MEASUREMENT_ERROR_CONCERN: frozenset({
+        Sentence.A_VARIABLE_DECLARES_A_NOISY_MEASUREMENT,
+    }),
+    GapKind.MEDIATION_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Sentence.MEDIATION_IS_IDENTIFIABLE_FOR_A_MEDIATOR,
+        Sentence.MEDIATION_IS_IDENTIFIABLE_FOR_A_MEDIATOR_BLOCK,
+    }),
+    GapKind.MISSING_ASSUMPTION: frozenset({
+        Sentence.AN_IDENTIFICATION_PREMISE_IS_MISSING,
+    }),
+    GapKind.MISSING_DISTRIBUTION: frozenset({
+        Sentence.A_DISTRIBUTION_IS_MISSING,
+    }),
+    GapKind.MISSING_IV_CANDIDATE: frozenset({
+        Sentence.ADJUSTMENT_CANNOT_REMOVE_A_FEEDBACK,
+        Sentence.THE_TREATMENT_IS_INSIDE_A_DECLARED_LOOP,
+    }),
+    GapKind.MISSING_MEDIATOR_DATA: frozenset({
+        Sentence.THE_DECOMPOSITION_NEEDS_THE_MEDIATORS_DISTRIBUTIONS,
+    }),
+    GapKind.MISSING_STRUCTURAL_INPUT: frozenset({
+        Sentence.A_STRUCTURAL_INPUT_IS_MISSING,
+    }),
+    GapKind.MISSING_UNIT_OBSERVATION: frozenset({
+        Sentence.THIS_UNITS_OBSERVATIONS_ARE_MISSING,
+    }),
+    GapKind.OUTCOME_MODEL_QUASI_SEPARATION: frozenset({
+        Sentence.THE_OUTCOME_MODEL_IS_QUASI_SEPARATED,
+    }),
+    GapKind.OVERIDENTIFICATION_REJECTED: frozenset({
+        Sentence.THE_HOMOSKEDASTIC_SARGAN_SAYS_THE_SAME,
+        Sentence.THE_OVERIDENTIFICATION_TEST_REFUTED_THE_INSTRUMENTS,
+    }),
+    GapKind.PROPENSITY_OVERLAP_VIOLATION: frozenset({
+        Sentence.EVERY_STRATUM_SHOULD_HAVE_BOTH_ARMS_AND_SOME_DO_NOT,
+        Sentence.THE_FITTED_PROPENSITY_LEAVES_PART_OF_THE_SAMPLE_UNSUPPORTED,
+    }),
+    GapKind.PROXY_COARSENING_UNDECLARED: frozenset({
+        Sentence.THE_PROXIES_ARE_FINER_THAN_THE_DECLARED_CARDINALITY,
+        Sentence.WHICH_LEVELS_ARE_ONE_STATE_IS_NOT_IN_THE_DATA,
+    }),
+    GapKind.REGULARISATION_IS_MOVING_THE_ANSWER: frozenset({
+        Sentence.A_LIGHTER_PENALTY_HAS_NO_SOLUTION_HERE,
+        Sentence.THE_BRIDGE_EQUATION_HAS_NO_SOLUTION_WITHOUT_A_PENALTY,
+        Sentence.THE_PENALTY_MOVED_IT_FURTHER_THAN_NOISE_DID,
+    }),
+    GapKind.SELECTION_ON_COLLIDER_OPENS_PATH: frozenset({
+        Sentence.THE_SAMPLE_IS_RESTRICTED_ON_A_COLLIDER,
+    }),
+    GapKind.TRANSPORT_IDENTIFICATION_ASSUMPTION_REQUIRED: frozenset({
+        Sentence.TRANSPORT_RESTS_ON_S_ADMISSIBILITY,
+    }),
+    GapKind.TRANSPORT_SOURCES_DISAGREE: frozenset({
+        Sentence.THE_SOURCE_DOMAINS_CONTRADICT_EACH_OTHER,
+    }),
+    GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: frozenset({
+        Sentence.THE_SOURCE_POPULATIONS_STRATIFIED_CONDITIONAL_IS_MISSING,
+    }),
+    GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: frozenset({
+        Sentence.THE_TARGET_POPULATIONS_COVARIATE_DISTRIBUTION_IS_MISSING,
+    }),
+    GapKind.TREATMENT_BRIDGE_LEAVES_ITS_RANGE: frozenset({
+        Sentence.A_RECIPROCAL_PROBABILITY_CANNOT_BE_NEGATIVE,
+        Sentence.THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE,
+        Sentence.THE_FITTED_TREATMENT_BRIDGE_WENT_NEGATIVE_AT_A_LEVEL,
+    }),
+    GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT: frozenset({
+        Sentence.ONLY_ONE_DECLARED_LAYER_WAS_RUN,
+        Sentence.THE_RESULT_REFLECTS_ONE_LAYER_ONLY,
+    }),
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET: frozenset({
+        Sentence.THE_IDENTIFICATION_ROUTE_FAILED,
+        Sentence.TIAN_FOUND_A_HEDGE,
+    }),
+    GapKind.UNMEASURED_CONFOUNDER_RISK: frozenset({
+        Sentence.THE_DAG_DECLARES_NO_LATENT_COMMON_CAUSE,
+    }),
+    GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH: frozenset({
+        Sentence.THE_EDGE_IS_AN_LLM_PROPOSAL,
+        Sentence.THE_EDGE_SURVIVED_THIS_SHARE_OF_RESAMPLES,
+        Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY,
+    }),
+    GapKind.WEAK_IV_INSTRUMENT: frozenset({
+        Sentence.THE_ANDERSON_RUBIN_SET_IS_THIS,
+        Sentence.THE_FIRST_STAGE_IS_WEAK,
+        Sentence.THE_HETEROSKEDASTICITY_ROBUST_ANDERSON_RUBIN_SET_IS_THIS,
+        Sentence.THE_JOINT_FIRST_STAGE_IS_WEAK,
+        Sentence.THE_MULTI_INSTRUMENT_ANDERSON_RUBIN_SET_IS_THIS,
+        Sentence.THE_SET_CONSTRAINS_NOTHING,
+    }),
+}
+"""What each species says about itself, read off the sites that build it.
+
+Read off the SITES and not off a run. The corpus reaches 70 of the 88
+statements this build can make, so a table harvested from answers would
+refuse the other 18 wherever they are written — and refusing an honest
+report is worse than the hole it closes.
+
+The dispatch-conflict row holds only what its site types literally. Its
+other eight come from :data:`DISPLACED_BECAUSE`, which already decides
+them per displaced pair, and :func:`_bind_sentences` folds that in: what
+the finer table has settled, the coarser one does not write again.
+"""
+
+
+def _bind_sentences(
+    typed: dict[GapKind, frozenset[Sentence]],
+) -> dict[GapKind, frozenset[Sentence]]:
+    """The table a rule may hold a gap's description against.
+
+    Three questions, all at import, because the author of a new statement
+    is the one who can answer them and a test answers them a day later.
+
+    A row that is empty says a species describes itself with nothing,
+    which no reader can act on. A statement declared here AND in
+    :data:`DISPLACED_BECAUSE` is two authors for one line. And the
+    direction that is easy to leave out: every statement this build can
+    make is SOME species', or nothing may carry it and every rule reading
+    this table would refuse it wherever it is written. #615 learned that
+    one the expensive way — two ways past were real, reachable and on no
+    row, and a table asked in one direction only would have called them
+    forgeries.
+
+    Completeness over :class:`GapKind` is NOT asked here, and cannot be: a
+    species that nothing constructs says nothing, and which species those
+    are is declared in
+    :data:`themis.output.data_gap_report.GAP_KINDS_WITH_NO_PRODUCER`,
+    which this module is below. A test that imports both holds the two
+    together.
+    """
+    bound = {kind: set(said) for kind, said in typed.items()}
+
+    for pair, said in DISPLACED_BECAUSE.items():
+        kind = GapKind.UNATTEMPTED_LAYER_DUE_TO_DISPATCH_CONFLICT
+        if said in typed.get(kind, frozenset()):
+            raise ValueError(
+                f"{said} is declared both in gaps.DISPLACED_BECAUSE (for "
+                f"{pair}) and in gaps._SENTENCES_TYPED_AT_SITES; a "
+                f"statement decided per displaced pair has one author, and "
+                f"the coarse table folds it in rather than repeating it")
+        bound[kind].add(said)
+
+    empty = sorted(kind.value for kind, said in bound.items() if not said)
+    if empty:
+        raise ValueError(
+            f"{empty} have a row in gaps._SENTENCES_TYPED_AT_SITES that "
+            f"says nothing. A species describing itself with no statement "
+            f"reaches a reader as a gap with no words; drop the row or "
+            f"name what it says")
+
+    spoken = {said for row in bound.values() for said in row}
+    orphan = sorted(str(said) for said in Sentence if said not in spoken)
+    if orphan:
+        raise ValueError(
+            f"{orphan} are statements no species makes, so no gap can "
+            f"carry one and every rule reading this table would refuse it "
+            f"wherever it is written. Declare it in "
+            f"gaps._SENTENCES_TYPED_AT_SITES beside the species whose site "
+            f"writes it, or in gaps.DISPLACED_BECAUSE beside the pair it "
+            f"is the reason for")
+
+    return {kind: frozenset(said) for kind, said in bound.items()}
+
+
+SENTENCES_OF: dict[GapKind, frozenset[Sentence]] = _bind_sentences(
+    _SENTENCES_TYPED_AT_SITES)
+
+
+def says_of(kind) -> frozenset[Sentence]:
+    """The statements a species of gap may make about itself.
+
+    Empty for a species nothing constructs — it says nothing because no
+    site builds it, and a caller checking one is checking a gap that
+    should not exist. A species this build has never heard of raises, the
+    way :func:`ways_past` does: which species there are is the contract's
+    question and it is asked before any rule runs.
+    """
+    member = kind if isinstance(kind, GapKind) else GapKind(str(kind))
+    return SENTENCES_OF.get(member, frozenset())
+
+
 def sentence(name, **details) -> GapSentence:
     """One statement of a gap's description, in the one shape it takes.
 

@@ -87,6 +87,23 @@ BUILT = 47
 NAMED = 46
 
 
+def _a_statement_it_makes(kind: GapKind):
+    """One statement this species makes about itself.
+
+    The same reasoning as the severity and the blocks in :func:`_gap`:
+    which statements a species makes is the species', and one literal
+    stood here for all of them — a hedge Tian found, on every species this
+    file walks. Lowest name first, so the fixture does not move when the
+    table grows.
+    """
+    said = sorted(gaps.says_of(kind), key=str)
+    if not said:
+        raise AssertionError(
+            f"{kind.value} declares no statement of its own; this fixture "
+            f"cannot build a gap of a species nothing builds")
+    return said[0]
+
+
 def _gap(kind: GapKind, **kw) -> DataGap:
     """A gap of this species, saying only what the species leaves open.
 
@@ -94,11 +111,12 @@ def _gap(kind: GapKind, **kw) -> DataGap:
     the species, so a fixture stating them was making up a value it does
     not own — and the two it happened to pick were wrong for most species
     it was called with. What is passed now is what the declaration says is
-    an occasion's; everything else the species fills.
+    an occasion's; everything else the species fills, the statement it
+    makes included.
     """
     fields_ = {
         "kind": kind,
-        "describes": (gaps.sentence(gaps.Sentence.TIAN_FOUND_A_HEDGE),),
+        "describes": (gaps.sentence(_a_statement_it_makes(kind)),),
         "provenance": (GapProvenanceRef(ref_kind=GapRefKind.VERIFIER_CHECK,
                                         ref_id="x"),),
     }
@@ -245,8 +263,16 @@ def test_a_species_with_a_row_assembles_a_full_sentence(species, lang):
 def test_a_species_nothing_fills_says_nothing_rather_than_something(species):
     """The counterexample the table exists for. Empty is the ANSWER here:
     inventing a line would promise the reader that something they could go
-    and get changes this gap."""
-    assert gaps.if_provided(_gap(GapKind(species))) == ""
+    and get changes this gap.
+
+    Asked of the ENVELOPE rather than of a built gap. What
+    :func:`~themis.gaps.if_provided` reads is the kind, which the envelope
+    carries either way — and one of these species is one nothing in this
+    kernel builds (``GAP_KINDS_WITH_NO_PRODUCER``), so a constructed gap
+    cannot be had for it at all. The test below asks the same question of
+    a species from another build entirely, and for the same reason.
+    """
+    assert gaps.if_provided({"kind": species}) == ""
 
 
 def test_a_species_this_build_has_never_heard_of_says_nothing_either():

@@ -44,7 +44,7 @@ def _declared_pairs() -> set[tuple[str, str]]:
 def test_every_declared_displacement_has_a_sentence():
     """A pair declared in the table and missing here reaches the reader as
     a gap with a hole in the middle of its description."""
-    assert _declared_pairs() == set(data_gap_report._DISPLACED_BECAUSE)
+    assert _declared_pairs() == set(_gaps.DISPLACED_BECAUSE)
 
 
 # --- the shape band is enumerable, so co-firing is decidable ----------------
