@@ -18,10 +18,21 @@ verifier module imports ``themis.output``. The scan that checks it is
 pointed at ``themis/estimation`` as well, where the answer is not empty,
 so its silence about the verifier is a measurement rather than an
 inability to speak.
+
+The picture itself is committed, under ``docs/架构图/``. A drawing checked
+into a repository is a copy of facts that go on changing without it, so
+it is held to them here: the committed spec has to equal one built from
+the code as it stands, and every word that spec puts on the picture has
+to be on the rendered page. Rendering needs a tool that does not live in
+this repository, which is exactly why the page is compared to the spec by
+its words rather than rebuilt — a page that cannot be rebuilt here can
+still be read here.
 """
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -29,6 +40,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "build_arch_spec.py"
+PICTURE_SPEC = REPO_ROOT / "docs/架构图/全景图.json"
+PICTURE_PAGE = REPO_ROOT / "docs/架构图/全景图.html"
+
+REBUILD = ("图过期了。重跑：python scripts/build_arch_spec.py "
+           "docs/架构图/全景图.json，再用渲染器出 docs/架构图/全景图.html")
 
 #: A path that is not there, built out of one that is.
 #:
@@ -134,6 +150,82 @@ def test_every_box_belongs_to_one_layer_at_most():
         for wrapped in wraps:
             assert wrapped not in seen, (wrapped, seen.get(wrapped), label)
             seen[wrapped] = label
+
+
+# ------------------------------------------------- 签进来的那份图本身
+
+def _committed_spec() -> dict:
+    return json.loads(PICTURE_SPEC.read_text(encoding="utf-8"))
+
+
+def test_the_committed_picture_is_the_one_this_code_would_draw():
+    """The only field exempt is the commit it pins.
+
+    Everything else — every count, every cited path, every box and arrow
+    — has to be what building it right now produces. The pin is exempt
+    because it moves on its own with each commit, and a comparison that
+    reddened for that reason would be teaching people to ignore it.
+    """
+    committed = _committed_spec()
+    pinned = committed["meta"]["repository"]["revision"]
+    assert ARCH.build(revision=pinned) == committed, REBUILD
+
+
+def test_the_commit_the_picture_pins_is_one_this_repository_has():
+    committed = _committed_spec()
+    pinned = committed["meta"]["repository"]["revision"]
+    try:
+        kind = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "cat-file", "-t", pinned],
+            capture_output=True, text=True)
+    except FileNotFoundError:  # pragma: no cover - git absent
+        pytest.skip("git 不在 PATH 上")
+    assert kind.returncode == 0 and kind.stdout.strip() == "commit", pinned
+
+
+def _words_the_spec_puts_on_the_picture(spec: dict) -> list[str]:
+    words = [spec["meta"]["subtitle"]]
+    words += [view["note"] for view in spec["meta"]["views"]]
+    for component in spec["components"]:
+        words += [component["label"], component.get("sublabel"),
+                  component.get("tag")]
+    words += [boundary["label"] for boundary in spec["boundaries"]]
+    words += [c["label"] for c in spec["connections"] if c.get("label")]
+    return [w for w in words if w]
+
+
+def test_the_page_says_what_the_spec_says():
+    """The half a test here cannot rebuild, read instead.
+
+    The renderer lives outside this repository, so the committed page
+    cannot be regenerated and compared byte for byte. It can be read: if
+    the spec has been rebuilt and the page has not, a count that changed
+    is in one file and not the other, and that is visible from here.
+    """
+    spec = _committed_spec()
+    page = PICTURE_PAGE.read_text(encoding="utf-8")
+    missing = [w for w in _words_the_spec_puts_on_the_picture(spec)
+               if w not in page]
+    assert not missing, f"{REBUILD}；页面上找不到：{missing[:6]}"
+
+
+def test_the_page_names_the_commit_the_spec_pins():
+    spec = _committed_spec()
+    pinned = spec["meta"]["repository"]["revision"]
+    page = PICTURE_PAGE.read_text(encoding="utf-8")
+    assert pinned[:7] in page, REBUILD
+
+
+def test_that_reading_would_notice_a_word_that_is_not_there():
+    """Both sides: the reading above has to be able to come back empty."""
+    spec = _committed_spec()
+    page = PICTURE_PAGE.read_text(encoding="utf-8")
+    invented = dict(spec)
+    invented["boundaries"] = [{"label": "这句话不在页面上", "kind": "region",
+                               "wraps": []}]
+    missing = [w for w in _words_the_spec_puts_on_the_picture(invented)
+               if w not in page]
+    assert "这句话不在页面上" in missing
 
 
 # --------------------------------------------- 每道闸该说不的那一侧

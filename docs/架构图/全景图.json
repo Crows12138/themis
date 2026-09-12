@@ -1,0 +1,640 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Themis 全景：一个因果问题从程序到被独立复核",
+    "subtitle": "实线＝一次 run() 里发生的；虚线＝不在那次运行里（import 依赖 / 只在测试跑 / 跨运行回填）；粗线＝信封交给独立复核",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Crows12138/themis",
+      "provider": "github",
+      "link_mode": "local-only",
+      "revision": "fb013ce1f05c192c987a37f8db912a20de4ed558"
+    },
+    "views": [
+      {
+        "id": "trunk",
+        "label": "主干",
+        "focus": [
+          "prog",
+          "entry",
+          "sched",
+          "orch",
+          "verify"
+        ],
+        "note": "run() 的实际顺序：parse → validate → project → instantiate → dispatch_all → 组装 → 独立复核"
+      },
+      {
+        "id": "ident",
+        "label": "识别层",
+        "focus": [
+          "sched",
+          "solver",
+          "ctf",
+          "special"
+        ],
+        "note": "64 条 derivation rule：backdoor / front-door / Tian / general-ID / IDC / ID*"
+      },
+      {
+        "id": "estim",
+        "label": "估计层",
+        "focus": [
+          "disp",
+          "estim",
+          "numeric"
+        ],
+        "note": "identify 之后才谈数值；估计器自己声明它拟合的形态"
+      },
+      {
+        "id": "audit",
+        "label": "独立复核",
+        "focus": [
+          "verify",
+          "rules",
+          "gaprules",
+          "probe"
+        ],
+        "note": "92 个 rule 名、100 个 verify_* 入口；不 import themis.output"
+      },
+      {
+        "id": "loop",
+        "label": "回填闭环",
+        "focus": [
+          "gapreport",
+          "kb",
+          "workflow",
+          "prog"
+        ],
+        "note": "缺口翻成 KBQuery，客户端 adapter 做 IO，值回填进程序再跑一遍——整段在一次 run() 之外，所以画成虚线"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 7
+  },
+  "components": [
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "网页",
+      "sublabel": "themis.web :8000",
+      "row": 0,
+      "col": 0,
+      "sources": [
+        {
+          "path": "themis/web/__init__.py",
+          "label": "本地站点"
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "external",
+      "label": "MCP 工具",
+      "sublabel": "给 LLM 调用",
+      "row": 1,
+      "col": 0,
+      "sources": [
+        {
+          "path": "themis/mcp/server.py",
+          "label": "工具入口"
+        }
+      ]
+    },
+    {
+      "id": "upstream",
+      "type": "external",
+      "label": "LLM 上游",
+      "sublabel": "抽取 → Program",
+      "row": 2,
+      "col": 0,
+      "tag": "非契约",
+      "sources": [
+        {
+          "path": "themis/upstream/program_builder.py",
+          "label": "抽取字典变 Program"
+        },
+        {
+          "path": "themis/upstream/narrative_merge.py",
+          "label": "叙述里的变量合并"
+        }
+      ]
+    },
+    {
+      "id": "workflow",
+      "type": "external",
+      "label": "回填工作流",
+      "sublabel": "参数 / 变量框定",
+      "row": 4,
+      "col": 0,
+      "sources": [
+        {
+          "path": "themis/workflow/parameter_fill.py",
+          "label": "参数回填"
+        },
+        {
+          "path": "themis/workflow/variable_framing.py",
+          "label": "变量框定回填"
+        }
+      ]
+    },
+    {
+      "id": "entry",
+      "type": "backend",
+      "label": "入口与校验",
+      "sublabel": "JSON → Program",
+      "row": 0,
+      "col": 1,
+      "tag": "kernel.run",
+      "sources": [
+        {
+          "path": "themis/kernel.py",
+          "label": "run() 的顺序"
+        },
+        {
+          "path": "themis/input/syntactic_validator.py",
+          "label": "语法校验"
+        },
+        {
+          "path": "themis/input/semantic_validator.py",
+          "label": "语义校验"
+        }
+      ]
+    },
+    {
+      "id": "prog",
+      "type": "external",
+      "label": "因果程序",
+      "sublabel": "图 + 查询 + 断言",
+      "row": 1,
+      "col": 1,
+      "tag": "调用者给"
+    },
+    {
+      "id": "contract",
+      "type": "database",
+      "label": "契约与词表",
+      "sublabel": "物种与缺口词表",
+      "row": 2,
+      "col": 1,
+      "tag": "唯一权威",
+      "sources": [
+        {
+          "path": "themis/types.py",
+          "label": "物种声明"
+        },
+        {
+          "path": "themis/gaps.py",
+          "label": "缺口词表"
+        },
+        {
+          "path": "themis/refusals.py",
+          "label": "拒绝词表"
+        }
+      ]
+    },
+    {
+      "id": "sched",
+      "type": "backend",
+      "label": "调度器",
+      "sublabel": "scheduler.py",
+      "row": 1,
+      "col": 2,
+      "tag": "dispatch_all",
+      "sources": [
+        {
+          "path": "themis/runtime/scheduler.py",
+          "label": "哪条路线可走"
+        }
+      ]
+    },
+    {
+      "id": "oracle",
+      "type": "external",
+      "label": "差分 oracle",
+      "sublabel": "pgmpy / ananke",
+      "row": 3,
+      "col": 2,
+      "tag": "只在测试",
+      "sources": [
+        {
+          "path": "themis/oracle/differential.py",
+          "label": "两边跑同一题"
+        },
+        {
+          "path": "themis/oracle/pgmpy_adapter.py",
+          "label": "pgmpy 对照"
+        }
+      ]
+    },
+    {
+      "id": "solver",
+      "type": "backend",
+      "label": "结构识别",
+      "sublabel": "backdoor / Tian",
+      "row": 0,
+      "col": 3,
+      "tag": "general-ID",
+      "sources": [
+        {
+          "path": "themis/runtime/structural_solver.py",
+          "label": "ID 主干"
+        },
+        {
+          "path": "themis/runtime/c_factor.py",
+          "label": "C-factor 分解"
+        }
+      ]
+    },
+    {
+      "id": "special",
+      "type": "backend",
+      "label": "专门识别",
+      "sublabel": "近端·传输·选择",
+      "row": 1,
+      "col": 3,
+      "sources": [
+        {
+          "path": "themis/runtime/proximal_identify.py",
+          "label": "近端"
+        },
+        {
+          "path": "themis/runtime/transport.py",
+          "label": "跨域传输"
+        },
+        {
+          "path": "themis/runtime/selection_recovery.py",
+          "label": "选择偏倚"
+        }
+      ]
+    },
+    {
+      "id": "ctf",
+      "type": "backend",
+      "label": "反事实识别",
+      "sublabel": "ID* / IDC*",
+      "row": 2,
+      "col": 3,
+      "tag": "因果概率",
+      "sources": [
+        {
+          "path": "themis/runtime/ctf_identify.py",
+          "label": "ID*/IDC*"
+        },
+        {
+          "path": "themis/runtime/counterfactual.py",
+          "label": "孪生网络"
+        }
+      ]
+    },
+    {
+      "id": "disp",
+      "type": "backend",
+      "label": "估计器分派",
+      "sublabel": "dispatch.py",
+      "row": 0,
+      "col": 4,
+      "tag": "最大的单文件",
+      "sources": [
+        {
+          "path": "themis/estimation/dispatch.py",
+          "label": "选估计器"
+        }
+      ]
+    },
+    {
+      "id": "estim",
+      "type": "backend",
+      "label": "估计器族",
+      "sublabel": "IV / 中介 / 近端",
+      "row": 1,
+      "col": 4,
+      "sources": [
+        {
+          "path": "themis/estimation/iv.py",
+          "label": "工具变量"
+        },
+        {
+          "path": "themis/estimation/mediation.py",
+          "label": "中介"
+        },
+        {
+          "path": "themis/estimation/proximal_bridge.py",
+          "label": "近端桥"
+        }
+      ]
+    },
+    {
+      "id": "numeric",
+      "type": "backend",
+      "label": "数值端",
+      "sublabel": "numeric_estimator",
+      "row": 2,
+      "col": 4,
+      "sources": [
+        {
+          "path": "themis/runtime/numeric_estimator.py",
+          "label": "落到数字"
+        }
+      ]
+    },
+    {
+      "id": "analysis",
+      "type": "backend",
+      "label": "读者报告",
+      "sublabel": "analysis_report",
+      "row": 0,
+      "col": 5,
+      "tag": "可剥离",
+      "sources": [
+        {
+          "path": "themis/output/analysis_report.py",
+          "label": "翻译给人看"
+        }
+      ]
+    },
+    {
+      "id": "orch",
+      "type": "backend",
+      "label": "信封组装",
+      "sublabel": "orchestrator",
+      "row": 1,
+      "col": 5,
+      "sources": [
+        {
+          "path": "themis/output/result_orchestrator.py",
+          "label": "序列化"
+        }
+      ]
+    },
+    {
+      "id": "gapreport",
+      "type": "backend",
+      "label": "缺口诊断",
+      "sublabel": "42 物种 / 85 出路",
+      "row": 2,
+      "col": 5,
+      "sources": [
+        {
+          "path": "themis/output/data_gap_report.py",
+          "label": "缺什么数据"
+        }
+      ]
+    },
+    {
+      "id": "kb",
+      "type": "external",
+      "label": "KB 契约",
+      "sublabel": "缺口 → KBQuery",
+      "row": 4,
+      "col": 5,
+      "tag": "不做 IO",
+      "sources": [
+        {
+          "path": "themis/kb/contract.py",
+          "label": "adapter 抽象基类"
+        },
+        {
+          "path": "themis/kb/translator.py",
+          "label": "缺口翻成查询"
+        },
+        {
+          "path": "themis/kb/cache.py",
+          "label": "查询缓存"
+        }
+      ]
+    },
+    {
+      "id": "rules",
+      "type": "security",
+      "label": "复核规则",
+      "sublabel": "rules.py 12527 行",
+      "row": 0,
+      "col": 6,
+      "sources": [
+        {
+          "path": "themis/verifier/rules.py",
+          "label": "从零重导"
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "type": "security",
+      "label": "复核入口",
+      "sublabel": "verify.py 7307 行",
+      "row": 1,
+      "col": 6,
+      "tag": "100 个入口",
+      "sources": [
+        {
+          "path": "themis/verifier/verify.py",
+          "label": "顶层复核"
+        }
+      ]
+    },
+    {
+      "id": "gaprules",
+      "type": "security",
+      "label": "缺口八道门",
+      "sublabel": "T10-1 … T10-8",
+      "row": 2,
+      "col": 6,
+      "tag": "#615 #617 #618",
+      "sources": [
+        {
+          "path": "themis/verifier/data_gap_rules.py",
+          "label": "缺口审计"
+        }
+      ]
+    },
+    {
+      "id": "probe",
+      "type": "security",
+      "label": "语义探针",
+      "sublabel": "随机 SCM 对真值",
+      "row": 3,
+      "col": 6,
+      "sources": [
+        {
+          "path": "themis/verifier/semantic_probe.py",
+          "label": "独立重算"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "调用面与回填：Themis 自己不做 IO",
+      "wraps": [
+        "web",
+        "mcp",
+        "upstream",
+        "workflow"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "识别：结构层",
+      "wraps": [
+        "sched",
+        "solver",
+        "special",
+        "ctf"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "估计：数值层",
+      "wraps": [
+        "disp",
+        "estim",
+        "numeric"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "组装：信封与读者",
+      "wraps": [
+        "analysis",
+        "orch",
+        "gapreport"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "独立复核：绝不 import themis.output",
+      "wraps": [
+        "rules",
+        "verify",
+        "gaprules",
+        "probe"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "web",
+      "to": "prog"
+    },
+    {
+      "from": "mcp",
+      "to": "prog"
+    },
+    {
+      "from": "upstream",
+      "to": "prog"
+    },
+    {
+      "from": "workflow",
+      "to": "prog",
+      "variant": "dashed"
+    },
+    {
+      "from": "prog",
+      "to": "entry"
+    },
+    {
+      "from": "entry",
+      "to": "sched",
+      "label": "project / instantiate",
+      "labelDy": 22
+    },
+    {
+      "from": "contract",
+      "to": "sched",
+      "label": "词表",
+      "variant": "dashed"
+    },
+    {
+      "from": "oracle",
+      "to": "sched",
+      "label": "差分对照",
+      "variant": "dashed"
+    },
+    {
+      "from": "sched",
+      "to": "solver"
+    },
+    {
+      "from": "sched",
+      "to": "special"
+    },
+    {
+      "from": "sched",
+      "to": "ctf"
+    },
+    {
+      "from": "solver",
+      "to": "disp",
+      "label": "估计量"
+    },
+    {
+      "from": "special",
+      "to": "disp"
+    },
+    {
+      "from": "ctf",
+      "to": "numeric",
+      "label": "反事实数值",
+      "labelDy": -24
+    },
+    {
+      "from": "disp",
+      "to": "estim"
+    },
+    {
+      "from": "estim",
+      "to": "numeric",
+      "label": "拟合",
+      "labelDy": 24
+    },
+    {
+      "from": "numeric",
+      "to": "orch",
+      "label": "数值块"
+    },
+    {
+      "from": "orch",
+      "to": "analysis"
+    },
+    {
+      "from": "orch",
+      "to": "gapreport"
+    },
+    {
+      "from": "gapreport",
+      "to": "kb",
+      "label": "查 KB",
+      "variant": "dashed",
+      "labelDy": 24
+    },
+    {
+      "from": "kb",
+      "to": "workflow",
+      "label": "填回去",
+      "variant": "dashed"
+    },
+    {
+      "from": "orch",
+      "to": "verify",
+      "label": "信封",
+      "variant": "emphasis"
+    },
+    {
+      "from": "verify",
+      "to": "rules"
+    },
+    {
+      "from": "verify",
+      "to": "gaprules"
+    },
+    {
+      "from": "gaprules",
+      "to": "probe"
+    }
+  ]
+}
