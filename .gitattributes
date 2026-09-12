@@ -1,0 +1,12 @@
+# Generated artifacts keep their bytes.
+#
+# The rest of this tree is CRLF in the working copy and LF in the index,
+# which is right for files people edit. docs/架构图/ holds two files
+# nobody edits: one written by scripts/build_arch_spec.py and one by a
+# renderer outside this repository. Converting those on checkout leaves
+# the working copy differing from the index by line ending alone — git
+# status calls it modified while git diff finds nothing, and the
+# disagreement follows every clone around. Written LF by both producers,
+# stored LF, checked out LF, so there is nothing to disagree about.
+docs/架构图/*.json -text
+docs/架构图/*.html -text

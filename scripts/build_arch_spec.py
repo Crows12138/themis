@@ -491,8 +491,12 @@ def main(argv: list[str]) -> int:
         print(f"× {refused}", file=sys.stderr)
         return 1
     out = Path(argv[1])
-    out.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n",
-                   encoding="utf-8")
+    # LF on every platform. The spec is a committed artifact nobody
+    # edits, and .gitattributes stores it byte for byte; letting the
+    # newline follow the host would make the same picture two different
+    # files depending on who built it.
+    with out.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
     kinds = [edge[2] for edge in EDGES]
     print(f"{out}  方块 {len(spec['components'])}  "
           f"连线 {len(spec['connections'])}  "
