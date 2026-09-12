@@ -50,3 +50,10 @@ Thumbs.db
 
 # Downloaded reference PDFs (freely available; cited by URL in tests) — not committed
 references/
+
+# The architecture picture, built by scripts/build_arch_spec.py plus an
+# external renderer. Deliberately not committed: a drawing checked in
+# here would be right on the day it was built and silently wrong after,
+# which is the failure #619 exists to stop. The generator is the artifact
+# that stays true; run it when you want a current picture.
+docs/架构图/
