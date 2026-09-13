@@ -150,6 +150,7 @@ from .verifier import (
     verify_gap_names,
     verify_gap_edge_statements,
     verify_gap_program_sites,
+    verify_proposed_edges_are_disclosed,
     verify_gap_quotes,
     verify_refusal_block,
     verify_required_data,
@@ -1681,6 +1682,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # which algorithm, how often it survived resampling — is that
     # annotation read aloud.
     verify_gap_edge_statements(result, ast)
+
+    # And which edges have such a gap. What a proposal-edge gap says was
+    # held above and whether it exists was not: removed with its ledger
+    # copy, or added for an edge whose source is evidence, it passed. The
+    # set is a fact about the program, the question and the ground graph,
+    # all of them here.
+    verify_proposed_edges_are_disclosed(result, prog, ctx)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

@@ -578,6 +578,12 @@ Public surface (re-exports from sub-modules):
   proposal, which algorithm, the share of resamples it survived — are
   that annotation read aloud, and a gap rewritten together with the
   ledger line that copies it had passed every door)
+- And whether the edges such gaps disclose are the proposed edges the
+  answer rests on, on the ground graph it was reached on:
+  ``verify_proposed_edges_are_disclosed`` (which edges had one was the
+  report author's alone; removed with its ledger copy a gap passed every
+  door 21 times of 21, and added for an edge that owes none, 18 of 18 —
+  twelve of those an evidence-sourced edge told as a language model's)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -816,6 +822,7 @@ from .data_gap_rules import (
     verify_answer_tier,
     verify_gap_edge_statements,
     verify_gap_program_sites,
+    verify_proposed_edges_are_disclosed,
 )
 from .statement_rules import verify_statements_carry_their_facts
 from .status_rules import (
@@ -873,6 +880,7 @@ __all__ = [
     "verify_gap_names",
     "verify_gap_program_sites",
     "verify_gap_edge_statements",
+    "verify_proposed_edges_are_disclosed",
     "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_refusal_block",

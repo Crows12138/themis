@@ -14,6 +14,9 @@ Seven rules audit a generated DataGapReport for honesty:
 - **T10-2 ``data_gap_completeness_check``** — every upstream failure
   signal that the schema can detect (failed derivation step / parameter
   investigation / framing note) must be covered by at least one gap.
+  And the proposed edges an answer rests on, read on the ground graph it
+  was reached on, must be exactly the edges its proposal-edge gaps
+  disclose.
 - **T10-3 ``data_gap_kind_consistency_check``** — each gap's ``kind`` must
   be coherent with the upstream signal it cites in provenance: every ref
   must point into a space the species declares, at least one must be
@@ -53,6 +56,9 @@ Reads only from the JSON envelope (dicts), not from typed dataclasses,
 so the audit also catches serialization-layer bugs. The exception is the
 contract layer's declarations in :mod:`themis.types`, which are not
 anything a producer wrote — they are what the words in the envelope mean.
+Which edges an answer rests on is read from its premises as well: the
+program parsed from the caller's own document and the graph projected
+from it, which no producer wrote either.
 """
 from __future__ import annotations
 
@@ -61,8 +67,11 @@ from typing import Any, Mapping
 
 from .. import gaps as _gaps
 from ..types import (
+    Atom,
     BLOCKS_OF,
     BLOCKS_TURN_ON,
+    BidirectedStatement,
+    CauseStatement,
     DATA_TYPE_TURNS_ON,
     GapKind,
     GapSeverity,
@@ -70,9 +79,12 @@ from ..types import (
     REF_KINDS_OF,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
+    VarTerm,
+    atoms_held_by,
     raised_by,
     required_data_type,
 )
+from .context import VerificationContext
 from .errors import VerificationError
 from .program_copy_rules import query_of
 
@@ -794,6 +806,238 @@ def verify_gap_edge_statements(result: object, program: object) -> None:
                 f"edge is where the words came from",
                 step_index=None, rule="data_gap_provenance_check",
             )
+
+
+# ============================================ T10-2, the edges an answer rests on
+#
+# The section above holds what a proposal-edge gap says to the edge it
+# cites. This holds which edges have one: a gap is how a reader learns that
+# an edge the answer needs was never evidence, and the set of them was
+# decided by the report's author alone.
+
+#: The source a language model's edge carries. Restated beside the discovery
+#: marker above for the same reason: an edge that carries neither came from
+#: somewhere a reader can go and look, and owes no disclosure of this kind.
+_PROPOSED_BY_A_MODEL = "llm_proposal"
+
+#: Where a route names atoms its answer rests between beyond those the
+#: question holds: the instrument an IV route used and what it conditioned
+#: on, and a mediation decomposition's mediators and adjustment sets. Spelled
+#: as the envelope spells them; this package does not go through the block
+#: registry. The first mediation block present is the one read.
+_IV_BLOCK = "iv_identification"
+_MEDIATION_BLOCKS = (("mediation_decomposition", "mediator"),
+                     ("mediation_joint_decomposition", "mediators"))
+
+
+def _is_a_proposal(annotations: object) -> bool:
+    source = getattr(annotations, "source", None)
+    return source == _PROPOSED_BY_A_MODEL or (
+        isinstance(source, str) and source.startswith(_LEARNED_BY))
+
+
+def _spelt_as_the_envelope_spells(atom: Atom) -> str:
+    args = ",".join(term.name for term in atom.args)
+    base = f"{atom.predicate}({args})"
+    if atom.time_index is None:
+        return base
+    t = atom.time_index.value
+    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
+
+
+def _the_atoms_the_blocks_name(extensions: Mapping) -> list[str]:
+    named: list[str] = []
+    iv = extensions.get(_IV_BLOCK)
+    if isinstance(iv, Mapping):
+        if iv.get("instrument"):
+            named.append(str(iv["instrument"]))
+        named.extend(str(one) for one in iv.get("conditioning") or ())
+    for key, field in _MEDIATION_BLOCKS:
+        block = extensions.get(key)
+        if not isinstance(block, Mapping):
+            continue
+        mediators = block.get(field)
+        named.extend(str(one) for one in (
+            mediators if isinstance(mediators, list)
+            else ([mediators] if mediators else [])))
+        for branch in ("nde_nie", "cde"):
+            part = block.get(branch)
+            if isinstance(part, Mapping):
+                named.extend(str(one) for one in part.get("adjustment") or ())
+        break
+    return named
+
+
+def _grounds_to(written: Atom, ground: Atom, binding: dict) -> bool:
+    """Whether some choice of objects for the statement's variables makes
+    ``written`` the atom ``ground``, consistently with ``binding``, which
+    this extends."""
+    if (written.predicate != ground.predicate
+            or written.time_index != ground.time_index
+            or len(written.args) != len(ground.args)):
+        return False
+    for term, value in zip(written.args, ground.args):
+        if isinstance(term, VarTerm):
+            if binding.setdefault(term.name, value.name) != value.name:
+                return False
+        elif term.name != value.name:
+            return False
+    return True
+
+
+def _statements_behind(program: object, tail: Atom, head: Atom) -> list:
+    """Every cause statement the program writes that grounds to this edge.
+
+    All of them, not the one the graph keeps: projection stores a single
+    statement per edge and a later one overwrites an earlier, and nothing
+    refuses a program that states one edge twice. Stated once as a
+    language model's proposal for every unit and once as evidence for one,
+    the edge is a proposal the answer rests on whichever came last.
+    """
+    behind = []
+    for statement in getattr(program, "statements", ()):
+        if not isinstance(statement, CauseStatement):
+            continue
+        binding: dict = {}
+        if (_grounds_to(statement.from_atom, tail, binding)
+                and _grounds_to(statement.to_atom, head, binding)):
+            behind.append(statement)
+    return behind
+
+
+def _reached(graph, start: Atom, forward: bool) -> set:
+    seen, frontier = {start}, [start]
+    step = graph.successors if forward else graph.predecessors
+    while frontier:
+        for nxt in step(frontier.pop()):
+            if nxt not in seen:
+                seen.add(nxt)
+                frontier.append(nxt)
+    return seen
+
+
+def _the_edges_it_rests_on(result: Mapping, program: object,
+                           context: VerificationContext) -> set:
+    """Every proposed edge the answer rests on, as ``(kind, predicates)``.
+
+    On the ground graph the answer was reached on. A directed edge when a
+    directed path between two distinct atoms the answer rests on runs
+    through it -- in a DAG, exactly when the first reaches its tail and its
+    head reaches the second -- or a supporting path on the envelope walks
+    it in either direction; a bidirected one when it touches one of those
+    atoms.
+    """
+    graph = context.graph
+    spelt = {_spelt_as_the_envelope_spells(node): node for node in graph}
+    extensions = result.get("extensions") or {}
+    between = set(atoms_held_by(context.query))
+    between.update(spelt[text] for text in _the_atoms_the_blocks_name(extensions)
+                   if text in spelt)
+
+    present = [atom for atom in between if atom in graph]
+    below = {atom: _reached(graph, atom, forward=True) for atom in present}
+    above = {atom: _reached(graph, atom, forward=False) for atom in present}
+    rested = {(u, v) for u, v in graph.edges
+              if any(u in below[s] and v in above[t]
+                     for s in present for t in present if s != t)}
+    structural = result.get("structural_result")
+    for path in (structural.get("supporting_paths") or ()) if isinstance(structural, Mapping) else ():
+        nodes = [spelt.get(str(text)) for text in path or ()]
+        for u, v in zip(nodes, nodes[1:]):
+            if u is not None and v is not None:
+                rested.update(edge for edge in ((u, v), (v, u)) if graph.has_edge(*edge))
+
+    owed: set = set()
+    for tail, head in rested:
+        if any(_is_a_proposal(getattr(statement, "annotations", None))
+               for statement in _statements_behind(program, tail, head)):
+            owed.add(("cause", (tail.predicate, head.predicate)))
+    for statement in getattr(program, "statements", ()):
+        if not (isinstance(statement, BidirectedStatement)
+                and _is_a_proposal(getattr(statement, "annotations", None))):
+            continue
+        if any(_grounds_to(end, atom, {}) for atom in between
+               for end in (statement.left, statement.right)):
+            owed.add(("bidirected", tuple(sorted(
+                (statement.left.predicate, statement.right.predicate)))))
+    return owed
+
+
+def _the_edges_its_gaps_disclose(report: object) -> dict:
+    """``(kind, predicates)`` -> the index of the first gap citing it."""
+    disclosed: dict = {}
+    gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
+    for index, gap in enumerate(gaps):
+        if not isinstance(gap, Mapping) or gap.get("kind") != _READS_ITS_CITED_EDGE:
+            continue
+        for ref in gap.get("provenance") or ():
+            ref_id = ref.get("ref_id") if isinstance(ref, Mapping) else None
+            if not isinstance(ref_id, str):
+                continue
+            spelling = ref_id.removesuffix(":annotations.source")
+            for kind, (prefix, arrow, _named) in _EDGE_SITES.items():
+                if spelling.startswith(prefix) and arrow in spelling:
+                    ends = tuple(spelling[len(prefix):].split(arrow, 1))
+                    if kind == "bidirected":
+                        ends = tuple(sorted(ends))
+                    disclosed.setdefault((kind, ends), index)
+    return disclosed
+
+
+def _spelt(edges) -> list[str]:
+    return sorted(f" {_EDGE_SITES[kind][2]} ".join(ends) for kind, ends in edges)
+
+
+def verify_proposed_edges_are_disclosed(result: object, program: object,
+                                        context: VerificationContext) -> None:
+    """The proposed edges an answer rests on are the edges its gaps disclose.
+
+    :func:`verify_gap_edge_statements` holds what such a gap says to the
+    edge it cites. Which edges have one was decided by the report's author
+    alone, and the ledger's copy of the gaps is read off the gaps, so
+    nothing held the set itself. Measured on the corpus: each of the 21
+    such gaps, removed with the ledger line that copies it, passed every
+    door; a gap added for an annotated edge that owes none passed 18 times
+    of 18, twelve of them an edge whose source is evidence, told as a
+    language model's -- a reading the rule above gives any source that is
+    not a discovery marker.
+
+    Held both ways, against a statement made here from the program, the
+    question, the ground graph and the two blocks that add atoms to what a
+    path must join. On the ground graph and not on the predicates: a first
+    version asked reachability between predicates and refused an honest
+    answer, a program unrolled in time where ``b`` a step back moves ``a``
+    and ``a`` moves ``b`` now, ``a -> b`` on no path the answer rests on,
+    while over predicates ``x`` reached ``a`` and ``b`` reached ``y``.
+    Reachability rather than an enumeration of paths, since the graph is a
+    DAG and a bound on paths is a graph that owes less the larger it is.
+
+    An answer owing a disclosure is refused whether its report lacks the
+    gap or lacks the report: an absent report reads as nothing to tell.
+    """
+    if not isinstance(result, Mapping):
+        return
+    owed = _the_edges_it_rests_on(result, program, context)
+    disclosed = _the_edges_its_gaps_disclose(result.get("data_gap_report"))
+    undisclosed = owed - set(disclosed)
+    if undisclosed:
+        raise VerificationError(
+            f"T10-2: the answer rests on {_spelt(undisclosed)}, which a "
+            f"language model or a discovery algorithm put in the program, "
+            f"and no gap tells the reader so. That sentence is how a reader "
+            f"learns an edge the answer needs was never evidence",
+            step_index=None, rule="data_gap_completeness_check",
+        )
+    unowed = set(disclosed) - owed
+    if unowed:
+        raise VerificationError(
+            f"T10-2: gap[{min(disclosed[e] for e in unowed)}] discloses "
+            f"{_spelt(unowed)} as a proposal this answer rests on, and it is "
+            f"not one: its source is evidence, or no path the answer rests "
+            f"on runs through it. A reader sent to find evidence for an "
+            f"edge is sent on this gap's word",
+            step_index=None, rule="data_gap_completeness_check",
+        )
 
 
 # ============================================ T10-2 completeness
