@@ -73,6 +73,24 @@ def edges_between(graph: nx.DiGraph, atoms: Iterable[Atom]) -> frozenset[tuple[A
     )
 
 
+def is_common_effect(graph: nx.DiGraph, x: Atom, y: Atom, w: Atom) -> bool:
+    """Hernán 2004 §3 'common effect': a directed path from ``x`` to ``w``
+    that avoids ``y``, and one from ``y`` to ``w`` that avoids ``x``. A chain
+    ``x -> y -> w`` reaches ``w`` from ``x`` only through ``y``, which is
+    over-control on a mediator rather than selection on a collider.
+
+    Asked of ground atoms: ``x`` a step back and ``x`` now are two nodes, and
+    a restriction on one of them can be a common effect of the other and the
+    target. The selection caveat and selection recovery both ask it here.
+    """
+    if w in (x, y) or x not in graph or y not in graph or w not in graph:
+        return False
+    without_y, without_x = graph.copy(), graph.copy()
+    without_y.remove_node(y)
+    without_x.remove_node(x)
+    return nx.has_path(without_y, x, w) and nx.has_path(without_x, y, w)
+
+
 def _is_collider(graph: nx.DiGraph, u: Atom, v: Atom, w: Atom) -> bool:
     """True iff v is a collider on the path segment u - v - w, i.e.
     both directed edges u -> v and w -> v exist in the DAG."""

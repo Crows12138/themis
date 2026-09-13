@@ -6204,6 +6204,7 @@ def _attach_data_gap_report(
         framing_notes=result.framing_notes,
         program=program,
         graph=inputs.graph,
+        bidirected=inputs.bidirected,
         stmt=stmt,
         extensions=result.extensions,
         structural_result=result.structural_result,
@@ -6215,29 +6216,6 @@ def _attach_data_gap_report(
     if report is None:
         return result
     return _replace(result, data_gap_report=report)
-
-
-def _is_selection_collider(
-    graph: nx.DiGraph, x: Atom, y: Atom, w: Atom,
-) -> bool:
-    """Hernán 2004 §3 'common effect': W is a selection collider of X and Y
-    iff there is a directed path X→…→W not through Y AND a directed path
-    Y→…→W not through X. A pure chain X→Y→W (X ancestor only *via* Y) is
-    over-control on a mediator, not selection on a collider — excluded.
-
-    Mirrors the predicate-level rule in
-    ``data_gap_report._classify_selection_on_collider_opens_path`` but runs
-    directly on the projected graph via reachability.
-    """
-    if w in (x, y) or x not in graph or y not in graph or w not in graph:
-        return False
-    g_no_y = graph.copy()
-    g_no_y.remove_node(y)
-    g_no_x = graph.copy()
-    g_no_x.remove_node(x)
-    x_reaches_w = x in g_no_y and nx.has_path(g_no_y, x, w)
-    y_reaches_w = y in g_no_x and nx.has_path(g_no_x, y, w)
-    return x_reaches_w and y_reaches_w
 
 
 def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
@@ -6319,7 +6297,7 @@ def _attach_selection_recovery(
 
     # Gate: only surface when at least one restriction is a genuine
     # selection collider (otherwise there is no selection-bias question).
-    if not any(_is_selection_collider(graph, x, y, s) for s in s_atoms):
+    if not any(structural_solver.is_common_effect(graph, x, y, s) for s in s_atoms):
         return result
 
     rec = recover_effect(graph, x, y, tuple(s_atoms))

@@ -274,6 +274,7 @@ def compute_data_gap_report(
     extensions: dict | None = None,
     program=None,
     graph=None,
+    bidirected=None,
     stmt=None,
     structural_result=None,
     bounds_results=(),
@@ -336,10 +337,10 @@ def compute_data_gap_report(
         dispatch=dispatch,
     ))
     must_disclose_gaps.extend(_classify_collider_conditioning_opens_backdoor(
-        program=program, stmt=stmt,
+        program=program, stmt=stmt, graph=graph, bidirected=bidirected,
     ))
     must_disclose_gaps.extend(_classify_selection_on_collider_opens_path(
-        program=program, stmt=stmt,
+        program=program, stmt=stmt, graph=graph,
     ))
     must_disclose_gaps.extend(_classify_ill_defined_intervention_versions(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
@@ -2676,21 +2677,31 @@ def _classify_collider_conditioning_opens_backdoor(
     *,
     program,
     stmt,
+    graph=None,
+    bidirected=None,
 ) -> Iterable[DataGap]:
     """Selection bias, the explicit-conditioning shape.
 
-    EffectQuery's ``given`` (conditioning subgroup) contains a node W
-    where both the intervention X and the target Y appear as ancestors
-    in the program-derived directed graph. Per Pearl d-separation,
-    conditioning on W (a collider on the X→...→W←...←Y path) OPENS
-    that path rather than blocks it; the conditional effect estimate
-    is NOT the conditional intervention effect on the requested
-    subgroup — it carries collider-induced bias.
+    EffectQuery's ``given`` (conditioning subgroup) contains a node W whose
+    conditioning opens a path between the intervention X and the target Y.
+    Per Pearl d-separation, conditioning on W (a collider on the
+    X→...→W←...←Y path) OPENS that path rather than blocks it; the
+    conditional effect estimate is NOT the conditional intervention effect
+    on the requested subgroup — it carries collider-induced bias.
 
-    Detection rule (predicate-level, robust to forall instantiation):
-    for each W in given.atoms, walk parents-of from W via cause edges
-    and collect the transitive closure (W's ancestor set). If both X
-    and Y are in W's ancestors, fire IMPORTANT severity gap.
+    Detection rule: :func:`conditioned_collider_opens_path` on the ground
+    graph the question was answered on, with its ground bidirected edges,
+    between the intervention atom and the target atom, conditioning on every
+    given atom. An m-separation test rather than a directed-ancestor one, so
+    it sees M-bias colliders whose arms are latent common causes (What If
+    Fig 7.4) and colliders activated through a conditioned descendant
+    (Fig 8.2), not only the direct X->W<-Y shape (Fig 8.1). W is passed over
+    only when it is the intervention atom or the target atom.
+
+    This was read on the predicates, where ``x`` a step back and ``x`` now
+    are one node. Over them a collider was found where no ground path ran
+    through the conditioned atom, and a conditioned ``x`` now was passed
+    over as the intervention itself when it was the collider.
 
     Severity: IMPORTANT — not informational. The estimate is no
     longer the requested causal contrast, just a confounded
@@ -2708,50 +2719,32 @@ def _classify_collider_conditioning_opens_backdoor(
     if not given:
         return
 
-    intervention_pred = q.intervention.atom.predicate
-    target_pred = q.target.atom.predicate
-
-    # Build the predicate-level ADMG (directed cause edges + bidirected
-    # latent-confounding edges; forall quantification doesn't change the
-    # predicate edge structure) and detect a conditioned collider via
-    # m-separation — NOT a directed-ancestor test. This catches M-bias
-    # colliders whose arms are latent common causes (bidirected, X<->W<->Y —
-    # What If Fig 7.4) and colliders activated through a conditioned descendant
-    # (Fig 8.2), not only the direct X->W<-Y shape (Fig 8.1).
-    import networkx as nx
-
-    from ..runtime.structural_solver import conditioned_collider_opens_path
-    from ..types import BidirectedStatement
-
-    g = nx.DiGraph()
-    bi_pairs: set = set()
-    for st in program.statements:
-        if isinstance(st, CauseStatement):
-            g.add_edge(st.from_atom.predicate, st.to_atom.predicate)
-        elif isinstance(st, BidirectedStatement):
-            la, ra = st.left.predicate, st.right.predicate
-            g.add_node(la)
-            g.add_node(ra)
-            bi_pairs.add(frozenset({la, ra}))
-    bidirected = frozenset(bi_pairs)
-    given_preds = frozenset(
-        p for p in (
-            getattr(getattr(gi, "atom", gi), "predicate", None) for gi in given
-        )
-        if p is not None
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime.structural_solver import (
+        bidirected_from_ground,
+        conditioned_collider_opens_path,
     )
 
+    if graph is None or bidirected is None:
+        ground = instantiate(program)
+        if graph is None:
+            graph = project(ground)
+        if bidirected is None:
+            bidirected = bidirected_from_ground(ground)
+    x, y = q.intervention.atom, q.target.atom
+    intervention_pred, target_pred = x.predicate, y.predicate
+    conditioning = frozenset(getattr(item, "atom", item) for item in given)
+
     for given_item in given:
-        atom = getattr(given_item, "atom", given_item)
-        w_pred = getattr(atom, "predicate", None)
-        if w_pred is None:
-            continue
-        if w_pred in (intervention_pred, target_pred):
+        w = getattr(given_item, "atom", given_item)
+        if w in (x, y):
             # Conditioning on the intervention or target itself is a
             # different problem (degenerate query), not collider opening.
             continue
+        w_pred = w.predicate
         if conditioned_collider_opens_path(
-            g, bidirected, intervention_pred, target_pred, given_preds, w_pred,
+            graph, bidirected, x, y, conditioning, w,
         ):
             yield DataGap(
                 kind=GapKind.COLLIDER_CONDITIONING_OPENS_BACKDOOR,
@@ -2781,6 +2774,7 @@ def _classify_selection_on_collider_opens_path(
     *,
     program,
     stmt,
+    graph=None,
 ) -> Iterable[DataGap]:
     """Selection bias, the implicit-sample-restriction shape.
 
@@ -2801,14 +2795,15 @@ def _classify_selection_on_collider_opens_path(
     The "structural approach" framing is exactly: name the W node,
     surface that the sample restriction is conditioning on a collider.
 
-    Detection rule (predicate-level):
-    - For each ObservationStatement in the program, let W = its atom's
-      predicate.
-    - Build the parents-of map from CauseStatement edges.
-    - Walk the directed-ancestor closure of W.
-    - If both intervention X and target Y are in W's ancestor closure,
-      fire IMPORTANT severity gap.
-    - Skip the cause-self / target-self degenerate cases (W ∈ {X, Y}).
+    Detection rule: each ground observation atom W that is a common effect
+    of the intervention atom and the target atom on the ground graph —
+    :func:`themis.runtime.structural_solver.is_common_effect`, which is also
+    what selection recovery asks before attaching its verdict. The two
+    asked different versions of the question, this one of predicates, and
+    reached opposite verdicts on one answer: a restriction on ``x`` now was
+    passed over here as the intervention itself while the recovery block
+    beside it named it a selection node; and a restriction on an atom no
+    ground path reached from X was reported, because over predicates one did.
 
     Severity: IMPORTANT — selection on a collider biases the marginal
     estimate identifiably; this is identification damage, not just a
@@ -2828,69 +2823,21 @@ def _classify_selection_on_collider_opens_path(
     if not isinstance(q, EffectQuery):
         return
 
-    intervention_pred = q.intervention.atom.predicate
-    target_pred = q.target.atom.predicate
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
+    from ..runtime.structural_solver import is_common_effect
 
-    # Gather ObservationStatement-restricted predicates.
-    observed_preds: list[tuple[str, object]] = []
-    for st in program.statements:
-        if isinstance(st, ObservationStatement):
-            w_pred = st.atom.predicate
-            if w_pred in (intervention_pred, target_pred):
-                # Observing the intervention itself or the target
-                # itself isn't selection-on-collider — it's just a
-                # different (degenerate) query.
-                continue
-            observed_preds.append((w_pred, st.value))
+    ground = instantiate(program)
+    if graph is None:
+        graph = project(ground)
+    x, y = q.intervention.atom, q.target.atom
+    intervention_pred, target_pred = x.predicate, y.predicate
 
-    if not observed_preds:
-        return
-
-    # Build parents-of map for ancestor walk.
-    parents_of: dict[str, set[str]] = {}
-    for st in program.statements:
-        if isinstance(st, CauseStatement):
-            parents_of.setdefault(
-                st.to_atom.predicate, set()
-            ).add(st.from_atom.predicate)
-
-    def _ancestors_excluding(node: str, blocked: str) -> set[str]:
-        """Directed-ancestor closure of ``node`` with paths through
-        ``blocked`` removed (``blocked`` itself is treated as non-
-        traversable). Used to verify there is a directed path from
-        an ancestor candidate to ``node`` that does NOT go through
-        the other candidate — Hernán 2004 §3 'common effect' requires
-        the two ancestor sources to be structurally separate, not just
-        a chain X→Y→W where Y trivially makes X an ancestor."""
-        seen: set[str] = set()
-        stack = [
-            p for p in parents_of.get(node, set()) if p != blocked
-        ]
-        while stack:
-            curr = stack.pop()
-            if curr in seen or curr == blocked:
-                continue
-            seen.add(curr)
-            stack.extend(
-                p for p in parents_of.get(curr, set()) if p != blocked
-            )
-        return seen
-
-    for w_pred, w_value in observed_preds:
-        # Hernán 2004 §3: W is a 'common effect' of X and Y iff there is
-        # a directed path X→…→W not going through Y *and* a directed path
-        # Y→…→W not going through X. Pure X→Y→W chain gives X as
-        # ancestor only via Y, which is overcontrol bias on a mediator,
-        # not selection bias on a collider — different identification
-        # problem with different repair (don't fire this kind).
-        ancs_via_not_target = _ancestors_excluding(w_pred, target_pred)
-        ancs_via_not_intervention = _ancestors_excluding(
-            w_pred, intervention_pred
-        )
-        if (
-            intervention_pred in ancs_via_not_target
-            and target_pred in ancs_via_not_intervention
-        ):
+    for st in ground:
+        if not isinstance(st, ObservationStatement):
+            continue
+        w_pred, w_value = st.atom.predicate, st.value
+        if is_common_effect(graph, x, y, st.atom):
             yield DataGap(
                 kind=GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
                 describes=(_sentence(
