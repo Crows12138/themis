@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-09-13
+> 更新时间：2026-09-14
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19068 passed / 518 skipped, warning-clean
+19078 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,53 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #628 答案依赖哪些边，是在谓词图上找的，不是在答案被得出的那张图上（2026-09-14）
+
+**现象。** 程序按时间展开：`x@t-1 → b@t-1 → a@t-1 → b@t → y@t`，`a → b` 是 LLM 提议，这是从 `x@t-1` 到
+`y@t` 的唯一一条路径。问成 cause，supporting path 带出了这条边，读者被告知；问成 effect，**没有一条 gap
+点名它**，这条边上的低置信度也没进答案的置信度。同样漏掉的还有：只在一条 15 个原子长的路径上的提议边、
+只在第 32 条以后的路径上的提议边（4 层 × 3 支，81 条路径）；以及分叉 `x ← z → y` 里开放路径逆着箭头走过
+那一支上的置信度——#627 修的是 gap 那一侧，置信度收集器是那段代码的拷贝，没跟着改。
+
+**根因。** 「答案依赖哪些边」由 `_build_dag_with_proposals` + `_enumerate_simple_directed_paths` 算：在**谓词图**
+上枚举相关谓词两两之间的简单有向路径，最多 32 条、12 层深。答案是在投影出来的落地图 G(M) 上得出的，那里
+`b@t-1` 和 `b@t` 是两个节点；谓词图把它们合成一个，时间展开的程序在上面成环，唯一的落地路径两次经过 `b`，
+不是简单路径。32 × 12 的界是同一个选择的另一个后果：G(M) 投影时强制无环，在上面可以直接问可达性。
+`scheduler._gather_structural_edge_sources` 为了「与分类器同步」复用了这套函数，毛病一样，另外 supporting
+path 只按路径顺序匹配。
+
+**为什么是根因不是表象。** 这是从验证器那一侧撞出来的。我先按谓词图写了验证器规则（可达性，要求 gap 集合
+与之相等），落盘后用时间展开的程序探了一下：`x@t-1 → b@t-1 → a@t-1 → b@t`、`b@t-1 → y@t`——`a → b` 不在
+任何落地路径上，而谓词图上 x 能到 a、b 能到 y，**诚实答案被拒**。同一张谓词图，枚举简单路径会漏报，问可达性
+会多报；放大界、跳过谓词环都只治时间下标这一种，常量混用（`b(alice) → a(bob)`）照样错。谓词图怎么读都不是
+答案依赖的那张图。那条验证器规则已从工作树撤下（逐字节备份），等生产者改对后在 `ctx.graph` 上重述。
+
+**结构。**
+- `structural_solver.edges_between(graph, atoms)`：无环图里边 `u → v` 在 `s` 到 `t` 的有向路径上，当且仅当
+  `s` 能到 `u`、`v` 能到 `t`。问可达性，不枚举，没有界；要求两个**不同的原子**，不是不同的谓词。
+- `data_gap_report._statements_the_answer_rests_on`：落地 cause 语句，其边落在两个相关原子之间的某条有向路径上，
+  或被 supporting path 任一方向走过；落地双向语句碰到相关原子。相关原子 = 问题持有的**每个原子**
+  （`types.atoms_held_by`，从 `atoms_named_by` 拆出来的那次遍历，不按谓词去重；`atoms_named_by` 叠在它上面，
+  行为不变）∪ IV 块的 instrument / conditioning ∪ 中介块的 mediators 与 adjustment，按字符串读回节点。
+- gap 生产者和置信度收集器都调用它，各自按注释筛；四个谓词层函数和 `_query_referenced_predicates` 删除。
+  图从 `postprocess.Inputs.graph` 传进去，没传时自己投影。
+- 块和 supporting path 里的原子由 `scheduler._atom_to_str` 拼写，`graph_projection._atom_label` 是逐字相同的另一份。
+  后者公开为 `atom_label`，`_atom_to_str` 改为引用它——写出去的和读回来的是同一个拼写。`explainer._atom_label`
+  还有第三份，不参与读回，没动。
+
+**先量的。** 按落地图重读语料 243 个答案：提议边 gap 集合与生产者现有输出 **243/243 相等**，`edge:` 置信度槽
+**243/243 相等**，块里点名的原子全部对得上节点——快照不动，快照测试补丁后照样全绿。新测试的程序在 HEAD 上：
+绕环问 effect、长链、宽图、逆向那支的置信度、绕环的置信度 5 例失败；绕环问 cause、环旁两例本来就对，留作
+另一侧的钉子。
+
+**账。** 10 测试（`tests/test_a2_cause_annotations.py`）；基线 19068→**19078**。
+
+**⚠️ 没做的。**
+- 验证器一侧（「gap 引用的边 = 答案依赖的提议边」）在 `ctx.graph` 上重述，是下一条。
+- `_classify_collider_conditioning_opens_backdoor` 与 `_classify_selection_on_collider_opens_path` 也在谓词图上判断；
+  调度器里已有落地图版的 `_is_selection_collider`。另一条前沿。
+- 同一谓词对上两条来源不同的语句：gap 按谓词对引用，`_index_edge_sources` 后写的覆盖先写的。引用粒度的问题，没动。
 
 ### #627 开放路径逆着箭头走过的那一支，上面的 LLM 提议从不告诉读者（2026-09-13）
 

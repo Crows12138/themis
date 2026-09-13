@@ -101,6 +101,7 @@ from . import (
     structural_solver,
     theta_builder,
 )
+from .graph_projection import atom_label
 from .numeric_estimator import (
     AtomValue,
     InsufficientTheta,
@@ -114,13 +115,10 @@ from .theta_builder import (
 )
 
 
-def _atom_to_str(atom: Atom) -> str:
-    args = ",".join(a.name for a in atom.args)
-    base = f"{atom.predicate}({args})"
-    if atom.time_index is None:
-        return base
-    t = atom.time_index.value
-    return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
+# The envelope's spelling of a ground atom. Defined beside the graph
+# whose nodes it names, because what is written with it is read back
+# against them.
+_atom_to_str = atom_label
 
 
 def _proximal_channel_fields(channel) -> dict:
@@ -5823,6 +5821,7 @@ def _gather_input_sources(
     theta: Theta | None = None,
     prob_index: dict | None = None,
     obs_index: dict | None = None,
+    graph: nx.DiGraph | None = None,
 ) -> tuple[ConfidenceSource, ...]:
     """Collect one ConfidenceSource per slot that contributed per
     RFC §3. Each record carries the slot label, the source
@@ -5834,8 +5833,8 @@ def _gather_input_sources(
       from the formula (dedupe) and observation slots from q.given.
     - Structural queries (cause / assoc / identify / counterfactual)
       enumerate load-bearing CauseStatement annotations.confidence
-      values via supporting_paths or, when paths aren't echoed, the
-      query-relevant DAG path walk. Without this collection a
+      values on the ground edges the answer rests on, as the data-gap
+      classifier reads them. Without this collection a
       counterfactual whose load-bearing edge is marked low-confidence
       would surface as confidence=None and bypass the
       LOW_CONFIDENCE_INPUT_DATA gap.
@@ -5850,7 +5849,7 @@ def _gather_input_sources(
     # cause-edge confidences propagate even when no numeric formula
     # was built.
     collected.extend(
-        _gather_structural_edge_sources(program, stmt, result),
+        _gather_structural_edge_sources(program, stmt, result, graph),
     )
 
     if result.query_kind not in (QueryKind.EFFECT, QueryKind.PROBABILITY):
@@ -5913,15 +5912,16 @@ def _gather_structural_edge_sources(
     program: Program,
     stmt: QueryStatement,
     result: QueryResult,
+    graph: nx.DiGraph | None = None,
 ) -> tuple[ConfidenceSource, ...]:
     """RFC §3.3 — collect annotations.confidence from CauseStatements
     on the structurally load-bearing path(s) of the query.
 
-    Two complementary signals (matching the data-gap classifier):
-    - ``supporting_paths`` from the structural result, when the
-      dispatcher exposes them (cause / assoc).
-    - For every other query kind, walk simple directed paths between
-      query-relevant predicates in the program-derived DAG.
+    Which statements those are is the data-gap classifier's reading,
+    called rather than restated. This used to walk the same predicate
+    paths as a copy of that one and carried each thing the copy got
+    wrong: a supporting path matched in path order only, and paths walked
+    over predicates where the answer rests on ground atoms.
 
     Returns one ConfidenceSource per (frm, to) edge whose
     CauseStatement carries a non-None confidence.
@@ -5941,39 +5941,16 @@ def _gather_structural_edge_sources(
     if not cause_conf:
         return ()
 
-    flagged: set[tuple[str, str]] = set()
-    structural_result = getattr(result, "structural_result", None)
-    paths = getattr(structural_result, "supporting_paths", ()) or ()
-    for path in paths:
-        for i in range(len(path) - 1):
-            a = path[i].split("(", 1)[0]
-            b = path[i + 1].split("(", 1)[0]
-            if (a, b) in cause_conf:
-                flagged.add((a, b))
-
-    # DAG walk for non-cause/assoc query kinds. Reuse the data-gap
-    # classifier's machinery so the two surfaces stay in lock-step.
-    from ..output.data_gap_report import (
-        _build_dag_with_proposals,
-        _enumerate_simple_directed_paths,
-        _query_relevant_predicates_for_path_walk,
-    )
-    _proposal_edges, adjacency = _build_dag_with_proposals(program)
-    extensions = result.extensions or {}
-    relevant = _query_relevant_predicates_for_path_walk(stmt, extensions)
-    if relevant and adjacency:
-        for src in relevant:
-            for dst in relevant:
-                if src == dst:
-                    continue
-                for path in _enumerate_simple_directed_paths(
-                    adjacency, src, dst,
-                ):
-                    for i in range(len(path) - 1):
-                        edge = (path[i], path[i + 1])
-                        if edge in cause_conf:
-                            flagged.add(edge)
-
+    from ..output.data_gap_report import _statements_the_answer_rests_on
+    flagged = {
+        (s.from_atom.predicate, s.to_atom.predicate)
+        for s in _statements_the_answer_rests_on(
+            program, graph, getattr(result, "structural_result", None),
+            stmt, result.extensions or {},
+        )
+        if isinstance(s, CauseStatement)
+        and s.annotations is not None and s.annotations.confidence is not None
+    }
     if not flagged:
         return ()
     return tuple(
@@ -5995,6 +5972,7 @@ def _gather_input_confidences(
     theta: Theta | None = None,
     prob_index: dict | None = None,
     obs_index: dict | None = None,
+    graph: nx.DiGraph | None = None,
 ) -> tuple[float, ...]:
     """Back-compat shim for the old float-only contract. Delegates to
     ``_gather_input_sources`` and strips the source metadata."""
@@ -6002,6 +5980,7 @@ def _gather_input_confidences(
         s.confidence for s in _gather_input_sources(
             program, stmt, result,
             theta=theta, prob_index=prob_index, obs_index=obs_index,
+            graph=graph,
         )
     )
 
@@ -6030,6 +6009,7 @@ def _attach_confidence(
         theta=inputs.theta,
         prob_index=inputs.prob_index,
         obs_index=inputs.obs_index,
+        graph=inputs.graph,
     )
     computed = confidence_calc.composite(*(s.confidence for s in sources))
     if computed is None and result.confidence is None and not sources:
@@ -6223,6 +6203,7 @@ def _attach_data_gap_report(
         investigation_requests=result.investigation_requests,
         framing_notes=result.framing_notes,
         program=program,
+        graph=inputs.graph,
         stmt=stmt,
         extensions=result.extensions,
         structural_result=result.structural_result,

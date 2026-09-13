@@ -220,7 +220,7 @@ from ..types import (
     RequiredDataType,
     ResultStatus,
     VariableDeclaration,
-    atoms_named_by,
+    atoms_held_by,
     cites,
     raised_by_ref,
 )
@@ -273,6 +273,7 @@ def compute_data_gap_report(
     framing_notes: tuple[FramingNote, ...] = (),
     extensions: dict | None = None,
     program=None,
+    graph=None,
     stmt=None,
     structural_result=None,
     bounds_results=(),
@@ -302,7 +303,7 @@ def compute_data_gap_report(
     must_disclose_gaps: list[DataGap] = []
     must_disclose_gaps.extend(
         _classify_unverified_proposal_edges(
-            program, structural_result, stmt, extensions,
+            program, graph, structural_result, stmt, extensions,
         )
     )
     must_disclose_gaps.extend(_classify_iv_assumption(extensions))
@@ -642,6 +643,7 @@ def _rewrite_iv_aware_alternatives(
 
 def _classify_unverified_proposal_edges(
     program,
+    graph,
     structural_result,
     stmt,
     extensions: dict,
@@ -658,71 +660,33 @@ def _classify_unverified_proposal_edges(
     front-door identification, where the latent confounder is the
     *reason* an alternative identification strategy is needed.
 
-    Edges are flagged via two complementary signals (either suffices):
-
-    1. **supporting_paths** — concrete on cause / assoc results; each
-       consecutive node pair on a returned path is an edge that was
-       actually traversed, in whichever direction the path walks it.
-       A directed path walks every edge forward; an open path does
-       not — through a fork ``x <- z -> y`` it walks ``z -> x``
-       against its arrow, and the association rests on that arm
-       exactly as much as on the other.
-
-    2. **DAG walk** — for every other query kind (effect / identify /
-       IV / mediation / counterfactual), enumerate simple directed
-       paths in the program-derived DAG between every pair of
-       query-relevant predicates (intervention / target / mediator /
-       given), plus instrument / adjustment-set predicates pulled from
-       ``extensions`` when the dispatcher exposed them. Any
-       proposal edge lying on such a path is load-bearing.
-
-    Bidirected proposal edges are flagged when either endpoint is a
-    query-relevant predicate (they are undirected, so 'on the path' is
-    not the natural test — incidence on a query node is).
+    Which edges the answer rests on is
+    :func:`_statements_the_answer_rests_on`. This keeps the ones whose
+    source is not evidence and names each once, by its predicates, which
+    is how a gap cites an edge.
     """
     if program is None:
         return
-
-    proposal_edges, adjacency = _build_dag_with_proposals(program)
-    bidirected_proposals = _collect_bidirected_proposal_pairs(program)
-    if not proposal_edges and not bidirected_proposals:
+    if not any(
+        isinstance(st, (CauseStatement, BidirectedStatement))
+        and _is_non_evidence_source(getattr(st.annotations, "source", None))
+        for st in program.statements
+    ):
         return
 
     flagged: set[tuple[str, str]] = set()
-
-    paths = getattr(structural_result, "supporting_paths", ()) or ()
-    for path in paths:
-        for i in range(len(path) - 1):
-            a_pred = path[i].split("(", 1)[0]
-            b_pred = path[i + 1].split("(", 1)[0]
-            # Both orientations: this matched the pair in path order
-            # alone, so the arm of a fork or an opened collider that the
-            # path walks backward was a proposal nobody was told of.
-            for edge in ((a_pred, b_pred), (b_pred, a_pred)):
-                if edge in proposal_edges:
-                    flagged.add(edge)
-
-    relevant = _query_relevant_predicates_for_path_walk(stmt, extensions)
-    if relevant and adjacency:
-        for src in relevant:
-            for dst in relevant:
-                if src == dst:
-                    continue
-                for path in _enumerate_simple_directed_paths(
-                    adjacency, src, dst,
-                ):
-                    for i in range(len(path) - 1):
-                        edge = (path[i], path[i + 1])
-                        if edge in proposal_edges:
-                            flagged.add(edge)
-
-    if bidirected_proposals and relevant:
-        for left, right in bidirected_proposals:
-            if left in relevant or right in relevant:
-                # Render with ↔ so the renderer distinguishes from
-                # directed edges. Tuple ordered for deterministic output.
-                a, b = sorted((left, right))
-                flagged.add((a, f"↔{b}"))
+    for st in _statements_the_answer_rests_on(
+        program, graph, structural_result, stmt, extensions,
+    ):
+        if not _is_non_evidence_source(getattr(st.annotations, "source", None)):
+            continue
+        if isinstance(st, CauseStatement):
+            flagged.add((st.from_atom.predicate, st.to_atom.predicate))
+        else:
+            # Render with ↔ so the renderer distinguishes from
+            # directed edges. Tuple ordered for deterministic output.
+            a, b = sorted((st.left.predicate, st.right.predicate))
+            flagged.add((a, f"↔{b}"))
 
     edge_sources = _index_edge_sources(program)
     edge_confidences = _index_edge_confidence(program)
@@ -804,47 +768,6 @@ def _index_edge_confidence(program) -> dict[tuple[str, tuple[str, ...]], float]:
     return out
 
 
-def _collect_bidirected_proposal_pairs(
-    program,
-) -> set[tuple[str, str]]:
-    """Bidirected (latent common cause) statements with a non-evidence
-    ``annotations.source``. Returned unordered as sets of (left, right)
-    predicate pairs."""
-    pairs: set[tuple[str, str]] = set()
-    for st in program.statements:
-        if not isinstance(st, BidirectedStatement):
-            continue
-        ann = getattr(st, "annotations", None)
-        if ann is None or not _is_non_evidence_source(ann.source):
-            continue
-        pairs.add((st.left.predicate, st.right.predicate))
-    return pairs
-
-
-def _build_dag_with_proposals(
-    program,
-) -> tuple[set[tuple[str, str]], dict[str, list[str]]]:
-    """Pull the predicate-level DAG and the subset of non-evidence edges
-    out of program.statements in a single pass.
-
-    "Non-evidence" covers both ``annotations.source == "llm_proposal"``
-    (LLM hypothesis) and ``annotations.source`` starting with
-    ``"discovery:"`` (PC / FCI / LiNGAM algorithmic output). Both share
-    the load-bearing-without-citation property.
-    """
-    proposal_edges: set[tuple[str, str]] = set()
-    adjacency: dict[str, list[str]] = {}
-    for st in program.statements:
-        if not isinstance(st, CauseStatement):
-            continue
-        edge = (st.from_atom.predicate, st.to_atom.predicate)
-        adjacency.setdefault(edge[0], []).append(edge[1])
-        ann = getattr(st, "annotations", None)
-        if ann is not None and _is_non_evidence_source(ann.source):
-            proposal_edges.add(edge)
-    return proposal_edges, adjacency
-
-
 def _is_non_evidence_source(source: str | None) -> bool:
     """An edge source counts as non-evidence (must-disclose) when it is
     ``"llm_proposal"`` or starts with ``"discovery:"``."""
@@ -857,35 +780,80 @@ def _is_non_evidence_source(source: str | None) -> bool:
     return False
 
 
-def _query_relevant_predicates_for_path_walk(
-    stmt, extensions: dict,
-) -> frozenset[str]:
-    """Predicates whose pairwise directed paths are load-bearing for the
-    query. Combines query atoms (via ``_query_referenced_predicates``)
-    with structural artifacts the dispatcher exposed in ``extensions``:
-    instrument (IV), adjustment set / mediator adjustment, mediator.
-    """
-    base = set(_query_referenced_predicates(stmt))
-
+def _atoms_the_blocks_name(extensions: dict) -> Iterable[str]:
+    """The atoms a route adds to those its answer rests between, as the
+    envelope spells them: an IV route's instrument and what it conditions
+    on, and a mediation's mediators and adjustment sets."""
     iv = (extensions or {}).get(blocks.Block.IV_IDENTIFICATION) or {}
-    instrument = iv.get("instrument")
-    if instrument:
-        base.add(str(instrument).split("(", 1)[0])
+    if iv.get("instrument"):
+        yield str(iv["instrument"])
     for entry in iv.get("conditioning") or ():
-        base.add(str(entry).split("(", 1)[0])
-
+        yield str(entry)
     view = _mediation_view(extensions)
     if view is not None:
-        nde = view.block.get("nde_nie") or {}
-        cde = view.block.get("cde") or {}
-        for entry in (nde.get("adjustment") or ()):
-            base.add(str(entry).split("(", 1)[0])
-        for entry in (cde.get("adjustment") or ()):
-            base.add(str(entry).split("(", 1)[0])
-        for mediator in view.mediators:
-            base.add(mediator.split("(", 1)[0])
+        for branch in ("nde_nie", "cde"):
+            for entry in (view.block.get(branch) or {}).get("adjustment") or ():
+                yield str(entry)
+        yield from view.mediators
 
-    return frozenset(base)
+
+def _statements_the_answer_rests_on(
+    program, graph, structural_result, stmt, extensions: dict,
+) -> tuple[CauseStatement | BidirectedStatement, ...]:
+    """The ground cause and bidirected statements an answer rests on.
+
+    Read on G(M), the ground graph the answer was reached on. This was
+    read on the predicates, where ``x`` a step back and ``x`` now are one
+    node: a program unrolled in time has cycles there, and the simple
+    paths walked between predicates were not the paths the answer rests
+    on — an edge on the only ground path went unreported when that path
+    passed one predicate twice. The walk was bounded too, at 32 paths 12
+    atoms deep, so past the bound a larger graph was an answer resting on
+    fewer edges.
+
+    A cause statement is rested on when its ground edge lies on a directed
+    path between two distinct atoms the answer rests on, or a supporting
+    path walks it in either direction: a directed path walks every edge
+    forward, an open path through a fork ``x <- z -> y`` walks ``z -> x``
+    against its arrow, and the association rests on that arm as much as on
+    the other. A bidirected statement is rested on when either end is one
+    of those atoms; it has no direction to lie along, so incidence is the
+    test.
+
+    Those atoms are every atom the question holds and every atom the
+    blocks name. The blocks and the supporting paths spell atoms as
+    strings, and are read back as nodes by the one spelling they were
+    written with.
+    """
+    from ..runtime.graph_projection import atom_label, project
+    from ..runtime.instantiation import instantiate
+    from ..runtime.structural_solver import edges_between
+
+    ground = instantiate(program)
+    if graph is None:
+        graph = project(ground)
+    spelt = {atom_label(node): node for node in graph}
+
+    query = getattr(stmt, "query", None) if stmt is not None else None
+    between = set(atoms_held_by(query)) if query is not None else set()
+    between.update(spelt[text] for text in _atoms_the_blocks_name(extensions)
+                   if text in spelt)
+
+    rested = set(edges_between(graph, between))
+    for path in getattr(structural_result, "supporting_paths", ()) or ():
+        nodes = [spelt.get(text) for text in path]
+        for u, v in zip(nodes, nodes[1:]):
+            if u is None or v is None:
+                continue
+            rested.update(edge for edge in ((u, v), (v, u)) if graph.has_edge(*edge))
+
+    return tuple(
+        st for st in ground
+        if (isinstance(st, CauseStatement)
+            and (st.from_atom, st.to_atom) in rested)
+        or (isinstance(st, BidirectedStatement)
+            and (st.left in between or st.right in between))
+    )
 
 
 def _classify_iv_assumption(
@@ -1902,43 +1870,6 @@ def _classify_dichotomized_continuous_measure(
               for pred, cut in flagged),
         ),
     )
-
-
-def _enumerate_simple_directed_paths(
-    adjacency: dict[str, list[str]],
-    src: str,
-    dst: str,
-    *,
-    max_paths: int = 32,
-    max_depth: int = 12,
-) -> list[tuple[str, ...]]:
-    """Bounded DFS for simple directed paths src→dst. Bounds protect
-    against pathological dense DAGs; real causal models are sparse so
-    32×12 is comfortably above what any real query traverses.
-    """
-    paths: list[tuple[str, ...]] = []
-
-    def _dfs(node: str, trail: list[str], visited: set[str]) -> None:
-        if len(paths) >= max_paths:
-            return
-        if len(trail) > max_depth:
-            return
-        if node == dst:
-            paths.append(tuple(trail))
-            return
-        for nxt in adjacency.get(node, ()):
-            if nxt in visited:
-                continue
-            visited.add(nxt)
-            trail.append(nxt)
-            _dfs(nxt, trail, visited)
-            trail.pop()
-            visited.remove(nxt)
-
-    if src not in adjacency:
-        return paths
-    _dfs(src, [src], {src})
-    return paths
 
 
 # ============================================ classifiers
@@ -3347,20 +3278,6 @@ def _classify_ambiguous_variable(
                 note.predicate,
             ),
         )
-
-
-def _query_referenced_predicates(stmt) -> frozenset[str]:
-    """Predicates the query names, from the one reading of that.
-
-    This was a second sweep — a list of attribute names to try on
-    whatever the query turned out to be — and it disagreed with the one
-    the framing check used, which is what made "is this variable on the
-    query path" a question with two answers in one package.
-    """
-    query = getattr(stmt, "query", None) if stmt is not None else None
-    if query is None:
-        return frozenset()
-    return frozenset(atom.predicate for atom in atoms_named_by(query))
 
 
 # ============================================ helpers

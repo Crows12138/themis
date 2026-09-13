@@ -14,7 +14,7 @@ back-door, and adjustment sets land in later slices.
 """
 from __future__ import annotations
 
-from typing import Callable, Hashable, NamedTuple, TypeVar
+from typing import Callable, Hashable, Iterable, NamedTuple, TypeVar
 
 import networkx as nx
 
@@ -50,6 +50,27 @@ def directed_paths(
     if src not in graph or dst not in graph or src == dst:
         return ()
     return tuple(tuple(p) for p in nx.all_simple_paths(graph, src, dst))
+
+
+def edges_between(graph: nx.DiGraph, atoms: Iterable[Atom]) -> frozenset[tuple[Atom, Atom]]:
+    """Every edge some directed path between two of ``atoms`` runs through.
+
+    In a DAG an edge ``u -> v`` lies on a directed path from ``s`` to ``t``
+    exactly when ``s`` reaches ``u`` and ``v`` reaches ``t``, so this asks
+    reachability rather than enumerating paths: their number grows as the
+    product of a graph's branchings, and a bound on it leaves every edge past
+    the bound off. The two atoms have to be distinct atoms, not distinct
+    predicates -- ``x`` a step back and ``x`` now are joined by paths like
+    any other pair. An atom outside the graph joins nothing.
+    """
+    present = {atom for atom in atoms if atom in graph}
+    below = {atom: nx.descendants(graph, atom) | {atom} for atom in present}
+    above = {atom: nx.ancestors(graph, atom) | {atom} for atom in present}
+    return frozenset(
+        (u, v) for u, v in graph.edges
+        if any(u in below[s] and v in above[t]
+               for s in present for t in present if s != t)
+    )
 
 
 def _is_collider(graph: nx.DiGraph, u: Atom, v: Atom, w: Atom) -> bool:

@@ -1013,6 +1013,21 @@ def atoms_named_by(query: Query) -> tuple[Atom, ...]:
     order a reader is shown is the order it was asked in.
     """
     seen: dict[str, Atom] = {}
+    for atom in atoms_held_by(query):
+        seen.setdefault(atom.predicate, atom)
+    return tuple(seen.values())
+
+
+def atoms_held_by(query: Query) -> tuple[Atom, ...]:
+    """Every atom a question holds, each once, in the order it holds them.
+
+    What :func:`atoms_named_by` is read from. There a variable is a
+    predicate, and ``x`` a step back and ``x`` now are one of them. On the
+    ground graph a question is answered on they are two nodes, and a
+    question naming both rests on the paths between them, so a reading of
+    what it rests on takes the atoms themselves.
+    """
+    seen: dict[Atom, None] = {}
     walked: set[int] = set()
 
     def walk(node: object) -> None:
@@ -1020,7 +1035,7 @@ def atoms_named_by(query: Query) -> tuple[Atom, ...]:
             return
         walked.add(id(node))
         if isinstance(node, Atom):
-            seen.setdefault(node.predicate, node)
+            seen.setdefault(node)
             return
         if is_dataclass(node) and not isinstance(node, type):
             for f in dc_fields(node):
@@ -1034,7 +1049,7 @@ def atoms_named_by(query: Query) -> tuple[Atom, ...]:
         # from a vocabulary, and none of those is a variable.
 
     walk(query)
-    return tuple(seen.values())
+    return tuple(seen)
 
 
 @dataclass(frozen=True)

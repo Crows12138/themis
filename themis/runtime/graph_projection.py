@@ -56,11 +56,19 @@ class CyclicGraphError(ValueError):
 
 
 def _format_cycle(cycle: tuple[Atom, ...]) -> str:
-    path = [_atom_label(a) for a in cycle]
+    path = [atom_label(a) for a in cycle]
     return " -> ".join(path + [path[0]])
 
 
-def _atom_label(atom: Atom) -> str:
+def atom_label(atom: Atom) -> str:
+    """A ground atom as an envelope spells it: ``sleep(me)@t-1``.
+
+    Defined once, beside the graph whose nodes it names, because what is
+    written with it is read back against them: a supporting path is a run
+    of these, and so are the instrument and the mediators a block names.
+    Two spellings that drifted apart would match no node, and an atom that
+    matches no node is one an answer silently stops resting on.
+    """
     args = ",".join(t.name for t in atom.args)
     base = f"{atom.predicate}({args})"
     if atom.time_index is None:
