@@ -350,15 +350,22 @@ def test_a_run_that_folded_nothing_claims_no_choice(uncoarsened):
     assert "caller_chose" not in set(lines.values())
 
 
-def test_a_choice_line_with_no_recorded_choice_is_refused(uncoarsened):
-    """The counterexample for the ledger gate: a line handed to the caller
-    that traces to nothing they did.
+def test_a_choice_line_on_an_assumption_nobody_chooses_is_refused(uncoarsened):
+    """A line handed to the caller as their choice, on an assumption that is
+    nobody's to choose.
 
     Built on the UNCOARSENED envelope so that the derivation is untouched and
     valid, and only the ATTRIBUTION is moved — the id stays one the estimate
     really declared, so the completeness and no-fabrication checks are both
-    satisfied and this line's own gate is the only thing between the reader
-    and a lever that is not there.
+    satisfied.
+
+    This was the witness for the choice gate, and said that gate was "the only
+    thing between the reader and a lever that is not there". It is not: which
+    attribution an id carries is declared once, keyed on the id, and
+    ``_PLAIN`` is ``inherent`` in every run — so the forgery is refused at the
+    declaration before any record is looked for. The choice gate's own
+    witness is the next test, on the line whose declaration DOES make it the
+    caller's.
     """
     forged = copy.deepcopy(uncoarsened)
     ledger = forged["extensions"]["assumption_ledger"]
@@ -369,7 +376,29 @@ def test_a_choice_line_with_no_recorded_choice_is_refused(uncoarsened):
     else:
         raise AssertionError(f"no {_PLAIN} line to doctor")
     said = _refused(forged, _program(columns=("zc", "wc")))
-    assert "as their choice" in said
+    assert "who can overrule" in said
+
+
+def test_a_choice_line_whose_choice_is_not_on_the_record_is_refused(coarsened):
+    """The choice gate's own witness: a forgery nothing else can refuse.
+
+    The line is ``_CHOSE``, whose declaration makes it the caller's — so the
+    attribution is the right one for that id, and asking the id says yes.
+    What is removed is the RECORD: both axes regrouped to the identity, which
+    is the absence of a choice rather than a choice of identity. The ledger
+    now offers the reader a lever this answer shows nobody pulled, and only
+    re-reading the record from the answer sees it.
+
+    Asked of the ledger door alone, because the whole door re-runs the fold
+    and would refuse the regrouping as a different estimate first — which is
+    true, and is not the claim being witnessed here.
+    """
+    forged, _step_, channel = _doctored(coarsened)
+    for axis in ("z", "w"):
+        _regroup(channel, axis, [[0], [1], [2], [3]])
+    with pytest.raises(VerificationError,
+                       match="records that choice being made"):
+        themis.verify_assumption_ledger(forged)
 
 
 # --- what the re-derivation says no to ----------------------------------------

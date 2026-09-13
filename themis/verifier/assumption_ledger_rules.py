@@ -61,10 +61,12 @@ and it agreed with that layer on all 3252 entries of one suite run before
 anything enforced it. What is curation is the LAYER — which part of the answer
 a given assumption holds up — and that is still not second-guessed here.
 
-- **What each named assumption IS.** A line says which layer it holds up and
-  whether the data can answer it, and both are facts about the assumption
-  rather than about this run — the same id means the same two things in every
-  answer. They are read from the declaration and the line is held to it.
+- **What each named assumption IS.** A line says which layer it holds up,
+  whether the data can answer it, and — for every layer but the functional
+  form — who can overrule it. All three are facts about the assumption rather
+  than about this run: the same id means the same three things in every
+  answer, and the glossary says so of the third in as many words. They are
+  read from the declaration and the line is held to it.
 
   This was once out of scope on the ground that the declaration lived in the
   output layer, so reading it would be reading a producer. It does not: what an
@@ -87,7 +89,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import NoReturn
 
-from ..assumption_glossary import declares
+from ..assumption_glossary import answerable, declares
 from .errors import VerificationError
 from .mechanism_rules import (
     _HONOURS_A_WORD_BY_BEING_IT,
@@ -418,8 +420,16 @@ def _check_the_claim_is_the_line_the_id_names(entries: list) -> None:
                     )
 
 
+#: The one layer whose provenance an id does not settle. Who fixed a shape is
+#: a fact about the run — the same id is one family's definition and the next
+#: family's resolved default — so the glossary refuses to answer for it, and
+#: the line is held instead to the mechanism block that records the run's own
+#: resolution, by :func:`_check_the_line_says_what_the_block_says`.
+_SETTLED_BY_THE_RUN = "functional_form"
+
+
 def _check_each_line_is_the_assumption_it_names(entries: list) -> None:
-    """The two facts an id already settles, held to what it settles them as.
+    """The facts an id already settles, held to what it settles them as.
 
     ``testable`` tells a reader whether there is anything they could go and
     do about this line, and ``layer`` says which part of the answer stops
@@ -431,6 +441,21 @@ def _check_each_line_is_the_assumption_it_names(entries: list) -> None:
     507 entries name an id and every one of them agrees with the
     declaration, while every one of them could have been rewritten and the
     door said yes.
+
+    ``provenance`` is the third, and the same table answers it — "who can
+    overrule an assumption is a property of the assumption", in its own
+    words — for every layer but the functional form. It was left to the
+    checks that ask whether the answer records a caller's input, and those
+    ask only of a line that CLAIMS one. A line relabelled ``inherent``
+    claims nothing, so nothing asked: a premise the caller supplied could be
+    told to the reader as one nobody can withdraw, and a lever taken away
+    reads exactly like a lever that was never there. Measured before this
+    read the third column: 430 named lines outside the functional form, and
+    every one agrees with the declaration.
+
+    Those checks stay, because they answer a different question — whether
+    this answer carries the record a caller's input would leave — which no
+    table keyed on a name can answer.
 
     An entry naming NO id is outside this, and the sentence is the whole
     reason rather than an apology: this table is keyed on the assumption's
@@ -469,6 +494,19 @@ def _check_each_line_is_the_assumption_it_names(entries: list) -> None:
                 f"from this field whether there is anything they could go and "
                 f"do, so the wrong word here sends them after a check that "
                 f"does not exist, or leaves one they could make unmade"
+            )
+        if str(layer) == _SETTLED_BY_THE_RUN:
+            continue
+        owed = str(answerable(assumption_id))
+        if entry.get("provenance") != owed:
+            _reject(
+                f"assumptions[{i}] is {assumption_id!r} and says it came from "
+                f"{entry.get('provenance')!r}; who can overrule that "
+                f"assumption is {owed!r}, whichever run it turns up in. The "
+                f"field tells a reader what they may do about the line — "
+                f"withdraw it, choose again, or nothing — so the wrong word "
+                f"here takes away a lever they have or hands them one they "
+                f"do not"
             )
 
 

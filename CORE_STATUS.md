@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19000 passed / 518 skipped, warning-clean
+19011 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,64 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #623 声明表按 id 说了一条假设的三件事，验证器只读了两件（2026-09-13）
+
+**现象。** `extensions.assumption_ledger.assumptions[].provenance` 在普查宣告文件里
+**106 个形状全记作没人守**——除不可攻的 `random_state` 外最宽的一片叶子。
+探针对所有账本行、所有成员逐个换值：**3180 次里放行 522 次**，106 个形状全有松动行，
+150 个 id 里 120 个被放过。最常见的是声明为 `inherent` 的行被改成 `default` /
+`caller_asserted`（凭空递给读者一个不存在的杠杆），也有反方向：
+`outcome_error_classical_non_differential_on_y` 本是 `caller_asserted`，改成 `inherent`
+能过——**把读者可以撤回的一条假设，说成谁也推翻不了**。
+
+**根因。** `assumption_glossary` 按 id 声明一条假设的三件事：layer、testable，
+以及（函数形式之外）provenance，由 `answerable(id)` 回答。它的模块头原话：
+「谁能推翻一条假设**是这条假设的属性**，而这是唯一按假设键控的表」。生产者从它读。
+验证器 `_check_each_line_is_the_assumption_it_names` import 了 `declares`（前两列）
+并把每行钉上去，**第三列没读**。provenance 被交给三条按记录的检查
+（`_check_caller_assertions` / `_check_caller_choices` / `_check_estimator_defaults`），
+而它们只问**声称**调用者输入的那些行——标成 `inherent` 的行什么也没声称，所以没人问。
+
+**为什么是根因不是表象。** 表象的修法是「再加一条 →inherent 方向的检查」，
+那是第四条按方向写的检查，而按方向写恰好就是这个漏洞的形状。
+声明早已存在、生产者也从它读：语料里 **430 条有 id、非函数形式的行，
+430 条等于 `answerable(id)`，0 条不等**——和当年 layer/testable 507/507 同一个形状。
+所以这不是缺一条规则，是**现成的声明只被读了一部分**。
+
+**结构。** 同一个检查读第三列：`answerable` 与 `declares` 一起 import；
+函数形式那一层跳过，写成带理由的 `_SETTLED_BY_THE_RUN`——谁定的形状是 run 的事实，
+`answerable` 本身就拒绝回答，那类行由 `_check_the_line_says_what_the_block_says`
+对着 mechanism 块守；无 id 的行照旧不在范围内。三条按记录的检查**保留**：
+它们问的是「答案上有没有那份记录」，按名字键控的表答不了。
+
+**两条旧测试的见证被截走了，如实改（纪律 54：看落款）。**
+`test_verify_rejects_a_line_handed_to_a_caller_who_supplied_nothing` 和原
+`test_a_choice_line_with_no_recorded_choice_is_refused` 各见证一道按记录的闸门，
+文档串分别写着「只有重导调用者的输入才抓得到」「这道闸门是读者和一个不存在的杠杆之间
+唯一的东西」——**两句都不再成立**，按 id 的检查更早、也更根本地拒了它们。改成断言现在的落款。
+`_check_caller_assertions` 仍有只有它能拒的见证（形状行与 mechanism 块一起改，
+在 `test_the_word_on_the_context_and_the_form_on_the_block_are_one_fact`）；
+**`_check_caller_choices` 原本只有那一个见证，截走后就一个都没有了**，于是补一条：
+粗化信封上的 `_CHOSE` 行本身就声明为 `caller_chose`（问 id 答「是」），
+把两个轴的分组改成恒等（没做过选择），只问账本门。
+
+**量，两侧。** 探针修后：3180 问**拒 3157、放 23**，松动形状 **19/106**，
+被放过的 id 只剩 `None`（无 id 的行）一个，那 23 次放行一次都没变。
+普查的预测写在看结果之前：本叶关掉的形状数应落在 **[87, 106]**（87 = 106 − 19；
+普查每片叶子只换 3 次，可能碰巧没打中那 19 个形状里的松行，所以上限到 106）。
+实测 **87，下限**——3 次换值在剩下 19 个形状上全打中了无 id 的松行。
+另按记录类别细分关 24 片（confidence 13、parameter 6、identification 5）；**新开 0 片**。
+
+**账。** 11 测试（账本检查的测试文件 113→123，选择闸门新见证 +1，两条旧测试改写不增减）；
+基线 19000→**19011**。**普查余项 2438→2327。**
+
+**⚠️ 还开着、是另一条根因、本块没做：** 无 id 行上的那 23 次放行里有
+`llm_prior→inherent` / `llm_prior→default`——**一条 LLM 给的参数先验可以被改标成
+「谁也推翻不了」**，因为 `(parameter, inherent)` 恰好是估计器那一行允许的组合，
+而无 id 的行不经过「凭空捏造」和按 id 的检查，读者从此看不出这个数靠的是 LLM 的猜测。
+另有 `llm_proposal↔discovery` 互换。线索：`_check_channel` 已经按通道数欠了几行，
+**出处可以从「哪个通道欠它」推出来，不需要 id**。
 
 ### #622 契约把公式用散文写在了字段旁边，两个地址只有一个执行它（2026-09-13）
 

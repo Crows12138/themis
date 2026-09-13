@@ -24,10 +24,23 @@ beside the two vocabularies it classifies into — which were already in
 ``themis.ledger``. So the module moved out of ``output``, and the audit reads
 a declaration instead of a producer.
 
+The same table settles a third thing, and says so in its own header: who can
+overrule an assumption "is a property of the assumption". ``provenance`` is
+that answer — withdraw it, choose again, or nothing — for every layer but the
+functional form, and the audit read the first two columns of the row and not
+the third. It had been left to the checks that ask whether the answer records
+a caller's input, and those only ask of a line that CLAIMS one; a line
+relabelled ``inherent`` claims nothing, so a premise the caller supplied could
+reach a reader as one nobody can withdraw. Measured before the audit read it:
+430 named lines outside the functional form, every one agreeing with the
+declaration.
+
 The range is the table's own: it is keyed on the assumption's NAME, so a line
 naming none is not one it can be right or wrong about. Those come from the
 two proposal channels, and which they are is pinned in
-``test_a_ledger_line_says_the_assumption_it_is``.
+``test_a_ledger_line_says_the_assumption_it_is``. The third column's range is
+one layer narrower: who settled a SHAPE is the run's fact, the glossary
+refuses to answer for it, and the line is held to the mechanism block instead.
 """
 from __future__ import annotations
 
@@ -39,7 +52,7 @@ import pathlib
 
 import pytest
 
-from themis.assumption_glossary import declares
+from themis.assumption_glossary import answerable, declares
 from themis.verifier.assumption_ledger_rules import (
     _check_each_line_is_the_assumption_it_names,
 )
@@ -67,6 +80,29 @@ NAMED = next((name, i) for name in LEDGERS
 UNNAMED = next(((name, i) for name in LEDGERS
                 for i, e in enumerate(_ledger(name))
                 if isinstance(e, dict) and "id" not in e), None)
+
+#: The layer whose provenance is the run's rather than the id's.
+SHAPE = "functional_form"
+
+
+def _named_lines():
+    """``(name, i, id, declared layer)`` for every line naming an assumption."""
+    for name in LEDGERS:
+        for i, entry in enumerate(_ledger(name)):
+            ident = entry.get("id") if isinstance(entry, dict) else None
+            if isinstance(ident, str) and ident:
+                yield name, i, ident, str(declares(ident)[0])
+
+
+#: A named line nobody can overrule, one somebody can, and a shape line whose
+#: provenance the run settles — by property, for the reason given above.
+NOBODY_CAN = next((name, i) for name, i, ident, layer in _named_lines()
+                  if layer != SHAPE and str(answerable(ident)) == "inherent")
+SOMEBODY_CAN = next((name, i) for name, i, ident, layer in _named_lines()
+                    if layer != SHAPE
+                    and str(answerable(ident)) != "inherent")
+SHAPE_LINE = next((name, i) for name, i, _ident, layer in _named_lines()
+                  if layer == SHAPE)
 
 
 def test_every_line_that_names_an_assumption_says_what_that_name_means():
@@ -180,3 +216,73 @@ def test_the_audit_reads_the_declaration_and_not_the_assembler():
         f"themis.output.result_orchestrator, and an audit that reads the "
         f"output layer agrees with the producer by construction"
     )
+
+
+# -------------------------------------------- the third thing an id settles
+
+
+def test_every_named_line_outside_the_shape_says_who_can_overrule_it():
+    """The honest half of the third column, counted rather than sampled.
+
+    A floor, for the reason the first count in this file is one.
+    """
+    checked = 0
+    for name, i, ident, layer in _named_lines():
+        if layer == SHAPE:
+            continue
+        assert _ledger(name)[i].get("provenance") == str(answerable(ident)), (
+            name, i, ident)
+        checked += 1
+    assert checked >= 400, checked
+
+
+def test_a_lever_taken_away_is_refused():
+    """The direction nothing asked. The record-reading checks look only at
+    a line that claims a caller's input, and ``inherent`` claims none — so
+    a premise the caller supplied could be told to the reader as one nobody
+    can withdraw."""
+    name, i = SOMEBODY_CAN
+    entries = copy.deepcopy(_ledger(name))
+    entries[i]["provenance"] = "inherent"
+    with pytest.raises(VerificationError, match="who can overrule"):
+        _check_each_line_is_the_assumption_it_names(entries)
+
+
+@pytest.mark.parametrize("member", ["caller_asserted", "caller_chose",
+                                    "default"])
+def test_a_lever_handed_over_that_is_not_there_is_refused(member):
+    """The other direction. The record-reading checks catch it only when the
+    answer carries no record of any caller input at all; a run where the
+    caller supplied something else walks it through."""
+    name, i = NOBODY_CAN
+    entries = copy.deepcopy(_ledger(name))
+    entries[i]["provenance"] = member
+    with pytest.raises(VerificationError, match="who can overrule"):
+        _check_each_line_is_the_assumption_it_names(entries)
+
+
+@pytest.mark.parametrize("member", ["inherent", "default", "caller_asserted",
+                                    "caller_chose"])
+def test_a_shape_line_is_not_asked_who_settled_it_here(member):
+    """The third column's range, exercised rather than described.
+
+    Who fixed a shape is the run's fact: the glossary raises rather than
+    answer, and the line is held to the mechanism block by the check that
+    reads that block. Asking here would either crash or hold the line to a
+    value true of one family and false of the next.
+    """
+    name, i = SHAPE_LINE
+    entries = copy.deepcopy(_ledger(name))
+    entries[i]["provenance"] = member
+    _check_each_line_is_the_assumption_it_names(entries)
+
+
+def test_a_line_that_names_no_assumption_is_outside_the_third_column_too():
+    """Keyed on the name, like the other two."""
+    assert UNNAMED is not None, "no corpus ledger line names nothing"
+    name, i = UNNAMED
+    entries = copy.deepcopy(_ledger(name))
+    entries[i]["provenance"] = (
+        "llm_proposal" if entries[i].get("provenance") == "discovery"
+        else "discovery")
+    _check_each_line_is_the_assumption_it_names(entries)

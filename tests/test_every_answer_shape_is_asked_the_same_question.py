@@ -1293,6 +1293,19 @@ def test_the_declared_remainder_is_what_it_is():
     stratum's assignment of them — and they stay because a leaf leaves
     this file by being closed and never by being tidied.
 
+    Then 111, the widest single leaf after the seed, and the disease this
+    file has watched most often, in a new place. Who can overrule an
+    assumption is declared once, keyed on the assumption's name, and the
+    producer reads it from there; the audit read the other two things that
+    row says and not this one, leaving it to checks that only ask of a
+    line CLAIMING a caller's input — so a line relabelled as nobody's to
+    withdraw claimed nothing, and nothing asked. 87 of the 111 are the
+    plain leaf, and 87 is the 106 shapes that carry a ledger less the 19
+    that still carry a loose line. Those 19 stay, and the reason is the
+    table's range rather than a gap in it: their loose lines name no
+    assumption at all — a proposed edge, a supplied prior — and a table
+    keyed on a name has nothing to say about a line that gives none.
+
     The sampling caveat above still holds and is worth repeating here
     rather than left two paragraphs up: three swaps per leaf out of 88
     members, and a species says between one and ten of them, so a swap
@@ -1301,7 +1314,7 @@ def test_the_declared_remainder_is_what_it_is():
     species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2438, total
+    assert total == 2327, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -692,15 +692,24 @@ def test_verify_rejects_an_invented_assumption(frames):
 def test_verify_rejects_a_line_handed_to_a_caller_who_supplied_nothing(frames):
     """``caller_asserted`` is the one attribution that gives the reader an
     action — withdraw it and the answer comes back wider — so a back-door
-    assumption wearing it offers an action they cannot take. Both values are
-    legitimate and the pair is one a producer may write, so only re-deriving
-    the caller's input from the answer itself catches it."""
+    assumption wearing it offers an action they cannot take.
+
+    This was the witness for re-deriving the caller's input from the answer,
+    on the reasoning that both values are legitimate and the pair is one a
+    producer may write. It is refused one step earlier now, and for the
+    stronger reason: who can overrule an assumption is a property of the id,
+    the glossary answers it, and for a back-door identification premise the
+    answer is nobody in every run. The record-reading gate keeps a witness
+    only it can refuse where the declaration has nothing to say — a shape
+    line, whose provenance is the run's — in
+    ``test_the_word_on_the_context_and_the_form_on_the_block_are_one_fact``.
+    """
     _, r = _run("backdoor", frames)
 
     def _hand_over(led):
         led["assumptions"][0]["provenance"] = "caller_asserted"
 
-    with pytest.raises(VerificationError, match="records the caller supplying"):
+    with pytest.raises(VerificationError, match="who can overrule"):
         themis.verify_assumption_ledger(_tamper(r, _hand_over))
 
 
