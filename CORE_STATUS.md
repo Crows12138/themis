@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19032 passed / 518 skipped, warning-clean
+19046 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,64 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #625 gap 引用了那条边的注释，只问注释在不在，没读它说什么（2026-09-13）
+
+**现象。** #624 让 proposal-edge gap 和抄它的账本行必须一致以后，单改 gap 的边会被拒；
+**两处一起改**则所有门放行：边反向 19/19、LLM 提议改写成 discovery 学到 18/18、
+discovery 改写成 LLM 提议 3/3、algorithm 3/3、confidence 2/2。读者靠这几句话决定要不要
+为这条边去找证据、在那之前信它几分——把「LLM 猜的」说成「算法从数据里学到的」，
+正好是往错的方向递信任。普查看不见：它一次只弯一片叶子，而 gap 边那片 #624 已经靠
+拷贝一致关掉了。
+
+**根因。** 这种 gap 的每句话都是从**一条程序语句**算出来的：它自己的
+`provenance[].ref_id`（`program:cause:<from>-><to>:annotations.source`）点名的那条边——
+边的方向、`annotations.source` 是否以 `discovery:` 开头、其后的算法名、
+`annotations.confidence`。验证器有三条相关检查，没有一条读内容：
+`verify_gap_program_sites` 找到那条边，只问 `"source" in annotations`；`gap_claim_rules`
+问 `edge` 里的名字是不是题目声明过的；`verify_gap_subjects` 问 said 里的名字在不在 ref 里
+（成员关系，不看顺序）。反向的边两个名字都合法、也都在 ref 里。**引用被找到了，没被读。**
+
+**为什么是根因不是表象。** 表象的修法是给 `verify_gap_subjects` 加上顺序——只关掉边反向，
+句子、算法、置信度照样能改。ref 本身就以 `annotations.source` 命名，它引用的正是 gap 那几句
+话的出处。先量：语料 21 条 proposal-edge gap（LLM 18、`discovery:lingam` 3，其中带置信度 2、
+双向边 2），describes **逐字等于**从所引程序语句推出的句子，21/21。
+
+**结构。** `data_gap_rules.verify_gap_edge_statements(result, program)`，挂在
+`kernel._hold_what_the_answer_says` 里 `verify_gap_program_sites` 之后——`verify` 和
+`verify_answer_claims` 两扇门都经过这里。（先量过：没有 derivation 的 9 个形状，伪造的程序
+位置由 `verify_answer_claims` 拒；我原先猜「程序锚定的 gap 审计够不着 gap 诊断」，猜错了。）
+沿 gap 引用的程序位置找到那条带 source 的边，推出它欠的句子，要求 describes 与之相等。有向边
+按方向比；**双向边按无序对比**——T10-1 读双向位置本来就接受两种顺序，拒掉就是拒掉一份真话，
+有一条测试钉着这一侧。引用零条或多条边都拒，不跳过。`discovery:` 标记在验证器里重述
+（独立性钉子；`orientation_ledger_rules` 也是重述）。单独成函数，不并进
+`verify_gap_program_sites`：那条问「这个位置在不在」，这条问「说的是不是它」，是两个主张。
+
+**演练（写盘之前在进程内做）。** 新规则直接问 243 个形状的诚实答案：拒 0。把 kernel 里的
+调用包一层后跑联合伪造：45 次全部由新签名第一个拒（边反向 `verify` 10 + `verify_answer_claims`
+9、LLM→discovery 7 + 11、discovery→LLM 3、algorithm 3、confidence 2）；带 proposal-edge gap
+的形状，补丁后诚实答案仍有门读。
+
+**见证怎么写（纪律 54）。** 测试里每个伪造都把 gap 和账本行一起改，并有一条测试断言这些伪造
+`verify_assumption_ledger` 放行——拒它们的不是账本那条拷贝检查。
+
+**账。** 14 测试；基线 19032→**19046**。普查预测不动，全量里普查行未红，余项仍 2240。
+
+**第一次全量 2 败，都不在规则本身，如实改。** 一是 mypy：`cited` 用列表推导对同一个 ref
+取了两次 `.get("ref_id")`，类型收窄过不去，改成先取出、再 `isinstance` 的循环——没往抑制
+名单里加。二是架构图：spec 上的数是从代码量出来的，`verify_*` 入口 100→101，spec 用
+`scripts/build_arch_spec.py` 重建。页面我**先是手改的**：把「渲染器在仓库外」当成了「这里跑不了」，
+没核实，把页面上 4 处 100 改成 101。结果红在另一条——页面还写着旧 spec 钉的 commit。
+**这个判断是错的**：渲染器是本机装的 archify。拿已提交的 spec 试 CLI 的四种组合，
+`--quality showcase --repo-root` 渲染出来的和已提交的页面逐字节相同（不带 repo-root 的两种拒绝渲染，
+standard 档输出不同）。于是页面改成真渲染，覆盖掉手改版。新旧页面逐字节比对差 6 处：4 处数字，
+加上 revision 和 shortRevision——手改漏的正是后两处。病根是重跑说明只写了「交给渲染器」，
+没说哪个、带什么参数。生成脚本的用法、`ARCHITECTURE.md`、测试的重跑提示这三处本来就重述了
+生成命令，现在各自在旁边写上这条渲染命令，并写明页面过期要重渲染、不要手改。
+
+**⚠️ 另一侧没做、没量：** 「程序里每条非证据来源、落在查询路径上的边都有一条 gap」没有人从
+程序一侧守；load-bearing 分析（supporting_paths + DAG 遍历）在验证器里没有独立的第二份。
+一条这样的 gap 整条被删掉能不能过，本块没量。
 
 ### #624 没有名字的账本行被数了行数，它们抄的那条记录就在旁边（2026-09-13）
 

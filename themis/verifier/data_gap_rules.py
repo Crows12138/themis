@@ -634,6 +634,168 @@ def verify_gap_program_sites(result: object, program: object) -> None:
                 )
 
 
+# ============================================ T10-1, what the cited edge says
+#
+# A proposal-edge gap cites the annotation that flagged its edge, and the
+# rule above finds that annotation in the program. What the gap then TELLS a
+# reader is that statement read aloud, and nothing held the reading to the
+# statement: the site is named after ``annotations.source`` and the one
+# question asked of that field was whether it is there.
+
+#: The species whose statements are a reading of the edge it cites.
+_READS_ITS_CITED_EDGE = GapKind.UNVERIFIED_PROPOSAL_EDGE_ON_QUERY_PATH.value
+
+#: Per kind of edge: how a program site spells it, the arrow between its two
+#: ends there, and the arrow a sentence names it with.
+_EDGE_SITES: dict[str, tuple[str, str, str]] = {
+    "cause": ("program:cause:", "->", "→"),
+    "bidirected": ("program:bidirected:", "↔", "↔"),
+}
+
+#: The source a discovery algorithm's edge carries, up to the algorithm's
+#: name. Spelled as the program spells it, and restated rather than imported
+#: for this module's independence pin — ``orientation_ledger_rules`` reads
+#: the same marker the same way.
+_LEARNED_BY = "discovery:"
+
+
+def _the_cited_edge(program: Mapping, ref_id: str):
+    """``(kind, (first, second), annotations)`` of the edge a site names and
+    whose source it cites, or ``None`` when the site names no such edge."""
+    for kind, (prefix, arrow, _named) in _EDGE_SITES.items():
+        if not ref_id.startswith(prefix):
+            continue
+        spelling = ref_id[len(prefix):].removesuffix(":annotations.source")
+        if arrow not in spelling:
+            return None
+        first, second = spelling.split(arrow, 1)
+        one, other, either_way = _THE_ENDS_OF[kind]
+        for statement in _statements_of(program, kind):
+            ends = (_predicate(statement.get(one)),
+                    _predicate(statement.get(other)))
+            annotations = statement.get("annotations")
+            if (ends == (first, second)
+                    or (either_way and ends == (second, first))) and (
+                    isinstance(annotations, Mapping)
+                    and "source" in annotations):
+                return kind, (first, second), annotations
+        return None
+    return None
+
+
+def _what_the_edge_says(kind: str, ends: tuple, annotations: Mapping) -> list:
+    """The statements a proposal-edge gap owes, read off the edge it cites.
+
+    The edge, named with its kind's arrow. Whether a language model proposed
+    it or an algorithm learned it, which is whether the source is a
+    discovery marker; the algorithm, which is the rest of that source. And
+    where the run recorded how often the edge survived resampling, that
+    share, as a whole percent.
+    """
+    edge = f" {_EDGE_SITES[kind][2]} ".join(ends)
+    source = str(annotations.get("source") or "")
+    if not source.startswith(_LEARNED_BY):
+        return [{"sentence": "the_edge_is_an_llm_proposal",
+                 "said": {"edge": edge}}]
+    owed = [{"sentence": "the_edge_was_learned_by_discovery",
+             "said": {"edge": edge,
+                      "algorithm": source[len(_LEARNED_BY):].upper()}}]
+    share = annotations.get("confidence")
+    if isinstance(share, (int, float)) and not isinstance(share, bool):
+        owed.append({"sentence": "the_edge_survived_this_share_of_resamples",
+                     "said": {"confidence": f"{share:.0%}"}})
+    return owed
+
+
+def _the_edge_named(edge: object) -> object:
+    """A sentence's edge as the edge it names rather than as text: a directed
+    one in its order, a bidirected one as a pair either way round — the
+    reading T10-1 already gives a bidirected site."""
+    if not isinstance(edge, str):
+        return edge
+    for arrow, ordered in (("→", True), ("↔", False)):
+        if arrow in edge:
+            ends = tuple(part.strip() for part in edge.split(arrow, 1))
+            return arrow, (ends if ordered else tuple(sorted(ends)))
+    return edge
+
+
+def _as_read(describes) -> list:
+    out = []
+    for statement in describes or ():
+        if isinstance(statement, Mapping):
+            statement = dict(statement)
+            said = statement.get("said")
+            if isinstance(said, Mapping) and "edge" in said:
+                statement["said"] = {**said,
+                                     "edge": _the_edge_named(said["edge"])}
+        out.append(statement)
+    return out
+
+
+def verify_gap_edge_statements(result: object, program: object) -> None:
+    """What a proposal-edge gap says about its edge, against that edge.
+
+    A gap of this species cites the annotation that flagged its edge, and
+    :func:`verify_gap_program_sites` finds it in the program. Everything the
+    gap then tells a reader is that statement: the edge, in its direction;
+    whether a language model proposed it or an algorithm learned it; which
+    algorithm; and how often it survived resampling where a run recorded
+    that. A reader decides from those words whether to go and get evidence
+    for the edge and how much to trust it meanwhile.
+
+    Measured before this was written. A proposal-edge gap rewritten together
+    with the ledger line that copies it passed every door: its edge reversed
+    on 19 rows of 19, an LLM proposal told as learned by discovery on 18 of
+    18, the reverse on 3 of 3, the algorithm on 3 of 3, the share on 2 of 2.
+    And every one of the 21 such gaps in the corpus said exactly what the
+    edge it cites says.
+
+    A gap citing no edge, or more than one, is refused rather than skipped:
+    its sentences are about one edge, and a reading needs one statement to
+    be a reading of.
+    """
+    if not isinstance(program, Mapping):
+        raise TypeError(
+            "verify_gap_edge_statements needs the program document itself; "
+            f"got {type(program).__name__}")
+    if not isinstance(result, Mapping):
+        return
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, Mapping) or gap.get(
+                "kind") != _READS_ITS_CITED_EDGE:
+            continue
+        cited: list[str] = []
+        for ref in gap.get("provenance") or ():
+            if isinstance(ref, Mapping) and ref.get("ref_kind") == "program_site":
+                ref_id = ref.get("ref_id")
+                if isinstance(ref_id, str):
+                    cited.append(ref_id)
+        edges = [edge for edge in (_the_cited_edge(program, ref_id)
+                                   for ref_id in cited) if edge is not None]
+        if len(edges) != 1:
+            raise VerificationError(
+                f"T10-1: gap[{gap_index}] is about one proposal edge, and the "
+                f"edge it cites is {len(edges)} statements of this program "
+                f"({cited!r}); what it says about an edge has to be a reading "
+                f"of one",
+                step_index=None, rule="data_gap_provenance_check",
+            )
+        owed = _what_the_edge_says(*edges[0])
+        if _as_read(gap.get("describes")) != _as_read(owed):
+            raise VerificationError(
+                f"T10-1: gap[{gap_index}] says {gap.get('describes')!r}, and "
+                f"the edge it cites, {cited[0]!r}, says {owed!r}. A reader "
+                f"is told from these words who put the edge there and how "
+                f"far to trust it, and the program's own annotation of that "
+                f"edge is where the words came from",
+                step_index=None, rule="data_gap_provenance_check",
+            )
+
+
 # ============================================ T10-2 completeness
 
 

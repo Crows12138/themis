@@ -44,7 +44,9 @@ PICTURE_SPEC = REPO_ROOT / "docs/架构图/全景图.json"
 PICTURE_PAGE = REPO_ROOT / "docs/架构图/全景图.html"
 
 REBUILD = ("图过期了。重跑：python scripts/build_arch_spec.py "
-           "docs/架构图/全景图.json，再用渲染器出 docs/架构图/全景图.html")
+           "docs/架构图/全景图.json，再 node <archify>/bin/archify.mjs "
+           "render architecture docs/架构图/全景图.json docs/架构图/全景图.html "
+           "--quality showcase --repo-root .（页面要渲染，不要手改）")
 
 #: A path that is not there, built out of one that is.
 #:

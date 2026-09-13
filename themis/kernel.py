@@ -148,6 +148,7 @@ from .verifier import (
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_gap_quotes,
     verify_refusal_block,
@@ -1673,6 +1674,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # audit that runs T10-1 is result-only by contract, so that half could
     # not be asked there. It is asked here, where the program already is.
     verify_gap_program_sites(result, ast)
+
+    # And what a gap SAYS about the edge it cites. The site above is
+    # found and never read: it is named after the annotation, and every
+    # statement a proposal-edge gap makes — which edge, whose proposal,
+    # which algorithm, how often it survived resampling — is that
+    # annotation read aloud.
+    verify_gap_edge_statements(result, ast)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

@@ -44,8 +44,10 @@ runtime 旁边并列一个**对照位**：
 > 但被 `tests/test_a_picture_of_this_repo_counts_what_it_prints.py` 钉到
 > 仓库能否认的那一面。渲染是仓库外的事，仓库里只留必须保持为真的那一半。
 >
-> 用法 `python scripts/build_arch_spec.py <输出.json>`，再交给渲染器出图；
-> 当前那一份签在 `docs/架构图/` 下，双击 `.html` 就能看。
+> 用法 `python scripts/build_arch_spec.py <输出.json>`，再用 archify 渲染：
+> `node <archify>/bin/archify.mjs render architecture <输出.json> <输出.html> --quality showcase --repo-root .`。
+> 签进仓库的那一页就是这条命令的输出；页面上除了标签还带着 spec 的其他内容（比如它钉的
+> commit），所以图过期了要重渲染，不要手改。当前那一份签在 `docs/架构图/` 下，双击 `.html` 就能看。
 >
 > **签进仓库的图会烂，所以它被钉住了**：套件比对提交的 spec 与现场重建的
 > spec，只放过它钉的那个 commit；再逐段比对 spec 上的字是否真出现在渲染出的

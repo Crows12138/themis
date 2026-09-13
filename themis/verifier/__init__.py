@@ -571,6 +571,13 @@ Public surface (re-exports from sub-modules):
   saying it declares none, which are the same count read both ways. An
   unrecognised spelling is refused, or the hole comes back one spelling
   at a time)
+- And whether what a gap says about the edge it cites is what that edge
+  says: ``verify_gap_edge_statements`` (the site above is named after
+  ``annotations.source`` and only that field's presence was asked; a
+  proposal-edge gap's statements — the edge in its direction, whose
+  proposal, which algorithm, the share of resamples it survived — are
+  that annotation read aloud, and a gap rewritten together with the
+  ledger line that copies it had passed every door)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -805,7 +812,11 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
-from .data_gap_rules import verify_answer_tier, verify_gap_program_sites
+from .data_gap_rules import (
+    verify_answer_tier,
+    verify_gap_edge_statements,
+    verify_gap_program_sites,
+)
 from .statement_rules import verify_statements_carry_their_facts
 from .status_rules import (
     verify_answer_status,
@@ -861,6 +872,7 @@ __all__ = [
     "verify_envelope_arithmetic",
     "verify_gap_names",
     "verify_gap_program_sites",
+    "verify_gap_edge_statements",
     "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_refusal_block",

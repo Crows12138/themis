@@ -1,10 +1,15 @@
 """Generate the repository's architecture picture from the repository.
 
     python scripts/build_arch_spec.py <out.json>
+    node <archify>/bin/archify.mjs render architecture <out.json> <out.html>
+        --quality showcase --repo-root .
 
 The output is an archify ``architecture`` spec. Rendering it is a
-separate step and lives outside this repo; what lives here is the half
-that has to stay true.
+separate step and the renderer lives outside this repo; what lives here
+is the half that has to stay true. The committed page is the output of
+the second command above. The page also carries what the spec says
+beyond its labels, the commit it pins among them, so a stale page is
+re-rendered, never edited by hand.
 
 Nothing countable below is typed by hand. Line counts are read off the
 files, species and routes come from importing the enums, rule names and
