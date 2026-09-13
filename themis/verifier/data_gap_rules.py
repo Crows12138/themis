@@ -346,6 +346,11 @@ def _about(gap: dict, envelope: Mapping) -> set[str]:
 #: that key holds.
 _PATH_STEP = re.compile(r"([^.\[\]]+)(?:\[([^\]]*)\])?")
 
+#: A pick that names a position rather than a kind. ``#`` and then digits
+#: and nothing else, so a caller whose ambiguity is of kind ``0`` is still
+#: reachable by kind and only one spelling can ever mean the position.
+_AT_INDEX = re.compile(r"#(\d+)")
+
 
 def _at_path(envelope: dict, path: object) -> tuple[bool, str]:
     """Whether a gap's envelope path lands on something, and why not.
@@ -353,7 +358,16 @@ def _at_path(envelope: dict, path: object) -> tuple[bool, str]:
     Dotted keys from the answer's root. ``[x]`` picks from what the key
     holds: on a list, the entry whose ``kind`` is ``x`` — which is how a
     report names one member of a block that carries several — and on a
-    mapping, the key ``x``.
+    mapping, the key ``x``. ``[#n]`` picks the n-th entry of a list
+    instead, counting from zero.
+
+    **Why a list has two ways to be picked from.** By ``kind`` is an
+    address only where kind is unique in that list, and the one block
+    this repository addresses by kind is the one block the contract
+    leaves open — where nothing says a caller may not flag two
+    uncertainties of a kind, and one did. Two entries differing in every
+    other field were cited by one path that named neither. Where a list
+    is open, an entry's identity is where it is.
 
     Spelled here rather than imported because this file may not read the
     generator, and a path is followed the same way whoever wrote it.
@@ -372,6 +386,14 @@ def _at_path(envelope: dict, path: object) -> tuple[bool, str]:
         if pick is None:
             continue
         if isinstance(node, list):
+            at = _AT_INDEX.fullmatch(pick)
+            if at is not None:
+                index = int(at.group(1))
+                if index >= len(node):
+                    return False, (f"{key!r} has {len(node)} entries, so "
+                                   f"there is no {pick!r}")
+                node = node[index]
+                continue
             found = next((e for e in node if isinstance(e, dict)
                           and e.get("kind") == pick), None)
             if found is None:

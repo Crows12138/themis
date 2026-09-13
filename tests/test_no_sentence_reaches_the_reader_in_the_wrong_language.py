@@ -824,6 +824,15 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "fails to construct never reaches an envelope, the rule beside the "
         "table reads its KEYS to know which species has a choice, and the "
         "sentence is for whoever writes the next producer of that species"),
+    "themis/gaps.py::WHY_AN_AMBIGUITY_GIVES[]": (
+        Wrote.INVARIANT,
+        "why each name is one the kernel reads a caller's reason out of, "
+        "in a block the contract leaves open. Unlike the tables above no "
+        "refusal quotes these — the value read is the CALLER's own words "
+        "and travels in whatever language they wrote it, which is the "
+        "point. The keys are what the producer reads and the contract "
+        "restates; the sentence beside each is for whoever proposes the "
+        "fifth name, and reaches a reader by no route at all"),
     "themis/types.py::_A_STEP_OR_THE_ASK": (
         Wrote.INVARIANT,
         "the sentence nine of those eleven species share, held in one name "

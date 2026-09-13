@@ -3185,6 +3185,41 @@ gap has no such line, which they learn by not being told one.
 """
 
 
+#: Which field of a caller-authored ambiguity carries its reason, and why
+#: each name is read. Looked at in this order; the first one present wins.
+WHY_AN_AMBIGUITY_GIVES: dict[str, str] = {
+    "description":
+        "what the block's own callers overwhelmingly write — 21 of the 24 "
+        "entries this corpus carries, and every one of them was being "
+        "dropped while two entries spelt another way were read",
+    "rationale":
+        "the name the kernel asked for first, kept because an entry "
+        "already written to it is not wrong, only early",
+    "reason":
+        "the same word in the shorter form upstream sometimes reaches for",
+    "note":
+        "the weakest of the four, and last for that: a note is where "
+        "something gets written when the writer did not decide what it was",
+}
+"""Why a list of names rather than one, for whoever adds the next.
+
+``extensions.ambiguities`` is the one block the contract leaves open on
+purpose, because what it carries is authored upstream rather than by the
+kernel. A consumer of an open block cannot hold its authors to one
+spelling — and the cost of trying was measured: the producer read
+``rationale`` and ``note``, upstream wrote ``description``, and 21 of 24
+reasons went into an envelope that told the reader none had been given.
+
+So the names are declared, not guessed at the reading site. What is open
+is which ambiguities a caller may report; what the kernel reads out of
+one is a promise it makes back, and a promise belongs where the caller
+can see it — this table and the block's own contract say the same four
+names, and a test holds them to each other.
+
+Adding a name is a contract change. Removing one takes a reason with it.
+"""
+
+
 @unique
 class Sentence(EnvelopeName):
     """One statement a gap's description is made of, by name.

@@ -185,7 +185,7 @@ from typing import Iterable, NamedTuple, Protocol
 
 from .. import blocks, gaps, language, questions, refusals
 from ..gaps import (
-    INSTRUMENT_CHANNEL,
+    INSTRUMENT_CHANNEL, WHY_AN_AMBIGUITY_GIVES,
     Route, Sentence, Unnamed, occasion as _occasion, route as _route,
     route_entry as _route_entry, sentence as _sentence,
 )
@@ -1098,11 +1098,13 @@ def _classify_llm_ambiguities(
     leaving these unspoken would make the answer look confident when the
     upstream itself wasn't."""
     ambiguities = (extensions or {}).get(blocks.Block.AMBIGUITIES) or ()
-    for amb in ambiguities:
+    for at, amb in enumerate(ambiguities):
         if not isinstance(amb, dict):
             continue
         kind = amb.get("kind", "<unspecified>")
-        rationale = amb.get("rationale") or amb.get("note") or ""
+        rationale = next(
+            (amb[field] for field in WHY_AN_AMBIGUITY_GIVES
+             if amb.get(field)), "")
         # dose_response_query has its own dedicated gap_kind; skip.
         if kind == "dose_response_query":
             continue
@@ -1116,9 +1118,16 @@ def _classify_llm_ambiguities(
                 _sentence(Sentence.THE_CALLER_FLAGGED_AN_UNCERTAINTY,
                           kind=kind),
             ),
+            # Where it is, not what it says it is. ``kind`` is the one
+            # field this open block requires, which made it the obvious
+            # thing to address an entry by and the wrong one: nothing
+            # says a caller may not flag two uncertainties of a kind, and
+            # when one did, two entries that differed in every other
+            # field became two gaps that differed in none — each citing a
+            # place with two occupants and naming neither.
             provenance=cites(
                 GapKind.LLM_DECLARED_AMBIGUITY,
-                f"extensions.ambiguities[{kind}]",
+                f"extensions.ambiguities[#{at}]",
             ),
         )
 

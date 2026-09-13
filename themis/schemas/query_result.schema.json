@@ -867,7 +867,7 @@
         },
         "ambiguities": {
           "type": "array",
-          "description": "The upstream naming ambiguities that bear on THIS query, copied across from the program's own extensions side-channel. Deliberately the one block left open: what it carries is authored upstream by a user or a language model, not by the kernel, and enumerating `kind` would make the kernel the authority on which ambiguities a caller is allowed to report. `kind` is required because an entry that does not say what sort of ambiguity it is cannot be acted on.",
+          "description": "The upstream naming ambiguities that bear on THIS query, copied across from the program's own extensions side-channel. Deliberately the one block left open: what it carries is authored upstream by a user or a language model, not by the kernel, and enumerating `kind` would make the kernel the authority on which ambiguities a caller is allowed to report. `kind` is required because an entry that does not say what sort of ambiguity it is cannot be acted on. Beyond `kind` the kernel reads one thing: the entry's reason, looked for under `description`, `rationale`, `reason` and `note` in that order, the first present one winning and the rest left alone. That list is a promise back rather than a restriction — an entry carrying none of them is reported as an uncertainty with no reason given, which is what it is. A gap raised from this block cites the entry by position, `extensions.ambiguities[#n]`, because `kind` is the only field required here and two entries may share it.",
           "items": {
             "x-text": "caller",
             "type": "object",
