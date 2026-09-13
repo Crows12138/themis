@@ -28,6 +28,7 @@ import pathlib
 import pytest
 
 from themis import gaps as _gaps
+from themis import language
 from themis.kernel import _premises_of
 from themis.verifier.errors import VerificationError
 from themis.verifier.gap_claim_rules import (
@@ -39,6 +40,7 @@ from themis.verifier.gap_claim_rules import (
     _slots_of,
     every_said_mapping,
     slots_the_statements_declare,
+    statements_and_the_slots_they_declare,
     verify_gap_quotes,
 )
 
@@ -218,21 +220,46 @@ def test_each_new_roster_speaks_for_the_sites_it_claims(key, count):
     assert seen == count, seen
 
 
-def test_the_statement_index_is_what_says_which_tables_hold_statements():
+def test_the_statement_index_is_the_vocabularies_themis_gaps_holds():
     """Derived rather than listed, and the difference is the whole point.
 
     A list of table names is the same kind of claim as a roster: a table
     added beside the others would be outside the space while looking like
-    it was inside it. ``BY_SENTENCE``, ``BY_NAME`` and ``BY_ROUTE`` are
-    what say which members a report's statements can be.
+    it was inside it. The index was the names in ``BY_SENTENCE``,
+    ``BY_NAME`` and ``BY_ROUTE``, and a gap's occasion, named by its kind,
+    was in none of them. The vocabularies ``themis.gaps`` holds are what
+    say which members a report's statements can be.
     """
-    known = {str(member) for member in _gaps.BY_SENTENCE.values()}
-    known |= {str(member) for member in _gaps.BY_NAME.values()}
-    known |= {str(member) for member in _gaps.BY_ROUTE.values()}
-    assert len(known) == 210, len(known)
+    held = list(vars(_gaps).values())
+    vocabularies = {name for name, owner in language.VOCABULARIES.items()
+                    if any(owner is here for here in held)}
+    assert vocabularies == {
+        "gap_describes", "gap_routes", "gap_says", "gap_if_provided",
+        "query_part", "unnamed_thing", "described_population"}
+    known = {str(member) for name in vocabularies
+             for member in language.VOCABULARIES[name]}
+    names = {str(member) for member in _gaps.BY_SENTENCE.values()}
+    names |= {str(member) for member in _gaps.BY_NAME.values()}
+    names |= {str(member) for member in _gaps.BY_ROUTE.values()}
+    assert names < known and len(known) == 246, len(known)
     shown = {statement for statement, _key in SHOWN if statement}
     # And the fifteen the index does not know, which is the same shortfall
     # the slot count above measures, seen from the statement side: how
     # much data to collect, what a framing field is called, why a fit was
     # refused. Their vocabularies live in the output layer.
     assert len(shown - known) == 15, sorted(shown - known)[:8]
+
+
+def test_a_table_keyed_by_a_kind_is_in_the_index_only_if_it_is_spoken():
+    """What an index of names would have bound. The phrase for what a
+    gap wants is keyed by kind and has holes, and fills them from the
+    gap's provenance: no ``said`` carries them. The occasion is keyed by
+    kind too, and is spoken."""
+    pairs = statements_and_the_slots_they_declare()
+    wanted = {(kind, slot) for kind, words in _gaps.WANTED_NAMED.items()
+              for text in words.values() for slot in _slots_of(text)}
+    provided = {(kind, slot) for kind, words in _gaps.IF_PROVIDED.items()
+                for text in words.values() for slot in _slots_of(text)}
+    assert wanted and not wanted & pairs
+    assert len(provided) == 8 and provided <= pairs
+    assert len(pairs) == 253, len(pairs)

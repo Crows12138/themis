@@ -71,6 +71,17 @@ And the index the binding holds the rosters to listed sentences and
 needs but not routes, so no slot a way past declares was bound at all —
 four of them are declared nowhere else, and ``scale`` was in no roster.
 
+A gap's own ``said`` was a statement with no name for the same reason,
+one container further out. It is the occasion ``IF_PROVIDED`` speaks —
+what having the missing thing would buy — under the gap's ``kind``, and
+the statement rule has read it so since that rule was written. The walk
+read the spellings its author had listed and the index the names of the
+sets its author had listed, so the occasion yielded no statement, the
+pairs it declares were bound by nothing, and a role it copies from the
+question could not be declared one. Both read what the statement rule
+reads now: the spellings its carriers give, and the vocabularies
+``themis.gaps`` declares.
+
 AND A NAME CAN HAVE A SECOND RECORD. The name rule asks whether a word is
 one this problem is written in, and a gap whose intervention is rewritten
 from ``x`` to ``y`` answers yes: both are. Where a slot is named after a
@@ -105,9 +116,11 @@ import re
 from typing import Any, Iterator, Mapping
 
 from .. import gaps as _gaps
+from .. import language
 from ..types import Atom, VariableDeclaration
 from .errors import VerificationError
 from .rules import _atom_label_verifier
+from .statement_rules import _CARRIERS
 
 _RULE = "gap_names_check"
 
@@ -128,35 +141,42 @@ def statements_and_the_slots_they_declare() -> frozenset[tuple[str, str]]:
     """Every ``(statement, slot)`` a statement a gap report can carry
     declares.
 
-    Derived from the INDEX rather than from a list of table names, because
-    a list of tables is the same kind of claim as the rosters themselves:
-    a statement table added beside the others would be outside the space
-    while looking like it was inside it. ``BY_SENTENCE``, ``BY_NAME`` and
-    ``BY_ROUTE`` are what say which members a report's statements can be —
-    what a gap describes, what it needs, and each way past it — and a
-    member's text is wherever it is written.
+    Derived from the VOCABULARIES rather than from a list of table names,
+    because a list of tables is the same kind of claim as the rosters
+    themselves: a statement table added beside the others would be
+    outside the space while looking like it was inside it. A statement
+    is a member of a vocabulary declared to :mod:`themis.language`, and
+    every one whose words ``themis.gaps`` holds is one a report's
+    statements are spoken from — what a gap describes, what it needs,
+    each way past it, what having the missing thing would buy, and the
+    words that stand in their holes. A vocabulary's words live in a
+    table or on an enum, and both are read.
 
-    The ways past were not in it. The space was smaller by exactly what
-    only a way past declares, and one of those slots was in no roster:
-    the index was a claim about which statements exist, and its range was
-    the two kinds its author had in mind.
+    It was an index of NAMES until the last of those showed what names
+    cannot say. It listed sentences, needs and routes — routes only once
+    the space turned out smaller by exactly what a way past declares —
+    and read a member's holes out of any table keyed by one of those
+    names. A gap's occasion is keyed by the gap's kind, and not every
+    table keyed by a kind is spoken: the phrase for what a gap wants
+    fills its holes from the gap's provenance, never from a ``said``, so
+    adding kinds to the names would have bound a slot nothing carries.
+    Which tables are spoken is what a vocabulary is.
 
     Pairs rather than slots, because a slot whose kind is its sentence's
     is owed an answer for each statement that declares it.
     """
-    known = {str(member) for member in _gaps.BY_SENTENCE.values()}
-    known |= {str(member) for member in _gaps.BY_NAME.values()}
-    known |= {str(member) for member in _gaps.BY_ROUTE.values()}
+    held = list(vars(_gaps).values())
     found: set[tuple[str, str]] = set()
-    for name in dir(_gaps):
-        table = getattr(_gaps, name)
-        if not (name.isupper() and isinstance(table, dict)):
+    for owner in language.VOCABULARIES.values():
+        if not any(owner is here for here in held):
             continue
-        for member, words in table.items():
-            if str(member) not in known:
+        rows = (owner.items() if isinstance(owner, Mapping) else
+                ((member, getattr(member, "words", None))
+                 for member in owner))
+        for member, words in rows:
+            if not isinstance(words, Mapping):
                 continue
-            texts = words.values() if isinstance(words, dict) else [words]
-            for text in texts:
+            for text in words.values():
                 if isinstance(text, str):
                     found |= {(str(member), slot)
                               for slot in _slots_of(text)}
@@ -591,6 +611,12 @@ _COPIES_THE_QUESTION: Mapping[str, tuple[str, ...]] = {
     "the_fitted_propensity_leaves_part_of_the_sample_unsupported": (
         "treatment",),
     "the_outcome_model_is_quasi_separated": ("outcome",),
+    # And two gaps' own occasions, written from the same value as the
+    # statements each carries: the intervention an ill-defined one is
+    # about, and the treatment and outcome of a loop that wants an
+    # instrument.
+    "ill_defined_intervention_versions": ("intervention",),
+    "missing_iv_candidate": ("treatment", "outcome"),
 }
 
 #: Slots named after a role that are NOT the question's, and what each is
@@ -685,6 +711,16 @@ _bind()
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
+#: The field a statement is named by in each container under a report:
+#: the spellings the statement rule's carriers give there, and the
+#: generic ``token`` a glossed word names itself by. ``kind`` last, being
+#: the one spelling other blocks use for something else.
+_NAMED_BY: tuple[str, ...] = ("token",) + tuple(sorted(
+    {spelling for path, (spelling, _vocabulary) in _CARRIERS.items()
+     if path.startswith("data_gap_report.")},
+    key=lambda spelling: (spelling == "kind", spelling)))
+
+
 def every_said_mapping(
     node: Any, path: tuple = (),
 ) -> Iterator[tuple[str, str | None, Mapping]]:
@@ -716,17 +752,21 @@ def every_said_mapping(
     pair; and a slot whose meaning does not turn on the sentence is
     written once, against no sentence at all.
 
-    Three keys name a statement, one to a container: a description says
-    ``sentence``, a way past says ``route``, a glossed word says
-    ``token``. Reading two of them, every way past was a statement with
-    no name. A gap's own ``said`` names none, and yields ``None``.
+    Which key names a statement is the statement rule's to say, and it
+    says it for every container under a report: a description names its
+    ``sentence``, a way past its ``route``, a gap's own occasion its
+    ``kind``, and a glossed word names itself by ``token``. Read off a
+    list of this walk's own, two of those went missing in turn — every
+    way past a statement with no name, then every occasion — so the
+    spellings are read off the carriers. A ``said`` beside none of them
+    yields ``None``.
     """
     if isinstance(node, Mapping):
         for key, value in node.items():
             here = path + (str(key),)
             if key == "said" and isinstance(value, Mapping):
-                spoken = (node.get("token") or node.get("sentence")
-                          or node.get("route"))
+                spoken = next((node.get(spelling) for spelling in _NAMED_BY
+                               if node.get(spelling)), None)
                 yield (".".join(here),
                        str(spoken) if spoken else None, value)
             else:

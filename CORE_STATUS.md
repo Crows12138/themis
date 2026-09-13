@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19579 passed / 518 skipped, warning-clean
+19584 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,40 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #635 gap 自己的 `said` 是它的 kind 念的语句，gap_claim_rules 却按自己手写的两份清单找语句（2026-09-14）
+
+**现象。** #634 之后，gap 顶层 `said` 上的角色槽仍然放行：`ill_defined_intervention_versions` 的 `intervention` 换成题目里另一个真变量 304 次放行，
+`missing_iv_candidate` 的 `treatment` / `outcome` 各 1 次。#634 的逐句声明够不到它们——walk 给顶层 `said` 的语句名是 `None`，没有语句可以声明。
+
+**根因。** `gap_claim_rules` 里「哪里是一句语句」写了两份自己的清单：walk 读 `token` / `sentence` / `route` 三个键，索引收 `BY_SENTENCE` / `BY_NAME` / `BY_ROUTE`
+三个集合里的名字。gap 顶层的 `said` 是 `IF_PROVIDED[kind]` 念的 occasion——`statement_rules._CARRIERS` 从一开始就写着
+`"data_gap_report.gaps.[]": ("kind", PROVIDED)`——两份清单都没有它：walk 给不出名字，它声明的 8 个 (kind, 槽) 没被绑定，角色槽无从声明。
+#633 修 `route` 时是往清单里补一项，同一种清单又漏了下一个容器。
+
+**为什么是根因不是表象。** 只往 walk 里加 `kind` 仍是第三份手写清单，索引那边照样漏。把 GapKind 整批并进索引的名字更糟：按 kind 键的表不全是被念的——
+`WANTED_NAMED` 有 7 对空位，由 `gaps._occasion` 渲染时从 provenance / `required_data` 现取，信封上没有 `said` 装它们；并进去会让绑定要求给不存在的槽 `name` 归类，
+正是模块注释警告过的「为满足错误的要求扩大 roster」。哪些表是被念的，只有词表说得清。
+
+**结构。** 都在 `gap_claim_rules`：
+- `_NAMED_BY`：walk 命名语句的键从 `statement_rules._CARRIERS` 里「报告下的容器」读出（`route`、`sentence`、`kind`），前面加通用的 `token`，`kind` 放最后（别的块也拼 `kind`）。
+- `statements_and_the_slots_they_declare()`：改成「`themis.gaps` 持有的全部词表」的 (成员, 槽)，表型和枚举型都读（7 个词表：describes、routes、says、if_provided，
+  和三个填空用的枚举词）。与旧的按名字扫描**逐对相等**（245），只多 `IF_PROVIDED` 的 8 对；槽空间 94 不变。
+- `_COPIES_THE_QUESTION` 补两个 occasion：`ill_defined_intervention_versions` 的 `intervention`、`missing_iv_candidate` 的 `treatment` / `outcome`
+  （生产者 `data_gap_report.py` 用与所带语句同一个值写）。先开 walk 和索引、不补声明时 `_bind` 恰好点出这 3 个。
+
+**演练（写盘之前在进程内打补丁）。** 诚实 243 个改前改后 0 拒；顶层名字槽换写放行 328→22：干预 304 次全拒，`missing_iv_candidate` 两槽各拒 1、各放 1（放的那次是同一原子换拼法 `x()`→`x`），
+剩 20 次是两种对撞 kind 的 `collider`；`said` 弯折普查 (2090, 194) 不动；余项闸口离开 2、新增 0。
+
+**没做（量到了）。** 顶层 `collider`（`collider_conditioning_opens_backdoor` 12 次、`selection_on_collider_opens_path` 8 次）换写仍放行：它不是问题的角色，
+第二份记录是 #632 押的「程序和图欠的那条警告」，那条规则只读 describes——下一条让它连 occasion 一起读，或立「同一 gap 里一件事几个容器写的要一致」。
+语句名是一个扁平命名空间：`transport_sources_disagree` 既是 GapKind 又是语句名，今天没有同名槽相撞；按 (词表, 成员) 定身份是更彻底的做法，没做。
+
+**账。** 5 测试；基线 19579→**19584**。`test_a_slot_is_asked_what_its_statement_says_it_holds` 顶层 145 个 `said` 由 `None` 变为各自的 kind，
+新增「walk 读的键就是 statement_rules 载体的键」；`test_a_roster_is_a_claim_about_what_this_build_can_write` 索引改按词表（7 个词表、246 个成员），
+新增「按 kind 键的表只有被念的才进索引（`WANTED_NAMED` 不进、`IF_PROVIDED` 8 对进，共 253）」；
+`test_a_role_a_gap_names_is_the_questions` 声明 45→48、站点 489→627、同原子两种拼法 978→1254、换写拒 1110→1416；
+`test_a_gap_quotes_the_run_back_at_the_reader` 站点 823→961；`test_every_answer_shape_is_asked_the_same_question` 余项 2185→2183（顶层 intervention、outcome 各 1 片）。
 
 ### #634 gap 里写问题角色的槽，只被问「是不是题目的词」，没被问「是不是问题里那个」（2026-09-14）
 

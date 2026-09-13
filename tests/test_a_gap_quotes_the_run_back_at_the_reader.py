@@ -104,9 +104,9 @@ def test_the_facts_this_rule_speaks_for():
         "assumptions": 40, "method": 67, "what": 87,
         "methods": 73, "field": 19, "population": 16, "source": 10,
         "kind": 11, "target": 33,
-        "intervention": 430, "treatment": 20, "outcome": 17,
+        "intervention": 566, "treatment": 21, "outcome": 18,
     }, split
-    assert len(SITES) == 823, len(SITES)
+    assert len(SITES) == 961, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -125,7 +125,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 823, refused
+    assert refused == 961, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():

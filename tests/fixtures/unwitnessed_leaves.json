@@ -845,7 +845,6 @@
   "data_gap_report.gaps.[].describes.[].said.right",
   "data_gap_report.gaps.[].describes.[].said.treatment",
   "data_gap_report.gaps.[].describes.[].said.treatment@blocks=point_estimate,kind=missing_iv_candidate,severity=blocking,sentence=adjustment_cannot_remove_a_feedback",
-  "data_gap_report.gaps.[].said.outcome",
   "data_gap_report.gaps.[].said.treatment",
   "extensions.feedback_loop.withdrew.[]",
   "investigation_requests.[].note.said.left",
@@ -1507,7 +1506,6 @@
   "numeric_estimate.ovb_sensitivity.se"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#428cc2": [
-  "data_gap_report.gaps.[].said.intervention",
   "derivation.steps.[].inputs.ci_lower",
   "derivation.steps.[].inputs.ci_upper",
   "estimation_context.ci_bootstrap",

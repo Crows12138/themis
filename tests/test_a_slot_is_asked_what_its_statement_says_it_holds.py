@@ -31,10 +31,12 @@ from themis.kernel import _premises_of
 from themis.types import Atom
 from themis.verifier.context import VerificationContext
 from themis.verifier.errors import VerificationError
+from themis.verifier.statement_rules import _CARRIERS
 from themis.verifier.gap_claim_rules import (
     _IN_ITS_SENTENCE,
     _NAMES,
     _NOT_NAMES,
+    _NAMED_BY,
     _TURNS_ON_THE_SENTENCE,
     every_said_mapping,
     holds_a_name,
@@ -136,14 +138,30 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
     assert (routes, sentences) == (427, 813), (routes, sentences)
 
 
-def test_a_gaps_own_said_names_no_statement():
-    tops = [statement
-            for pair in SHAPES.values()
-            for where, statement, _said_here in every_said_mapping(
-                pair["result"].get("data_gap_report") or {})
-            if re.fullmatch(r"gaps\.\d+\.said", where)]
+def test_a_gaps_own_said_is_the_occasion_its_kind_names():
+    """It named none. A gap's occasion is the statement ``IF_PROVIDED``
+    speaks under the gap's kind, which is how the statement rule has
+    always read it, and the walk reads it the same way now."""
+    tops = []
+    for pair in SHAPES.values():
+        report = pair["result"].get("data_gap_report") or {}
+        for where, statement, _said_here in every_said_mapping(report):
+            if re.fullmatch(r"gaps\.\d+\.said", where):
+                gap = report["gaps"][int(where.split(".")[1])]
+                tops.append((statement, gap["kind"]))
     assert len(tops) == 145, len(tops)
-    assert set(tops) == {None}
+    assert all(statement == kind for statement, kind in tops)
+    assert {kind for _statement, kind in tops} <= set(_gaps.IF_PROVIDED)
+
+
+def test_the_walk_reads_the_spellings_the_statement_rule_reads():
+    """One list of which key names a statement, not two. The walk's own
+    lost a way past and then an occasion; the statement rule's is held to
+    the contract."""
+    carried = {spelling for path, (spelling, _vocabulary) in _CARRIERS.items()
+               if path.startswith("data_gap_report.")}
+    assert set(_NAMED_BY) == carried | {"token"}
+    assert (_NAMED_BY[0], _NAMED_BY[-1]) == ("token", "kind")
 
 
 # -------------------------------------------------------------- the name rule

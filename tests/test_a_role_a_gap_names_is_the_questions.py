@@ -14,6 +14,11 @@ neither need be the question's. So which slots copy the question is
 declared per statement, the two that do not are declared with them, and
 the declaration is bound at import to every statement ``themis.gaps``
 declares with such a slot.
+
+A gap's own occasion is one of those statements. ``IF_PROVIDED`` speaks
+it under the gap's kind, and until the walk named it so, the 304
+rewrites of an ill-defined intervention's own ``said`` had no statement
+to be declared under.
 """
 from __future__ import annotations
 
@@ -104,7 +109,7 @@ def test_every_role_slot_says_whether_it_copies_the_question():
              if pair[1] in _ROLES and holds_a_name(*pair)}
     assert roles == COPIES | set(_NOT_THE_QUESTIONS)
     assert not COPIES & set(_NOT_THE_QUESTIONS)
-    assert (len(COPIES), len(_NOT_THE_QUESTIONS)) == (45, 2)
+    assert (len(COPIES), len(_NOT_THE_QUESTIONS)) == (48, 2)
 
 
 def test_a_copy_is_in_the_copy_table_under_its_role():
@@ -124,8 +129,8 @@ def test_the_corpus_writes_the_copies_it_writes():
     split: dict[str, int] = {}
     for _name, _where, _statement, slot in SITES:
         split[slot] = split.get(slot, 0) + 1
-    assert split == {"intervention": 430, "target": 22,
-                     "treatment": 20, "outcome": 17}, split
+    assert split == {"intervention": 566, "target": 22,
+                     "treatment": 21, "outcome": 18}, split
     unseen = COPIES - {(statement, slot) for _n, _w, statement, slot in SITES}
     assert unseen == {
         ("feedback_loop_needs_an_instrument", "treatment"),
@@ -164,7 +169,7 @@ def test_the_same_atom_in_its_other_spelling_is_the_same_copy():
             _said(forged, where)[slot] = spelt
             verify_gap_quotes(forged, context)
             accepted += 1
-    assert accepted == 2 * len(SITES) == 978, accepted
+    assert accepted == 2 * len(SITES) == 1254, accepted
 
 
 # --------------------------------------------------------------- the teeth
@@ -183,7 +188,7 @@ def test_another_variable_the_problem_has_is_refused():
             with pytest.raises(VerificationError, match="the question's"):
                 verify_gap_quotes(forged, context)
             refused += 1
-    assert refused == 1110, refused
+    assert refused == 1416, refused
 
 
 @pytest.mark.parametrize("statement,slot", sorted(

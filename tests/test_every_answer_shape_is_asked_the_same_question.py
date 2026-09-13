@@ -1369,9 +1369,15 @@ def test_the_declared_remainder_is_what_it_is():
     are interventions on a row whose intervention is neither a state nor
     an event. Each had kept its leaf for ``"x"``, a variable those
     problems have and not the one the question is about.
+
+    Then 2 more, the same leaf one container further out. A gap's own
+    ``said`` is the occasion its kind names, and the walk reading
+    statements gave it no name, so the intervention an ill-defined one
+    is about and the outcome of a loop that wants an instrument could not
+    be declared copies of the question. Named, they are.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2185, total
+    assert total == 2183, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
