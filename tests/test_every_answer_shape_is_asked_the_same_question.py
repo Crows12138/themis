@@ -1269,6 +1269,19 @@ def test_the_declared_remainder_is_what_it_is():
     what a declaration closing exactly the leaves it was written for looks
     like.
 
+    Then 14 go, across three rows, and nothing here was rewritten to let
+    them: they are ``extensions.counterfactual_cell``, the reader's copy
+    of a block that also sits under ``numeric_estimate``, and this file
+    had them listed as unheld from the day it was written. What changed
+    is on the other side. The rule that could have priced them walked
+    ``numeric_estimate`` and returned when there was none, because it
+    carried a second claim — an absent budget means an endpoint is
+    missing — that is only true across the subtree whose producer
+    promises one. One traversal, two claims, and the narrower claim's
+    scope became the other's boundary. Five leaves per row, two of them
+    the interval's own endpoints: a priced interval cannot have an
+    endpoint moved, because the half width beside it stops agreeing.
+
     The sampling caveat above still holds and is worth repeating here
     rather than left two paragraphs up: three swaps per leaf out of 88
     members, and a species says between one and ten of them, so a swap
@@ -1277,7 +1290,7 @@ def test_the_declared_remainder_is_what_it_is():
     species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2460, total
+    assert total == 2446, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

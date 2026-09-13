@@ -28,6 +28,21 @@ and without them closed exactly the same leaves: ``verify_mediation_numeric``
 already holds every one. A rule restating a check that exists is not a
 second opinion, it is a second place for the same thing to be wrong.
 
+**Two claims, and they do not have the same scope.** An identity is closed
+on the envelope's own numbers, so it is true or false wherever it is asked.
+"An interval with no budget means an endpoint is missing or the width is
+zero" is closed on nothing: it reads a producer's habit, and reaches only
+as far across the envelope as that producer writes. Both were read off one
+traversal, which made the narrower claim's precondition the wider one's
+boundary — the identity stopped where the promise stopped, at
+``numeric_estimate``, while the reader's copy of the same block one key
+over under ``extensions`` could tell a reader to recruit any number of
+subjects at all and be contradicted by nothing. Measured on both sides:
+the identity alone, from the root, refuses none of the answer shapes this
+suite produces; the absence question asked from the root refuses twenty,
+every one of them a derivation step's inputs or a bounds row, neither of
+which was ever priced or meant to be.
+
 **Independence pin:** this module MUST NOT import from ``themis.output`` or
 ``themis.estimation``. The identity is restated from what it means, not
 from the code that computed it.
@@ -102,6 +117,10 @@ def _point_of(node: dict):
 def _no_budget_here(node: dict, sample_size, where: str) -> None:
     """A budget that is not there, held to why it could not be.
 
+    Asked only across ``_BUDGET_IS_PROMISED``, because what makes the
+    absence mean anything is a promise, and a promise belongs to whoever
+    made it.
+
     Every figure below prices an interval, and an interval with no budget
     beside it is priced by nothing at all — which is how the reference row
     of every dose-response curve came to have two endpoints that could be
@@ -129,10 +148,12 @@ def _no_budget_here(node: dict, sample_size, where: str) -> None:
 
 
 def _check_precision_budget(node: dict, sample_size, where: str) -> None:
-    budget = node.get("precision_budget")
-    if not isinstance(budget, dict):
-        _no_budget_here(node, sample_size, where)
-        return
+    """A budget that is there, held to the interval on the same block.
+
+    Every input is already beside it, so the question can be put wherever
+    a budget is found and does not need to know who wrote it.
+    """
+    budget = node["precision_budget"]
     lower, upper = _num(node.get("ci_lower")), _num(node.get("ci_upper"))
     if lower is None or upper is None:
         raise VerificationError(
@@ -175,17 +196,34 @@ def _check_precision_budget(node: dict, sample_size, where: str) -> None:
             _refuse(f"{where}.precision_budget.n_to_halve_ci", shown, want)
 
 
-def _walk(node, path, sample_size) -> None:
-    """Wherever a budget appears, and not at a list of places it is known
-    to appear: a block added under a new name arrives here on its own."""
+#: The subtree whose producer promises a budget wherever one can be
+#: computed, and therefore the only subtree where an absent budget says
+#: anything. Outside it an interval may simply never have been priced:
+#: a derivation step records what an estimator was handed, and a bounds
+#: row states a range that no sample narrows.
+#:
+#: Restated here rather than imported, for the reason in this module's
+#: header — the producer holds the same subtree, and a test pins the two
+#: equal, which is the only honest way to have one fact in two modules
+#: that must not see each other. Widening this without the producer
+#: widening with it is measurable: the question arrives at intervals
+#: nobody promised to price, and twenty honest answers are refused.
+_BUDGET_IS_PROMISED: tuple[str, ...] = ("numeric_estimate",)
+
+
+def _blocks(node, path=()):
+    """Every mapping on the envelope, with the path that reached it.
+
+    By shape and not at a list of places: a block added under a new name
+    arrives here on its own, wherever on the envelope it is put.
+    """
     if isinstance(node, dict):
-        _check_precision_budget(
-            node, sample_size, ".".join(path) or "numeric_estimate")
+        yield path, node
         for key, value in node.items():
-            _walk(value, path + (key,), sample_size)
+            yield from _blocks(value, path + (key,))
     elif isinstance(node, list):
         for index, value in enumerate(node):
-            _walk(value, path + (f"[{index}]",), sample_size)
+            yield from _blocks(value, path + (f"[{index}]",))
 
 
 def verify_envelope_arithmetic(result: dict) -> None:
@@ -197,6 +235,11 @@ def verify_envelope_arithmetic(result: dict) -> None:
     if not isinstance(result, dict):
         return
     estimate = result.get("numeric_estimate")
-    if not isinstance(estimate, dict):
-        return
-    _walk(estimate, (), _num(estimate.get("sample_size")))
+    sample_size = (_num(estimate.get("sample_size"))
+                   if isinstance(estimate, dict) else None)
+    for path, node in _blocks(result):
+        if isinstance(node.get("precision_budget"), dict):
+            _check_precision_budget(
+                node, sample_size, ".".join(path) or "the answer")
+        elif path and path[0] in _BUDGET_IS_PROMISED:
+            _no_budget_here(node, sample_size, ".".join(path))

@@ -422,7 +422,11 @@ Public surface (re-exports from sub-modules):
   no second implementation, only an identity that holds or does not — and
   every relation was measured against every answer shape before being
   asserted, since a relation nobody measured is a false refusal waiting for
-  the shape that disobeys it)
+  the shape that disobeys it. Asked wherever a budget appears on the
+  envelope, the reader's copy of a block included, and not only under
+  ``numeric_estimate``; the separate question of why a budget is ABSENT is
+  put only across the subtree whose producer promises one, because that
+  question reads a promise rather than the envelope)
 - The level every interval on the envelope is stated at:
   ``verify_confidence_level`` (asked wherever the word appears, and held to
   the constant this system draws rather than to a second copy of itself.
