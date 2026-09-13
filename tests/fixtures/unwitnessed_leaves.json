@@ -289,30 +289,18 @@
  "dose_response_causal_forest_dml": [
   "derivation.steps.[].inputs.ci_lower",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimation_context.random_state"
  ],
  "dose_response_linear_dml": [
   "derivation.steps.[].inputs.ci_lower",
   "derivation.steps.[].inputs.ci_upper",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimation_context.random_state"
  ],
  "dose_response_linear_drlearner": [
   "derivation.steps.[].inputs.ci_lower",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimation_context.random_state"
  ],
  "exposure_measurement_error_correction": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
@@ -650,7 +638,6 @@
   "extensions.anderson_rubin_region.instruments.[]",
   "extensions.anderson_rubin_region.outcome",
   "extensions.assumption_ledger.assumptions.[].id",
-  "extensions.assumption_ledger.assumptions.[].id@layer=confidence,provenance=inherent,severity=confidence_only",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "investigation_requests.[].items.[].need",
   "investigation_requests.[].note.need",
@@ -702,11 +689,7 @@
   "estimation_context.sample_size",
   "estimator_dependency_missing.estimator",
   "estimator_dependency_missing.install_hint",
-  "estimator_dependency_missing.package",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimator_dependency_missing.package"
  ],
  "needs_investigation:effect:none#0b11f2": [
   "bounds_results.[].contrast.reference_value",
@@ -730,15 +713,10 @@
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
-  "data_gap_report.gaps.[].describes.[].said.edge",
   "data_gap_report.gaps.[].describes.[].words.why.said.candidate",
   "data_gap_report.gaps.[].describes.[].words.why.said.count",
   "data_gap_report.gaps.[].describes.[].words.why.token",
   "data_gap_report.gaps.[].describes.[].words.why.token@blocks=point_estimate,kind=missing_assumption,severity=important,sentence=an_identification_premise_is_missing",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].note.said.candidate",
   "investigation_requests.[].note.said.count",
   "missing_information.[].name",
@@ -870,10 +848,6 @@
  "needs_investigation:effect:none#38993c": [
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.cut",
   "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -972,11 +946,7 @@
   "estimator_failure.estimator",
   "estimator_failure.recorded.outcome_relative_range",
   "estimator_failure.recorded.outcome_relative_std",
-  "estimator_failure.recorded.outcome_scale",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimator_failure.recorded.outcome_scale"
  ],
  "needs_investigation:effect:none#63d205": [
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
@@ -1000,10 +970,6 @@
   "estimator_failure.recorded.bandwidth",
   "estimator_failure.recorded.sparse_points.[].n_within_bandwidth",
   "estimator_failure.recorded.sparse_points.[].x",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#6afcce": [
@@ -1106,7 +1072,6 @@
   "extensions.anderson_rubin_region.instruments.[]",
   "extensions.anderson_rubin_region.outcome",
   "extensions.assumption_ledger.assumptions.[].id",
-  "extensions.assumption_ledger.assumptions.[].id@layer=confidence,provenance=inherent,severity=confidence_only",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "investigation_requests.[].note.need",
   "missing_information.[].name",
@@ -1128,10 +1093,6 @@
   "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_first_stage_degenerate,priority=high"
  ],
  "needs_investigation:effect:none#af79f6": [
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "missing_information.[].gap",
   "missing_information.[].kind",
   "missing_information.[].name",
@@ -1142,10 +1103,6 @@
  ],
  "needs_investigation:effect:none#b26e61": [
   "data_gap_report.gaps.[].describes.[].said.target",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "investigation_requests.[].note.said.key"
  ],
@@ -1253,21 +1210,12 @@
   "estimation_context.random_state",
   "estimation_context.sample_size",
   "estimator_failure.estimator",
-  "estimator_failure.recorded.t_range",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "estimator_failure.recorded.t_range"
  ],
  "needs_investigation:effect:none#f57a55": [
   "bounds_results.[].data_required.[].said.expression",
   "bounds_results.[].notes.[].said.cap",
-  "data_gap_report.gaps.[].describes.[].said.edge",
   "data_gap_report.gaps.[].describes.[].words.why.token",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#fe9f0f": [
@@ -1552,10 +1500,6 @@
   "estimator_fallback.from",
   "estimator_fallback.reason.said.treatment",
   "estimator_fallback.to",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -1598,10 +1542,6 @@
  "numerically_solved:effect:numeric_backdoor_estimate#3f18c7": [
   "estimation_context.data_contract_warnings.[].said.named",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.estimate",
@@ -1822,11 +1762,7 @@
   "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_result#0a90ee": [
-  "derivation.steps.[].step_id",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#11765d": [
   "data_gap_report.gaps.[].describes.[].said.target",
@@ -1946,10 +1882,6 @@
   "derivation.steps.[].inputs.selection_nodes_ids",
   "derivation.steps.[].inputs.source_population",
   "derivation.steps.[].inputs.target_population",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.key",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.value",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable",
   "extensions.transport_identification.numeric.target_population",
   "extensions.transport_identification.s_nodes.[].affects.args.[].name",
   "extensions.transport_identification.s_nodes.[].affects.predicate",
@@ -2351,11 +2283,7 @@
   "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:cause_via_directed_path": [
-  "derivation.steps.[].step_id",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:cause_via_directed_path#3d935c": [
   "derivation.steps.[].step_id"
@@ -2367,32 +2295,17 @@
   "confidence_sources.[].slot_label",
   "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.algorithm",
-  "data_gap_report.gaps.[].describes.[].said.algorithm@blocks=interpretation,kind=unverified_proposal_edge_on_query_path,severity=informational,sentence=the_edge_was_learned_by_discovery",
   "data_gap_report.gaps.[].describes.[].said.alpha",
-  "data_gap_report.gaps.[].describes.[].said.confidence",
-  "data_gap_report.gaps.[].describes.[].said.edge",
   "data_gap_report.gaps.[].describes.[].said.n",
-  "derivation.steps.[].step_id",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.algorithm",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.confidence",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:no_directed_path": [
   "data_gap_report.gaps.[].describes.[].said.algorithm",
-  "data_gap_report.gaps.[].describes.[].said.algorithm@blocks=interpretation,kind=unverified_proposal_edge_on_query_path,severity=informational,sentence=the_edge_was_learned_by_discovery",
   "data_gap_report.gaps.[].describes.[].said.alpha",
   "data_gap_report.gaps.[].describes.[].said.n",
   "data_gap_report.gaps.[].describes.[].words.violations.[].said.skew",
   "data_gap_report.gaps.[].describes.[].words.violations.[].token",
-  "derivation.steps.[].step_id",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.algorithm",
-  "extensions.assumption_ledger.assumptions.[].claim.[].said.edge",
-  "extensions.assumption_ledger.assumptions.[].claim.[].token",
-  "extensions.assumption_ledger.assumptions.[].provenance",
-  "extensions.assumption_ledger.assumptions.[].testable"
+  "derivation.steps.[].step_id"
  ],
  "structurally_solved:cause:no_directed_path#6c9ab7": [
   "derivation.steps.[].step_id"

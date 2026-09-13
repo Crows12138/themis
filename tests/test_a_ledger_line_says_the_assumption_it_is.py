@@ -68,10 +68,10 @@ def _first_anchored(result):
 WITH_LEDGER = sorted(n for n, p in SHAPES.items() if _entries(p["result"]))
 
 #: The rows this rule can be asked about. A ledger whose every entry comes
-#: from a channel that declares no id has no second record for the reader's
-#: copy to be held against — that is the family named below, and a forgery
-#: refused on such a row would have to be refused by something else, which
-#: is not what these two tests would be measuring.
+#: from a channel that declares no id has no id for the reader's copy to be
+#: held against — that is the family named below, held instead to the
+#: record each line copies — and a forgery refused on such a row is refused
+#: by that rule, which is not what these two tests would be measuring.
 ANCHORED = [name for name in WITH_LEDGER
             if _first_anchored(SHAPES[name]["result"])[1] is not None]
 
@@ -121,9 +121,16 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
         equal, prefix, values, no_id)
 
 
-def test_the_entries_with_nothing_to_hold_them_are_named():
-    """Some entries carry no id, so nothing on the envelope is a second
-    record of them and this rule does not hold them.
+def test_the_entries_this_rule_has_nothing_to_hold_to_are_named():
+    """Some entries carry no id, so this rule — the reader's copy against
+    the machine's — has nothing to hold them to.
+
+    This test was named for entries with nothing at all to hold them, and
+    said nothing on the envelope was a second record of them. That was
+    false of every one: each is a copy, word for word, of a gap or of a
+    supplied prior on the same answer, and is held to it now in
+    ``tests/test_a_line_that_names_no_assumption_is_held_to_its_record.py``.
+    What this still says is which channels write them.
 
     This said two channels wrote one, both about where an EDGE came from
     rather than how a number was computed, and said that a third arriving
@@ -131,9 +138,9 @@ def test_the_entries_with_nothing_to_hold_them_are_named():
     decision is that it belongs with them: ``a_commonsense_prior`` is a
     warrant for a PARAMETER rather than an edge, but it is the same kind
     of warrant — one that lives in what a caller supplied, not in an
-    estimator that could declare an id for it. An entry is unheld here
-    because nothing on the envelope is a second record of it, and that is
-    as true of a prior as of a proposed edge.
+    estimator that could declare an id for it. An entry is outside this
+    rule because it has no id, and that is as true of a prior as of a
+    proposed edge.
 
     The discovery channel now also appears carrying a second sentence, the
     share of resamples its edge survived. That is one channel saying more,
@@ -178,7 +185,8 @@ def test_the_vocabulary_is_held_only_where_something_anchors_it():
     What is left is narrower and anchored: an entry the estimator declared
     says its sentence from the assumption glossary. The vocabularies that
     are not that one belong to the channels that declare no id, and those
-    entries are not held at all.
+    entries are held by their whole claim against the record each copies —
+    the vocabulary with it, and no list of vocabularies consulted.
     """
     from themis.output.reader_words import GLOSSED
 
@@ -294,7 +302,7 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ledger leaf shape, bent the census's three ways.
 
-    Sixty-three survive over nine shapes, and they fall in two parts.
+    Three survive, and all three are named lines.
 
     It was sixty-four until the contract enumerated the members of the sets
     whose members the kernel owns. One of these lines quotes such a set, so
@@ -302,12 +310,14 @@ def test_the_remainder_is_counted_rather_than_described():
     answer this file gives about ``claim.vocabulary`` below, arriving one
     field over.
 
-    **Sixty are lines that name no assumption**, counted once per field
-    of theirs a bend gets through: ``claim.token`` (18), ``testable`` (19),
+    **Sixty were lines that name no assumption**, counted once per field
+    of theirs a bend got through: ``claim.token`` (18), ``testable`` (19),
     ``said.edge`` (18), ``said.algorithm`` (2), and ``said.key`` /
     ``said.value`` / ``said.confidence`` (1 each) — the proposal channels
     and the supplied prior, which state their line from the gap vocabulary
-    instead of naming an assumption.
+    instead of naming an assumption. The audit counted those lines and
+    asked nothing else of them, and each is a copy of a record on the same
+    answer. Held to that record, none survives.
 
     ``testable`` used to be much the largest family here, and the paragraph
     that stood in this place said it was a fact about the SYSTEM rather
@@ -320,7 +330,8 @@ def test_the_remainder_is_counted_rather_than_described():
     footing as any other statement of what a name means, and a line naming
     an assumption is held to what that name means. What is left is the
     range that rule declares: a table keyed on the assumption's NAME cannot
-    be right or wrong about a line that names none.
+    be right or wrong about a line that names none. What can is the record
+    the line was written from, and that is where it is held.
 
     **Three are named lines, and both of the shapes are the id's own
     left-over.** ``id`` (2) is one id lengthened by ``_forged``: the entry's
@@ -404,4 +415,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 63, survived
+    assert survived == 3, survived

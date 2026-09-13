@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19011 passed / 518 skipped, warning-clean
+19032 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,83 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #624 没有名字的账本行被数了行数，它们抄的那条记录就在旁边（2026-09-13）
+
+**现象。** 账本上不带 id 的行有两个来源：一条 load-bearing 的 proposal edge 抄它那条 gap
+的陈述，一个 LLM 给的参数先验抄 review 里的 key 和 value。语料里 **19 个形状、22 行**
+（LLM 提议的边 18、discovery 学到的边 3、先验 1）。普查在这 19 个形状上宣告 79 片账本
+叶子没人守（testable 19、provenance 19、claim.token 18、said.edge 18、said.algorithm 2、
+said.key / value / confidence 各 1）。探针逐字段改，**所有门都放行**：`llm_proposal↔discovery`
+互换、`llm_prior→inherent/default`、testable 翻转、said.edge 换成反向的边、整行写两遍；
+把一条真实的边行或先验行整行复制到什么都没提议的答案上，**也放行**。
+#623 探针剩下的 23 次放行就是这一族。
+
+**根因。** 这两类行没有名字，按 id 的检查（声明表、claim 对 id、凭空捏造）一条都够不着；
+审计对它们只有 `_check_channel`：**按 layer 数行数，要求「不少于」**，没欠就直接返回。
+一条记录被缩成了它的长度，长度以外的都没人问，凭空多出来的行也没人问。旁证：
+`_owed_proposal_edges` 读 gap 的 `description` 字段，**gap 早就没有这个字段了**
+（语料 21 条 proposal-edge gap 的键是 alternative_paths / blocks / describes / kind /
+provenance / severity），返回一串空字符串，只用了长度，所以没人发现。验证器
+`_ESTIMATOR_CLAIM_VOCABULARY` 上方的注释和 `test_a_ledger_line_says_the_assumption_it_is.py`
+的两条文档串都写着这些行因为「没有第二份记录」而不守。
+
+**为什么是根因不是表象。** 表象的修法是补一条「无 id 的 structural_edge 行只能是这两个词
+之一」——testable、token、edge、写两遍、凭空加，照样过。**第二份记录一直在同一份答案上**，
+行就是它的拷贝：gap 的 `describes` 经 `language.restate` 原样搬来，谁提议的边看首句是不是
+`the_edge_was_learned_by_discovery`，先验就是 key 和 value。先量再动：19/19 个形状上，
+无 id 行作为多重集**逐字等于**记录欠的行，0 不等、0 多余。**缺的不是一条规则，是把记录
+缩成了计数。**（gap 自带的 `provenance` 是程序位置指针 ref_id / ref_kind，不是出处词，
+当不了第二份记录。）
+
+**结构。** `_owed_proposal_edges` / `_owed_theta_priors` 不再返回字符串，返回**欠的那一行的四个值**
+（claim、layer、provenance、testable，按 `_WRITTEN_FROM_THE_RECORD` 的顺序排成元组）；`_check_the_lines_that_name_no_assumption` 取代这两个
+通道的 `_check_channel`：**全部无 id 行作为多重集 == 记录欠的行**，多一行、少一行、改一个字
+都拒。用多重集不逐对，因为行上没有东西说它抄的是哪条记录，两条记录欠同一行就是欠两行。
+severity 不比——它是 layer 的等级，前面已按 layer 守。先验那句的 vocabulary / token 在
+验证器里重述（`_PRIOR_VOCABULARY` / `_PRIOR_SENTENCE`：声明在 output 层，独立性钉子不许
+import）；两个都是 statement carrier 枚举的成员，拼错会拒掉所有带先验的诚实答案，而不是
+放过伪造。函数形式通道照旧计数（有 id，另由 mechanism 块守）。模块头、`verifier/__init__`
+文档、那条注释和两条文档串里「没有第二份记录」的前提一并改掉，旧测试改名
+`test_the_entries_this_rule_has_nothing_to_hold_to_are_named`。
+
+**演练（写盘之前在进程内做）。** 243 个形状的诚实答案过 `verify_assumption_ledger`：补丁前
+拒 0，补丁后拒 0。探针找到的每一种放行篡改，补丁后第一个拒它的门落的都是**新签名**；
+原本就被拒的方向（如 `llm_proposal→inherent`）仍由 `_pair_is_writable` 先拒——看落款
+（纪律 54），没截走别人的见证。草稿测试有两处会拿到别人的签名，装进仓库前改掉：先验的
+`said.value` 在信封上是字符串，塞 float 先被 schema 拒；唯一那条先验是它账本上唯一的行，
+删掉账本就空了，先被「carries no assumptions[]」拒——所以删行只测有同伴行的两个来源。
+
+**量，两侧。** 普查预测写在跑之前（用普查自己的 `_asked` 把宣告叶子映到路径）：关 **85** 片
+= 账本 79 + gap 6（proposal-edge gap 的 `describes[].said.edge` 3、`said.algorithm` 2、
+`said.confidence` 1——都是账本行抄过去的字段），账本前缀剩 `id` 2、`id@…` 2、`said.suffix` 1。
+实测关 **87**，新开 0。**多出的 2 片预测漏了**：`needs_investigation:effect:none` 两行上
+一条 confidence 行的 `id@layer=confidence,…`。把 `homoskedastic_errors_for_the_anderson_rubin_f_critical_value`
+的 id 改成空串，补丁前所有门放行——空串就是没有 id，按 id 的检查全让开，这两个答案上又
+没有哪条记录按名字欠这一行；补丁后被新签名拒，因为它成了一条没有记录欠的无名行
+（探针分别在新检查开 / 关两种情况下问过，落款确认）。预测漏的是「有名字的行可以被改成
+无名的」这条路。旧测试里的账本余数计数预测 63→3，实测 **3**。
+
+**账。** 21 测试（新文件）；基线 19011→**19032**。**普查余项 2327→2240。**
+
+**第一次全量 2 败，都如实改。** 一是我在验证器里把欠的行写成了 dict 字面量
+（带 `layer` 和 `claim` 两个键），`test_ledger_vocabulary` 正是按这个形状守着「账本条目只在
+账本那里组装」。验证器比较时只需要四个值，于是改成元组；守卫不放宽，也不用 `dict(zip(…))`
+绕开扫描。二是 `test_a_gap_says_what_this_problem_is_about` 的 gap `said` 弯折计数
+(2060, 224)→(2065, 219)：开关新检查逐个比过，多拒的 5 个是 discovery gap 的
+`said.algorithm` 3 个、`said.confidence` 2 个——账本行抄了它们，两份拷贝现在必须一致；
+边本身是名字，那里原本就拒。
+
+**⚠️ 这里守的是「两份拷贝一致」，不是「边是真的」——量过了，真的开着，是下一块。**
+把 proposal-edge gap 和它的账本行**一起改**：边反向 19/19、LLM 提议改写成 discovery 学到
+18/18、discovery 改写成 LLM 提议 3/3、algorithm 3/3、confidence 2/2，**所有门放行**。
+gap 这几句本来都是生产者从程序算出来的（`annotations.source` 是否以 `discovery:` 开头、
+算法名、置信度；gap 自己的 `provenance[].ref_id` 就写着是哪条边），而 `gap_claim_rules`
+对 `edge` 只问里面的名字是不是题目声明过的——反向的边两个名字都合法。普查一次只弯一片
+叶子，看不见两处一起改的伪造。
+
+**⚠️ 另一条线索，我不确定、没量：** 上面那条 confidence 行抹掉 id 曾经能过，说明在那两个
+答案上没有哪条记录按名字欠它——整行删掉可能也能过。
 
 ### #623 声明表按 id 说了一条假设的三件事，验证器只读了两件（2026-09-13）
 

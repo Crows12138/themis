@@ -1306,6 +1306,27 @@ def test_the_declared_remainder_is_what_it_is():
     assumption at all — a proposed edge, a supplied prior — and a table
     keyed on a name has nothing to say about a line that gives none.
 
+    Then 87 more, and most of them are the family the paragraph
+    above left open. The loose lines on those 19 shapes name no
+    assumption, and the audit counted them — at least as many lines of a
+    layer as the answer had records, and nothing at all where it had none.
+    Each such line is a copy of one record on the same answer: a
+    proposal-edge gap's statements, whose proposal read off the first of
+    them, or a supplied prior's key and value. On all 19 shapes the lines
+    were exactly their records' before anything asked. Held to that, 79
+    are the lines' own fields, and 6 are the gap's side of the same copy —
+    an edge, an algorithm, a confidence the gap states and its line
+    repeats — which close because the two copies must now agree. Agreeing
+    is all they must do: whether the edge is the program's is the gap's
+    question, and a gap rewritten together with its line is still accepted
+    by every door it was put to.
+
+    The other 2 were not predicted, and they are a named line becoming an
+    unnamed one. Erasing a confidence line's id passed on two rows: an id
+    of "" is no id, every check keyed on one stepped aside, and nothing on
+    those answers owes that line by name. Now it reads as what it has
+    become, a line naming no assumption that no record owes.
+
     The sampling caveat above still holds and is worth repeating here
     rather than left two paragraphs up: three swaps per leaf out of 88
     members, and a species says between one and ten of them, so a swap
@@ -1314,7 +1335,7 @@ def test_the_declared_remainder_is_what_it_is():
     species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2327, total
+    assert total == 2240, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

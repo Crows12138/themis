@@ -279,8 +279,10 @@ Public surface (re-exports from sub-modules):
   channels that feed it — the estimator's own ``numeric_estimate.assumptions``,
   load-bearing proposal edges, LLM theta priors, audited mechanisms — and
   rejects under-disclosure, a fabricated estimator entry, a line handed to a
-  caller who supplied nothing, an unsorted ledger, a summary whose counts do
-  not match, or an entry whose severity contradicts its layer — the layer says
+  caller who supplied nothing, a line naming no assumption that is not word
+  for word the line its gap or supplied prior owes, an unsorted ledger, a
+  summary whose counts do not match, or an entry whose severity contradicts
+  its layer — the layer says
   which part of the answer stops being true and the severity grades how badly
   that kills it, so the second follows from the first and is re-derived here
   rather than believed),

@@ -16,14 +16,20 @@ What it audits:
   — either flat, or as the estimator's own structured ``identification`` entry
   naming the same id, which says the same thing in better words. Carrying
   neither is the defect.
-- **Completeness of the other three channels** — one entry per load-bearing
-  proposal edge in the gap report, per LLM theta prior, per audited mechanism.
+- **Completeness of the other three channels, and what two of them say.**
+  One entry per audited mechanism. A load-bearing proposal edge in the gap
+  report and a prior the language model supplied are owed more than a
+  count: each channel writes its line from one record on this answer and
+  names no assumption, so the lines with no id are held, together, to be
+  exactly the lines those records owe — one each, and word for word what
+  the reader is told.
 - **No fabrication.** Any entry attributed to the estimator whose ``id`` the
   estimate never declared is invented. This keys on the attribution and not on
   which of the two channels carried it, so it now covers the structured
   entries too — under the old key a fabricated structured entry was outside
   the question being asked. An entry with no ``id`` names no declaration and
-  is not subject to it.
+  is not subject to it; it is held to the record it was written from
+  instead, above.
 - **Nothing handed to the caller that they never supplied.** Two attributions
   give the reader something to DO — ``caller_asserted``, where withdrawing it
   brings the answer back wider, and ``caller_chose``, where choosing again
@@ -86,10 +92,14 @@ arrangement ``status_rules`` has with ``STATUS_CLAIMS``.
 """
 from __future__ import annotations
 
+import json
+from collections import Counter
 from collections.abc import Callable, Mapping
 from typing import NoReturn
 
+from .. import language
 from ..assumption_glossary import answerable, declares
+from ..gaps import DESCRIBED, Sentence
 from .errors import VerificationError
 from .mechanism_rules import (
     _HONOURS_A_WORD_BY_BEING_IT,
@@ -340,8 +350,10 @@ def _reject(message: str) -> NoReturn:
 #: declared is one this module already re-derives, and every one of the
 #: 248 in the corpus says its sentence from the assumption glossary. The
 #: other vocabularies belong to the two channels that declare no id —
-#: proposal edges and theta priors — whose entries this rule does not hold
-#: at all, for want of a second record.
+#: proposal edges and theta priors — whose entries this rule cannot hold,
+#: having no id to hold them to. The record each was written from can, and
+#: :func:`_check_the_lines_that_name_no_assumption` asks it for the whole
+#: claim, vocabulary included.
 _ESTIMATOR_CLAIM_VOCABULARY = "assumption_claim"
 
 
@@ -617,8 +629,7 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_caller_assertions(result, entries)
     _check_caller_choices(result, entries)
     _check_estimator_defaults(result, entries)
-    _check_channel(entries, owed_edges, "structural_edge", "proposal edge")
-    _check_channel(entries, owed_priors, "parameter", "LLM theta prior")
+    _check_the_lines_that_name_no_assumption(entries, owed_edges + owed_priors)
     _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
     _check_the_line_says_what_the_block_says(entries, extensions)
     _check_one_run_settles_one_shape_per_lever(extensions)
@@ -1026,21 +1037,71 @@ def _check_caller_choices(result: dict, entries: list) -> None:
             return
 
 
-def _owed_proposal_edges(result: dict) -> tuple[str, ...]:
-    """One entry per load-bearing proposal edge. The gap report already did the
-    load-bearing analysis; a proposed-but-unused edge is not owed."""
+#: What a line naming no assumption is held to its record on, in the order
+#: an owed line is written below. The severity is not among them: it is the
+#: grade of the layer, held to that for every line above, and a line that
+#: disagreed on it is refused there first.
+_WRITTEN_FROM_THE_RECORD = ("claim", "layer", "provenance", "testable")
+
+
+def _unnamed_line(claim: list, layer: str, provenance: str) -> tuple:
+    """What a channel that names no assumption owes, as the four values a
+    line is compared on — not as a ledger entry, which is assembled where
+    the ledger is and nowhere else. Testable whichever channel: an edge
+    and a number are both things data can speak to, which is what
+    separates them from an identification premise."""
+    return [dict(one) for one in claim], layer, provenance, True
+
+
+def _owed_proposal_edges(result: dict) -> tuple[tuple, ...]:
+    """The line each load-bearing proposal edge owes, as its gap owes it.
+
+    One per gap: the gap report already did the load-bearing analysis, and
+    a proposed-but-unused edge is not owed. Everything the line tells a
+    reader is on the gap too — the statements it is made of, verbatim, and
+    in the first of them who proposed the edge.
+
+    This read ``description`` until it read the statements, and no gap has
+    carried that field since descriptions became statements. Nothing
+    noticed, because only the length of what came back was ever used.
+    """
     report = result.get("data_gap_report") or {}
-    return tuple(
-        g.get("description", "")
-        for g in report.get("gaps") or ()
-        if g.get("kind") == "unverified_proposal_edge_on_query_path"
-    )
+    owed = []
+    for gap in report.get("gaps") or ():
+        if not isinstance(gap, Mapping) or gap.get(
+                "kind") != "unverified_proposal_edge_on_query_path":
+            continue
+        describes = [e for e in gap.get("describes") or ()
+                     if isinstance(e, Mapping)]
+        learned = bool(describes) and describes[0].get(
+            "sentence") == Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY
+        owed.append(_unnamed_line(
+            [language.restate(e, DESCRIBED, "sentence") for e in describes],
+            "structural_edge", "discovery" if learned else "llm_proposal"))
+    return tuple(owed)
 
 
-def _owed_theta_priors(extensions: dict) -> tuple[str, ...]:
+#: The sentence a supplied prior's line is, spelled here rather than
+#: imported: it is declared as ``Prior`` in the output layer, which this
+#: module may not read. Both are members of sets the statement carrier
+#: enumerates, and a spelling that drifted from the declaration would
+#: refuse every honest answer carrying a prior rather than pass a
+#: dishonest one.
+_PRIOR_VOCABULARY = "theta_prior_claim"
+_PRIOR_SENTENCE = "a_commonsense_prior"
+
+
+def _owed_theta_priors(extensions: dict) -> tuple[tuple, ...]:
+    """The line each prior the language model supplied owes: its key and
+    its value, in the one sentence there is for them."""
     review = extensions.get("llm_proposed_review") or {}
     return tuple(
-        str(p.get("key")) for p in review.get("probabilities") or ()
+        _unnamed_line(
+            [language.spelt(_PRIOR_VOCABULARY, _PRIOR_SENTENCE,
+                            key=p.get("key"), value=p.get("value"))],
+            "parameter", "llm_prior")
+        for p in review.get("probabilities") or ()
+        if isinstance(p, Mapping)
     )
 
 
@@ -1472,6 +1533,52 @@ def _check_the_block_describes_the_fit_that_ran(
             f"corroborates cannot tell a run that honoured the word from one "
             f"that dropped it"
         )
+
+
+def _check_the_lines_that_name_no_assumption(entries: list,
+                                             owed: tuple) -> None:
+    """The lines with no id are the lines this answer's records owe, one each.
+
+    Two channels write a line without naming an assumption: a load-bearing
+    proposal edge, from its gap, and a prior the language model supplied,
+    from the review. Having no id, such a line is outside everything keyed
+    on one — what the declaration says the assumption is, the claim held to
+    its id, the fabrication check — and it used to be counted instead: at
+    least as many lines of its layer as records. A record reduced to its
+    length checks nothing else. Measured, every field the reader is told
+    could be rewritten and pass: who proposed an edge, in either direction;
+    a supplied prior told as nobody's to overrule; which edge; whether the
+    data can answer it. So could a line written twice, and a real line
+    copied onto an answer that owed none, where the count had returned
+    before looking.
+
+    The line is a copy of its record and is held as one. Measured before
+    this was enforced, over every answer shape: 22 such lines on 19 shapes,
+    every one exactly its record's line and none left over. As a multiset
+    rather than pairwise, because nothing on a line says which record it
+    copies — and two records owing the same line owe it twice.
+    """
+    def as_written(values) -> str:
+        return json.dumps(list(values), sort_keys=True, ensure_ascii=False,
+                          default=repr)
+
+    carried = Counter(as_written(e.get(k) for k in _WRITTEN_FROM_THE_RECORD)
+                      for e in entries if not e.get("id"))
+    owes = Counter(as_written(o) for o in owed)
+    extra, missing = carried - owes, owes - carried
+    if not extra and not missing:
+        return
+    _reject(
+        f"assumption_ledger's lines that name no assumption are not the "
+        f"lines this answer's records owe: {sum(extra.values())} carried "
+        f"that no gap or supplied prior writes"
+        + (f" (the first: {next(iter(extra))})" if extra else "")
+        + f", {sum(missing.values())} owed and not carried"
+        + (f" (the first: {next(iter(missing))})" if missing else "")
+        + ". A line with no name is only as true as its copy of the record "
+        "it stands for — which edge, whose proposal, whether the data can "
+        "answer it — and a line nothing owes is a proposal nobody made"
+    )
 
 
 def _check_channel(entries: list, owed: tuple, layer: str, what: str) -> None:

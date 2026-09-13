@@ -419,6 +419,13 @@ def test_the_remainder_is_counted_rather_than_described():
     each new gap brings its own ``said`` leaves to be forged. The accepted
     did not move, which is the useful half — a rule losing ground shows up
     there, and a corpus growing shows up here.
+
+    And 5 more for the copy reason, from a rule on the other side of the
+    envelope. The algorithm a discovery gap names (3) and the share of
+    resamples its edge survived (2) are copied word for word onto the
+    ledger line that stands for that edge, and the two copies are now
+    held to agree. The edge itself was refused here already, being a
+    name; the algorithm and the share are not names, and were not.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -433,7 +440,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2060, 224), (refused, accepted)
+    assert (refused, accepted) == (2065, 219), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
