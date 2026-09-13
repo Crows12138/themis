@@ -386,3 +386,65 @@ def test_unverified_proposal_edge_flags_mediator_chain():
     assert len(proposal_gaps) == 2
     descriptions = " ".join(_gaps.described(g) for g in proposal_gaps)
     assert "x" in descriptions and "m" in descriptions and "y" in descriptions
+
+
+# ============================ an open path, and the arms it walks backward
+
+
+def _association_through(arms, proposed, given=()):
+    """``x`` and ``y`` asked as an association over the cause edges ``arms``,
+    the edge ``proposed`` being a language model's."""
+    def atom(predicate):
+        return {"predicate": predicate,
+                "args": [{"type": "const", "name": "me"}]}
+
+    statements: list[dict] = [
+        {"kind": "variable", "predicate": p, "domain": [True, False]}
+        for p in sorted({p for arm in arms for p in arm})]
+    for a, b in arms:
+        statement = {"kind": "cause", "from": atom(a), "to": atom(b)}
+        if (a, b) == proposed:
+            statement["annotations"] = {"source": "llm_proposal"}
+        statements.append(statement)
+    statements.append({"kind": "query", "id": "q", "query": {
+        "kind": "assoc", "left": atom("x"), "right": atom("y"),
+        "given": [atom(p) for p in given]}})
+    return {"version": "0.1",
+            "domain": {"objects": [{"kind": "object", "name": "me"}]},
+            "statements": statements}
+
+
+@pytest.mark.parametrize(("arms", "given", "proposed"), [
+    pytest.param((("z", "x"), ("z", "y")), (), ("z", "x"),
+                 id="fork-arm-the-path-walks-backward"),
+    pytest.param((("z", "x"), ("z", "y")), (), ("z", "y"),
+                 id="fork-arm-the-path-walks-forward"),
+    pytest.param((("z", "a"), ("a", "x"), ("z", "y")), (), ("z", "a"),
+                 id="the-far-edge-of-an-arm-the-path-walks-backward"),
+])
+def test_an_open_path_discloses_every_proposed_edge_it_walks(
+        arms, given, proposed):
+    """An association found along an open path rests on every edge of it,
+    and an open path does not walk them all forward: through a fork it
+    walks one arm, however long, against its arrows. The gap matched a
+    path's pairs in path order, so a language model's edge there was
+    disclosed on one arm and not the other.
+
+    Only edges no directed path between the question's own variables
+    carries ask this. An edge into a conditioned-on collider is such a
+    path already — the collider is one of the question's variables — and
+    was disclosed before the path's direction was read."""
+    result = themis.run(_association_through(arms, proposed, given))[
+        "results"][0]
+    assert result["status"] == "structurally_solved", result["status"]
+    assert (result.get("structural_result") or {}).get("supporting_paths"), (
+        "the association has to have been found along a path for this to "
+        "ask anything")
+    cited = [ref["ref_id"]
+             for gap in result["data_gap_report"]["gaps"]
+             if gap["kind"] == "unverified_proposal_edge_on_query_path"
+             for ref in gap["provenance"]
+             if ref.get("ref_kind") == "program_site"]
+    assert cited == [
+        f"program:cause:{proposed[0]}->{proposed[1]}:annotations.source"
+    ], cited

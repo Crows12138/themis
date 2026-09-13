@@ -662,7 +662,11 @@ def _classify_unverified_proposal_edges(
 
     1. **supporting_paths** — concrete on cause / assoc results; each
        consecutive node pair on a returned path is an edge that was
-       actually traversed.
+       actually traversed, in whichever direction the path walks it.
+       A directed path walks every edge forward; an open path does
+       not — through a fork ``x <- z -> y`` it walks ``z -> x``
+       against its arrow, and the association rests on that arm
+       exactly as much as on the other.
 
     2. **DAG walk** — for every other query kind (effect / identify /
        IV / mediation / counterfactual), enumerate simple directed
@@ -691,8 +695,12 @@ def _classify_unverified_proposal_edges(
         for i in range(len(path) - 1):
             a_pred = path[i].split("(", 1)[0]
             b_pred = path[i + 1].split("(", 1)[0]
-            if (a_pred, b_pred) in proposal_edges:
-                flagged.add((a_pred, b_pred))
+            # Both orientations: this matched the pair in path order
+            # alone, so the arm of a fork or an opened collider that the
+            # path walks backward was a proposal nobody was told of.
+            for edge in ((a_pred, b_pred), (b_pred, a_pred)):
+                if edge in proposal_edges:
+                    flagged.add(edge)
 
     relevant = _query_relevant_predicates_for_path_walk(stmt, extensions)
     if relevant and adjacency:
