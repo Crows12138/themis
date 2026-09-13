@@ -1327,6 +1327,14 @@ def test_the_declared_remainder_is_what_it_is():
     those answers owes that line by name. Now it reads as what it has
     become, a line naming no assumption that no record owes.
 
+    Then 4 more, on the two answers whose estimator answers with a
+    region. That estimator declares its premises in its own block, and
+    the audit read declarations at ``numeric_estimate`` alone and asked
+    nothing once it found none there. The block's premise list was a
+    list nobody held, and the ledger's id could be bent every way —
+    the record of which ids this run emitted was that same unread list.
+    Both close together, 2 on each answer.
+
     The sampling caveat above still holds and is worth repeating here
     rather than left two paragraphs up: three swaps per leaf out of 88
     members, and a species says between one and ten of them, so a swap
@@ -1335,7 +1343,7 @@ def test_the_declared_remainder_is_what_it_is():
     species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2240, total
+    assert total == 2236, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

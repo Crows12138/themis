@@ -164,6 +164,28 @@ def test_both_sides_know_every_route_that_declares_its_own_premises():
     assert set(rules._ROUTE_PREMISE_SITES) == declared
 
 
+def test_the_audit_reads_every_place_an_estimator_declares():
+    """The estimator's addresses, asked of the AUDIT and not only subtracted.
+
+    The test above takes those addresses from the producer so the route
+    sites partition the schema, and nothing asked whether the audit knew
+    them. It did not: it read the estimate's list alone, and on answers
+    whose estimator reports a region, that region's premises could be
+    dropped from the ledger or joined by ones nobody declared. Asked by
+    behaviour rather than by comparing lists, because the audit keeps no
+    list of addresses — it reads wherever the run reports itself.
+    """
+    from themis.output import result_orchestrator
+
+    for path in result_orchestrator.ESTIMATOR_DECLARATIONS:
+        result: dict = {}
+        node = result
+        for step in path[:-1]:
+            node = node.setdefault(str(step), {})
+        node[str(path[-1])] = {"assumptions": ["declared_here"]}
+        assert "declared_here" in rules._declaration_channels(result), path
+
+
 def test_every_value_is_writable_by_some_producer():
     """The import-time check, asked from the test's side as well: a value no
     row admits is one nothing can write, and it is indistinguishable in the

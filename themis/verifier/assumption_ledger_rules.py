@@ -9,8 +9,9 @@ ledger owes from the channels that feed it and rejects UNDER-disclosure.
 
 What it audits:
 
-- **Completeness of the declaration channels.** ``numeric_estimate.assumptions``
-  is the one channel every estimator populates; an outcome measurement-error
+- **Completeness of the declaration channels.** An estimator declares what
+  its answer rests on where it reports itself — ``numeric_estimate`` for a
+  point, its own block for a region; an outcome measurement-error
   assessment and an identification route each declare their own premises
   beside it. The ledger must carry each of those declarations keyed by ``id``
   — either flat, or as the estimator's own structured ``identification`` entry
@@ -94,7 +95,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from typing import NoReturn
 
 from .. import language
@@ -527,8 +528,7 @@ def verify_assumption_ledger(result: dict) -> None:
     AND owes none; raises :class:`VerificationError` otherwise."""
     extensions = result.get("extensions") or {}
     ledger = extensions.get("assumption_ledger")
-    estimate = result.get("numeric_estimate")
-    declared = _declaration_channels(result, estimate)
+    declared = _declaration_channels(result)
 
     owed_edges = _owed_proposal_edges(result)
     owed_priors = _owed_theta_priors(extensions)
@@ -652,11 +652,15 @@ _ROUTE_PREMISE_SITES = (
 )
 
 
-def _declaration_channels(result: dict, estimate) -> tuple[str, ...]:
+def _declaration_channels(result: dict) -> tuple[str, ...]:
     """Every assumption someone declared, by id, whichever list holds it.
 
-    Three do. ``numeric_estimate.assumptions`` is the estimator's own and
-    every estimator populates it. The second belongs to another author
+    Three do. The estimator's own is on whatever the run reported itself
+    in, and every estimator populates it. It was read at
+    ``numeric_estimate`` alone, while :func:`_where_the_run_reports_itself`
+    already named the region block as the other such place — one fact in
+    one module, read whole by the check on a mechanism and by half here.
+    The second belongs to another author
     entirely: an outcome measurement-error assessment states the premises
     under which its split of the residual variance means anything. The third
     is the identification layer speaking for itself — a mediation or
@@ -672,11 +676,13 @@ def _declaration_channels(result: dict, estimate) -> tuple[str, ...]:
     that its premises reached the ledger, and nothing verified that a premise
     on the ledger came from it.
     """
-    ids = list((estimate or {}).get("assumptions") or ())
+    extensions = result.get("extensions") or {}
+    ids = [str(a)
+           for place in _where_the_run_reports_itself(result, extensions)
+           for a in place.get("assumptions") or ()]
     block = result.get("outcome_error")
     if isinstance(block, dict):
         ids += [a for a in (block.get("assumptions") or ()) if isinstance(a, str)]
-    extensions = result.get("extensions") or {}
     for site in _ROUTE_PREMISE_SITES:
         node = extensions
         for step in site:
@@ -1148,9 +1154,18 @@ def _check_estimator_channel(entries: list, declared: tuple) -> None:
     escape hatch is gone because the producer now says which flat
     declaration each structured entry stands for, so the question is
     decidable from the envelope instead of being assumed.
+
+    Both questions used to wait for a declaration to be found, and what
+    went unfound was a place rather than a declaration: they were read at
+    the estimate alone, and an estimator answering with a region declares
+    in its own block. On the two answers where that is the only
+    estimator, 8 of 10 deletions of a named line passed every door, and a
+    premise copied in from AIPW passed as well. With both places read, no
+    ledger in the corpus carries a line attributed to an estimator under
+    an id nobody declared, 14 of them declaring nothing at all — so
+    finding no declaration is a claim this holds the ledger to, not a
+    reason to stop asking.
     """
-    if not declared:
-        return
     on_ledger = {str(e["id"]) for e in entries if e.get("id")}
     missing = [str(a) for a in declared if str(a) not in on_ledger]
     if missing:
@@ -1383,17 +1398,29 @@ def _the_fit_this_run_reported(result: dict, extensions: dict) -> dict | None:
 
     Returning ``None`` where neither is present is deliberate and the
     caller refuses on it. A future answer shape that carries a mechanism
-    block and reports its fit somewhere third belongs in this function,
+    block and reports its fit somewhere third belongs in
+    :func:`_where_the_run_reports_itself`,
     and the way to be told is a suite that stops rather than a check that
     quietly skips.
     """
-    estimate = result.get("numeric_estimate")
-    if isinstance(estimate, dict):
-        return estimate
-    region = extensions.get("anderson_rubin_region")
-    if isinstance(region, dict):
-        return region
-    return None
+    return next(_where_the_run_reports_itself(result, extensions), None)
+
+
+def _where_the_run_reports_itself(result: dict,
+                                  extensions: dict) -> Iterator[dict]:
+    """The blocks this run reported itself in: the estimate, then a region.
+
+    Read first-found by :func:`_the_fit_this_run_reported`, which wants the
+    one fit a mechanism block is a view of, and whole by
+    :func:`_declaration_channels`, which wants every declaration the run
+    made. One statement of where a run speaks for itself, so the two
+    readers cannot come to disagree about the places — which is how the
+    second came to know only the first of them.
+    """
+    for place in (result.get("numeric_estimate"),
+                  extensions.get("anderson_rubin_region")):
+        if isinstance(place, dict):
+            yield place
 
 
 def _check_the_block_describes_the_fit_that_ran(

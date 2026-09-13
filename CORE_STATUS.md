@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19046 passed / 518 skipped, warning-clean
+19065 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,52 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #626 区域答案把前提声明在自己的块里，审计只在 `numeric_estimate` 找（2026-09-13）
+
+**现象。** 语料里答案是一个取值区域（Anderson-Rubin 置信集）的只有两个形状：
+`needs_investigation:effect:none` 和 `#a9f370`。在它们上面逐条删有名字的账本行，**10 次放 8**——
+排除限制、工具独立、效应恒定、AR 临界值依赖的同方差；拒掉的两次是 linearity，由函数形式计数守着。
+凭空加一条这两个答案从没做过的 AIPW 前提（identification 或 confidence），**也放行**。
+普查在这两个形状上宣告 `extensions.anderson_rubin_region.assumptions.[]` 和账本 `id` 没人守。
+
+**根因。** 生产者 `ESTIMATOR_DECLARATIONS` 有两个位置：`numeric_estimate` 和
+`extensions.anderson_rubin_region`，两处都并进账本。验证器 `_declaration_channels` 只读
+`numeric_estimate.assumptions`，而**同一个模块**的 `_the_fit_this_run_reported` 早就写明
+「点估计在 `numeric_estimate` 报告自己，区域答案在区域块」。一条事实在模块里，一个读者读全了，
+另一个读了一半。再加上 `_check_estimator_channel` 开头 `if not declared: return`：
+**没去读的位置被当成「什么都没声明」**，删行和捏造两个问题一起跳过。
+
+**为什么是根因不是表象。** 表象修法是给 AR 加一个 if，或者在验证器里再写一份位置表——前者挡不住
+下一个在自己块里报告的估计器，后者是又一份会漂的重述。先量诚实的一侧：两处都读以后，语料 106 本
+账本、声明为空的 14 本，挂在没人声明过的 id 上的归属行 **0**——所以去掉提前返回不会拒真话。
+
+**结构。** `_where_the_run_reports_itself(result, extensions)` 只说一次「一次运行在哪里报告自己」；
+`_the_fit_this_run_reported` 取第一个，`_declaration_channels(result)` 全读。删掉提前返回。
+`test_ledger_vocabulary` 原来只钉路由位置三方相等，估计器位置是**从生产者拿来做减法**的，没问过审计
+认不认——加一条行为式钉子：对 `ESTIMATOR_DECLARATIONS` 的每个位置放一个带 assumptions 的块，
+审计必须读到。审计不新增位置表。
+
+**演练（写盘之前在进程内做）。** 243 个诚实答案，补丁前后规则都拒 0。两个区域答案删 5 行，10 次全被
+「drops estimator-declared」拒（linearity 原先由函数形式计数拒，现在估计器通道先拒；查过测试里没有
+按文字见证 `_check_channel` 的，不截走谁的见证，纪律 54）；加 identification / confidence 前提全被
+「never declared」拒；一本声明为空的账本上加前提，被「never declared」拒——这正是提前返回原来跳过的问题。
+门：有 derivation 的走 `verify`，没有的走 `verify_answer_claims`。
+
+**⚠️ 更正一个旧判断。** #591 条目和 `tests/test_a_ledger_line_says_the_assumption_it_is.py` 都写过：
+账本 `id` 那 2 片幸存（真 id 后接 `_forged`）要拒，得读 id 的**格式**或「本构建能发出哪些 id」的名册，
+而审计读不到这两样。实测这 2 片**正在这两个区域答案上**：这次运行发出了哪些 id，那份名册一直在信封上，
+就是区域块里估计器自己的声明列表，只是没被读。落地后 `_forged` / `""` / `"x"` 三种弯法都被
+「drops estimator-declared」拒；那个文件的余数 **3→1**（剩 `said.suffix`），文档改成实测。
+`declares()` 是总函数这件事本身仍然成立，只是它从来不是这两片的原因。
+
+**账。** 新测试 18 + 钉子 1；基线 19046→**19065**。普查预测关 4 片（两个形状各
+`anderson_rubin_region.assumptions.[]` 与账本 `id`），实测 4 片，余项 2240→**2236**；
+同块的 `instruments.[]` / `outcome` 不动。
+
+**后续线索（未量）：** 函数形式计数 `_check_channel(entries, owed_forms, …)` 可能已被完全覆盖——
+mechanism 块的 id 由 `_check_the_block_describes_the_fit_that_ran` 钉在估计器声明里，声明过的 id 由
+估计器通道钉在账本上。要量它还有没有只有它能拒的伪造；没有，就是一条没有见证的闸门。
 
 ### #625 gap 引用了那条边的注释，只问注释在不在，没读它说什么（2026-09-13）
 

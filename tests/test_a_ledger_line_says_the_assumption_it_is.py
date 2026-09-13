@@ -302,7 +302,7 @@ def test_a_line_may_not_name_a_value_and_leave_it_empty():
 def test_the_remainder_is_counted_rather_than_described():
     """Every ledger leaf shape, bent the census's three ways.
 
-    Three survive, and all three are named lines.
+    One survives, and it is a named line.
 
     It was sixty-four until the contract enumerated the members of the sets
     whose members the kernel owns. One of these lines quotes such a set, so
@@ -333,20 +333,23 @@ def test_the_remainder_is_counted_rather_than_described():
     be right or wrong about a line that names none. What can is the record
     the line was written from, and that is where it is held.
 
-    **Three are named lines, and both of the shapes are the id's own
-    left-over.** ``id`` (2) is one id lengthened by ``_forged``: the entry's
-    claim says a token and nothing else, so the part after the token, where
-    this occasion's values go, is constrained by nothing, and appending to
-    an id looks exactly like an occasion having values. The declaration
-    does not catch it either, and that is the price of its being total — an
-    id nobody classified and an id nobody could have emitted arrive as the
-    same thing, deliberately, because on a disclosure surface the safe
-    direction is to over-report rather than drop. Refusing it means holding
-    the id's FORMAT, or a roster of which ids this build can emit, and
-    neither is a thing this file can read: the estimators own that, not the
-    glossary. ``said.suffix`` (1) is the same limitation in a slot —
-    ``{x,z}`` bent to ``x``, a value that occurs in the id it is checked
-    against.
+    **The one is the id's own left-over, in a slot.** ``said.suffix`` (1)
+    is ``{x,z}`` bent to ``x``, a value that occurs in the id it is checked
+    against: the entry's claim says a token and nothing else, so the part of
+    the id after the token, where this occasion's values go, is held only to
+    contain what ``said`` says.
+
+    ``id`` used to be two more, and the reason given here for them was
+    wrong. It said an id lengthened by ``_forged`` could be refused only by
+    holding the id's format, or a roster of the ids this build can emit, and
+    that neither was readable here. Both were on the two answers whose
+    estimator answers with a region, and the roster of what THIS run emitted
+    was on the envelope all along: the estimator's own declaration list, in
+    the region's block. The audit read declarations at ``numeric_estimate``
+    alone, found none, and asked nothing. Read where the run reports itself,
+    the lengthened id is a declared premise gone from the ledger, and every
+    bend of it is refused as that — see
+    ``tests/test_a_region_declares_its_premises_too.py``.
 
     ``claim.vocabulary`` used to be a third three, and the reason it was
     here is the reason it no longer is. An earlier version of this rule did
@@ -415,4 +418,4 @@ def test_the_remainder_is_counted_rather_than_described():
                     continue
                 survived += 1
                 break
-    assert survived == 3, survived
+    assert survived == 1, survived
