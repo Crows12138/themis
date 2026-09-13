@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19584 passed / 518 skipped, warning-clean
+19614 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,28 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #636 对撞警告写在三处，#632 只读了描述那一处（2026-09-14）
+
+**现象。** 两种对撞警告（`collider_conditioning_opens_backdoor`、`selection_on_collider_opens_path`）的 gap，在 gap 自己的 occasion 和出路上
+再写一遍对撞点，selection 警告还再写一遍 `value`。这两处的 `collider` 换成题目里另一个真变量、`value` 换成任意值，46 次换写每道门都放行。
+
+**根因。** #632 押的是「报告写了哪几条警告，就要恰好是程序和图欠的那几条」，但「报告写了哪几条」只从 describes 读。
+同一条警告写在三处：描述、gap 的 occasion（`IF_PROVIDED` 念）、点名对撞点的出路（「把 `w` 从 `given` 里去掉」「补上被 `w` 排除的对照」）——
+出路恰恰是读者照着去做的那一句。#632 测试里的 `_places_it_says` 早就走这三处，规则读的范围比它窄。
+
+**为什么是根因不是表象。** 押的对象是「这条警告」，漏的是警告的另外两种写法，不是缺一条新规则。
+另立「同一 gap 里同名槽要一致」的通用规则会按槽名比对，而同名槽在不同句子里意思可以不同（#633 的教训）；这里比对的是 #632 已经声明好的警告元组。
+
+**结构。** `data_gap_rules._the_caveats_it_writes`：每一处 `said`（描述、occasion、每条出路）以描述的槽为底、自己写的槽覆盖，拼出它告诉读者的那条警告；
+集合照原样与欠账双向比对。某一处写得不一样，就是自己说了一条没人欠的警告，按「opens a path」拒。描述里没有对撞点仍读作「什么也没说」。
+
+**演练（写盘之前在进程内打补丁）。** 诚实 243 个改前改后 0 拒；三处 × 四个槽逐一换写：原先自由的 46 次全拒（occasion 对撞点 20、出路对撞点 20、两处 value 6），
+全是 T10-2 拒的，原先被押的没有一次变成放行；`said` 弯折普查 (2090, 194)→(2096, 188)，多拒的 6 个是两处的 value，反向 0；余项闸口离开 27、新增 0。
+
+**账。** 30 测试；基线 19584→**19614**。`test_the_collider_caveats_an_answer_writes_are_the_ones_it_owes` 新增「同一条警告写在别处也是它」30 个站点
+（occasion 对撞点 7、value 3，出路对撞点 17、value 3），量度钉 (7, 5, 3)→(7, 5, 3, 30)；
+`test_a_gap_says_what_this_problem_is_about` 普查 (2090, 194)→(2096, 188)；`test_every_answer_shape_is_asked_the_same_question` 余项 2183→2156（6 个答案上的 collider / value 叶子）。
 
 ### #635 gap 自己的 `said` 是它的 kind 念的语句，gap_claim_rules 却按自己手写的两份清单找语句（2026-09-14）
 

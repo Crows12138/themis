@@ -1375,9 +1375,17 @@ def test_the_declared_remainder_is_what_it_is():
     statements gave it no name, so the intervention an ill-defined one
     is about and the outcome of a loop that wants an instrument could not
     be declared copies of the question. Named, they are.
+
+    Then 27 came off the two caveats about a collider, on the six rows
+    carrying one in more than its description. What a report writes was
+    read off the description alone, and the gap says the collider again
+    in its own occasion and in the ways past that name it, and a selection
+    caveat says its value there too. The collider took ``"x"``, a
+    variable those problems have, and the value took anything. Each
+    place now spells the caveat it tells, held to the caveat owed.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2183, total
+    assert total == 2156, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

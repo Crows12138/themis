@@ -1145,21 +1145,37 @@ def _the_caveats_it_owes(program: object, context: VerificationContext) -> set:
     return owed
 
 
+def _saids(entries: Any) -> list:
+    return [entry["said"] for entry in entries or ()
+            if isinstance(entry, Mapping) and isinstance(entry.get("said"), Mapping)]
+
+
 def _the_caveats_it_writes(report: object) -> dict:
     """The same tuple for every such caveat a report writes -> the index of
     the first gap writing it. A caveat whose description names no collider
-    is read as naming nothing, which nothing owes."""
+    is read as naming nothing, which nothing owes.
+
+    Read off every place the gap says it. A caveat is told in its
+    description, again in the gap's own occasion, and again in each way
+    past that names the collider — "drop `w` from `given`" is the caveat
+    as much as the description is, and it is what a reader acts on. Read
+    off the description alone, every other place took any variable the
+    problem has. A place spells some of the slots and the description
+    the rest, so a place that disagrees tells a caveat of its own, and
+    nothing owes it.
+    """
     written: dict = {}
     gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
     for index, gap in enumerate(gaps):
         kind = gap.get("kind") if isinstance(gap, Mapping) else None
         if kind not in (_CONDITIONED_ON_A_COLLIDER, _RESTRICTED_TO_A_COLLIDER):
             continue
-        said_all = [statement["said"] for statement in gap.get("describes") or ()
-                    if isinstance(statement, Mapping)
-                    and isinstance(statement.get("said"), Mapping)
-                    and "collider" in statement["said"]] or [{}]
-        for said in said_all:
+        described = [said for said in _saids(gap.get("describes"))
+                     if "collider" in said] or [{}]
+        elsewhere = _saids(gap.get("describes")) + _saids(
+            [gap]) + _saids(gap.get("alternative_paths"))
+        for place in described + elsewhere:
+            said = {**described[0], **place}
             value = said.get("value") if kind == _RESTRICTED_TO_A_COLLIDER else None
             written.setdefault((kind, said.get("collider"), value,
                                 said.get("intervention"), said.get("target")), index)

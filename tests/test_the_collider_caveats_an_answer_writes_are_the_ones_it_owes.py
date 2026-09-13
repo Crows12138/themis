@@ -16,6 +16,13 @@ it, was accepted 5 times of 5; the value a selection caveat names, changed,
 Which caveats are owed is a fact about the program, the question and the
 ground graph with its bidirected edges, so the audit states it once and
 holds the report to it both ways. On every corpus answer the two are equal.
+
+What a report writes was read off each caveat's description, and a caveat
+gap says it in three places: the description, the gap's own occasion, and
+the ways past that name the collider. The other two took any variable the
+problem has, and the selection caveat's value anything at all -- 46 such
+rewrites passed every door, and a way past is what a reader acts on. Each
+place now spells the caveat it tells, over the description's slots.
 The parts of that statement the corpus never exercises -- an arm that is a
 latent common cause, a conditioned descendant of a collider, a chain that
 is no common effect -- each have a program, and so do the two programs
@@ -102,6 +109,25 @@ FLIPS = [pytest.param(name, k, id=name) for name, k in (p.values for p in REMOVA
          if _gaps(SHAPES[name]["result"])[k]["kind"] == SELECTION]
 
 
+def _elsewhere(gap):
+    """The places a caveat gap says it besides its description."""
+    yield "occasion", gap.get("said") or {}
+    for i, route in enumerate(gap.get("alternative_paths") or ()):
+        yield f"alternative_paths.{i}", route.get("said") or {}
+
+
+def _at_place(gap, where):
+    if where == "occasion":
+        return gap["said"]
+    return gap["alternative_paths"][int(where.split(".")[1])]["said"]
+
+
+RESTATED = [pytest.param(name, k, where, slot, id=f"{name}-{where}-{slot}")
+            for name, k in (p.values for p in REMOVALS)
+            for where, said in _elsewhere(_gaps(SHAPES[name]["result"])[k])
+            for slot in ("collider", "value") if slot in said]
+
+
 def _restrictions(program, result):
     query = _query(program, result)
     for item in query.get("given") or ():
@@ -133,8 +159,8 @@ def test_on_every_corpus_answer_the_caveats_owed_are_the_ones_written():
 
 
 def test_the_measured_sizes():
-    assert (len(REMOVALS), len(ADDITIONS), len(FLIPS)) == (7, 5, 3), (
-        len(REMOVALS), len(ADDITIONS), len(FLIPS))
+    assert (len(REMOVALS), len(ADDITIONS), len(FLIPS), len(RESTATED)) == (
+        7, 5, 3, 30), (len(REMOVALS), len(ADDITIONS), len(FLIPS), len(RESTATED))
 
 
 def test_the_forgeries_start_from_answers_their_door_reads():
@@ -173,6 +199,22 @@ def test_the_value_a_sample_is_restricted_to_is_the_one_observed(name, k):
         if "value" in place:
             place["value"] = "False"
     with pytest.raises(VerificationError, match=_OWED):
+        the_door_for(bent)(program, bent)
+
+
+@pytest.mark.parametrize(("name", "k", "where", "slot"), RESTATED)
+def test_a_caveat_is_the_same_caveat_everywhere_its_gap_says_it(
+        name, k, where, slot):
+    """One place rewritten, the description left alone: the caveat that
+    place now tells is one nothing owes."""
+    program, result = SHAPES[name]["program"], SHAPES[name]["result"]
+    bent = copy.deepcopy(result)
+    said = _at_place(_gaps(bent)[k], where)
+    if slot == "value":
+        said[slot] = "True" if said[slot] == "False" else "False"
+    else:
+        said[slot] = _query(program, result)["intervention"]["atom"]["predicate"]
+    with pytest.raises(VerificationError, match=_UNOWED):
         the_door_for(bent)(program, bent)
 
 

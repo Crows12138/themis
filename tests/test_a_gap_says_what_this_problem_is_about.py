@@ -442,6 +442,12 @@ def test_the_remainder_is_counted_rather_than_described():
     a variable under the dose-response statement (8) and under the two
     ways past a conditioned collider (7), where a rewritten one was asked
     by nothing.
+
+    And 6 more when a caveat about a collider was read off every place its
+    gap says it rather than off its description: the value a selection
+    caveat names, on the gap's own occasion (3) and on the way past that
+    reweights for it (3). The collider in those places was refused here
+    already, being a name.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -456,7 +462,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2090, 194), (refused, accepted)
+    assert (refused, accepted) == (2096, 188), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

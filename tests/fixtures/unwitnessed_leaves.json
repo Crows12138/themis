@@ -772,12 +772,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.value",
-  "data_gap_report.gaps.[].said.collider",
-  "data_gap_report.gaps.[].said.value",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -874,12 +868,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.value",
-  "data_gap_report.gaps.[].said.collider",
-  "data_gap_report.gaps.[].said.value",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -925,9 +913,6 @@
   "estimator_failure.recorded.outcome_scale"
  ],
  "needs_investigation:effect:none#63d205": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].said.collider",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
@@ -949,9 +934,6 @@
   "investigation_requests.[].note.said.key"
  ],
  "needs_investigation:effect:none#6b1d33": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].said.collider",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
@@ -1363,12 +1345,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.value",
-  "data_gap_report.gaps.[].said.collider",
-  "data_gap_report.gaps.[].said.value",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.selection_recovery.adjustment_set.[]",
@@ -1725,9 +1701,6 @@
   "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#22d72a": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider",
-  "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].said.collider",
   "derivation.steps.[].inputs.formula.denominator.body.body.terms.[].given.[].atom.args.[].name",
   "derivation.steps.[].inputs.formula.denominator.body.body.terms.[].given.[].atom.predicate",
   "derivation.steps.[].inputs.formula.denominator.body.body.terms.[].given.[].value",
