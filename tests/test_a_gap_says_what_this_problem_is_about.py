@@ -426,6 +426,14 @@ def test_the_remainder_is_counted_rather_than_described():
     ledger line that stands for that edge, and the two copies are now
     held to agree. The edge itself was refused here already, being a
     name; the algorithm and the share are not names, and were not.
+
+    And 10 more from a rule that says which of these gaps an answer
+    owes. A caveat that the sample is restricted on a collider is held,
+    as a whole, to the one the program and the graph owe: which
+    collider, which value, the effect of what on what. The target such
+    a caveat names (7) and the value a selection caveat names (3) were
+    accepted here, and a rewritten one now describes a caveat nothing
+    owes. The collider and the intervention were refused here already.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -440,7 +448,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2065, 219), (refused, accepted)
+    assert (refused, accepted) == (2075, 209), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

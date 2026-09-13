@@ -151,6 +151,7 @@ from .verifier import (
     verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
+    verify_collider_caveats_are_owed,
     verify_gap_quotes,
     verify_refusal_block,
     verify_required_data,
@@ -1689,6 +1690,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # set is a fact about the program, the question and the ground graph,
     # all of them here.
     verify_proposed_edges_are_disclosed(result, prog, ctx)
+
+    # And whether it says its sample is restricted on a collider. Each of
+    # those caveats, removed, passed every door, and one added for an atom
+    # that is no common effect passed too. Which are owed is a fact about
+    # the program, the question and the ground graph with its bidirected
+    # edges, all of them here.
+    verify_collider_caveats_are_owed(result, prog, ctx)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

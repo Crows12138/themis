@@ -16,7 +16,9 @@ Seven rules audit a generated DataGapReport for honesty:
   investigation / framing note) must be covered by at least one gap.
   And the proposed edges an answer rests on, read on the ground graph it
   was reached on, must be exactly the edges its proposal-edge gaps
-  disclose.
+  disclose. And the caveats that say the sample is restricted on a
+  collider, read on that graph with its bidirected edges, must be exactly
+  the ones the answer owes.
 - **T10-3 ``data_gap_kind_consistency_check``** — each gap's ``kind`` must
   be coherent with the upstream signal it cites in provenance: every ref
   must point into a space the species declares, at least one must be
@@ -56,7 +58,8 @@ Reads only from the JSON envelope (dicts), not from typed dataclasses,
 so the audit also catches serialization-layer bugs. The exception is the
 contract layer's declarations in :mod:`themis.types`, which are not
 anything a producer wrote — they are what the words in the envelope mean.
-Which edges an answer rests on is read from its premises as well: the
+Which edges an answer rests on, and which restrictions are on a collider,
+are read from its premises as well: the
 program parsed from the caller's own document and the graph projected
 from it, which no producer wrote either.
 """
@@ -65,7 +68,10 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+import networkx as nx
+
 from .. import gaps as _gaps
+from .. import language
 from ..types import (
     Atom,
     BLOCKS_OF,
@@ -73,9 +79,11 @@ from ..types import (
     BidirectedStatement,
     CauseStatement,
     DATA_TYPE_TURNS_ON,
+    EffectQuery,
     GapKind,
     GapSeverity,
     NO_SUBJECT,
+    ObservationStatement,
     REF_KINDS_OF,
     SEVERITY_OF,
     SEVERITY_TURNS_ON,
@@ -87,6 +95,11 @@ from ..types import (
 from .context import VerificationContext
 from .errors import VerificationError
 from .program_copy_rules import query_of
+from .rules import (
+    _verifier_build_admg_multigraph,
+    _verifier_directed_descendants,
+    _verifier_has_arrowhead_at,
+)
 
 #: The severity that lets the generic pointer at a computed interval lead a
 #: gap, spelled as it travels — see :func:`themis.gaps.ways_past`.
@@ -1036,6 +1049,173 @@ def verify_proposed_edges_are_disclosed(result: object, program: object,
             f"not one: its source is evidence, or no path the answer rests "
             f"on runs through it. A reader sent to find evidence for an "
             f"edge is sent on this gap's word",
+            step_index=None, rule="data_gap_completeness_check",
+        )
+
+
+# ============================================ T10-2, a restriction on a collider
+#
+# Whether an answer says its sample was restricted on a common effect of the
+# intervention and the target. The sentence was checked for what it says and
+# nothing held whether it is there.
+
+#: The two caveats that say the effect was estimated inside a restricted
+#: sample and that the restriction is on a collider: the question's ``given``
+#: conditions on it, or an observation restricts the data to it.
+_CONDITIONED_ON_A_COLLIDER = "collider_conditioning_opens_backdoor"
+_RESTRICTED_TO_A_COLLIDER = "selection_on_collider_opens_path"
+
+
+def _opens_a_path_through(graph, bidirected, x, y, conditioning, w) -> bool:
+    """Whether some path between ``x`` and ``y``, open given
+    ``conditioning``, is open because ``w`` is conditioned on: ``w`` is a
+    collider on it or a descendant of one. Paths over the directed and the
+    bidirected edges both; an arrowhead of either kind makes a collider."""
+    if x == y:
+        return False
+    mg = _verifier_build_admg_multigraph(graph, bidirected)
+    if x not in mg or y not in mg:
+        return False
+    for edge_path in nx.all_simple_edge_paths(mg, x, y):
+        nodes = [x]
+        for u, v, _key in edge_path:
+            nodes.append(v if nodes[-1] == u else u)
+        opened_by_w = False
+        for i in range(1, len(nodes) - 1):
+            v = nodes[i]
+            if (_verifier_has_arrowhead_at(mg, edge_path[i - 1], v)
+                    and _verifier_has_arrowhead_at(mg, edge_path[i], v)):
+                below = {v} | set(_verifier_directed_descendants(graph, v))
+                if below.isdisjoint(conditioning):
+                    break
+                opened_by_w = opened_by_w or w in below
+            elif v in conditioning:
+                break
+        else:
+            if opened_by_w:
+                return True
+    return False
+
+
+def _reaches_avoiding(graph, start, goal, avoided) -> bool:
+    seen, frontier = {start}, [start]
+    while frontier:
+        for nxt in graph.successors(frontier.pop()):
+            if nxt == goal:
+                return True
+            if nxt != avoided and nxt not in seen:
+                seen.add(nxt)
+                frontier.append(nxt)
+    return False
+
+
+def _a_common_effect(graph, x, y, w) -> bool:
+    """A directed path from ``x`` to ``w`` that avoids ``y``, and one from
+    ``y`` to ``w`` that avoids ``x`` (Hernán 2004 §3). A chain ``x -> y -> w``
+    reaches ``w`` from ``x`` only through ``y``: over-control on a mediator,
+    not a restriction on a collider."""
+    if w in (x, y) or any(node not in graph for node in (x, y, w)):
+        return False
+    return _reaches_avoiding(graph, x, w, y) and _reaches_avoiding(graph, y, w, x)
+
+
+def _the_caveats_it_owes(program: object, context: VerificationContext) -> set:
+    """``(kind, collider, value, intervention, target)`` for every caveat
+    owed, the names as a gap says them: predicates, and the value rendered
+    as a sentence renders it."""
+    query = context.query
+    if not isinstance(query, EffectQuery):
+        return set()
+    graph, x, y = context.graph, query.intervention.atom, query.target.atom
+    owed: set = set()
+    conditioning = frozenset(item.atom for item in query.given)
+    for w in conditioning:
+        if w not in (x, y) and _opens_a_path_through(
+                graph, context.bidirected, x, y, conditioning, w):
+            owed.add((_CONDITIONED_ON_A_COLLIDER, w.predicate, None,
+                      x.predicate, y.predicate))
+    for statement in getattr(program, "statements", ()):
+        if not isinstance(statement, ObservationStatement):
+            continue
+        for node in graph:
+            if _grounds_to(statement.atom, node, {}) and _a_common_effect(graph, x, y, node):
+                owed.add((_RESTRICTED_TO_A_COLLIDER, node.predicate,
+                          language.capped(language.symbols(statement.value)),
+                          x.predicate, y.predicate))
+    return owed
+
+
+def _the_caveats_it_writes(report: object) -> dict:
+    """The same tuple for every such caveat a report writes -> the index of
+    the first gap writing it. A caveat whose description names no collider
+    is read as naming nothing, which nothing owes."""
+    written: dict = {}
+    gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
+    for index, gap in enumerate(gaps):
+        kind = gap.get("kind") if isinstance(gap, Mapping) else None
+        if kind not in (_CONDITIONED_ON_A_COLLIDER, _RESTRICTED_TO_A_COLLIDER):
+            continue
+        said_all = [statement["said"] for statement in gap.get("describes") or ()
+                    if isinstance(statement, Mapping)
+                    and isinstance(statement.get("said"), Mapping)
+                    and "collider" in statement["said"]] or [{}]
+        for said in said_all:
+            value = said.get("value") if kind == _RESTRICTED_TO_A_COLLIDER else None
+            written.setdefault((kind, said.get("collider"), value,
+                                said.get("intervention"), said.get("target")), index)
+    return written
+
+
+def _spelt_caveats(caveats) -> list[str]:
+    out = []
+    for kind, collider, value, intervention, target in sorted(caveats, key=str):
+        restriction = collider if kind == _CONDITIONED_ON_A_COLLIDER else f"{collider}={value}"
+        how = "conditioning on" if kind == _CONDITIONED_ON_A_COLLIDER else "a sample restricted to"
+        out.append(f"{how} {restriction} for the effect of {intervention} on {target}")
+    return out
+
+
+def verify_collider_caveats_are_owed(result: object, program: object,
+                                     context: VerificationContext) -> None:
+    """The caveats that say a restriction is on a collider are the ones the
+    answer owes.
+
+    A reader told nothing is told the estimate is the effect asked for;
+    told that it carries selection bias, a reader discounts an estimate that
+    does not. Which answers carry one was decided by the report's author
+    alone. Measured on the corpus: each of the 7 such caveats, removed,
+    passed every door.
+
+    Held both ways, against a statement made here from the program, the
+    question and the ground graph with its bidirected edges. On the ground
+    graph: the producer asked it of predicates until #631, and over them a
+    restriction on an atom no ground path reached was a collider, and one on
+    ``x`` now was passed over as the intervention a step back.
+
+    An answer owing a caveat is refused whether its report lacks the gap or
+    lacks the report. The report is absent only when it has nothing to
+    tell, and a must-disclose caveat keeps it alive.
+    """
+    if not isinstance(result, Mapping):
+        return
+    owed = _the_caveats_it_owes(program, context)
+    written = _the_caveats_it_writes(result.get("data_gap_report"))
+    missing = owed - set(written)
+    if missing:
+        raise VerificationError(
+            f"T10-2: the answer owes a caveat for {_spelt_caveats(missing)}, a "
+            f"restriction on a common effect of the intervention and the "
+            f"target, and no gap says so. Without it a reader takes an "
+            f"estimate carrying selection bias for the effect asked",
+            step_index=None, rule="data_gap_completeness_check",
+        )
+    unowed = set(written) - owed
+    if unowed:
+        raise VerificationError(
+            f"T10-2: gap[{min(written[c] for c in unowed)}] says "
+            f"{_spelt_caveats(unowed)} opens a path, and on the graph the answer was "
+            f"reached on it does not. A reader discounts an estimate on this "
+            f"gap's word",
             step_index=None, rule="data_gap_completeness_check",
         )
 

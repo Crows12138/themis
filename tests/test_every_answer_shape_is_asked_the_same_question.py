@@ -1341,9 +1341,19 @@ def test_the_declared_remainder_is_what_it_is():
     landing on a statement the SAME species also makes is chance. What
     closed is that a gap can no longer describe itself as another
     species' failure.
+
+    Then 16 came off the two caveats that say a sample was restricted on
+    a collider, on the seven rows carrying one: the collider on six, the
+    target on all seven, the value a selection caveat names on three.
+    Whether an answer owed such a caveat was its report's author's to say,
+    so the target and the value took any string at all, and the collider
+    took the name of a variable the problem really has: ``"x"``, the
+    intervention on those six. Each caveat is now held, as a whole, to the
+    one the program and the graph the answer was reached on owe, and every
+    bend that used to pass is refused by that rule and no other.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2236, total
+    assert total == 2220, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

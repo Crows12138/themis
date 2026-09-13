@@ -584,6 +584,11 @@ Public surface (re-exports from sub-modules):
   report author's alone; removed with its ledger copy a gap passed every
   door 21 times of 21, and added for an edge that owes none, 18 of 18 —
   twelve of those an evidence-sourced edge told as a language model's)
+- And whether the caveats that say a sample is restricted on a collider
+  are the ones the answer owes, on that graph with its bidirected edges:
+  ``verify_collider_caveats_are_owed`` (which answers carried one was the
+  report author's alone; each of the corpus's 7, removed, passed every
+  door, and one added for an atom that is no collider passed 5 times of 5)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -820,6 +825,7 @@ from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .data_gap_rules import (
     verify_answer_tier,
+    verify_collider_caveats_are_owed,
     verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
@@ -881,6 +887,7 @@ __all__ = [
     "verify_gap_program_sites",
     "verify_gap_edge_statements",
     "verify_proposed_edges_are_disclosed",
+    "verify_collider_caveats_are_owed",
     "verify_gap_quotes",
     "verify_gap_subjects",
     "verify_refusal_block",
