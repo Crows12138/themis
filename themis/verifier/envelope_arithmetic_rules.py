@@ -28,6 +28,16 @@ and without them closed exactly the same leaves: ``verify_mediation_numeric``
 already holds every one. A rule restating a check that exists is not a
 second opinion, it is a second place for the same thing to be wrong.
 
+A second relation was added the same way and passes the same two tests. A
+stratified Wald block states an aggregate beside the rows it is an aggregate
+of, and the contract spells the arithmetic out at the fields themselves
+("Sum over strata of P(w) times the instrument's shift in the outcome") and
+says the breakdown is carried so a consumer can check every component. Two
+routes reach that table. One keeps a derivation record and a rule executes
+the formula against it; the other keeps none, so nothing executed the
+formula anywhere on that envelope — measured, every component of it could
+be moved and all twelve doors that read the envelope agreed.
+
 **Two claims, and they do not have the same scope.** An identity is closed
 on the envelope's own numbers, so it is true or false wherever it is asked.
 "An interval with no budget means an endpoint is missing or the width is
@@ -48,6 +58,8 @@ which was ever priced or meant to be.
 from the code that computed it.
 """
 from __future__ import annotations
+
+import math
 
 from .errors import VerificationError
 
@@ -196,6 +208,106 @@ def _check_precision_budget(node: dict, sample_size, where: str) -> None:
             _refuse(f"{where}.precision_budget.n_to_halve_ci", shown, want)
 
 
+#: How a stratum row states the two shifts it contributes. A row records
+#: either the difference, or the two conditional means it is the difference
+#: of, and the two places this table is reached by use one spelling each.
+#: They are not copies — they never share an envelope — so neither can be
+#: dropped in favour of the other without changing a contract.
+#:
+#: Restated from what the contract says these fields ARE ("E[Y|Z=1,w] -
+#: E[Y|Z=0,w]"), for the reason in this module's header.
+_SHIFT_SPELLINGS = (
+    (("outcome_shift",), ("treatment_shift",)),
+    (("p_y_given_z_treated", "p_y_given_z_control"),
+     ("p_x_given_z_treated", "p_x_given_z_control")),
+)
+
+#: These figures are not rounded on the way to a reader — they arrive at
+#: the precision they were computed at — so the only slack an identity on
+#: them needs is the order the additions happened in. Wider than that and
+#: it starts accepting the aggregate of something else.
+_AGGREGATE_TOL = 1e-9
+
+
+def _shift(row: dict, names: tuple[str, ...]):
+    """One stratum's contribution, under whichever spelling the row uses."""
+    got = [_num(row.get(name)) for name in names]
+    if any(value is None for value in got):
+        return None
+    return got[0] if len(got) == 1 else got[0] - got[1]
+
+
+def _stratified_aggregate(strata: list):
+    """``(Σ w·Δy, Σ w·Δx)`` — the two halves of a ratio of averages.
+
+    ``None`` when the rows do not state what an aggregate would be over,
+    which is most stratum tables: a measurement-error correction carries a
+    weight per stratum and no shift, and nothing beside it is an aggregate
+    of anything.
+    """
+    outcome, treatment = [], []
+    for row in strata:
+        if not isinstance(row, dict):
+            return None
+        weight = _num(row.get("weight"))
+        if weight is None:
+            return None
+        for outcome_names, treatment_names in _SHIFT_SPELLINGS:
+            d_y = _shift(row, outcome_names)
+            d_x = _shift(row, treatment_names)
+            if d_y is not None and d_x is not None:
+                outcome.append(weight * d_y)
+                treatment.append(weight * d_x)
+                break
+        else:
+            return None
+    return math.fsum(outcome), math.fsum(treatment)
+
+
+def _check_stratified_aggregate(node: dict, where: str) -> None:
+    """An aggregate stated beside the rows it is an aggregate of.
+
+    The contract writes this arithmetic out at the fields themselves —
+    "Sum over strata of P(w) times the instrument's shift in the outcome",
+    "``late`` aggregates as a RATIO OF AVERAGES — outcome_shift /
+    treatment_shift" — and says the breakdown is carried "so downstream
+    consumers can sanity-check every component". One of the two places
+    this table is reached by executes that, against the derivation record
+    the route keeps. The other route keeps no such record, so its block IS
+    the record, and every component of it reached a reader free: measured,
+    a stratum's probability moved, a figure moved, a row repeated and a row
+    deleted, each accepted by all twelve doors that read the envelope.
+
+    The wrong answer this separates from is the average of the per-stratum
+    ratios, which weights each stratum by P(w) instead of by its complier
+    share. The two coincide whenever the first stage is equally strong in
+    every stratum — on the one shape that carries this, 0.65 against
+    0.625 — so nothing short of re-aggregating tells them apart.
+
+    On the home that does keep a record the figures here are held already,
+    through that rule and the one that ties the display to it. This asks
+    from the block alone and so needs no record, which is a different
+    premise rather than a second copy; what decides it is that it closes
+    leaves nothing else closes, and four of them are on the other home.
+    """
+    strata = node.get("strata")
+    if not isinstance(strata, list) or not strata:
+        return
+    parts = _stratified_aggregate(strata)
+    if parts is None:
+        return
+    outcome, treatment = parts
+    for name, computed in (
+            ("outcome_shift", outcome),
+            ("treatment_shift", treatment),
+            ("late", outcome / treatment if treatment else None)):
+        shown = _num(node.get(name))
+        if shown is None:
+            continue
+        if computed is None or abs(shown - computed) > _AGGREGATE_TOL:
+            _refuse(f"{where}.{name}", shown, computed)
+
+
 #: The subtree whose producer promises a budget wherever one can be
 #: computed, and therefore the only subtree where an absent budget says
 #: anything. Outside it an interval may simply never have been priced:
@@ -243,3 +355,4 @@ def verify_envelope_arithmetic(result: dict) -> None:
                 node, sample_size, ".".join(path) or "the answer")
         elif path and path[0] in _BUDGET_IS_PROMISED:
             _no_budget_here(node, sample_size, ".".join(path))
+        _check_stratified_aggregate(node, ".".join(path) or "the answer")

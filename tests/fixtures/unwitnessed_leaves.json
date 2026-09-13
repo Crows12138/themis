@@ -1999,15 +1999,7 @@
   "extensions.iv_identification.alternatives_count",
   "extensions.iv_identification.late_caveat.[].said.variables",
   "extensions.iv_identification.numeric.conditioning_order.[]",
-  "extensions.iv_identification.numeric.late",
-  "extensions.iv_identification.numeric.outcome_shift",
-  "extensions.iv_identification.numeric.strata.[].p_x_given_z_control",
-  "extensions.iv_identification.numeric.strata.[].p_x_given_z_treated",
-  "extensions.iv_identification.numeric.strata.[].p_y_given_z_control",
-  "extensions.iv_identification.numeric.strata.[].p_y_given_z_treated",
   "extensions.iv_identification.numeric.strata.[].values.[]",
-  "extensions.iv_identification.numeric.strata.[].weight",
-  "extensions.iv_identification.numeric.treatment_shift",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#7173f0": [

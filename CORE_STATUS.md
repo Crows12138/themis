@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-18962 passed / 516 skipped, warning-clean
+19000 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,60 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #622 契约把公式用散文写在了字段旁边，两个地址只有一个执行它（2026-09-13）
+
+**现象。** `extensions.iv_identification.numeric` 带着一张分层 Wald 表和它聚合出的三个数。
+契约**把算式写在字段自己旁边**：「Sum over strata of P(w) times the instrument's shift in
+the outcome」「`late` aggregates as a RATIO OF AVERAGES — outcome_shift / treatment_shift」，
+而且那个块的描述明写它存在的目的是
+*"so downstream consumers can sanity-check every component"*。
+**没有任何人 check 任何一个 component。** 改一行的 p(y|z=1)、改三个汇总数中任意一个、
+重复一行、删掉一行——**七种改法全是 0/12**，读该信封的 12 扇门全放行。
+块可以写 `late=0.9` 而它上面的答案仍是 0.625（答案本身有人守：`verify:numeric_result`）。
+
+**根因。** 同一张表有**两个地址**（语料各 1 行，**从不同时出现**，所以不是抄了两遍）。
+`numeric_estimate.stratified_wald` 那个地址的路线**留了 derivation 记录**
+（`stratum_weights`/`stratum_outcome_shifts`/`stratum_treatment_shifts` 三列），
+`rules._check_stratified_wald` 就把 `aggregate_*` 钉在那三列上、把 `point` 钉在比值上，
+再由副本规则把块级显示钉在 `aggregate_*` 上，每个数都守住。
+`extensions` 那个地址的路线**什么记录都不留**——`step[2] iv_wald_numeric_evaluate`
+的 inputs 只有 `instrument_treated`/`target`/`monotonicity` 这些符号描述，一个数也没有，
+因为那四个条件概率就是调用者自己的 theta。于是**块本身就是记录**，而检查挂在地址上、
+不挂在主张上：有记录的地址执行了公式，没记录的地址一个字也没执行。
+
+**为什么是根因不是表象。** 表象的修法是「给这个块补一条 IV 专用规则」，
+那是同一份算术的第二个副本（㊼，两抄之日即漂移之始），而且下一个把这张表放到第三个地址时照旧漏。
+根因的说法是：**这条恒等式闭合在信封自己的数上，它该挂在「哪儿有这种表」而不是「这张表在哪儿」。**
+#621 刚把 `envelope_arithmetic_rules` 的遍历放到整个信封上，位置已经够得着了，缺的只是这条式子。
+
+**动手前按那个模块自己的规矩量了两件事**（它删过三条「成立但已被 `verify_mediation_numeric`
+守住」的候选）：(1) 恒等式在两个地址上都精确成立；
+(2) **它有内容**——那个似是而非的错答案「逐层比值的加权平均」在这行上是 0.65，
+真答案 0.625，两者只在各层第一阶段强度相同时才重合（Abadie 2003），不重算区分不开；
+(3) 它闭的叶子里，`numeric_estimate` 那家本来就闭着，`extensions` 那家**四片全开**。
+⇒ 通过「必须闭掉别人没闭的叶子」这条判据。
+
+**结构。** `envelope_arithmetic_rules` 加 `_check_stratified_aggregate`，**按形状问**：
+凡是一个块的行同时给出权重和两个位移，就拿 Σw·Δy / Σw·Δx 核它旁边的
+`outcome_shift` / `treatment_shift` / `late`。
+两个地址**不共用词汇**（一个记差、一个记四个条件均值），所以 `_SHIFT_SPELLINGS`
+声明两种写法；它们从不同时出现，谁也不能被归并掉。
+块里没有的数不问（`numeric_estimate.stratified_wald` 没有自己的 `late`，
+它的比值是兄弟字段 `point`，**已由 `_check_stratified_wald` 从记录独立重导，不碰**）。
+
+**明说的取舍，两条。**
+(1) **不核「权重和为 1」**——契约确实这么写（「a shortfall would mean the average runs
+over a narrower population than the query asked about」），两个地址实测也都是 1.0，
+但那是对单个字段的约束，不是两个数之间的恒等式，不属于这个模块（有记录那家已由
+`_check_stratified_wald` 守着）。
+(2) **不核「`late` 等于信封报出来的答案」**——量过：`late=0.9` 而 `numeric_result.value=0.625`
+时 0/12 无人拒。没做是因为**一行语料说不了「IV 可识别的查询是不是永远把 LATE 当答案报」**。
+关掉恒等式之后这条窄了（单独动 `late` 已经被拒），剩下的是「整块一致地改」，那是另一个问题。
+
+**账。** 38 测试 + 2 跳过；基线 18962→**19000**。
+**普查余项 2446→2438**——八片是这张表的每个 component 加上两个求和；
+剩下的 `conditioning_order.[]` 和 `strata.[].values.[]` 这条恒等式不读它们，如实留着。
 
 ### #621 一个数在算出来的地方被守住，在给人看的地方是自由的（2026-09-13）
 

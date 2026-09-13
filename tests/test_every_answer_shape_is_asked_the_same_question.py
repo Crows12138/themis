@@ -1282,6 +1282,17 @@ def test_the_declared_remainder_is_what_it_is():
     the interval's own endpoints: a priced interval cannot have an
     endpoint moved, because the half width beside it stops agreeing.
 
+    Then 8 more, on one row, and they are a formula the contract writes
+    out in prose beside the fields it is about. A stratified Wald block
+    states an aggregate next to the rows it aggregates; one of the two
+    routes that reach that table keeps a derivation record and a rule
+    executes the formula against it, and the other keeps none, so on its
+    envelope nothing executed the formula anywhere. Eight is every
+    component of the table and the two sums over it. What stays are the
+    two the identity does not read — the conditioning atoms and each
+    stratum's assignment of them — and they stay because a leaf leaves
+    this file by being closed and never by being tidied.
+
     The sampling caveat above still holds and is worth repeating here
     rather than left two paragraphs up: three swaps per leaf out of 88
     members, and a species says between one and ten of them, so a swap
@@ -1290,7 +1301,7 @@ def test_the_declared_remainder_is_what_it_is():
     species' failure.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2446, total
+    assert total == 2438, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
