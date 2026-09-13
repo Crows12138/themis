@@ -3,8 +3,8 @@ checked, because it was what the checking was done against.
 
 ``mechanism_audit`` is the one place a reader learns which functional form
 produced the number in front of them. Two checks already read it, and both
-walk the BLOCK: one finds the ledger line for each id the block names, the
-other counts the lines the block says the ledger owes. That makes the
+walked the BLOCK: one finds the ledger line for each id the block names, the
+other counted the lines the block said the ledger owes. That makes the
 block the denominator, which is the one position in which a thing is never
 itself checked — emptying ``mechanisms`` did not merely skip its own
 audit, it reduced what the ledger was said to owe. A measuring stick can
@@ -14,6 +14,15 @@ So the block could be deleted whole, emptied, or have its method
 relabelled, and every door accepted. The one edit that was refused —
 ``settled_by`` set to a word outside the enum — was refused by the schema,
 which is not an audit of anything.
+
+A stick can be lengthened too. The count asked for at least as many
+functional-form lines as mechanisms, so a mechanism written a second time
+passed wherever its shape named two assumptions or more — on 14 of the
+corpus's 58 answers carrying one. The block is a view over the one fit a
+run reports, and the builder writes one; the schema says so now, and the
+count is gone. Nothing it refused is let through without it: dropping a
+functional-form line is a dropped declaration, and moving one to another
+layer contradicts its severity.
 
 What anchors the other direction is that a shape assumption reaches the
 ledger because the FIT declared it, which the estimator channel already
@@ -30,12 +39,16 @@ of being wrong, kept rather than deleted.
 from __future__ import annotations
 
 import copy
+import json
+import pathlib
 
 import numpy as np
 import pandas as pd
 import pytest
 
 import themis
+from tests.answer_corpus import the_door_for
+from themis.input.syntactic_validator import SyntacticError
 from themis.verifier.errors import VerificationError
 
 
@@ -257,3 +270,36 @@ def test_the_target_was_the_other_one_and_the_record_was_wrong(fitted):
     _mech(r)["target"] = "z"
     with pytest.raises(VerificationError, match="fitted for 'z'"):
         themis.verify(BACKDOOR, r)
+
+
+# ---------------------------------------------- and a stick lengthened
+
+
+_SHAPES = json.loads((pathlib.Path(__file__).parent / "fixtures" /
+                      "answer_shapes.json").read_text(encoding="utf-8"))
+
+
+def _mechanisms_of(result):
+    return (((result.get("extensions") or {})
+             .get("mechanism_audit") or {}).get("mechanisms") or [])
+
+
+_CARRIERS = sorted(n for n in _SHAPES if _mechanisms_of(_SHAPES[n]["result"]))
+
+
+def test_every_answer_carrying_the_block_carries_one_mechanism():
+    assert len(_CARRIERS) == 58, len(_CARRIERS)
+    assert all(len(_mechanisms_of(_SHAPES[n]["result"])) == 1
+               for n in _CARRIERS)
+
+
+@pytest.mark.parametrize("name", _CARRIERS)
+def test_a_mechanism_written_twice_is_refused(name):
+    """One fit, one mechanism. Fourteen of these passed every door while the
+    audit counted functional-form lines against mechanisms."""
+    program = _SHAPES[name]["program"]
+    bent = copy.deepcopy(_SHAPES[name]["result"])
+    mechanisms = _mechanisms_of(bent)
+    mechanisms.append(copy.deepcopy(mechanisms[0]))
+    with pytest.raises(SyntacticError, match="mechanism_audit/mechanisms"):
+        the_door_for(bent)(program, bent)

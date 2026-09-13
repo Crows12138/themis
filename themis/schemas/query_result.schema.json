@@ -838,6 +838,8 @@
           "properties": {
             "mechanisms": {
               "type": "array",
+              "maxItems": 1,
+              "description": "At most one, because the block is a view over the one fit this run reported — `numeric_estimate` for a point, the region's own block for a region — and the builder writes exactly one. An array in shape only. A second entry was read by the assumption ledger's audit as one more mechanism owed lines, and that audit counted lines rather than asking which: a mechanism appended word for word passed every door on the 14 corpus answers whose shape names two or more assumptions.",
               "items": {
                 "type": "object",
                 "required": ["target", "form", "method", "assumptions"],

@@ -18,7 +18,9 @@ What it audits:
   naming the same id, which says the same thing in better words. Carrying
   neither is the defect.
 - **Completeness of the other three channels, and what two of them say.**
-  One entry per audited mechanism. A load-bearing proposal edge in the gap
+  An audited mechanism is owed a line under each shape assumption it names,
+  by id, and it describes the one fit this run reported, so the schema
+  allows one. A load-bearing proposal edge in the gap
   report and a prior the language model supplied are owed more than a
   count: each channel writes its line from one record on this answer and
   names no assumption, so the lines with no id are held, together, to be
@@ -630,7 +632,6 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_caller_choices(result, entries)
     _check_estimator_defaults(result, entries)
     _check_the_lines_that_name_no_assumption(entries, owed_edges + owed_priors)
-    _check_channel(entries, owed_forms, "functional_form", "audited mechanism")
     _check_the_line_says_what_the_block_says(entries, extensions)
     _check_one_run_settles_one_shape_per_lever(extensions)
     _check_every_shape_the_ledger_names_has_a_mechanism(entries, extensions)
@@ -1350,9 +1351,12 @@ def _check_every_shape_the_ledger_names_has_a_mechanism(
 ) -> None:
     """The other direction, and why nothing could see it was missing.
 
-    Both existing checks walk the BLOCK: one finds the ledger line for
-    each id the block names, the other counts the lines the block says are
-    owed. That makes the block the denominator, which is the one position
+    The check above walks the BLOCK: it finds the ledger line for each id
+    the block names. A count of functional_form lines against the block's
+    mechanisms stood beside it, and could not see a mechanism written
+    twice when its shape named two ids — 14 corpus answers took one — so
+    it is gone, and the schema says one fit has one mechanism. Walking
+    the block makes it the denominator, which is the one position
     in which a thing is never itself checked — emptying ``mechanisms`` did
     not merely skip its own audit, it also reduced what the ledger was
     said to owe. A measuring stick can be shortened.
@@ -1606,14 +1610,3 @@ def _check_the_lines_that_name_no_assumption(entries: list,
         "it stands for — which edge, whose proposal, whether the data can "
         "answer it — and a line nothing owes is a proposal nobody made"
     )
-
-
-def _check_channel(entries: list, owed: tuple, layer: str, what: str) -> None:
-    if not owed:
-        return
-    got = sum(1 for e in entries if e.get("layer") == layer)
-    if got < len(owed):
-        _reject(
-            f"assumption_ledger carries {got} {layer} entrie(s) for "
-            f"{len(owed)} {what}(s); the difference is silently undisclosed"
-        )

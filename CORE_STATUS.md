@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19151 passed / 518 skipped, warning-clean
+19210 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,39 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #630 一次拟合的机制块被原样复制一份，账本审计数的是行数（2026-09-14）
+
+**现象。** 把 `extensions.mechanism_audit.mechanisms` 里唯一的机制原样再追加一份，语料 58 个带这个块的答案里
+**14 个所有门放行**——都是形状点名了两个以上假设的答案（aipw、tmle、ipw_stabilized、两个中介联合、simex……）。
+读者读到的是「这个数是在两个函数形式下拟合的」，而只跑过一次拟合。
+
+**根因。** 账本审计对这个通道只有 `_check_channel(entries, owed_forms, "functional_form", …)`：functional_form
+的行数**不少于**机制个数。「每个机制都进账本」这件事其实早按 id 守住了（`_check_the_line_says_what_the_block_says`
+要求块点名的每个 id 都有一行，schema 要求每个机制至少点名一个）；计数只剩一个碰巧的作用——机制只点名一个
+id 时，复制一份会让行数不够，于是 44 个答案上被它拒，另外 14 个行数本来就够。被违反的真正事实是「**一次拟合
+一个机制**」：`build_mechanism_audit` 只返回 `{"mechanisms": [mechanism]}`，`_check_the_block_describes_the_fit_that_ran`
+说块是「一次拟合的视图」，而 schema 没说。
+
+**为什么是根因不是表象。** 表象修法是把计数改成「行数不少于机制数 × 每个机制的 id 数」或者要求机制之间不重复——
+都是在一条本不该存在的计数上加条件。一份记录被缩成了它的长度（#624 同一病），长度能被拉长也能被缩短
+（同文件那条测试记的是缩短）。
+
+**先量的。** 语料 58 个带块的答案**全部恰好一个机制**，整条 / form / target / form+target / method+target / 共享 id
+重复都是 0；测试里手工构造的机制块全是单个。探针分三步：删一条 functional_form 行 78 次、改层 78 次、清空机制
+assumptions 58 次，没有一次只靠计数拒（最后一类被 schema 的 minItems 截走，那次不算测到了计数）；复制机制
+58 次里 44 次只靠计数拒、14 次全放行；复制后改 form 58 次，计数没有独有的拒绝。**我 #626 时猜「计数可能已经
+没有见证」，猜错了**——它有独有见证，只是见证的是一个它不是为之设计的伪造，而且漏了 14 个。
+
+**结构。** schema 给 `mechanisms` 加 `maxItems: 1` 并写明理由；删掉 `_check_channel` 的调用和整个函数（没有
+别的调用者）；`ledger is None` 分支里 `owed_forms` 照旧用。模块文档和 `_check_every_shape_the_ledger_names_has_a_mechanism`
+的文档里说「另一条检查数行数」的句子改掉；`tests/test_the_shape_a_number_was_fitted_through_was_its_own_denominator.py`
+（讲量尺被缩短的那个文件）文档同样改，并加一段「量尺也能被拉长」和两条测试。
+
+**演练（在内存里：schema 副本 + 计数置空）。** 诚实 243 放行；复制 58/58、复制改 form 58/58 被 schema 拒；
+删行 78/78 被「drops estimator-declared」拒；改层 78/78 被 severity 拒。计数拒过的没有一件因为它不在而放行。
+
+**账。** 59 测试；基线 19151→**19210**。普查预测不动（单叶弯折改不了列表长度）。
 
 ### #629 哪些边欠一条「这条边是提议、不是证据」的 gap，只有写报告的人说了算（2026-09-14）
 
