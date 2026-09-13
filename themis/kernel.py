@@ -1642,7 +1642,8 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # the missing list is short of, the assumptions that interval rests on.
     # They went unheld because the roster telling names from non-names was
     # read as also saying which non-names could be checked, and a value's
-    # KIND is not what decides that: a second record is.
+    # KIND is not what decides that: a second record is. The same is true
+    # of a name, where its statement copies it from the question.
     verify_gap_quotes(result, ctx)
 
     # And the block that stands where a number would have been, which for

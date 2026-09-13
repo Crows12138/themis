@@ -1359,9 +1359,19 @@ def test_the_declared_remainder_is_what_it_is():
     in. The seven rows that keep the leaf keep it for the third lie,
     ``"x"``, which is a variable those problems really have. Whether the
     target is THIS name is not a question a membership test can ask.
+
+    Then 27 came off with the second record that question needed. Where a
+    statement names a role of the question — the intervention, the
+    treatment, the target, the outcome — it copies the question, which is
+    on the program, and the rule holding quoted facts to their records
+    holds these to it. The seven targets above are 7 of them; 17 are
+    outcomes on the loop, instrument, proximal and estimator rows, and 3
+    are interventions on a row whose intervention is neither a state nor
+    an event. Each had kept its leaf for ``"x"``, a variable those
+    problems have and not the one the question is about.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2212, total
+    assert total == 2185, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

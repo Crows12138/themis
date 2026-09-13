@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19332 passed / 518 skipped, warning-clean
+19579 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,43 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #634 gap 里写问题角色的槽，只被问「是不是题目的词」，没被问「是不是问题里那个」（2026-09-14）
+
+**现象。** gap 的 `said` 里以问题角色命名的槽（`intervention`、`treatment`、`target`、`outcome`），换成题目里另一个真变量，门放行。
+在声明的 45 个 (语句, 槽) 上逐个换成题目的每个其他谓词，1128 次换写放行 1088；扣掉 18 次同一原子换拼法（`y()` 换成 `y`），
+真伪造放行 1070，其中 912 次在「干预是状态还是事件」那四句上。原先只有两条对撞警告（#632）押住 40 次。
+
+**根因。** 名字规则问的是成员——「是不是题目的词」，`x` 换成 `y` 两个都是。能回答「是不是这一个」的是第二份记录，
+而这些槽写的就是问题本身，问题在程序里，答案改不了。复制规则 `_COPIED_FROM` 早就立了「值是什么种类不决定它能不能被押住，
+有没有第二份记录才决定」，却只对非名字槽问，测试也钉成「复制表里没有名字槽」：名字这个种类被当成了只做成员判断的理由。
+
+**为什么是根因不是表象。** 按槽名通配（「凡 `treatment` 都等于问题的干预」）会误拒：`sequential_exchangeability_fails` 的
+`treatment` 是纵向策略里失败那个时点的处理，`outcome` 是纵向 spec 声明的结局，按构造都不必是问题的。拿 provenance 押
+（`verify_gap_subjects` 的做法）也够不到：这些 gap 的引用不一定点名角色变量。第二份记录在问题上，谁复制问题只能逐句声明。
+
+**结构。** 都在 `gap_claim_rules`：
+- `_the_questions_intervention` / `_the_questions_target`：问题用自己的字段放角色（effect、identify、SCM 反事实是 `intervention` / `target`，
+  proximal 是 `treatment` / `outcome`），roster 是那个原子的两种拼法——谓词，和验证器自己的标签（循环一族写 `x()`）；问题没有这个角色时为空，规则沉默。
+- `_ROLES` 说四个槽名各是问题的哪个角色；`_COPIES_THE_QUESTION` 按生产者的构造逐句声明 45 对（对撞警告、剂量响应和两条出路读 effect query，
+  干预状态事件四句读所属 query，循环一族读 occasion 的处理与结局，proximal 一族读 proximal query，两条估计诊断读拟合用的列）；
+  `_NOT_THE_QUESTIONS` 列出 2 个例外并写明是什么。
+- 这 45 对进 `_COPIED_FROM`，由 `verify_gap_quotes` 问——不加入口，kernel 调用不变。
+- `_bind`：每个以角色命名、在所在语句里是名字的槽，恰好落在两份声明之一；调用挪到 `_COPIED_FROM` 之后。
+
+**演练（写盘之前在进程内打补丁）。** 声明完备（应声明 47 = 45 + 2，无漏无多）。诚实 243 个改前改后都 0 拒；
+声明槽上 1128 次换写，放行 1088→18，剩下的 18 次全是同一原子换拼法；诚实站点 489 处，循环一族 18 处写标签、其余写谓词，
+问题没有该角色的 0 处。`said` 弯折普查 (2090, 194) 不动；余项闸口离开 27、新增 0。
+
+**没做（量到了）。** gap 顶层 `said`（不带语句名）上的 `intervention` 换写放行 304 次，按语句声明够不到，
+归「同一 gap 里一件事写在几个容器上要一致」（下一条）。proximal 一族的 `latent`、`z`、`w` 和代理集合也复制问题
+（`ProximalEffectQuery.latent` / `treatment_proxy` / `outcome_proxy`），换写各放行 4-8 次；同一张表接得住，但生产者还没逐句审。
+
+**账。** 247 测试（新文件 `tests/test_a_role_a_gap_names_is_the_questions.py`，另有复制规则按答案参数化的诚实测试随站点增加）；基线 19332→**19579**。
+`test_a_gap_quotes_the_run_back_at_the_reader` 站点 334→823（`target` 11→33，新增 `intervention` 430、`treatment` 20、`outcome` 17），复制表的种类多了 name；
+`test_a_roster_is_a_claim_about_what_this_build_can_write` 人群伪造 (11, 22)→(33, 0)、`target` 条目 11→33；
+`test_a_slot_is_asked_what_its_statement_says_it_holds` 换成 `x` 放行 7→0；`test_every_answer_shape_is_asked_the_same_question` 余项 2212→2185，
+离开 `unwitnessed_leaves.json` 的是 outcome 17 片、target 7 片、intervention 3 片。
 
 ### #633 一个槽装什么由它所在的句子定，名字规则却按槽名问（2026-09-14）
 

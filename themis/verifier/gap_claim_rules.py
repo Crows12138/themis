@@ -71,6 +71,17 @@ And the index the binding holds the rosters to listed sentences and
 needs but not routes, so no slot a way past declares was bound at all —
 four of them are declared nowhere else, and ``scale`` was in no roster.
 
+AND A NAME CAN HAVE A SECOND RECORD. The name rule asks whether a word is
+one this problem is written in, and a gap whose intervention is rewritten
+from ``x`` to ``y`` answers yes: both are. Where a slot is named after a
+role of the question — ``intervention``, ``treatment``, ``target``,
+``outcome`` — its statement is almost always written from the question
+itself, and the question is on the program, which no answer can edit.
+Those slots are in the copy table beside the non-names, held to the
+question's own atom. Almost, not always: a longitudinal failure names
+the treatment at the time point that failed, and a declaration per
+statement says so, rather than the slot's name deciding it.
+
 WHY NOT SHARE THE NAME SET WITH :func:`formula_fits`. Both ask "is this a
 name this problem has", and the two answers differ: a formula names
 PREDICATES, while a gap's value is rendered text that carries predicates
@@ -94,8 +105,9 @@ import re
 from typing import Any, Iterator, Mapping
 
 from .. import gaps as _gaps
-from ..types import VariableDeclaration
+from ..types import Atom, VariableDeclaration
 from .errors import VerificationError
+from .rules import _atom_label_verifier
 
 _RULE = "gap_names_check"
 
@@ -362,6 +374,10 @@ def _bind() -> None:
     And per statement where a slot's kind is its statement's: every
     statement declaring such a slot has an entry saying what it holds
     there, and no entry names a statement that does not declare it.
+
+    And per role: every slot named after a role of the question, in a
+    statement that files it as a name, is declared a copy of the
+    question or declared not to be one — once, and nothing else is.
     """
     declared = statements_and_the_slots_they_declare()
     space = {slot for _statement, slot in declared}
@@ -386,9 +402,20 @@ def _bind() -> None:
             f"what it holds there; entries "
             f"{sorted(set(_IN_ITS_SENTENCE) - owed)} name a statement that "
             f"does not declare it")
+    roles = {pair for pair in declared
+             if pair[1] in _ROLES and holds_a_name(*pair)}
+    copies = {(statement, slot)
+              for statement, slots in _COPIES_THE_QUESTION.items()
+              for slot in slots}
+    either = copies | set(_NOT_THE_QUESTIONS)
+    both = sorted(copies & set(_NOT_THE_QUESTIONS))
+    if roles != either or both:
+        raise RuntimeError(
+            f"slots {sorted(roles - either)} are named after a role of the "
+            f"question and nothing says whether they copy it; entries "
+            f"{sorted(either - roles)} name no such slot; {both} are said "
+            f"both ways")
 
-
-_bind()
 
 def _methods_the_answer_ran(result: Mapping, _context=None) -> set[str]:
     """Every method this answer says produced a number or an interval."""
@@ -478,6 +505,104 @@ def _ambiguities_the_caller_flagged(result: Mapping, _context) -> set[str]:
     return found
 
 
+def _the_questions_atom(context, fields: tuple[str, ...]) -> set[str]:
+    """The atom the question keeps under the first of ``fields`` it has,
+    spelled both ways a gap spells an atom; empty for a question with none.
+
+    A question names a role by a field of its own: an effect, an
+    identification and a structural counterfactual call the two
+    ``intervention`` and ``target``, and a proximal effect calls them
+    ``treatment`` and ``outcome``. Both spellings are the producer's —
+    most statements carry the predicate, and the ones about a declared
+    loop carry the atom as the scheduler labels it, ``x()`` for a
+    variable applied to nothing.
+    """
+    query = getattr(context, "query", None)
+    for field in fields:
+        part = getattr(query, field, None)
+        atom = getattr(part, "atom", part)
+        if isinstance(atom, Atom):
+            return {atom.predicate, _atom_label_verifier(atom)}
+    return set()
+
+
+def _the_questions_intervention(_result: Mapping, context) -> set[str]:
+    """The variable the question intervenes on."""
+    return _the_questions_atom(context, ("intervention", "treatment"))
+
+
+def _the_questions_target(_result: Mapping, context) -> set[str]:
+    """The variable the question asks the effect on."""
+    return _the_questions_atom(context, ("target", "outcome"))
+
+
+#: The slot names that are roles of the question, and the role each one
+#: copies wherever its statement copies one.
+_ROLES: Mapping[str, tuple[str, Any]] = {
+    "intervention": ("the question's intervention",
+                     _the_questions_intervention),
+    "treatment": ("the question's intervention",
+                  _the_questions_intervention),
+    "target": ("the question's target", _the_questions_target),
+    "outcome": ("the question's target", _the_questions_target),
+}
+
+#: The statements whose role slots are copies of the question, and which.
+#:
+#: Read off the producers rather than off the corpus. A caveat about a
+#: collider, a dose-response curve and the two ways past a conditioned
+#: collider are written from the effect query; the four about whether an
+#: intervention is a state or an event, from the query they are about; the
+#: loop family from the treatment and outcome of the occasion, which are
+#: the question's; the proximal family from the proximal query; and the
+#: two diagnostics of a fitted estimate from the columns it was fitted
+#: for, which are the question's too. Two of the loop statements are
+#: reached by no answer shape, and are written from the same occasion as
+#: the rest of their family.
+_COPIES_THE_QUESTION: Mapping[str, tuple[str, ...]] = {
+    "the_conditioning_node_is_a_collider": ("intervention", "target"),
+    "the_sample_is_restricted_on_a_collider": ("intervention", "target"),
+    "ask_the_marginal_effect": ("intervention", "target"),
+    "maybe_it_is_not_a_common_effect": ("intervention", "target"),
+    "the_question_asks_for_a_dose_response_curve": (
+        "intervention", "target"),
+    "the_intervention_says_neither_state_nor_event": ("intervention",),
+    "the_intervention_is_a_state_with_no_time_window": ("intervention",),
+    "declare_the_intervention_an_event": ("intervention",),
+    "split_the_intervention_in_two": ("intervention",),
+    "a_cyclic_model_need_not_have_this_quantity": ("treatment", "outcome"),
+    "adjustment_cannot_remove_a_feedback": ("treatment", "outcome"),
+    "feedback_loop_needs_an_instrument": ("treatment", "outcome"),
+    "feedback_loop_outside_the_simultaneous_case": ("treatment", "outcome"),
+    "name_an_instrument_for_the_treatment": ("treatment", "outcome"),
+    "resolve_the_loop_in_time": ("treatment", "outcome"),
+    "the_number_is_a_single_equations_coefficient": (
+        "treatment", "outcome"),
+    "the_treatment_is_inside_a_declared_loop": ("treatment", "outcome"),
+    "a_test_of_the_null_is_what_is_left": ("treatment", "outcome"),
+    "the_discrete_contrast_needs_two_arms": ("treatment", "outcome"),
+    "the_fitted_treatment_bridge_went_negative": ("treatment", "outcome"),
+    "the_fitted_treatment_bridge_went_negative_at_a_level": (
+        "treatment", "outcome"),
+    "the_penalty_moved_it_further_than_noise_did": ("treatment", "outcome"),
+    "the_proxies_show_fewer_states_than_the_latent_has": (
+        "treatment", "outcome"),
+    "use_a_bridge_channel_for_more_than_two_arms": ("treatment",),
+    "the_fitted_propensity_leaves_part_of_the_sample_unsupported": (
+        "treatment",),
+    "the_outcome_model_is_quasi_separated": ("outcome",),
+}
+
+#: Slots named after a role that are NOT the question's, and what each is
+#: instead. The slot's name does not decide it; these are why.
+_NOT_THE_QUESTIONS: Mapping[tuple[str, str], str] = {
+    ("sequential_exchangeability_fails", "treatment"):
+        "the treatment at the time point where the strategy failed",
+    ("sequential_exchangeability_fails", "outcome"):
+        "the outcome the longitudinal specification declares",
+}
+
+
 #: What a ``said`` value is a COPY OF, and where the record it was copied
 #: from lives on the same envelope.
 #:
@@ -546,7 +671,16 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     ("transport_rests_on_s_admissibility", "target"):
         ("the domains the program declares",
          _domains_the_program_declares, False),
+    # And the slots that copy the QUESTION. That record is on the program
+    # rather than the envelope, and it is the one no answer can edit. The
+    # slots are names as well, which the name rule asks; being one was
+    # never what said whether a second record exists.
+    **{(statement, slot): (*_ROLES[slot], False)
+       for statement, slots in _COPIES_THE_QUESTION.items()
+       for slot in slots},
 }
+
+_bind()
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -674,8 +808,9 @@ def verify_gap_quotes(result: Mapping, context) -> None:
     alone. A slot's meaning is its sentence's, and a table with one answer
     per name is right about a slot's commonest sentence and silent in the
     others. Takes the context for the same reason ``verify_gap_names``
-    does: two of the rosters are the program's, not the answer's, and a
-    population is a name out of the register the name rule cannot read.
+    does: some rosters are the program's, not the answer's — a population
+    is a name out of the register the name rule cannot read, and the
+    variable a statement copies from the question is the question's.
 
     Returns ``None`` on accept, including when there is no report.
     """

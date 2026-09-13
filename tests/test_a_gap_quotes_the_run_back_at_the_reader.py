@@ -48,8 +48,8 @@ from themis.verifier import VerificationError
 from themis.verifier.gap_claim_rules import (
     _COPIED_FROM,
     _IN_ITS_SENTENCE,
-    _NAMES,
     _NOT_NAMES,
+    _ROLES,
     every_said,
     every_said_mapping,
     holds_a_name,
@@ -103,9 +103,10 @@ def test_the_facts_this_rule_speaks_for():
     assert split == {
         "assumptions": 40, "method": 67, "what": 87,
         "methods": 73, "field": 19, "population": 16, "source": 10,
-        "kind": 11, "target": 11,
+        "kind": 11, "target": 33,
+        "intervention": 430, "treatment": 20, "outcome": 17,
     }, split
-    assert len(SITES) == 334, len(SITES)
+    assert len(SITES) == 823, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -124,7 +125,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 334, refused
+    assert refused == 823, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -215,15 +216,21 @@ def test_a_kind_is_not_a_reason_nothing_can_hold_a_value():
     DOMAIN is a name out of the register the name rule cannot read, and
     the program declares every one of them; and a ``value`` slot joins
     when its statement says which register it is in.
+
+    And a NAME, where its statement copies it from the question. Being a
+    name says the name rule asks it, and that rule asks whether a word is
+    one of the problem's; a second record says whether it is the one.
     """
     def kind(statement, key):
+        if holds_a_name(statement, key):
+            return "name"
         return _IN_ITS_SENTENCE.get((statement, key)) or _NOT_NAMES[key]
 
-    for statement, key in _COPIED_FROM:
-        assert key not in _NAMES, key
-        assert not holds_a_name(statement, key), (statement, key)
     assert {kind(s, k) for s, k in _COPIED_FROM} == {
-        "vocabulary", "expression", "domain"}
+        "vocabulary", "expression", "domain", "name"}
+    names = {(s, k) for s, k in _COPIED_FROM if kind(s, k) == "name"}
+    assert {k for _s, k in names} == set(_ROLES)
+    assert all(s is not None for s, _k in names)
 
 
 def test_a_rendered_number_is_deliberately_not_in_this_roster():

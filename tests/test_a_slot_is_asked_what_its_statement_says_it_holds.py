@@ -218,11 +218,11 @@ def test_a_statement_with_no_entry_is_not_asked():
         verify_gap_names(result, context)
 
 
-def test_what_a_membership_test_cannot_ask_is_counted():
-    """The rows that keep the leaf at the unwitnessed-leaf gate. A target
-    rewritten to another variable the problem has is still a name it has —
-    ``x``, on these rows. Whether it is THIS name is the question's own
-    target to settle: a second record, and a different rule."""
+def test_what_a_membership_test_cannot_ask_is_asked_of_the_question():
+    """A target rewritten to another variable the problem has is still a
+    name it has — ``x``, on seven of these rows — and the name rule has to
+    pass it. Whether it is THIS name is the question's own target to
+    settle, and the rule holding a copy to its record now does."""
     accepted = []
     for name, where, statement in AS_A_NAME:
         forged = copy.deepcopy(SHAPES[name]["result"])
@@ -233,7 +233,4 @@ def test_what_a_membership_test_cannot_ask_is_counted():
         except VerificationError:
             continue
         accepted.append((name, statement))
-    assert len(accepted) == 7, accepted
-    assert {statement for _n, statement in accepted} == {
-        "ask_the_marginal_effect", "maybe_it_is_not_a_common_effect",
-        "the_question_asks_for_a_dose_response_curve"}
+    assert accepted == [], accepted

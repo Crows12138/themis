@@ -146,14 +146,16 @@ def test_one_slot_answers_differently_in_two_statements():
 
     Under the statement about transporting an answer it is a population,
     and the program declares every population there is. Under the five
-    about a dose-response curve and a collider it is a variable. A table
-    with one answer per slot NAME is right about one of those.
+    about a dose-response curve and a collider it is a variable — the
+    question's target, which the question records. A table with one
+    answer per slot NAME is right about one of those.
     """
     transported = _COPIED_FROM.get(
         ("transport_rests_on_s_admissibility", "target"))
-    assert transported is not None
-    assert _COPIED_FROM.get(
-        ("the_question_asks_for_a_dose_response_curve", "target")) is None
+    assert transported[0] == "the domains the program declares"
+    curve = _COPIED_FROM.get(
+        ("the_question_asks_for_a_dose_response_curve", "target"))
+    assert curve[0] == "the question's target"
     assert _COPIED_FROM.get((None, "target")) is None
 
     seen = {statement for statement, key in SHOWN if key == "target"}
@@ -168,8 +170,9 @@ def test_one_slot_answers_differently_in_two_statements():
 
 
 def test_a_population_this_program_does_not_declare_is_refused():
-    """And the same word, in the statement that is not about a population,
-    is left to the rule whose question it is."""
+    """And the same word, in the statements that are not about a
+    population, is held to the question's target — which is not a
+    population either."""
     refused = passed = 0
     for name, pair in SHAPES.items():
         for where, statement, said in every_said_mapping(
@@ -188,7 +191,7 @@ def test_a_population_this_program_does_not_declare_is_refused():
                 refused += 1
             else:
                 passed += 1
-    assert (refused, passed) == (11, 22), (refused, passed)
+    assert (refused, passed) == (33, 0), (refused, passed)
 
 
 # ----------------------------------------------- the rosters, each measured
@@ -196,11 +199,12 @@ def test_a_population_this_program_does_not_declare_is_refused():
 
 @pytest.mark.parametrize("key,count", [
     ("methods", 73), ("field", 19), ("population", 16), ("source", 10),
-    ("kind", 11), ("target", 11),
+    ("kind", 11), ("target", 33),
 ])
 def test_each_new_roster_speaks_for_the_sites_it_claims(key, count):
     """Per slot, so a narrowing shows up as a number rather than as a
-    quiet pass. ``target`` counts only the statement whose answer it is."""
+    quiet pass. ``target`` counts the statement where it is a population
+    and the five where it is the question's."""
     seen = 0
     for pair in SHAPES.values():
         for _where, statement, said in every_said_mapping(

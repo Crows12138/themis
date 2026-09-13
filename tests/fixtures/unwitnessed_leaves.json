@@ -365,11 +365,9 @@
   "numeric_estimate.stabilized"
  ],
  "iv_2sls": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.outcome",
   "data_gap_report.gaps.[].alternative_paths.[].said.treatment",
   "data_gap_report.gaps.[].describes.[].said.instrument",
   "data_gap_report.gaps.[].describes.[].said.left",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.right",
   "data_gap_report.gaps.[].describes.[].said.treatment",
   "derivation.steps.[].inputs.y.predicate",
@@ -643,7 +641,6 @@
  ],
  "needs_investigation:effect:none#03cf75": [
   "bounds_results.[].data_required.[].said.expression",
-  "data_gap_report.gaps.[].describes.[].said.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -659,11 +656,8 @@
  ],
  "needs_investigation:effect:none#055e4a": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].alternative_paths.[].said.outcome",
   "data_gap_report.gaps.[].alternative_paths.[].said.treatment",
   "data_gap_report.gaps.[].describes.[].said.left",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].describes.[].said.outcome@blocks=point_estimate,kind=feedback_loop_reaches_the_estimand,severity=blocking,sentence=a_cyclic_model_need_not_have_this_quantity",
   "data_gap_report.gaps.[].describes.[].said.right",
   "data_gap_report.gaps.[].describes.[].said.treatment",
   "data_gap_report.gaps.[].describes.[].said.treatment@blocks=point_estimate,kind=feedback_loop_reaches_the_estimand,severity=blocking,sentence=a_cyclic_model_need_not_have_this_quantity",
@@ -781,7 +775,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].alternative_paths.[].said.value",
   "data_gap_report.gaps.[].said.collider",
   "data_gap_report.gaps.[].said.value",
@@ -846,13 +839,9 @@
  ],
  "needs_investigation:effect:none#451831": [
   "bounds_results.[].data_required.[].said.expression",
-  "data_gap_report.gaps.[].alternative_paths.[].said.outcome",
-  "data_gap_report.gaps.[].alternative_paths.[].said.outcome@blocks=point_estimate,kind=missing_iv_candidate,severity=blocking,route=resolve_the_loop_in_time",
   "data_gap_report.gaps.[].alternative_paths.[].said.treatment",
   "data_gap_report.gaps.[].alternative_paths.[].said.treatment@blocks=point_estimate,kind=missing_iv_candidate,severity=blocking,route=resolve_the_loop_in_time",
   "data_gap_report.gaps.[].describes.[].said.left",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].describes.[].said.outcome@blocks=point_estimate,kind=missing_iv_candidate,severity=blocking,sentence=adjustment_cannot_remove_a_feedback",
   "data_gap_report.gaps.[].describes.[].said.right",
   "data_gap_report.gaps.[].describes.[].said.treatment",
   "data_gap_report.gaps.[].describes.[].said.treatment@blocks=point_estimate,kind=missing_iv_candidate,severity=blocking,sentence=adjustment_cannot_remove_a_feedback",
@@ -889,7 +878,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].alternative_paths.[].said.value",
   "data_gap_report.gaps.[].said.collider",
   "data_gap_report.gaps.[].said.value",
@@ -940,7 +928,6 @@
  "needs_investigation:effect:none#63d205": [
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].said.collider",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
@@ -965,7 +952,6 @@
  "needs_investigation:effect:none#6b1d33": [
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].said.collider",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
@@ -1381,7 +1367,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=declare_it_a_selection_node",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=selection_on_collider_opens_path,severity=important,route=maybe_it_is_not_a_common_effect",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].alternative_paths.[].said.value",
   "data_gap_report.gaps.[].said.collider",
   "data_gap_report.gaps.[].said.value",
@@ -1504,7 +1489,6 @@
   "data_gap_report.gaps.[].describes.[].said.high",
   "data_gap_report.gaps.[].describes.[].said.low",
   "data_gap_report.gaps.[].describes.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.outside",
   "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.total",
@@ -1523,9 +1507,6 @@
   "numeric_estimate.ovb_sensitivity.se"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#428cc2": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.intervention",
-  "data_gap_report.gaps.[].alternative_paths.[].said.intervention@blocks=identification,kind=ill_defined_intervention_versions,severity=important,route=split_the_intervention_in_two",
-  "data_gap_report.gaps.[].describes.[].said.intervention",
   "data_gap_report.gaps.[].said.intervention",
   "derivation.steps.[].inputs.ci_lower",
   "derivation.steps.[].inputs.ci_upper",
@@ -1748,7 +1729,6 @@
  "numerically_solved:effect:numeric_result#22d72a": [
   "data_gap_report.gaps.[].alternative_paths.[].said.collider",
   "data_gap_report.gaps.[].alternative_paths.[].said.collider@blocks=identification,kind=collider_conditioning_opens_backdoor,severity=important,route=treat_the_collider_as_a_target_population",
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "data_gap_report.gaps.[].said.collider",
   "derivation.steps.[].inputs.formula.denominator.body.body.terms.[].given.[].atom.args.[].name",
   "derivation.steps.[].inputs.formula.denominator.body.body.terms.[].given.[].atom.predicate",
@@ -1943,7 +1923,6 @@
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate": [
   "data_gap_report.gaps.[].describes.[].said.level",
   "data_gap_report.gaps.[].describes.[].said.levels",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.share",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.joint.items.s_bb.items.[].items.[]",
@@ -2052,7 +2031,6 @@
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#c52905": [
   "data_gap_report.gaps.[].describes.[].said.control",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
   "data_gap_report.gaps.[].describes.[].said.treated",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_bb.items.[].items.[]",
@@ -2128,8 +2106,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].said.levels",
   "data_gap_report.gaps.[].describes.[].said.latent",
   "data_gap_report.gaps.[].describes.[].said.levels",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].describes.[].said.outcome@blocks=point_estimate,kind=answer_is_a_test_not_an_effect_size,severity=blocking,sentence=a_test_of_the_null_is_what_is_left",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.x",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.z",
   "derivation.steps.[].inputs.measurement_channel.items.estimator",
@@ -2153,7 +2129,6 @@
  "proximal_bridge": [
   "data_gap_report.gaps.[].describes.[].said.bend",
   "data_gap_report.gaps.[].describes.[].said.noise",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.n",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_bb.items.[].items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.control.items.s_by.items.[]",
@@ -2194,8 +2169,6 @@
   "data_gap_report.gaps.[].describes.[].said.k",
   "data_gap_report.gaps.[].describes.[].said.latent",
   "data_gap_report.gaps.[].describes.[].said.latent@blocks=point_estimate,kind=answer_is_a_test_not_an_effect_size,severity=blocking,sentence=a_test_of_the_null_is_what_is_left",
-  "data_gap_report.gaps.[].describes.[].said.outcome",
-  "data_gap_report.gaps.[].describes.[].said.outcome@blocks=point_estimate,kind=answer_is_a_test_not_an_effect_size,severity=blocking,sentence=a_test_of_the_null_is_what_is_left",
   "data_gap_report.gaps.[].describes.[].said.w",
   "data_gap_report.gaps.[].describes.[].said.z",
   "data_gap_report.gaps.[].describes.[].said.z_levels",

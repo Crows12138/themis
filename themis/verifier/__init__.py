@@ -472,7 +472,11 @@ Public surface (re-exports from sub-modules):
   the caller flagged are all held. Both rosters are also bound at import
   to the slots a statement can declare, rather than to the keys the
   answer shapes happen to produce — eighteen slots this build can write
-  were in neither, and a slot in neither is asked by no rule here)
+  were in neither, and a slot in neither is asked by no rule here. A
+  NAME can have a second record too: where a statement writes a role of
+  the question — the intervention, the treatment, the target, the
+  outcome — the question is that record, and a gap rewriting one real
+  variable into another, which the name rule has to pass, is held to it)
 - How much data a reader is told to go and collect, and from where:
   ``verify_required_data`` (a blocking gap ends in an instruction somebody
   runs a trial on — 229 of its leaves could be rewritten and both doors
