@@ -679,7 +679,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#06d3b8": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -836,7 +835,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#30ca3b": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "investigation_requests.[].note.said.key"
  ],
@@ -929,7 +927,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#60ffe9": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -950,7 +947,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#6898ab": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -1005,7 +1001,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#808045": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.target",
   "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
@@ -1087,7 +1082,6 @@
   "missing_information.[].said.predicate"
  ],
  "needs_investigation:effect:none#b26e61": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "investigation_requests.[].note.said.key"
  ],
@@ -1188,7 +1182,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#dd007d": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -1747,7 +1740,6 @@
   "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#11765d": [
-  "data_gap_report.gaps.[].describes.[].said.target",
   "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#203ca4": [

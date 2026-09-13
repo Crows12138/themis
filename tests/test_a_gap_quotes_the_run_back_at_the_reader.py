@@ -47,10 +47,12 @@ from themis.kernel import _premises_of
 from themis.verifier import VerificationError
 from themis.verifier.gap_claim_rules import (
     _COPIED_FROM,
+    _IN_ITS_SENTENCE,
     _NAMES,
     _NOT_NAMES,
     every_said,
     every_said_mapping,
+    holds_a_name,
     verify_gap_quotes,
 )
 
@@ -214,10 +216,13 @@ def test_a_kind_is_not_a_reason_nothing_can_hold_a_value():
     the program declares every one of them; and a ``value`` slot joins
     when its statement says which register it is in.
     """
-    for _statement, key in _COPIED_FROM:
+    def kind(statement, key):
+        return _IN_ITS_SENTENCE.get((statement, key)) or _NOT_NAMES[key]
+
+    for statement, key in _COPIED_FROM:
         assert key not in _NAMES, key
-        assert key in _NOT_NAMES, key
-    assert {_NOT_NAMES[k] for _s, k in _COPIED_FROM} == {
+        assert not holds_a_name(statement, key), (statement, key)
+    assert {kind(s, k) for s, k in _COPIED_FROM} == {
         "vocabulary", "expression", "domain"}
 
 

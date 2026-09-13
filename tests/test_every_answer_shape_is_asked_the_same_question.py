@@ -1351,9 +1351,17 @@ def test_the_declared_remainder_is_what_it_is():
     intervention on those six. Each caveat is now held, as a whole, to the
     one the program and the graph the answer was reached on owe, and every
     bend that used to pass is refused by that rule and no other.
+
+    Then 8 came off the cost named further up, the sites where ``target``
+    is a variable and the rosters could file it only by its name: 7 under
+    the dose-response statement and 1 under a way past a collider. What
+    holds them is the name rule, asked now of the statement a slot sits
+    in. The seven rows that keep the leaf keep it for the third lie,
+    ``"x"``, which is a variable those problems really have. Whether the
+    target is THIS name is not a question a membership test can ask.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2220, total
+    assert total == 2212, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19246 passed / 518 skipped, warning-clean
+19332 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,45 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #633 一个槽装什么由它所在的句子定，名字规则却按槽名问（2026-09-14）
+
+**现象。** gap 的 `said.target` 在五句话里写的是变量：两条样本限制落在对撞点上的警告、剂量响应、对撞条件化的两条出路
+（`ask_the_marginal_effect`、`maybe_it_is_not_a_common_effect`）。语料 22 处，#632 押住了两条警告的 7 处；其余 15 处
+（剂量响应 8、两条出路 7）把 `target` 改成 `y_forged`，每道门都放行。
+
+**根因。** 名字规则问不问一个槽只看槽名：`_NAMES` / `_NOT_NAMES` 两份 roster 按名字归类，`target` 记成 vocabulary。
+它在迁移那句里是人群，在中介分解那句里是 ask 的名字（形如 `parameter:P(m=True|x=True)`），在另五句里是变量——没有一句里是词表词。
+按名字归类最多对一种意思；归成 vocabulary 一种都不对，名字规则一处都不问。模块 docstring 早把这点写成「下一件事」。
+量的时候又挖出两处同根的：出路条目的句子名在 `route` 键上，walk 只读 `token` / `sentence`，每条出路都成了无名句子，
+按 (句子, 槽) 声明也点不到它；`_bind` 用的语句索引只有 `BY_SENTENCE` 和 `BY_NAME`，`BY_ROUTE` 的 85 条一条没进，
+只有出路声明的四个槽（`fallback`、`methods`、`scale`、`wanted`）从没被绑定，`scale` 两份 roster 里都没有。
+
+**为什么是根因不是表象。** 表象修法是把 `target` 挪进 `_NAMES`：迁移那 11 处的人群名不是题目的变量，诚实答案全被拒；
+`runtime/missing_data.py` 写进 gloss 的 `target` 是 `P(Y|X)`，也会被拒。`{target}` 在 `gaps.py` 之外也有，没有一个按名字的
+默认种类是对的，只能按句子声明；按句子声明要成立，walk 得读到出路的名字，绑定得看到出路。
+
+**结构。** 都在 `gap_claim_rules`：
+- `statements_and_the_slots_they_declare()` 给出 (语句, 槽) 对，索引加上 `BY_ROUTE`；`slots_the_statements_declare()` 由它导出。
+- `_IN_ITS_SENTENCE`：种类随语句变的槽逐句声明——`target` 在五句是 name、迁移是 domain、中介分解是 expression；这种槽不进任何一份
+  roster。`holds_a_name(statement, slot)` 是唯一的判定。
+- `_bind`：三份声明互不相交、合起来覆盖全部槽；`themis.gaps` 里每个声明这种槽的语句都有条目，条目不点名不声明它的语句。
+  `scale` 归 vocabulary。
+- `every_said_mapping` 读 `token` / `sentence` / `route`；`names_said(report)` 给出名字规则要问的叶子，`verify_gap_names` 和测试都读它。
+- 索引够不到的语句（别层词表写的 gloss）没有条目，名字规则在那里不问——和它对任何分不了类的槽保持的沉默一样。
+
+**演练（写盘之前在进程内打补丁）。** 诚实 243/243 过门。语料 33 处 `target` 各三种弯折：五个变量句的加 `_forged`、清空全拒，
+迁移 11 处原先就由复制规则拒、不变。`said` 弯折普查多拒 15，全是名字规则拒的，反向 0；余项闸口离开 8、新增 0，
+声明与改前逐行相等；`WITH_NAMES` 179 不变，「首个名字叶子」没有一行换，两条消息匹配仍中。
+
+**没做（量到了）。** 7 行上把 `target` 改成 `"x"` 仍放行：x 是这些题目的真变量，名字规则问的是「是不是题目的词」，
+不是「是不是这个词」。这五句里的 `target` 就是问题的结局，第二份记录在问题上——那是另一条规则，与 `verify_gap_subjects` 同类。
+
+**账。** 86 测试（新文件 `tests/test_a_slot_is_asked_what_its_statement_says_it_holds.py`）；基线 19246→**19332**。
+`test_a_gap_says_what_this_problem_is_about` 弯折普查 (2075, 209)→(2090, 194)，无推导链答案的名字叶子 450→469；
+`test_a_roster_is_a_claim_about_what_this_build_can_write` 槽空间 90→94、语句索引 125→210、语料越出空间的槽 19→16、
+写 `target` 的语句 5→6（不再有无名的）；`test_every_answer_shape_is_asked_the_same_question` 余项 2220→2212，
+离开 `unwitnessed_leaves.json` 的是剂量响应 describes 7 片、出路 1 片。
 
 ### #632 样本限制落在对撞点上的两条警告，有没有只由写报告的人说了算（2026-09-14）
 

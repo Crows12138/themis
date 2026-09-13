@@ -43,7 +43,8 @@ import themis
 from tests.answer_corpus import the_door_for
 from themis.verifier.errors import VerificationError
 from themis.verifier.gap_claim_rules import (
-    _NAMES, _NOT_NAMES, every_said, words_the_problem_uses,
+    _NAMES, _NOT_NAMES, _TURNS_ON_THE_SENTENCE, every_said, names_said,
+    words_the_problem_uses,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -55,9 +56,12 @@ def _said_leaves(result):
     return list(every_said(result.get("data_gap_report") or {}))
 
 
+def _name_leaves(result):
+    return list(names_said(result.get("data_gap_report") or {}))
+
+
 WITH_NAMES = sorted(
-    name for name, pair in SHAPES.items()
-    if any(key in _NAMES for _, key, _ in _said_leaves(pair["result"])))
+    name for name, pair in SHAPES.items() if _name_leaves(pair["result"]))
 
 
 def _pair(method):
@@ -100,9 +104,11 @@ def test_every_key_a_gap_says_is_classified():
     seen = set()
     for pair in SHAPES.values():
         seen.update(key for _, key, _ in _said_leaves(pair["result"]))
-    unclassified = seen - set(_NAMES) - set(_NOT_NAMES)
+    unclassified = (seen - set(_NAMES) - set(_NOT_NAMES)
+                    - _TURNS_ON_THE_SENTENCE)
     assert unclassified == set(), unclassified
     assert not (set(_NAMES) & set(_NOT_NAMES))
+    assert not _TURNS_ON_THE_SENTENCE & (set(_NAMES) | set(_NOT_NAMES))
 
 
 def test_the_walk_reaches_every_depth_a_gap_uses():
@@ -166,8 +172,7 @@ def test_a_gap_may_not_be_about_a_variable_this_problem_lacks(shape):
     accepted.
     """
     program, result = _pair(shape)
-    where, _, value = next(
-        (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
+    where, value = _name_leaves(result)[0]
     _set_at(result["data_gap_report"], where, value + "_forged")
     with pytest.raises(VerificationError,
                        match="does not name|this gap is not about"):
@@ -188,8 +193,7 @@ def test_which_of_the_two_refusals_a_renamed_variable_earns():
     membership, provenance = [], []
     for shape in WITH_NAMES:
         program, result = _pair(shape)
-        where, _, value = next(
-            (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
+        where, value = _name_leaves(result)[0]
         _set_at(result["data_gap_report"], where, value + "_forged")
         try:
             the_door_for(result)(program, result)
@@ -214,9 +218,7 @@ def test_a_name_is_read_out_of_the_spelling_not_the_spelling_out_of_a_parse():
     """
     spellings = set()
     for pair in SHAPES.values():
-        for _, key, value in _said_leaves(pair["result"]):
-            if key not in _NAMES:
-                continue
+        for _, value in _name_leaves(pair["result"]):
             spellings.add(
                 "set" if value.startswith("{")
                 else "arrow" if "→" in value
@@ -275,8 +277,7 @@ def test_a_gap_may_not_say_which_variable_and_then_say_nothing(shape):
     value in it sits on a ``note``, which is prose and not a name.
     """
     program, result = _pair(shape)
-    where, _, _ = next(
-        (w, k, v) for w, k, v in _said_leaves(result) if k in _NAMES)
+    where, _ = _name_leaves(result)[0]
     _set_at(result["data_gap_report"], where, "")
     with pytest.raises(VerificationError, match="says nothing there"):
         the_door_for(result)(program, result)
@@ -434,6 +435,13 @@ def test_the_remainder_is_counted_rather_than_described():
     a caveat names (7) and the value a selection caveat names (3) were
     accepted here, and a rewritten one now describes a caveat nothing
     owes. The collider and the intervention were refused here already.
+
+    And 15 more when the rule asking whether a word is one of this
+    problem's names asked it of the statement a slot sits in. ``target``
+    had been filed by its name alone, as a vocabulary member, and it names
+    a variable under the dose-response statement (8) and under the two
+    ways past a conditioned collider (7), where a rewritten one was asked
+    by nothing.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -448,7 +456,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2075, 209), (refused, accepted)
+    assert (refused, accepted) == (2090, 194), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -476,7 +484,8 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
     assert len(chainless) == 71, len(chainless)
     assert len(leaves) == 998, len(leaves)
-    assert sum(1 for _, key in leaves if key in _NAMES) == 450, len(leaves)
+    assert sum(len(_name_leaves(SHAPES[name]["result"]))
+               for name in chainless) == 469, len(leaves)
     # The three with no name claim in them have nothing here to ask, which
     # is not the same as this missing them: a refusal outside the language
     # says why in prose and has no variable to be about, and two causation

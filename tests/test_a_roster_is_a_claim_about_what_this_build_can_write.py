@@ -32,8 +32,10 @@ from themis.kernel import _premises_of
 from themis.verifier.errors import VerificationError
 from themis.verifier.gap_claim_rules import (
     _COPIED_FROM,
+    _IN_ITS_SENTENCE,
     _NAMES,
     _NOT_NAMES,
+    _TURNS_ON_THE_SENTENCE,
     _slots_of,
     every_said_mapping,
     slots_the_statements_declare,
@@ -66,9 +68,11 @@ def test_every_slot_a_statement_declares_is_classified_exactly_once():
     space it covers is the point.
     """
     space = slots_the_statements_declare()
-    assert len(space) == 90, len(space)
-    assert not space - set(_NAMES) - set(_NOT_NAMES)
+    assert len(space) == 94, len(space)
+    assert not (space - set(_NAMES) - set(_NOT_NAMES)
+                - _TURNS_ON_THE_SENTENCE)
     assert not set(_NAMES) & set(_NOT_NAMES)
+    assert not _TURNS_ON_THE_SENTENCE & (set(_NAMES) | set(_NOT_NAMES))
 
 
 def test_a_literal_brace_declares_no_slot():
@@ -103,6 +107,7 @@ def test_the_shape_of_an_argument_is_not_a_roster_entry():
     assert not phantoms & {key for _statement, key in SHOWN}
     assert not phantoms & set(_NAMES)
     assert not phantoms & set(_NOT_NAMES)
+    assert not phantoms & _TURNS_ON_THE_SENTENCE
 
 
 def test_every_slot_the_corpus_shows_is_classified():
@@ -111,7 +116,7 @@ def test_every_slot_the_corpus_shows_is_classified():
     and slots it does not."""
     unclassified = sorted(
         {key for _statement, key in SHOWN}
-        - set(_NAMES) - set(_NOT_NAMES))
+        - set(_NAMES) - set(_NOT_NAMES) - _TURNS_ON_THE_SENTENCE)
     assert not unclassified, unclassified
 
 
@@ -128,8 +133,9 @@ def test_what_the_binding_cannot_reach_is_a_number_rather_than_a_silence():
     """
     space = slots_the_statements_declare()
     beyond = sorted({key for _statement, key in SHOWN} - space)
-    assert len(beyond) == 19, beyond
-    assert not set(beyond) - set(_NAMES) - set(_NOT_NAMES)
+    assert len(beyond) == 16, beyond
+    assert not (set(beyond) - set(_NAMES) - set(_NOT_NAMES)
+                - _TURNS_ON_THE_SENTENCE)
 
 
 # --------------------------------------- a slot's meaning is its sentence's
@@ -139,7 +145,7 @@ def test_one_slot_answers_differently_in_two_statements():
     """``target`` is the instance the module's own prose predicted.
 
     Under the statement about transporting an answer it is a population,
-    and the program declares every population there is. Under the three
+    and the program declares every population there is. Under the five
     about a dose-response curve and a collider it is a variable. A table
     with one answer per slot NAME is right about one of those.
     """
@@ -152,12 +158,13 @@ def test_one_slot_answers_differently_in_two_statements():
 
     seen = {statement for statement, key in SHOWN if key == "target"}
     assert "transport_rests_on_s_admissibility" in seen
-    # Four statements and one that has no name of its own. A nameless
-    # statement resolves to the general entry by construction — the pair
-    # it is looked up under IS the wildcard — which is what a slot in a
-    # statement that declares nothing about itself should get.
-    assert len(seen) == 5, sorted(seen)
-    assert "" in seen
+    # Six statements, two of them ways past a collider. Those two used to
+    # read as one statement with no name: a way past names itself under
+    # ``route``, and the walk read ``sentence`` and ``token``.
+    assert len(seen) == 6, sorted(seen)
+    assert "" not in seen
+    assert all((statement, "target") in _IN_ITS_SENTENCE
+               for statement in seen)
 
 
 def test_a_population_this_program_does_not_declare_is_refused():
@@ -212,12 +219,13 @@ def test_the_statement_index_is_what_says_which_tables_hold_statements():
 
     A list of table names is the same kind of claim as a roster: a table
     added beside the others would be outside the space while looking like
-    it was inside it. ``BY_SENTENCE`` and ``BY_NAME`` are what say which
-    members a report's statements can be.
+    it was inside it. ``BY_SENTENCE``, ``BY_NAME`` and ``BY_ROUTE`` are
+    what say which members a report's statements can be.
     """
     known = {str(member) for member in _gaps.BY_SENTENCE.values()}
     known |= {str(member) for member in _gaps.BY_NAME.values()}
-    assert len(known) == 125, len(known)
+    known |= {str(member) for member in _gaps.BY_ROUTE.values()}
+    assert len(known) == 210, len(known)
     shown = {statement for statement, _key in SHOWN if statement}
     # And the fifteen the index does not know, which is the same shortfall
     # the slot count above measures, seen from the statement side: how

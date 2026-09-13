@@ -53,17 +53,23 @@ demand is wrong is answered by widening the thing it guards.
 
 AND A SLOT'S MEANING IS ITS SENTENCE'S. The rosters are keyed on the name
 alone, which the copy question below could not survive: ``target`` is a
-population where an answer is transported and a variable in the three
+population where an answer is transported and a variable in the
 statements about a curve and a collider, so one answer per name is right
-about one of them and silent on the others. The walk carries the statement
-now, and the copy table is keyed on the pair, with a wildcard for the
-slots whose answer does not turn on the sentence. The ROSTERS are still
-keyed on the slot alone, and ``target`` is what that costs: it is filed as
-a vocabulary member and is one in neither sense, so the name rule skips
-all thirty-three of its sites and the copy rule speaks for the eleven
-where it is a population. The twenty-two where it is a variable are asked
-by nothing — the next thing, rather than a thing this file pretends is
-done.
+about one of them and silent on the others. The walk carries the
+statement, and the copy table is keyed on the pair, with a wildcard for
+the slots whose answer does not turn on the sentence. The rosters were
+still keyed on the slot alone, and ``target`` was what that cost: filed as
+a vocabulary member, which it is in no sense it has, so the name rule
+skipped every site and the twenty-two where it is a variable were asked
+by nothing. A slot like that is in neither roster now. What it holds is
+declared per statement, and the name rule asks the pair.
+
+Two things kept that from being a table and nothing more. A way past a
+gap names its statement under ``route``, which the walk did not read, so
+no pair could address the two ways past where ``target`` is a variable.
+And the index the binding holds the rosters to listed sentences and
+needs but not routes, so no slot a way past declares was bound at all —
+four of them are declared nowhere else, and ``scale`` was in no roster.
 
 WHY NOT SHARE THE NAME SET WITH :func:`formula_fits`. Both ask "is this a
 name this problem has", and the two answers differ: a formula names
@@ -106,19 +112,30 @@ def _slots_of(text: str) -> set[str]:
     return set(_SLOT.findall(text.replace("{{", "\0").replace("}}", "\0")))
 
 
-def slots_the_statements_declare() -> frozenset[str]:
-    """Every slot a statement a gap report can carry declares.
+def statements_and_the_slots_they_declare() -> frozenset[tuple[str, str]]:
+    """Every ``(statement, slot)`` a statement a gap report can carry
+    declares.
 
     Derived from the INDEX rather than from a list of table names, because
     a list of tables is the same kind of claim as the rosters themselves:
     a statement table added beside the others would be outside the space
-    while looking like it was inside it. ``BY_SENTENCE`` and ``BY_NAME``
-    are what say which members a report's statements can be, and a
+    while looking like it was inside it. ``BY_SENTENCE``, ``BY_NAME`` and
+    ``BY_ROUTE`` are what say which members a report's statements can be —
+    what a gap describes, what it needs, and each way past it — and a
     member's text is wherever it is written.
+
+    The ways past were not in it. The space was smaller by exactly what
+    only a way past declares, and one of those slots was in no roster:
+    the index was a claim about which statements exist, and its range was
+    the two kinds its author had in mind.
+
+    Pairs rather than slots, because a slot whose kind is its sentence's
+    is owed an answer for each statement that declares it.
     """
     known = {str(member) for member in _gaps.BY_SENTENCE.values()}
     known |= {str(member) for member in _gaps.BY_NAME.values()}
-    found: set[str] = set()
+    known |= {str(member) for member in _gaps.BY_ROUTE.values()}
+    found: set[tuple[str, str]] = set()
     for name in dir(_gaps):
         table = getattr(_gaps, name)
         if not (name.isupper() and isinstance(table, dict)):
@@ -129,8 +146,15 @@ def slots_the_statements_declare() -> frozenset[str]:
             texts = words.values() if isinstance(words, dict) else [words]
             for text in texts:
                 if isinstance(text, str):
-                    found |= _slots_of(text)
+                    found |= {(str(member), slot)
+                              for slot in _slots_of(text)}
     return frozenset(found)
+
+
+def slots_the_statements_declare() -> frozenset[str]:
+    """Every slot a statement a gap report can carry declares."""
+    return frozenset(
+        slot for _statement, slot in statements_and_the_slots_they_declare())
 
 #: A ``said`` key whose value names variables or the objects they are
 #: applied to. Kept beside the roster below so that the two together are a
@@ -209,19 +233,15 @@ _NAMES: frozenset[str] = frozenset({
 #: Both rosters are keyed on the LEAF NAME alone, which is a limit worth
 #: stating: ``d`` is Cohen's d under a precision target and would be a
 #: variable anywhere a problem declares one, and this table can only hold
-#: one answer for the word. That ambiguity is no longer latent. ``target``
-#: is filed here as a vocabulary member and is one in neither of its two
-#: senses — a population where an answer is transported, a variable in the
-#: statements about a curve and a collider — so filing it by either
-#: meaning is wrong about the other, and filing it by neither leaves both
-#: unasked. :data:`_COPIED_FROM` is keyed on the pair already; folding
-#: these two into one statement of what a slot HOLDS is what finishes it.
+#: one answer for the word. Where that limit is met rather than latent the
+#: slot is in neither roster, and :data:`_IN_ITS_SENTENCE` says what it
+#: holds in each statement that declares it.
 _NOT_NAMES: Mapping[str, str] = {
     "missing": "vocabulary", "assumptions": "vocabulary",
     "method": "vocabulary", "methods": "vocabulary",
     "branch": "vocabulary", "field": "vocabulary",
     "kind": "vocabulary", "source": "vocabulary",
-    "target": "vocabulary", "algorithm": "vocabulary",
+    "algorithm": "vocabulary",
     "fallback": "vocabulary",
     "phrase": "prose", "rationale": "prose",
     "note": "prose", "test": "prose",
@@ -270,7 +290,55 @@ _NOT_NAMES: Mapping[str, str] = {
     "fields": "vocabulary", "part": "vocabulary",
     "assumption": "prose",
     "violations": "prose", "why": "prose",
+    # And one only a way past declares, unbound while the index held no
+    # routes: the measurement scale a declaration names, a word out of the
+    # glossary's vocabulary.
+    "scale": "vocabulary",
 }
+
+#: A slot whose kind is its STATEMENT'S, declared for each statement.
+#:
+#: The rosters answer per slot name, and for most slots the name settles
+#: it. ``target`` is where it does not. It is the variable an effect is
+#: taken on in the two statements about a restriction on a collider, the
+#: one about a dose-response curve and the two ways past a conditioned
+#: collider; the population an answer is carried to in the statement about
+#: transporting it; the name of an ask in the statement about what a
+#: mediation decomposition is short of. Filed by name it was a vocabulary
+#: member, which it is in none of them, and the name rule asked it in none.
+#:
+#: So a slot here is in neither roster, and :func:`_bind` holds this table
+#: to every statement ``themis.gaps`` declares the slot in: an entry for
+#: each, and none for a statement that does not declare it. A statement
+#: out of that reach — a gloss written from another layer's vocabulary,
+#: where ``target`` can be a distribution — has no entry, and the name
+#: rule does not ask it there.
+_IN_ITS_SENTENCE: Mapping[tuple[str, str], str] = {
+    ("the_conditioning_node_is_a_collider", "target"): "name",
+    ("the_sample_is_restricted_on_a_collider", "target"): "name",
+    ("the_question_asks_for_a_dose_response_curve", "target"): "name",
+    ("ask_the_marginal_effect", "target"): "name",
+    ("maybe_it_is_not_a_common_effect", "target"): "name",
+    ("transport_rests_on_s_admissibility", "target"): "domain",
+    ("the_decomposition_needs_the_mediators_distributions", "target"):
+        "expression",
+}
+
+_TURNS_ON_THE_SENTENCE: frozenset[str] = frozenset(
+    slot for _statement, slot in _IN_ITS_SENTENCE)
+
+
+def holds_a_name(statement: str | None, slot: str) -> bool:
+    """Whether ``slot``, in ``statement``, names a variable of the problem.
+
+    The pair where the slot's kind is its statement's, the roster where it
+    is not. A statement with no name, or none this table reaches, gets no
+    answer for such a slot, and the name rule does not ask it.
+    """
+    if slot in _TURNS_ON_THE_SENTENCE:
+        return (statement is not None
+                and _IN_ITS_SENTENCE.get((statement, slot)) == "name")
+    return slot in _NAMES
 
 
 def _bind() -> None:
@@ -290,19 +358,34 @@ def _bind() -> None:
     which no verifier may import. This one covers what can be reached from
     here, and covers it at import: a statement added with a new slot fails
     on the way in.
+
+    And per statement where a slot's kind is its statement's: every
+    statement declaring such a slot has an entry saying what it holds
+    there, and no entry names a statement that does not declare it.
     """
-    space = slots_the_statements_declare()
-    unclassified = sorted(space - set(_NAMES) - set(_NOT_NAMES))
+    declared = statements_and_the_slots_they_declare()
+    space = {slot for _statement, slot in declared}
+    names, not_names = set(_NAMES), set(_NOT_NAMES)
+    by_statement = set(_TURNS_ON_THE_SENTENCE)
+    unclassified = sorted(space - names - not_names - by_statement)
     if unclassified:
         raise RuntimeError(
             f"slots {unclassified} are declared by a statement a gap report "
-            f"can carry and are in neither roster, so no rule in this module "
+            f"can carry and are in no roster, so no rule in this module "
             f"asks about them; say which kind of thing fills each")
-    twice = sorted(set(_NAMES) & set(_NOT_NAMES))
+    twice = sorted((names & not_names) | (by_statement & (names | not_names)))
     if twice:
         raise RuntimeError(
-            f"slots {twice} are filed both as names and as non-names; the "
-            f"two rosters answer one question and cannot both be right")
+            f"slots {twice} are filed in more than one roster; the rosters "
+            f"answer one question and cannot all be right")
+    owed = {pair for pair in declared if pair[1] in by_statement}
+    if owed != set(_IN_ITS_SENTENCE):
+        raise RuntimeError(
+            f"statements {sorted(owed - set(_IN_ITS_SENTENCE))} declare a "
+            f"slot whose kind is its statement's and have no entry saying "
+            f"what it holds there; entries "
+            f"{sorted(set(_IN_ITS_SENTENCE) - owed)} name a statement that "
+            f"does not declare it")
 
 
 _bind()
@@ -427,7 +510,7 @@ def _ambiguities_the_caller_flagged(result: Mapping, _context) -> set[str]:
 #: which was the limit this module already named, "a key filed by its
 #: commonest meaning is unchecked in its other". ``target`` is the
 #: instance: a population where an answer is transported, a variable in
-#: the three statements about a curve and a collider. One answer per name
+#: the statements about a curve and a collider. One answer per name
 #: is right about one of those and silent on the rest.
 _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     (None, "method"): ("the methods it ran", _methods_the_answer_ran, False),
@@ -493,17 +576,23 @@ def every_said_mapping(
     could only ever be keyed on a slot's NAME, and the module said so:
     "a key filed by its commonest meaning is unchecked in its other". A
     slot's meaning is its sentence's. ``target`` is a population in the
-    statement about transporting an answer and a variable in the three
+    statement about transporting an answer and a variable in the five
     about a dose-response curve and a collider, and one answer per name
     can only be right about one of those. Carried, a rule may key on the
     pair; and a slot whose meaning does not turn on the sentence is
     written once, against no sentence at all.
+
+    Three keys name a statement, one to a container: a description says
+    ``sentence``, a way past says ``route``, a glossed word says
+    ``token``. Reading two of them, every way past was a statement with
+    no name. A gap's own ``said`` names none, and yields ``None``.
     """
     if isinstance(node, Mapping):
         for key, value in node.items():
             here = path + (str(key),)
             if key == "said" and isinstance(value, Mapping):
-                spoken = node.get("token") or node.get("sentence")
+                spoken = (node.get("token") or node.get("sentence")
+                          or node.get("route"))
                 yield (".".join(here),
                        str(spoken) if spoken else None, value)
             else:
@@ -526,6 +615,15 @@ def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
     for where, _statement, said in every_said_mapping(node, path):
         for inner, value in said.items():
             yield f"{where}.{inner}", str(inner), value
+
+
+def names_said(report: Any) -> Iterator[tuple[str, Any]]:
+    """Every ``(where, value)`` under a report whose statement files the
+    slot as a name — the leaves the name rule asks, and only those."""
+    for said_at, statement, said in every_said_mapping(report):
+        for key, value in said.items():
+            if holds_a_name(statement, str(key)):
+                yield f"{said_at}.{key}", value
 
 
 def words_the_problem_uses(context) -> set[str]:
@@ -629,6 +727,10 @@ def verify_gap_names(result: Mapping, context) -> None:
     value: nothing in that sentence was ever about the problem's
     vocabulary.
 
+    Which slots name a variable is asked of the statement a slot sits in,
+    as the copy rule asks it. ``target`` names one in five statements and
+    not in the other two, and read by its name alone it was asked in none.
+
     Returns ``None`` on accept, including when there is no report. Raises
     ``VerificationError`` naming the leaf and the word.
     """
@@ -636,9 +738,7 @@ def verify_gap_names(result: Mapping, context) -> None:
     if not isinstance(report, Mapping):
         return
     known = words_the_problem_uses(context)
-    for where, key, value in every_said(report):
-        if key not in _NAMES:
-            continue
+    for where, value in names_said(report):
         if not isinstance(value, str) or not value.strip():
             raise VerificationError(
                 f"a gap says which variable it is about and says nothing "
