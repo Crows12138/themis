@@ -2377,7 +2377,9 @@ def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
             off ctx.query to confirm point-identifiability)
         s2: numeric_joint_general_id_estimate (metadata audit — no re-fit;
             the two numbers are re-derived from the recorded corner risks
-            by :func:`themis.verifier.verify_treatment_box`)
+            by :func:`themis.verifier.verify_treatment_box`, and the
+            estimand each corner was read off is recorded for the
+            verifier to hold to the question and the graph)
 
     The criterion step's ``x`` is the primary treatment atom, matching the
     single-treatment builder: the rule reads the full treatment SET off
@@ -2412,6 +2414,10 @@ def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
                 "criterion": StepRef(step_id="s1"),
                 "treatments": frozenset(treatments),
                 "outcome": y,
+                "corner_estimands": tuple(
+                    {"do": corner.do, "estimand": corner.estimand}
+                    for corner in estimate.corner_estimands
+                ),
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,

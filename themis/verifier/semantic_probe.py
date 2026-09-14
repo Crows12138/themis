@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import itertools
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import networkx as nx
@@ -397,7 +398,8 @@ def _full_assignments(scm: _SCM):
         yield dict(zip(var_order, combo))
 
 
-def _cell_prob(scm: _SCM, assign: dict, *, fixed: dict | None = None) -> float:
+def _cell_prob(scm: _SCM, assign: dict, *,
+               fixed: Mapping[Atom, object] | None = None) -> float:
     """Probability mass of a full assignment. ``fixed`` names nodes set by
     intervention — their CPT factor is dropped (do-operator)."""
     fixed = fixed or {}
@@ -436,15 +438,16 @@ def _cell_prob(scm: _SCM, assign: dict, *, fixed: dict | None = None) -> float:
 # marginals) stay here.
 
 
-def _scm_factors(scm: _SCM, drop: "Atom | None" = None) -> list:
+def _scm_factors(scm: _SCM, drop: frozenset = frozenset()) -> list:
     """Factors of the SCM joint: one per latent, one per observed node's
-    CPT. ``drop`` omits a node's CPT (do-operator severs its mechanism;
-    the node survives only as a clamped parent of its children)."""
+    CPT. ``drop`` omits the CPTs of the nodes an intervention sets (do()
+    severs their mechanisms; each survives only as a clamped parent of its
+    children)."""
     factors: list = []
     for name in scm.latents:
         factors.append(((name,), {(v,): p for v, p in scm.latent_dist[name].items()}))
     for node in scm.observed:
-        if node == drop:
+        if node in drop:
             continue
         vars_ = scm.parents[node] + (node,)
         table: dict = {}
@@ -548,36 +551,38 @@ def _observational_cond(scm: _SCM, target: Atom, tv, given: dict[Atom, object]) 
     return num / den if den > 0 else 0.0
 
 
-def _true_do_enum(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> float:
-    """True P(Y=yv | do(X=xv), given) by direct structural intervention,
-    computed by brute-force enumeration. Reference oracle for ``_true_do``."""
-    fixed = {x: xv}
-    num = 0.0   # P(Y=yv, given | do x)
-    den = 0.0   # P(given | do x)
+def _true_do_enum(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
+                  given: dict[Atom, object]) -> float:
+    """True P(Y=yv | do(intervention), given) by direct structural
+    intervention, computed by brute-force enumeration. Reference oracle for
+    ``_true_do``."""
+    num = 0.0   # P(Y=yv, given | do)
+    den = 0.0   # P(given | do)
     for a in _full_assignments(scm):
-        if a[x] != xv:
+        if any(a[x] != xv for x, xv in intervention.items()):
             continue
         if any(a[g] != v for g, v in given.items()):
             continue
-        m = _cell_prob(scm, a, fixed=fixed)
+        m = _cell_prob(scm, a, fixed=intervention)
         den += m
         if a[y] == yv:
             num += m
     return num / den if den > 0 else 0.0
 
 
-def _true_do(scm: _SCM, x: Atom, xv, y: Atom, yv, given: dict[Atom, object]) -> float:
-    """True P(Y=yv | do(X=xv), given), via variable elimination on the
-    do-mutilated factor graph (X's CPT dropped, X clamped to xv). Equals
-    ``_true_do_enum`` exactly (pinned by test) but costs ~2^treewidth, not
-    2^|V|, and never enumerates — so it neither hangs nor trips the native
-    fault on larger graphs. May raise ``_VEIntractable`` (→ inconclusive)
-    on a high-treewidth graph."""
-    factors = _scm_factors(scm, drop=x)
-    den = _ve_prob(factors, {x: xv, **given})
+def _true_do(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
+             given: dict[Atom, object]) -> float:
+    """True P(Y=yv | do(intervention), given), via variable elimination on
+    the do-mutilated factor graph (every intervened node's CPT dropped, each
+    clamped to its value). Equals ``_true_do_enum`` exactly (pinned by test)
+    but costs ~2^treewidth, not 2^|V|, and never enumerates — so it neither
+    hangs nor trips the native fault on larger graphs. May raise
+    ``_VEIntractable`` (→ inconclusive) on a high-treewidth graph."""
+    factors = _scm_factors(scm, drop=frozenset(intervention))
+    den = _ve_prob(factors, {**intervention, **given})
     if den <= 0:
         return 0.0
-    num = _ve_prob(factors, {x: xv, y: yv, **given})
+    num = _ve_prob(factors, {**intervention, y: yv, **given})
     return num / den
 
 
@@ -705,8 +710,33 @@ def probe_identify_formula(
     k: int = 3,
     seed: int = 0x5CA1AB1E,
 ) -> ProbeResult:
+    """:func:`probe_intervention_formula` for an intervention on a single
+    variable."""
+    return probe_intervention_formula(
+        graph, bidirected, intervention={x: x_value}, y=y, given=given,
+        formula=formula, domains=domains, y_values=y_values, k=k, seed=seed,
+    )
+
+
+def probe_intervention_formula(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+    *,
+    intervention: Mapping[Atom, AtomValue],
+    y: Atom,
+    given: tuple[ValuedAtom, ...],
+    formula: FormulaExpr,
+    domains: dict[Atom, tuple] | None = None,
+    y_values: tuple | None = None,
+    k: int = 3,
+    seed: int = 0x5CA1AB1E,
+) -> ProbeResult:
     """Semantic backbone: does ``formula`` compute the true
-    ``P(Y | do(X=x_value), Z=given)`` in models consistent with the graph?
+    ``P(Y | do(intervention), Z=given)`` in models consistent with the graph?
+
+    ``intervention`` is one argument whether it sets one variable or several:
+    a corner of a treatment box sets every treatment at once, and it is the
+    whole assignment the corner's estimand is about.
 
     Samples ``k`` random SCMs (fixed seed → reproducible), and for each
     checks the formula against the true do-quantity for every (Y, Z)
@@ -749,8 +779,9 @@ def probe_identify_formula(
         return unfit
 
     # Probe needs a fully-instantiated ADMG over the formula's variables.
-    if x not in graph or y not in graph:
-        return ProbeResult("inconclusive", "x or y absent from graph")
+    if y not in graph or any(x not in graph for x in intervention):
+        return ProbeResult(
+            "inconclusive", "an intervened variable or y absent from graph")
     if any(g.atom not in graph for g in given):
         return ProbeResult("inconclusive", "a conditioned Z is absent from graph")
 
@@ -759,7 +790,8 @@ def probe_identify_formula(
         return ProbeResult(
             "inconclusive", "no value of the outcome to ask the formula about")
     domains[y] = _room_for(_domain_of(y, domains), y_dom)
-    domains[x] = _room_for(_domain_of(x, domains), (x_value,))
+    for x, x_value in intervention.items():
+        domains[x] = _room_for(_domain_of(x, domains), (x_value,))
     for g in given:
         if g.value is not None:
             domains[g.atom] = _room_for(
@@ -784,7 +816,7 @@ def probe_identify_formula(
                 try:
                     theta = _theta_from_scm(scm, bound, graph, bidirected)
                     got = ve_estimate_formula(bound, theta)
-                    true = _true_do(scm, x, x_value, y, yv, given_map)
+                    true = _true_do(scm, intervention, y, yv, given_map)
                 except _VEIntractable:
                     return ProbeResult(
                         "inconclusive",
@@ -794,7 +826,8 @@ def probe_identify_formula(
                     return _evaluation_failed(exc)
                 if abs(got - true) > 1e-7:
                     conditions = ", ".join(
-                        [f"do({_atom_text(x)}={x_value})"]
+                        ["do(" + ", ".join(f"{_atom_text(x)}={xv}"
+                                           for x, xv in intervention.items()) + ")"]
                         + [f"{_atom_text(g)}={v}"
                            for g, v in given_map.items()])
                     return ProbeResult(

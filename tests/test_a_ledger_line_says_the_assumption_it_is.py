@@ -100,6 +100,9 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
     the column's name, so it is one more entry of exactly the kind this
     counts. A ledger line arriving is the producer having more to declare,
     not this rule reaching further.
+
+    The equal ones went up by one the same way, when the joint general-ID
+    answer was refreshed from a run whose ledger declares its bootstrap.
     """
     equal = prefix = values = no_id = 0
     for pair in SHAPES.values():
@@ -117,7 +120,7 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (448, 60, 62, 24), (
+    assert (equal, prefix, values, no_id) == (449, 60, 62, 24), (
         equal, prefix, values, no_id)
 
 

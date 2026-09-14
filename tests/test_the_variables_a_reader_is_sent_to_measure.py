@@ -61,14 +61,15 @@ TARGETS = sorted(
 def test_the_items_that_send_a_reader_to_measure_something():
     """The denominator, and the two skeleton kinds told apart.
 
-    296 of the 381 skeletons are variable patches, which name a predicate
+    297 of the 382 skeletons are variable patches, which name a predicate
     and no arguments — their whole purpose is to introduce a variable the
     problem does NOT have, so this rule is silent for them by construction
     rather than by exception.
 
     Both numbers went up by eight together with a targeted corpus refresh
     that picked up investigation items its rows predated, so the 85 this
-    rule does speak for is unchanged.
+    rule does speak for is unchanged. They went up by one together again
+    when the joint general-ID row was refreshed.
     """
     skeletons = [
         item["skeleton"]
@@ -77,11 +78,11 @@ def test_the_items_that_send_a_reader_to_measure_something():
         for item in req.get("items") or []
         if isinstance(item.get("skeleton"), dict) and item["skeleton"]
     ]
-    assert len(skeletons) == 381, len(skeletons)
+    assert len(skeletons) == 382, len(skeletons)
     kinds = {}
     for sk in skeletons:
         kinds[sk.get("kind")] = kinds.get(sk.get("kind"), 0) + 1
-    assert kinds == {"variable_patch": 296, "probability": 85}, kinds
+    assert kinds == {"variable_patch": 297, "probability": 85}, kinds
     assert len(TARGETS) == 85, len(TARGETS)
 
 

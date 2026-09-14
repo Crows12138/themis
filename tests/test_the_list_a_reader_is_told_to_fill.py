@@ -176,7 +176,9 @@ def test_a_framing_target_is_a_framing_note_predicate():
     eight more framing notes, eight more gaps and eight more investigation
     items across six rows. More to link is not less linking, and the
     assertions here are equalities, so the two are told apart by whether
-    the counts move together.
+    the counts move together. They moved by one each again, and the patch
+    fields by seven, when the joint general-ID row was refreshed the same
+    way.
     """
     linked = 0
     for name in CARRIERS:
@@ -188,7 +190,7 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 296
+    assert linked == 297
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
@@ -226,7 +228,7 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert (checked, parameters) == (2087, 85), (checked, parameters)
+    assert (checked, parameters) == (2094, 85), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -677,7 +679,7 @@ def test_every_ask_names_a_gap_its_own_report_carries():
     """
     asks = list(_asks())
     twinned = sum(1 for *_rest, twin in asks if twin)
-    assert (len(asks), twinned) == (432, 121), (len(asks), twinned)
+    assert (len(asks), twinned) == (433, 121), (len(asks), twinned)
     for name, ri, ii, _twin in asks:
         result = SHAPES[name]["result"]
         named = result["investigation_requests"][ri]["items"][ii]["gap"]
@@ -695,7 +697,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
 
     The number beside it is why this is a rule of its own. The check next
     to it compares an item to the ``missing_information`` row for the same
-    target, and 311 of these 432 asks have no such row — every framing ask
+    target, and 312 of these 433 asks have no such row — every framing ask
     and some of the rest. Two records agreeing is a check only where there
     are two records; a reference is checked against its referent, and there
     is always exactly one of those.
@@ -716,7 +718,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
             continue
         lonely += 1
         assert "never said it had" in str(caught.value), (name, caught.value)
-    assert (refused, lonely) == (432, 311), (refused, lonely)
+    assert (refused, lonely) == (433, 312), (refused, lonely)
 
 
 def test_an_answer_with_no_report_is_not_asked_this():

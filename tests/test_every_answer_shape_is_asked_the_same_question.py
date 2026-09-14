@@ -1563,6 +1563,12 @@ def test_the_sweep_asks_about_the_whole_envelope():
     Then 32514, by a refresh the other way: six answers lost a
     Balke-Pearl interval taken around a node that is not an instrument
     with nothing conditioned, and the sentence about it.
+
+    Then 32585: the joint general-ID answer records the estimand each
+    corner of its box was read off, and the refresh that stored it also
+    picked up what its producer had grown since the row was kept: a
+    framing note and a gap about the second treatment's definition, and
+    the bootstrap premise on its ledger.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1572,7 +1578,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32514, asked_total
+    assert asked_total == 32585, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

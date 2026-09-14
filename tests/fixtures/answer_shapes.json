@@ -31976,6 +31976,26 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "b"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "b",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -32141,6 +32161,1263 @@ false
 {
 "inputs": {
 "ci_level": 0.95,
+"corner_estimands": {
+"items": [
+{
+"items": {
+"do": {
+"items": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "valued_atom_tuple"
+},
+"estimand": {
+"bind": {
+"name": "t_ma_me"
+},
+"body": {
+"bind": {
+"name": "t_mb_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+},
+{
+"bind": {
+"name": "t_a_me"
+},
+"body": {
+"bind": {
+"name": "t_b_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": true
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+}
+}
+},
+"kind": "dict"
+},
+{
+"items": {
+"do": {
+"items": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "valued_atom_tuple"
+},
+"estimand": {
+"bind": {
+"name": "t_ma_me"
+},
+"body": {
+"bind": {
+"name": "t_mb_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+},
+{
+"bind": {
+"name": "t_a_me"
+},
+"body": {
+"bind": {
+"name": "t_b_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": true
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+}
+}
+},
+"kind": "dict"
+},
+{
+"items": {
+"do": {
+"items": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "valued_atom_tuple"
+},
+"estimand": {
+"bind": {
+"name": "t_ma_me"
+},
+"body": {
+"bind": {
+"name": "t_mb_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+},
+{
+"bind": {
+"name": "t_a_me"
+},
+"body": {
+"bind": {
+"name": "t_b_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": true
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+}
+}
+},
+"kind": "dict"
+},
+{
+"items": {
+"do": {
+"items": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "valued_atom_tuple"
+},
+"estimand": {
+"bind": {
+"name": "t_ma_me"
+},
+"body": {
+"bind": {
+"name": "t_mb_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": false
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+},
+{
+"bind": {
+"name": "t_a_me"
+},
+"body": {
+"bind": {
+"name": "t_b_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_a_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_b_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_ma_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_mb_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": true
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "b"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "a"
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "mb"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "ma"
+}
+}
+},
+"kind": "dict"
+}
+],
+"kind": "value_tuple"
+},
 "criterion": {
 "kind": "step_ref",
 "step_id": "s1"
@@ -32283,6 +33560,19 @@ false
 "provenance": "inherent",
 "severity": "distorting",
 "testable": true
+},
+{
+"claim": [
+{
+"token": "ci_via_percentile_bootstrap",
+"vocabulary": "assumption_claim"
+}
+],
+"id": "ci_via_percentile_bootstrap",
+"layer": "confidence",
+"provenance": "inherent",
+"severity": "confidence_only",
+"testable": true
 }
 ]
 },
@@ -32331,6 +33621,17 @@ false
 "state_vs_event"
 ],
 "predicate": "a"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "b"
 }
 ],
 "investigation_requests": [
@@ -32393,10 +33694,38 @@ false
 "predicate": "a"
 },
 "target": "a"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "b"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "b"
+},
+"target": "b"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "numeric_estimate": {
@@ -32405,7 +33734,8 @@ false
 "positivity_every_conditioning_stratum_has_support",
 "consistency_of_potential_outcomes_under_joint_intervention",
 "discrete_variables_saturated_nonparametric_plug_in",
-"joint_effect_point_identified_by_set_id_no_adjustment_set_exists"
+"joint_effect_point_identified_by_set_id_no_adjustment_set_exists",
+"ci_via_percentile_bootstrap"
 ],
 "bootstrap": {
 "kind": "iid",

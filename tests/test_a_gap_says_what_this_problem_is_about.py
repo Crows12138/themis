@@ -452,6 +452,10 @@ def test_the_remainder_is_counted_rather_than_described():
     And 8 fewer when four answers stopped carrying a Balke-Pearl interval
     around an instrument that needs something conditioned: the sentence
     about that interval, its method and its assumptions, went with it.
+
+    And 2 more when the joint general-ID answer was refreshed: the gap its
+    producer had grown about the second treatment's definition names the
+    variable and the fields it is missing.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -466,7 +470,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2088, 188), (refused, accepted)
+    assert (refused, accepted) == (2090, 188), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

@@ -252,7 +252,7 @@ def test_a_variable_patch_carries_no_value_and_is_never_asked():
         if isinstance(item.get("skeleton"), dict)
         and item["skeleton"].get("kind") == "variable_patch"
     ]
-    assert len(patches) == 296, len(patches)
+    assert len(patches) == 297, len(patches)
     assert all(_valued_atoms_of(patch, []) == [] for patch in patches)
 
 

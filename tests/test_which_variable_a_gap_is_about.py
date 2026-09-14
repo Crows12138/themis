@@ -107,13 +107,14 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     carry the key today and all three answer the same way.
 
     Both halves moved by eight together when a targeted corpus refresh
-    picked up eight gaps its rows predated. Together is the point: the
+    picked up eight gaps its rows predated, and by one when the joint
+    general-ID row picked up a ninth. Together is the point: the
     subjects are the denominator and the named ones the numerator, so a
     rule losing ground separates them and a corpus growing does not.
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (436, 436)
+    assert (inside, len(pairs)) == (437, 437)
 
 
 def _riders():
@@ -139,11 +140,11 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 436 of 436 either way — and this corpus offers 191 rides
+    honest side — 437 of 437 either way — and this corpus offers 191 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 436
+               if any(v in r for r in refs)) == 437
     assert len(list(_riders())) == 191
 
 

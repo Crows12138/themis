@@ -199,7 +199,9 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
                 assert set(said) <= allowed, (name, gap["kind"])
     # 4 fewer slots: the sentence naming a Balke-Pearl interval's method and assumptions went with the
     # interval on four refreshed answers, whose instrument needs something conditioned.
-    assert (slots, gap_total, len(species)) == (1125, 974, 38)
+    # 1 more slot and 1 more gap: the refreshed joint general-ID answer carries a gap about its
+    # second treatment's definition, which its producer had grown since the row was stored.
+    assert (slots, gap_total, len(species)) == (1126, 975, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

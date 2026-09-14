@@ -74,6 +74,7 @@ from ..ledger import Provenance
 from .form import NO_OTHER_SHAPES
 from ..types import (
     Atom,
+    AtomValue,
     ConstantExpr,
     FormulaExpr,
     FractionExpr,
@@ -159,6 +160,21 @@ class GeneralIdEstimate:
 
 
 @dataclass(frozen=True)
+class CornerEstimand:
+    """The estimand one corner of the treatment box was evaluated from.
+
+    ``do`` is the corner as an intervention, each treatment atom at the level
+    the data holds, and ``estimand`` is the identified formula with the
+    outcome level bound. Kept beside the corner's number because the number
+    cannot be re-derived without the data, and the estimand can be held to
+    the graph.
+    """
+
+    do: tuple[ValuedAtom, ...]
+    estimand: FormulaExpr
+
+
+@dataclass(frozen=True)
 class JointGeneralIdEstimate:
     """Result of a JOINT general-ID (c-factor plug-in) estimate.
 
@@ -195,6 +211,8 @@ class JointGeneralIdEstimate:
     #: 2^K exactly when the interaction is unavailable, and then the missing
     #: entries are the ones ``interaction_unsupported_cells`` names.
     corner_risks: tuple[CornerRisk, ...]
+    #: The estimand each of those corners was read off, in the same order.
+    corner_estimands: tuple[CornerEstimand, ...] = ()
     interaction_unavailable: str | None = None
     interaction_unsupported_cells: tuple[Cell, ...] = ()
     #: The enumeration bound, present only when it is what withheld the
@@ -660,8 +678,9 @@ def estimate_joint_general_id_ate(
     # does not, so a corner that failed to identify while another succeeded
     # would contradict the algorithm rather than describe the data.
     formulas: dict[Corner, FormulaExpr] = {}
+    assignments: dict[Corner, dict[Atom, AtomValue]] = {}
     for mask in wanted:
-        assignment = {
+        assignment = assignments[mask] = {
             atom: (x_hi if mask[k] else x_lo)
             for k, atom in enumerate(treatment_atoms)
         }
@@ -751,6 +770,14 @@ def estimate_joint_general_id_ate(
         corner_risks=tuple(
             CornerRisk(cell=box_cell(mask, t_cols, high, low),
                        risk=float(risks[mask]))
+            for mask in wanted if mask in risks
+        ),
+        corner_estimands=tuple(
+            CornerEstimand(
+                do=tuple(ValuedAtom(atom=atom, value=level)
+                         for atom, level in assignments[mask].items()),
+                estimand=formulas[mask],
+            )
             for mask in wanted if mask in risks
         ),
         interaction_unavailable=unavailable,

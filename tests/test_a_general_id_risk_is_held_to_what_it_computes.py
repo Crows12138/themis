@@ -93,7 +93,7 @@ def test_both_general_id_risk_answers_in_the_corpus_are_asked():
 def test_each_recorded_estimand_is_put_to_the_probe_and_matches(name, monkeypatch):
     """Without this the tests below could pass on a probe that never ran."""
     pair = SHAPES[name]
-    real = verifier_rules.probe_identify_formula
+    real = verifier_rules.probe_intervention_formula
     asked = []
 
     def probe(*args, **kwargs):
@@ -101,7 +101,7 @@ def test_each_recorded_estimand_is_put_to_the_probe_and_matches(name, monkeypatc
         asked.append(verdict.status)
         return verdict
 
-    monkeypatch.setattr(verifier_rules, "probe_identify_formula", probe)
+    monkeypatch.setattr(verifier_rules, "probe_intervention_formula", probe)
     the_door_for(pair["result"])(copy.deepcopy(pair["program"]), copy.deepcopy(pair["result"]))
     recorded = [key for step in pair["result"]["derivation"]["steps"]
                 for key in FORMULA_KEYS if step["inputs"].get(key) is not None]

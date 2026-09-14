@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from itertools import product
+from itertools import combinations, product
 from typing import Any, Callable, Iterator, Mapping
 
 import networkx as nx
@@ -58,7 +58,7 @@ from .errors import (
     RuleCheckFailed,
     UnknownRuleInputError,
 )
-from .semantic_probe import probe_identify_formula
+from .semantic_probe import probe_intervention_formula
 
 # Numeric tolerance for R7/R8 equality checks. Formula evaluation in
 # floating point can drift slightly even when the algebra is identical
@@ -4844,11 +4844,15 @@ def _rule_numeric_joint_general_id_estimate(
     The two numbers themselves are re-derived from the recorded per-corner
     risks by ``themis.verifier.verify_treatment_box`` — this terminal audits
     metadata and licensing only, matching the cost trade-off every other
-    numeric rule makes.
+    numeric rule makes. Licensing includes the estimands: the corners the
+    answer rests on record the estimand each was read off, and
+    ``_check_joint_corner_estimands`` holds them to the question and the
+    graph.
 
     inputs: criterion, treatments, outcome, method, data_hash, sample_size,
-        joint_point, joint_ci_lower, joint_ci_upper, ci_level, and either
-        interaction_point (+ its CI) or interaction_unavailable
+        corner_estimands, joint_point, joint_ci_lower, joint_ci_upper,
+        ci_level, and either interaction_point (+ its CI) or
+        interaction_unavailable
     output: StructuralResult(value=True)
     """
     rule = "numeric_joint_general_id_estimate"
@@ -4925,6 +4929,125 @@ def _rule_numeric_joint_general_id_estimate(
             or claimed_output.value is not True:
         raise RuleCheckFailed(
             f"{rule} output must be StructuralResult(value=True)",
+            step_index=step_index, rule=rule,
+        )
+    _check_joint_corner_estimands(
+        ctx, inputs, treatments, outcome, step_index=step_index, rule=rule,
+    )
+
+
+def _check_joint_corner_estimands(
+    ctx: VerificationContext,
+    inputs: dict,
+    treatments: frozenset,
+    outcome,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """Hold the estimand each corner of the treatment box was read off.
+
+    The criterion step says only that the engine calls the treatment set
+    identifiable. The answer's numbers are read off one estimand per corner,
+    so each corner it rests on records its assignment and its estimand; each
+    estimand is compared with the one the engine derives for that assignment
+    and then put to the semantic probe under the whole assignment.
+
+    The corners an answer rests on: every one when it reports the
+    interaction, which is a sum over all of them, and otherwise a pair that
+    differs in every treatment, which is what a contrast is taken between.
+    Every assignment sets exactly the question's treatments.
+    """
+    from ..runtime import c_factor
+
+    query = ctx.query
+    primary = getattr(getattr(query, "intervention", None), "atom", None)
+    extras = getattr(query, "extra_interventions", ()) or ()
+    asked = frozenset(
+        a for a in (primary, *(iv.atom for iv in extras)) if a is not None)
+    if treatments != asked:
+        raise RuleCheckFailed(
+            f"{rule}.treatments must be the question's treatments "
+            f"{sorted(a.predicate for a in asked)}",
+            step_index=step_index, rule=rule,
+        )
+    level = getattr(getattr(query, "target", None), "value", None)
+    recorded = inputs.get("corner_estimands")
+    if not isinstance(recorded, tuple) or not recorded:
+        raise RuleCheckFailed(
+            f"{rule}: a joint general-ID estimate must record the estimand "
+            f"each corner of the treatment box was read off",
+            step_index=step_index, rule=rule,
+        )
+    corners: list[tuple[dict, Any]] = []
+    for entry in recorded:
+        do = entry.get("do") if isinstance(entry, dict) else None
+        estimand = entry.get("estimand") if isinstance(entry, dict) else None
+        if not (
+            isinstance(do, tuple) and all(isinstance(v, ValuedAtom) for v in do)
+            and isinstance(estimand, (ConstantExpr, ProbabilityRefExpr,
+                                      ProductExpr, SumExpr, FractionExpr))
+        ):
+            raise RuleCheckFailed(
+                f"{rule}.corner_estimands entries must each carry a do "
+                f"assignment and an estimand",
+                step_index=step_index, rule=rule,
+            )
+        assignment = {v.atom: v.value for v in do}
+        if len(assignment) != len(do) or frozenset(assignment) != asked:
+            raise RuleCheckFailed(
+                f"{rule}: a corner's assignment must set each of the question's "
+                f"treatments once; got do({_said_assignment(assignment)})",
+                step_index=step_index, rule=rule,
+            )
+        corners.append((assignment, estimand))
+
+    if len({frozenset(a.items()) for a, _ in corners}) != len(corners):
+        raise RuleCheckFailed(
+            f"{rule}: a corner of the treatment box records more than one "
+            f"estimand",
+            step_index=step_index, rule=rule,
+        )
+    if any(len({a[t] for a, _ in corners}) != 2 for t in asked):
+        raise RuleCheckFailed(
+            f"{rule}: each treatment must take two levels across the recorded "
+            f"corners",
+            step_index=step_index, rule=rule,
+        )
+    box = 2 ** len(asked)
+    if inputs.get("interaction_point") is not None and len(corners) != box:
+        raise RuleCheckFailed(
+            f"{rule}: the interaction is a sum over all {box} corners of the "
+            f"treatment box, yet {len(corners)} record an estimand",
+            step_index=step_index, rule=rule,
+        )
+    if not any(all(a[t] != b[t] for t in asked)
+               for (a, _), (b, _) in combinations(corners, 2)):
+        raise RuleCheckFailed(
+            f"{rule}: no two recorded corners differ in every treatment, so "
+            f"no contrast was read off them",
+            step_index=step_index, rule=rule,
+        )
+
+    for assignment, estimand in corners:
+        said = _said_assignment(assignment)
+        derived = c_factor.identify_via_tian_joint(
+            ctx.graph, ctx.bidirected, assignment, outcome)
+        if not derived.identifiable or derived.formula is None:
+            raise RuleCheckFailed(
+                f"{rule}: the general ID algorithm does not point-identify "
+                f"P({outcome.predicate} | do({said})) on this graph, yet the "
+                f"estimate reports an estimand for it",
+                step_index=step_index, rule=rule,
+            )
+        if estimand != _verifier_bind_target_value(derived.formula, outcome, level):
+            raise RuleCheckFailed(
+                f"{rule}: the recorded estimand for do({said}) is not the one "
+                f"the ID algorithm derives for it",
+                step_index=step_index, rule=rule,
+            )
+        _verifier_probe_risk(
+            ctx, estimand, assignment, outcome, level,
             step_index=step_index, rule=rule,
         )
 
@@ -10388,7 +10511,7 @@ def _check_causation_general_id_risks(
     What it pins down is that each number was read off the right estimand.
 
     Agreeing with the engine is all that comparison can establish, so each
-    estimand is also put to the semantic probe (``_verifier_probe_arm_risk``).
+    estimand is also put to the semantic probe (``_verifier_probe_risk``).
     """
     from ..runtime import c_factor
 
@@ -10419,45 +10542,56 @@ def _check_causation_general_id_risks(
                 f"the one the ID algorithm derives for it",
                 step_index=step_index, rule=rule,
             )
-        _verifier_probe_arm_risk(
-            ctx, claimed, x_atom, arm, y_atom, step_index=step_index, rule=rule,
+        _verifier_probe_risk(
+            ctx, claimed, {x_atom: arm}, y_atom, True,
+            step_index=step_index, rule=rule,
         )
 
 
-def _verifier_probe_arm_risk(
+def _verifier_probe_risk(
     ctx: VerificationContext,
     formula,
-    x_atom,
-    arm,
+    intervention: dict,
     y_atom,
+    y_value,
     *,
     step_index: int,
     rule: str,
 ) -> None:
-    """Hold a recorded arm estimand to the risk it says it computes.
+    """Hold a recorded estimand to the risk it says it computes,
+    ``P(Y=y_value | do(intervention))``: one arm's treatment, or every
+    treatment at a corner of a box.
 
     Its callers first compare the estimand with the one the ID engine
     derives, and that comparison can only say the two agree: an engine that
-    identifies an arm it should not, or writes the wrong estimand for one, is
+    identifies a risk it should not, or writes the wrong estimand for one, is
     agreed with there. The semantic probe does not ask the engine. It samples
-    models consistent with this graph, computes ``P(Y=1 | do(X=arm))`` in
-    each by intervening on the model, and evaluates the estimand on the
-    model's observational distribution. A probe that cannot run says
-    nothing; an estimand that does not compute the risk costs the answer.
+    models consistent with this graph, computes the risk in each by
+    intervening on the model, and evaluates the estimand on the model's
+    observational distribution. A probe that cannot run says nothing; an
+    estimand that does not compute the risk costs the answer.
     """
     domains = ctx.theta.domains if ctx.theta is not None else {}
-    probe = probe_identify_formula(
+    probe = probe_intervention_formula(
         ctx.graph, ctx.bidirected,
-        x=x_atom, x_value=arm, y=y_atom, given=(), formula=formula,
-        domains=domains, y_values=(True,),
+        intervention=intervention, y=y_atom, given=(), formula=formula,
+        domains=domains, y_values=(y_value,),
     )
     if probe.refuses:
         raise RuleCheckFailed(
             f"{rule}: the recorded estimand for "
-            f"P({y_atom.predicate}=1 | do({x_atom.predicate}={arm})) does not "
-            f"compute it in models consistent with the graph. {probe.detail}",
+            f"P({y_atom.predicate}={y_value} | do({_said_assignment(intervention)})) "
+            f"does not compute it in models consistent with the graph. "
+            f"{probe.detail}",
             step_index=step_index, rule=rule,
         )
+
+
+def _said_assignment(intervention: dict) -> str:
+    """``a=True, b=False``, in predicate order."""
+    return ", ".join(
+        f"{atom.predicate}={value}" for atom, value in
+        sorted(intervention.items(), key=lambda kv: kv[0].predicate))
 
 
 def _check_cf_cell_general_id_risk(
@@ -10484,7 +10618,7 @@ def _check_cf_cell_general_id_risk(
     read off the right estimand.
 
     Agreeing with the engine is all that comparison can establish, so the
-    estimand is also put to the semantic probe (``_verifier_probe_arm_risk``).
+    estimand is also put to the semantic probe (``_verifier_probe_risk``).
     """
     from ..runtime import c_factor
 
@@ -10530,9 +10664,9 @@ def _check_cf_cell_general_id_risk(
             f"{query.counterfactual_intervention.value}) on this graph",
             step_index=step_index, rule=rule,
         )
-    _verifier_probe_arm_risk(
-        ctx, claimed, x_atom, query.counterfactual_intervention.value, y_atom,
-        step_index=step_index, rule=rule,
+    _verifier_probe_risk(
+        ctx, claimed, {x_atom: query.counterfactual_intervention.value}, y_atom,
+        True, step_index=step_index, rule=rule,
     )
 
 

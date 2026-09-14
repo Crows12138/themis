@@ -75,8 +75,12 @@ SHAPES = json.loads(
 #: carrying that ask's species as its note, a ``gap_says`` statement.
 #: 16 went with another: six answers lost a Balke-Pearl
 #: interval taken around a node that is not an instrument with nothing
-#: conditioned, and what it and its gap sentence said.
-REACHED = 5085
+#: conditioned, and what it and its gap sentence said. Four came with a
+#: refresh of the joint general-ID answer, from what its producer had grown
+#: since the row was stored: a gap about the second treatment's definition
+#: (what it describes, what it asks for, what it says) and the bootstrap
+#: line on its ledger.
+REACHED = 5089
 PER_CARRIER = {
     "gap_routes": 1193,
     # These three and the ledger below moved together, by eight and eight
@@ -84,11 +88,12 @@ PER_CARRIER = {
     # drift the stored rows predated: eight more gaps and one more ledger
     # entry across six rows. Four carriers of the same eight gaps is what
     # a per-carrier pin is for — a narrowing shows up as one of them
-    # falling while the others hold.
-    "gap_describes": 1148,
-    "gap_if_provided": 974,
-    "gap_says": 675,
-    "assumption_claim": 508,
+    # falling while the others hold. They moved by one each again with the
+    # joint general-ID refresh.
+    "gap_describes": 1149,
+    "gap_if_provided": 975,
+    "gap_says": 676,
+    "assumption_claim": 509,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
     # statement quoted INSIDE another sentence's hole, which is the shape

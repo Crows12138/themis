@@ -137,7 +137,9 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
                 sentences += 1
     # 4 fewer sentences: the sentence naming a Balke-Pearl interval's method and assumptions went with the
     # interval on four refreshed answers, whose instrument needs something conditioned.
-    assert (routes, sentences) == (427, 809), (routes, sentences)
+    # 1 more sentence: the refreshed joint general-ID answer carries a gap about its second
+    # treatment's definition, which its producer had grown since the row was stored.
+    assert (routes, sentences) == (427, 810), (routes, sentences)
 
 
 def test_a_gaps_own_said_is_the_occasion_its_kind_names():
