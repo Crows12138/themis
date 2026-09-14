@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import networkx as nx
@@ -74,13 +75,19 @@ _FRONT_DOOR_MAX_SET = 2
 @dataclass(frozen=True)
 class RefusalFacts:
     """What re-deriving a refusal needs: the program's graph, and nothing
-    the result said about itself."""
+    the result said about itself.
+
+    ``longitudinal`` is the program's ``options.longitudinal`` as written,
+    or ``None``: a declaration outside the query that can change the
+    estimand the query stands for, so it travels beside the query.
+    """
 
     graph: nx.DiGraph
     bidirected: frozenset
     query: Query
     feedback: frozenset = frozenset()
     selection_nodes: tuple = ()
+    longitudinal: Mapping | None = None
 
 
 #: The fields of the query the searches below read. They express ONE
@@ -99,18 +106,51 @@ class RefusalFacts:
 _ESTIMAND_FIELDS_READ = frozenset({"target", "intervention", "given"})
 
 
+def _stands_in_for_a_strategy(facts: RefusalFacts) -> bool:
+    """True when the program declares a time-varying strategy and this
+    query is how it asks it.
+
+    The query grammar cannot carry the order of treatments in time, so a
+    program declares the strategy in ``options.longitudinal`` and asks it
+    as the effect of one of the declared treatments on the declared
+    outcome, with nothing else on the query. Asked that way the estimand is
+    no longer the total effect of that one treatment. It is the strategy
+    contrast, standardized over the history the program declares measured,
+    and an adjustment set drawn from the whole graph is made of variables
+    that declaration says nobody measured.
+
+    Read by predicate, because the declaration names columns.
+    """
+    spec = facts.longitudinal
+    q = facts.query
+    if not isinstance(spec, Mapping) or not isinstance(q, EffectQuery):
+        return False
+    return (_nothing_else_is_asked(q)
+            and q.target.atom.predicate == spec.get("outcome")
+            and q.intervention.atom.predicate in (spec.get("treatments") or ()))
+
+
 def _asks_what_the_search_can_answer(facts: RefusalFacts) -> bool:
     """True when the estimand is the one the witness searches express.
 
     A selection node disqualifies for the same reason a target population
     does: what the data are a sample OF is no longer the distribution the
-    searches identify from.
+    searches identify from. A declared strategy the query stands in for
+    disqualifies for the reason :func:`_stands_in_for_a_strategy` gives.
     """
     q = facts.query
     if not isinstance(q, EffectQuery):
         return False
     if facts.selection_nodes:
         return False
+    if _stands_in_for_a_strategy(facts):
+        return False
+    return _nothing_else_is_asked(q)
+
+
+def _nothing_else_is_asked(q: Query) -> bool:
+    """True when every field of the query past the ones the searches read
+    is at its default."""
     for field in dataclasses.fields(q):
         if field.name in _ESTIMAND_FIELDS_READ:
             continue
@@ -265,6 +305,67 @@ def _front_door_witness(facts: RefusalFacts) -> frozenset[Atom] | None:
     return None
 
 
+# ===================================================== the strategy witness
+
+
+def _the_declared_history_holds(
+    facts: RefusalFacts,
+) -> tuple[tuple[Atom, ...], Atom] | None:
+    """The treatments and the outcome, where the declared history holds.
+
+    The sequential back door asked of the history the program declares
+    rather than of a set anybody searched for. At each treatment A_k, in
+    its declared order, the history is every covariate block up to and
+    including k and every earlier treatment, and the back-door criterion
+    has to hold for A_k's effect on the outcome given it: the two legs of
+    :func:`_backdoor_holds`, asked once per treatment of a growing set.
+
+    Every way of being unable to ask ends in ``None``, and so in accepting
+    the refusal: blocks and treatments of different lengths; a feedback
+    loop, whose route outranks this one wherever it reaches the estimand; a
+    selection node; and a name the graph holds no node of, or several. On a
+    program unrolled in time a column's variable has a node at every step,
+    and which step the declaration meant is written nowhere.
+    """
+    spec = facts.longitudinal
+    if (not isinstance(spec, Mapping) or facts.feedback
+            or facts.selection_nodes):
+        return None
+    names = list(spec.get("treatments") or ())
+    blocks = [list(block) for block in (spec.get("confounders_by_time") or ())]
+    if not names or len(blocks) != len(names):
+        return None
+    by_predicate: dict[str, list[Atom]] = {}
+    for node in facts.graph.nodes:
+        by_predicate.setdefault(node.predicate, []).append(node)
+
+    def _the_node(name: object) -> Atom | None:
+        found = by_predicate.get(name) if isinstance(name, str) else None
+        return found[0] if found and len(found) == 1 else None
+
+    outcome = _the_node(spec.get("outcome"))
+    if outcome is None:
+        return None
+    treatments: list[Atom] = []
+    for name in names:
+        node = _the_node(name)
+        if node is None or node == outcome:
+            return None
+        treatments.append(node)
+    history: list[Atom] = []
+    for a_k, block in zip(treatments, blocks):
+        for name in block:
+            node = _the_node(name)
+            if node is None:
+                return None
+            history.append(node)
+        if not _backdoor_holds(facts.graph, facts.bidirected, a_k, outcome,
+                               frozenset(history)):
+            return None
+        history.append(a_k)
+    return tuple(treatments), outcome
+
+
 # ===================================================== the refuters
 
 
@@ -275,13 +376,25 @@ def _names(atoms) -> str:
 def _refute_unidentifiable(gap: dict, facts: RefusalFacts) -> str | None:
     """"No admissible set exists" — refuted by producing one.
 
-    Only where the estimand is the one the searches express. The kind is
+    Only where the estimand is one a search here expresses. The kind is
     raised for every route that failed, transport's and a mediation
     decomposition's included, and an adjustment set for the plain total
     effect says nothing about either. Those reach here and leave
     unrefuted, which is the falsifier declining a question rather than a
     case being skipped.
+
+    A declared strategy is the one estimand beside the plain effect that
+    has a search of its own, and its witness is the declaration itself:
+    the history it names, holding at every treatment.
     """
+    if _stands_in_for_a_strategy(facts):
+        held = _the_declared_history_holds(facts)
+        if held is None:
+            return None
+        treatments, outcome = held
+        return (f"the history the program declares measured blocks every "
+                f"back-door path to {outcome.predicate} from each of "
+                f"{', '.join(a.predicate for a in treatments)} in turn")
     if not _asks_what_the_search_can_answer(facts):
         return None
     z = _adjustment_witness(facts)

@@ -1770,7 +1770,8 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     from .verifier.refusal_rules import RefusalFacts as _RefusalFacts
     _audit_refusal_claims(result, _RefusalFacts(
         graph=ctx.graph, bidirected=ctx.bidirected, query=ctx.query,
-        feedback=ctx.feedback, selection_nodes=ctx.selection_nodes))
+        feedback=ctx.feedback, selection_nodes=ctx.selection_nodes,
+        longitudinal=(prog.options or {}).get("longitudinal")))
 
     # The two blocks that are not conclusions but copies of what the
     # caller said, held against the caller's own document. Outside the
@@ -2378,6 +2379,7 @@ def _refusal_facts(program: dict | str | bytes, target_id):
         feedback=feedback_from_ground(ground),
         selection_nodes=tuple(
             s for s in prog.statements if isinstance(s, _SN)),
+        longitudinal=(prog.options or {}).get("longitudinal"),
     )
 
 
