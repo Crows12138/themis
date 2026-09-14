@@ -384,17 +384,3 @@ def test_verifier_rules_do_not_reference_structural_solver():
             f"{fn.__name__} references forbidden symbol: "
             f"{names & forbidden}"
         )
-
-
-def test_verifier_rules_do_not_import_structural_solver_transitively():
-    """Stronger pin: walk the rules module's imports and ensure
-    structural_solver isn't imported for mediation use."""
-    import themis.verifier.rules as rules_mod
-    # The module may legally import VerificationContext etc., but
-    # structural_solver must not appear in module globals.
-    assert not hasattr(rules_mod, "structural_solver"), (
-        "verifier.rules must not import themis.runtime.structural_solver"
-    )
-    assert not hasattr(rules_mod, "mediation_sets"), (
-        "verifier.rules must not import structural_solver.mediation_sets"
-    )

@@ -64,6 +64,7 @@ from .errors import VerificationError
 from .rules import (
     _check_d_separation,
     _graph_minus_x_outgoing,
+    _verifier_backdoor_holds,
     _verifier_is_admg_backdoor_connected,
     iv_criterion_holds,
 )
@@ -184,30 +185,6 @@ def _ancestors_of(graph: nx.DiGraph, nodes: set[Atom]) -> set[Atom]:
     return out
 
 
-def _backdoor_holds(
-    graph: nx.DiGraph,
-    bidirected: frozenset,
-    x: Atom,
-    y: Atom,
-    conditioning: frozenset[Atom],
-) -> bool:
-    """The verifier's own backdoor criterion, both legs, ADMG-aware.
-
-    The same two legs the chain rule checks, asked of a set nobody
-    proposed — which is the only difference between checking a witness and
-    finding one.
-    """
-    if x not in graph or y not in graph:
-        return False
-    if not conditioning.isdisjoint(_descendants(graph, x) | {y}):
-        return False
-    if bidirected:
-        return not _verifier_is_admg_backdoor_connected(
-            graph, bidirected, x, y, conditioning)
-    return _check_d_separation(
-        _graph_minus_x_outgoing(graph, x), x, y, conditioning)
-
-
 def _canonical_adjustment_set(
     graph: nx.DiGraph, x: Atom, y: Atom, given: frozenset[Atom],
 ) -> frozenset[Atom]:
@@ -242,7 +219,8 @@ def _adjustment_witness(facts: RefusalFacts) -> frozenset[Atom] | None:
         _canonical_adjustment_set(graph, x, y, given),
         frozenset(),
     ):
-        if _backdoor_holds(graph, facts.bidirected, x, y, candidate | given):
+        if _verifier_backdoor_holds(graph, facts.bidirected, x, y,
+                                    candidate | given):
             return candidate
     return None
 
@@ -322,7 +300,8 @@ def _the_declared_history_holds(
     its declared order, the history is every covariate block up to and
     including k and every earlier treatment, and the back-door criterion
     has to hold for A_k's effect on the outcome given it: the two legs of
-    :func:`_backdoor_holds`, asked once per treatment of a growing set.
+    :func:`_verifier_backdoor_holds`, asked once per treatment of a growing
+    set.
 
     Every way of being unable to ask ends in ``None``, and so in accepting
     the refusal: blocks and treatments of different lengths; a feedback
@@ -363,8 +342,8 @@ def _the_declared_history_holds(
             if node is None:
                 return None
             history.append(node)
-        if not _backdoor_holds(facts.graph, facts.bidirected, a_k, outcome,
-                               frozenset(history)):
+        if not _verifier_backdoor_holds(facts.graph, facts.bidirected, a_k,
+                                        outcome, frozenset(history)):
             return None
         history.append(a_k)
     return tuple(treatments), outcome

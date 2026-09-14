@@ -7,6 +7,12 @@ elaborator agree the derivation is accepted; if they disagree the
 derivation is rejected. The verifier carries the theorem statements;
 the elaborator merely claims to satisfy them.
 
+The runtime modules this file does import are the probability-table
+types both sides read and three identification engines re-run here
+rather than reimplemented (general ID, counterfactual ID, proximal ID).
+``tests/test_the_verifier_asks_its_own_graph_questions.py`` holds that
+list, reading every import in the verifier, function bodies included.
+
 Named rules in this file:
 
 - R1 ``graph_is_dag``
@@ -889,7 +895,7 @@ def _path_is_open_for_front_door(
     return True
 
 
-def _backdoor_paths_for_front_door(
+def _verifier_backdoor_paths(
     graph: nx.DiGraph, a: Atom, b: Atom,
 ) -> tuple[tuple[Atom, ...], ...]:
     """Undirected simple paths from a to b whose first edge points
@@ -968,7 +974,7 @@ def _rule_front_door_criterion(
                     break
         else:
             for zi in z:
-                for path in _backdoor_paths_for_front_door(graph, x, zi):
+                for path in _verifier_backdoor_paths(graph, x, zi):
                     if _path_is_open_for_front_door(graph, path, frozenset()):
                         fd2 = False
                         break
@@ -990,7 +996,7 @@ def _rule_front_door_criterion(
                     break
         else:
             for zi in z:
-                for path in _backdoor_paths_for_front_door(graph, zi, y):
+                for path in _verifier_backdoor_paths(graph, zi, y):
                     if _path_is_open_for_front_door(graph, path, x_cond):
                         fd3 = False
                         break
@@ -7057,8 +7063,9 @@ def _rule_numeric_causation_estimate(
        formula / packaging bug in the data path.
     2. Identification structure — when the do-risks were back-door standardized
        (or exogenous), the claimed adjustment set is re-derived from
-       ``ctx.graph`` via ``minimal_adjustment_sets`` and must be a genuinely
-       admissible back-door set; catches standardizing over a WRONG set.
+       ``ctx.graph`` via ``_verifier_minimal_adjustment_sets`` and must be a
+       genuinely admissible back-door set; catches standardizing over a
+       WRONG set.
     3. Metadata self-consistency — method enum, data_hash hex, sample_size,
        probabilities in range, PN CI brackets the point.
 
@@ -7070,8 +7077,6 @@ def _rule_numeric_causation_estimate(
         monotonic, provenance, adjustment, the reported pn/ps/pns points, CI.
     output: StructuralResult(value=True)
     """
-    from ..runtime import structural_solver
-
     rule = "numeric_causation_estimate"
     if not isinstance(ctx.query, CausationQuery):
         raise RuleCheckFailed(
@@ -7222,9 +7227,8 @@ def _rule_numeric_causation_estimate(
     #    nothing.
     claimed = _adjustment_names(inputs, step_index, rule)
     if provenance in ("backdoor_adjustment", "exogenous"):
-        sets = structural_solver.minimal_adjustment_sets(
-            ctx.graph, x_atom, y_atom,
-            bidirected=(ctx.bidirected or None),
+        sets = _verifier_minimal_adjustment_sets(
+            ctx.graph, x_atom, y_atom, bidirected=ctx.bidirected,
         )
         if not sets:
             raise RuleCheckFailed(
@@ -7252,8 +7256,8 @@ def _rule_numeric_causation_estimate(
             # down a route with weaker guarantees, so it is re-derived here
             # rather than believed. What each licence adds on top of it is
             # checked in its own place: the estimands below, the table above.
-            if structural_solver.minimal_adjustment_sets(
-                ctx.graph, x_atom, y_atom, bidirected=(ctx.bidirected or None),
+            if _verifier_minimal_adjustment_sets(
+                ctx.graph, x_atom, y_atom, bidirected=ctx.bidirected,
             ):
                 raise RuleCheckFailed(
                     f"{rule}: provenance {provenance!r} claims no covariate "
@@ -7673,11 +7677,10 @@ def _verifier_marginal_independence_lookup(
             if v is None:
                 continue
             if graph is not None and bidirected is not None:
-                from ..runtime.structural_solver import m_separated
-                conditioning = tuple(a for a, _ in reduced)
+                conditioning = frozenset(a for a, _ in reduced)
                 extras_atoms = [a for a, _ in to_remove]
                 all_separated = all(
-                    m_separated(
+                    not _verifier_is_m_connected(
                         graph, bidirected,
                         target_atom, extra, conditioning,
                     )
@@ -7711,7 +7714,6 @@ def _verifier_diagnose_marginal_independence_refusal(
     if not base_given:
         return None
     from itertools import combinations
-    from ..runtime.structural_solver import m_separated
 
     for n_remove in range(1, len(base_given) + 1):
         sorted_given = sorted(
@@ -7733,10 +7735,10 @@ def _verifier_diagnose_marginal_independence_refusal(
             )
             if theta.entries.get(reduced_key) is None:
                 continue
-            conditioning = tuple(a for a, _ in reduced)
+            conditioning = frozenset(a for a, _ in reduced)
             extras_atoms = tuple(a for a, _ in to_remove)
             all_separated = all(
-                m_separated(
+                not _verifier_is_m_connected(
                     graph, bidirected,
                     target_atom, extra, conditioning,
                 )
@@ -8576,6 +8578,92 @@ def _verifier_is_admg_backdoor_connected(
         if open_path:
             return True
     return False
+
+
+def _verifier_backdoor_holds(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+    x: Atom,
+    y: Atom,
+    conditioning: frozenset[Atom],
+) -> bool:
+    """The verifier's own back-door criterion, both legs, ADMG-aware.
+
+    ``conditioning`` holds no descendant of X and not Y, and blocks every
+    path between X and Y that enters X: d-separation once X's out-edges
+    are cut in a DAG, no open m-path with an arrowhead at X once a
+    bidirected edge is declared. Asked of a set a producer named it checks
+    a witness; asked of a set nobody proposed it finds one, which is the
+    only difference between the two.
+    """
+    if x not in graph or y not in graph:
+        return False
+    if not conditioning.isdisjoint(nx.descendants(graph, x) | {x, y}):
+        return False
+    if bidirected:
+        return not _verifier_is_admg_backdoor_connected(
+            graph, bidirected, x, y, conditioning)
+    return _check_d_separation(
+        _graph_minus_x_outgoing(graph, x), x, y, conditioning)
+
+
+def _verifier_minimal_adjustment_sets(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    *,
+    given: tuple[Atom, ...] = (),
+    bidirected: frozenset = frozenset(),
+) -> tuple[frozenset[Atom], ...]:
+    """Every subset-minimal set that, added to ``given``, satisfies
+    :func:`_verifier_backdoor_holds` -- the verifier's own answer to the
+    question the producer's ``minimal_adjustment_sets`` answers.
+
+    Empty when X or Y is not a node, when they are one node, or when
+    ``given`` holds X, Y or a descendant of X. The sets come smallest
+    first and, within a size, in the order ``graph.nodes`` lists their
+    members. That is the producer's order, and it is kept because a reader
+    that takes the first smallest set has to take the set the producer
+    took.
+    """
+    from itertools import combinations
+
+    if x not in graph or y not in graph or x == y:
+        return ()
+    given_set = frozenset(given)
+    forbidden = nx.descendants(graph, x) | {x, y}
+    if not given_set.isdisjoint(forbidden):
+        return ()
+    candidates = [n for n in graph.nodes
+                  if n not in forbidden and n not in given_set]
+    minimal: list[frozenset[Atom]] = []
+    for size in range(len(candidates) + 1):
+        for combo in combinations(candidates, size):
+            z = frozenset(combo)
+            if any(found < z for found in minimal):
+                continue
+            if _verifier_backdoor_holds(graph, bidirected, x, y, z | given_set):
+                minimal.append(z)
+    return tuple(minimal)
+
+
+def _verifier_c_components(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+) -> tuple[frozenset[Atom], ...]:
+    """The c-components of the ADMG: the classes of nodes joined by
+    bidirected edges alone.
+
+    Every node of ``graph`` and every endpoint of a bidirected edge lies in
+    exactly one. Their order carries nothing; the rules ask which one holds
+    a node.
+    """
+    joined = nx.Graph()
+    joined.add_nodes_from(graph.nodes)
+    for pair in bidirected:
+        a, b = tuple(pair)
+        joined.add_edge(a, b)
+    return tuple(frozenset(c) for c in nx.connected_components(joined))
 
 
 def _rule_m_separation_witness(
@@ -9683,8 +9771,6 @@ def _rule_numeric_counterfactual_cell_estimate(
     verifier holds only the ``data_hash``); the arithmetic, the cell identity
     and the graph licence are what it re-derives.
     """
-    from ..runtime import structural_solver
-
     rule = "numeric_counterfactual_cell_estimate"
     if not isinstance(ctx.query, CounterfactualQuery):
         raise RuleCheckFailed(
@@ -9838,11 +9924,11 @@ def _rule_numeric_counterfactual_cell_estimate(
     #    for the cells that consume no risk at all).
     claimed = _adjustment_names(inputs, step_index, rule)
     if provenance in ("backdoor_adjustment", "exogenous"):
-        sets = structural_solver.minimal_adjustment_sets(
+        sets = _verifier_minimal_adjustment_sets(
             ctx.graph,
             query.observed.atom,
             query.counterfactual_target.atom,
-            bidirected=(ctx.bidirected or None),
+            bidirected=ctx.bidirected,
         )
         if not sets:
             raise RuleCheckFailed(
@@ -10292,13 +10378,13 @@ def _check_cf_cell_general_id_risk(
     every numeric rule declares). What it does pin down is that the number was
     read off the right estimand.
     """
-    from ..runtime import c_factor, structural_solver
+    from ..runtime import c_factor
 
     bidir = ctx.bidirected
     x_atom = query.observed.atom
     y_atom = query.counterfactual_target.atom
-    sets = structural_solver.minimal_adjustment_sets(
-        ctx.graph, x_atom, y_atom, bidirected=(ctx.bidirected or None),
+    sets = _verifier_minimal_adjustment_sets(
+        ctx.graph, x_atom, y_atom, bidirected=bidir,
     )
     if sets:
         raise RuleCheckFailed(
@@ -11766,17 +11852,15 @@ def _rule_identify_via_tian(
     the c-component containing Y in G[V\\X] coincides with a
     c-component of G (Shpitser Line 6).
 
-    Uses ``structural_solver.c_components`` as a primitive (a single
-    union-find pass — distinct from running the full identify_via_tian
-    recursion) so the check is non-circular. The claim 'identifiable'
-    is accepted iff:
+    The c-components are the verifier's own (:func:`_verifier_c_components`),
+    and the check is not the identify_via_tian recursion run again, so it
+    is non-circular. The claim 'identifiable' is accepted iff:
 
     - the formula validates against ctx.graph
     - the c-component of Y in G[V\\X] under bidirected restriction
       is a c-component of G under full bidirected (Line 6 sufficient
       condition)
     """
-    from ..runtime.structural_solver import c_components
     from ..input.semantic_validator import validate_formula
 
     decomp_ref = _require(
@@ -11823,11 +11907,11 @@ def _rule_identify_via_tian(
     g_an = ctx.graph.subgraph(an_y)
     bi_an = frozenset(p for p in ctx.bidirected if p <= an_y)
 
-    cc_full = c_components(g_an, bi_an)
+    cc_full = _verifier_c_components(g_an, bi_an)
     nodes_minus_x = frozenset(an_y) - {x}
     sub = g_an.subgraph(nodes_minus_x)
     bi_minus_x = frozenset(p for p in bi_an if p <= nodes_minus_x)
-    cc_minus_x = c_components(sub, bi_minus_x)
+    cc_minus_x = _verifier_c_components(sub, bi_minus_x)
 
     # Y's c-component in G[An(Y)\X] must be a c-component of G[An(Y)].
     y_cc_minus_x = next((c for c in cc_minus_x if y in c), None)
@@ -11866,12 +11950,10 @@ def _rule_tian_hedge_witness(
     step_by_id: dict,
     step_output_by_id: dict,
 ) -> None:
-    """Verifier-side hedge check (Shpitser Line 5): re-run c_components
-    on the ADMG. A hedge exists when the c-component containing both
+    """Verifier-side hedge check (Shpitser Line 5): re-derive the
+    c-components of the ADMG. A hedge exists when the c-component containing both
     x and y covers everything reachable to y (i.e., x and y in the
     same c-component of G[An_G(Y)])."""
-    from ..runtime.structural_solver import c_components
-
     decomp_ref = _require(
         inputs, "decomposition", step_index, "tian_hedge_witness",
     )
@@ -11901,7 +11983,7 @@ def _rule_tian_hedge_witness(
     ancestors = set(nx.ancestors(ctx.graph, y)) | {y}
     sub = ctx.graph.subgraph(ancestors)
     bi_ancestors = frozenset(p for p in ctx.bidirected if p <= frozenset(ancestors))
-    cc = c_components(sub, bi_ancestors)
+    cc = _verifier_c_components(sub, bi_ancestors)
     x_cc = next((c for c in cc if x in c), None)
     # Tian-Pearl (2002a) Thm 9 / Tian-Shpitser (2009): for a single intervention
     # X on a single target Y, P(Y|do(X)) is UNidentifiable iff a bidirected path
@@ -11979,8 +12061,6 @@ def _idc_mutilate_rule2(graph, bidirected, do_set, underline):
 
 def _idc_replay_exchange(graph, bidirected, x, y_set, z_set):
     """Independently re-run the IDC Rule-2 loop. Returns (do_set, z_rem)."""
-    from ..runtime.structural_solver import is_m_connected
-
     do_set = frozenset({x})
     cond_z = frozenset(z_set)
     changed = True
@@ -11989,9 +12069,9 @@ def _idc_replay_exchange(graph, bidirected, x, y_set, z_set):
         for zi in sorted(cond_z, key=_idc_atom_sort_key):
             rest = cond_z - {zi}
             mg, mbi = _idc_mutilate_rule2(graph, bidirected, do_set, zi)
-            conditioning = tuple(do_set | rest)
+            conditioning = do_set | rest
             if all(
-                not is_m_connected(mg, mbi, yj, zi, conditioning)
+                not _verifier_is_m_connected(mg, mbi, yj, zi, conditioning)
                 for yj in y_set
             ):
                 do_set = do_set | {zi}

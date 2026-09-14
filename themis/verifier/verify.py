@@ -5916,8 +5916,9 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     closed-form recovery formula and external-data ledger. This verifier
     re-derives all of them from scratch — a SECOND transcription of the
     selection-backdoor conditions and the Theorem-3.5 formula, running on
-    the reconstructed graph via low-level structural primitives; it does
-    NOT import the producer's ``selection_recovery`` module. It validates
+    the reconstructed graph via the verifier's own structural primitives;
+    it imports neither the producer's ``selection_recovery`` module nor
+    the producer's graph search. It validates
     the returned witness (the adjustment set genuinely satisfies the
     criterion, the Z⁺/Z⁻ partition is correct, the ledger and formula
     match) and, for a negative verdict, re-runs a bounded independent
@@ -5948,10 +5949,10 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     import networkx as nx
     from itertools import product
 
-    from ..runtime.structural_solver import (
-        is_d_connected,
-        backdoor_paths,
+    from .rules import (
         _path_is_open,
+        _verifier_backdoor_paths,
+        _verifier_set_d_connected,
     )
 
     def _err(msg: str) -> NoReturn:
@@ -5961,7 +5962,8 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
         )
 
     def _dsep(a, b, cond) -> bool:
-        return not is_d_connected(graph, a, b, tuple(cond))
+        return not _verifier_set_d_connected(
+            graph, frozenset({a}), b, frozenset(cond))
 
     def _s_all_dsep_y(s_nodes, yy, cond) -> bool:
         return all(_dsep(s, yy, cond) for s in s_nodes)
@@ -5970,7 +5972,7 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
         c = frozenset(zp)
         return all(
             not _path_is_open(graph, path, c)
-            for path in backdoor_paths(graph, xx, yy)
+            for path in _verifier_backdoor_paths(graph, xx, yy)
         )
 
     def _names(preds) -> str:
@@ -6360,8 +6362,8 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     m-graph from the declared indicators, reclassify the mechanism
     (MCAR/MAR/MNAR) by d-separation, reconstruct the g-formula
     conditioning set, and re-search the ordered factorization — all via
-    low-level structural primitives, NOT by importing the producer's
-    missing_data module. It then checks the block's mechanism,
+    the verifier's own structural primitives, NOT by importing the
+    producer's missing_data module or its graph search. It then checks the block's mechanism,
     recoverability verdict, and recovery formula match the re-derivation,
     and so does everything the block tells a reader beside them: the
     partially observed variables, the factors and the target each stands
@@ -6377,7 +6379,7 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     import networkx as nx
     from itertools import combinations, permutations
 
-    from ..runtime.structural_solver import is_d_connected, minimal_adjustment_sets
+    from .rules import _verifier_minimal_adjustment_sets, _verifier_set_d_connected
     from ..types import Atom
 
     def _err(msg: str) -> NoReturn:
@@ -6389,7 +6391,8 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     R_PREFIX = "__R__"
 
     def _dsep(g, a, b, cond):
-        return not is_d_connected(g, a, b, tuple(cond))
+        return not _verifier_set_d_connected(
+            g, frozenset({a}), b, frozenset(cond))
 
     # --- rebuild the m-graph (independent transcription) ---
     # The program's atoms are nodes as they stand, and each partially
@@ -6446,7 +6449,7 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     given = tuple(g.atom for g in query.given if g.atom in base_graph)
     z: tuple[Atom, ...] = ()
     try:
-        adj = minimal_adjustment_sets(base_graph, x, y, given=given)
+        adj = _verifier_minimal_adjustment_sets(base_graph, x, y, given=given)
         if adj:
             smallest = min(adj, key=len)
             z = tuple(sorted(smallest, key=lambda a: a.predicate))

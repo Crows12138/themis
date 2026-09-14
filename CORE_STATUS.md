@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20038 passed / 518 skipped, warning-clean
+20288 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,53 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #657 验证器的图问题有十处交给生产端自己的搜索回答（2026-09-15）
+
+**现象。** `rules.py` 开头写着：验证器自己重推结构事实，不调 `structural_solver`。补丁前量到十个验证器函数直接调它：
+- 调整集是否可接受、是否存在：数值因果概率、反事实格子、反事实格子的 general-ID 风险、缺失数据可恢复性；
+- d/m-分离：选择偏倚和缺失数据可恢复性、边际独立查表和它的拒收说明、IDC 交换重放；
+- c-分量：Tian 识别和 hedge 两条规则。
+
+边际独立拒收说明的 docstring 还写着「its own re-derivation, not a runtime call」。
+
+今天没有错答案因此通过：400 张随机 ADMG、6614 对处理-结局，生产端的最小调整集和验证器的判据全部一致。但生产端搜索一出错，两个方向都会进判定。图是 z→x、z→y、x→y，答案按 {z} 标准化。把生产端调整集搜索改成「空集可接受」之后，在 `causation_plugin` 和 `counterfactual_cell_plugin` 两行上：
+- 诚实答案被拒，理由是 {z} 不可接受；
+- 步骤和信封里都改成「什么都没调整」的伪造答案，被收下。
+
+**根因。** 独立性只写在文字里。说出这条规则的钉子 `test_mediation_verifier::test_verifier_rules_do_not_import_structural_solver_transitively` 查的是模块全局名字。十处都在函数体里 import，绑定的是局部名，钉子看不见，于是一处一处写了进来。
+
+**为什么是根因不是表象。**
+- 只改这十处：钉子仍查全局名，下一处函数体里的 import 照样进得来。
+- 只改钉子：十处依赖还在。
+
+两件要一起做：验证器有自己的原语，钉子量真正的依赖。
+
+**结构。**
+- `rules.py` 新增三个原语：
+  - `_verifier_backdoor_holds`：从 `refusal_rules._backdoor_holds` 挪来，拒收的见证搜索和序贯历史照旧读它；
+  - `_verifier_minimal_adjustment_sets`：建在它上面，集合顺序与生产端一致（先按大小，同大小按 `graph.nodes` 顺序）。缺失数据可恢复性取第一个最小集，顺序不一致就会取到另一个；
+  - `_verifier_c_components`。
+- `_backdoor_paths_for_front_door` 改名 `_verifier_backdoor_paths`，选择偏倚也读它。
+- 十处改读验证器原语：调整集四处；d-分离两处读 `_verifier_set_d_connected`；m-分离三处读 `_verifier_is_m_connected`；c-分量两处。
+- 新钉子读 `themis/verifier` 每个文件的每条 import，含函数体。`structural_solver` 一律不许。剩下的 runtime import 列成声明的余项，多一个少一个都挂：
+  - `numeric_estimator`：两边都读的概率表类型；
+  - `verify.py` 从 `ctf_identify` 取的一个类型；
+  - `rules.py` 重跑的三个识别引擎：general-ID、反事实 ID、近端 ID。
+- 旧钉子删掉。`rules.py` 模块 docstring 写明这份余项和钉子的位置。
+
+**取舍（声明）。**
+- 三个识别引擎（`c_factor`、`ctf_identify`、`proximal_identify`）仍是重跑，不是重写。本条不闭它们，只把它们钉成余项。代价是这三处生产端出错时，验证器照样跟着错。
+- 没做的：验证器里原有的几份重复判断没有合并。开路判断有三份（`_path_is_open`、`_path_is_open_for_front_door`、`_path_is_open_for_verifier`），调整集判断另有 `verify.py` 的 `_adjustment_valid` 和 `_rule_unidentifiable_via_backdoor`。它们都不依赖生产端，只是彼此重复。
+
+**演练。**
+- 补丁前先跑新文件：251 个挂 33 个。其中导入钉子 1 个、走到这十处的语料行 27 个、同步钉子 1 个、hedge 1 个、边际拒收说明 1 个、生产端说谎 2 个。
+- 插件在验证器的栈帧一调 `structural_solver` 就抛：补丁前 10 个文件挂 60 个；补丁后同样的文件加 mediation 文件 276 个全过，一次调用都没有。
+- 生产端搜索说谎（空集可接受）：补丁后诚实答案收下，伪造答案被拒，理由是「claimed adjustment set [] is not an admissible minimal back-door set」。
+- 语料 243 行，切断生产端搜索后全部照旧收下。补丁前逐行过门也没有一行被拒。
+- 同步钉子：随机 ADMG（节点插入顺序打乱，含 given），生产端和验证器的最小调整集逐元组相等。
+
+**账。** 新文件 251 个测试，删掉旧钉子 1 个，基线 20038→**20288**。
 
 ### #656 「不需要条件的工具」有两个答案，弱的那个让 Balke-Pearl 区间漏掉真值（2026-09-15）
 
