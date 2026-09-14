@@ -556,6 +556,32 @@ def _the_questions_target(_result: Mapping, context) -> set[str]:
     return _the_questions_atom(context, ("target", "outcome"))
 
 
+def _the_questions_members(context, field: str) -> set[str]:
+    """Every atom the question keeps under ``field``, one or a set, in
+    both spellings; empty for a question with no such field."""
+    found = getattr(getattr(context, "query", None), field, None)
+    atoms = ((found,) if isinstance(found, Atom) else
+             tuple(found) if isinstance(found, (tuple, list, frozenset))
+             else ())
+    return {spelt for atom in atoms if isinstance(atom, Atom)
+            for spelt in (atom.predicate, _atom_label_verifier(atom))}
+
+
+def _the_questions_latent(_result: Mapping, context) -> set[str]:
+    """The confounder a proximal question declares nobody measured."""
+    return _the_questions_members(context, "latent")
+
+
+def _the_questions_treatment_proxies(_result: Mapping, context) -> set[str]:
+    """The proxies a proximal question puts on the treatment's side."""
+    return _the_questions_members(context, "treatment_proxy")
+
+
+def _the_questions_outcome_proxies(_result: Mapping, context) -> set[str]:
+    """The proxies a proximal question puts on the outcome's side."""
+    return _the_questions_members(context, "outcome_proxy")
+
+
 #: The slot names that are roles of the question, and the role each one
 #: copies wherever its statement copies one.
 _ROLES: Mapping[str, tuple[str, Any]] = {
@@ -565,6 +591,14 @@ _ROLES: Mapping[str, tuple[str, Any]] = {
                   _the_questions_intervention),
     "target": ("the question's target", _the_questions_target),
     "outcome": ("the question's target", _the_questions_target),
+    # A proximal question's other three: the confounder nobody measured,
+    # and the proxies standing in for it on each side. A proxy role is a
+    # set, and a slot naming a proxy names a member of it.
+    "latent": ("the question's latent confounder", _the_questions_latent),
+    "z": ("the question's treatment-side proxies",
+          _the_questions_treatment_proxies),
+    "w": ("the question's outcome-side proxies",
+          _the_questions_outcome_proxies),
 }
 
 #: The statements whose role slots are copies of the question, and which.
@@ -599,14 +633,20 @@ _COPIES_THE_QUESTION: Mapping[str, tuple[str, ...]] = {
     "the_number_is_a_single_equations_coefficient": (
         "treatment", "outcome"),
     "the_treatment_is_inside_a_declared_loop": ("treatment", "outcome"),
-    "a_test_of_the_null_is_what_is_left": ("treatment", "outcome"),
+    "a_test_of_the_null_is_what_is_left": ("treatment", "outcome", "latent"),
     "the_discrete_contrast_needs_two_arms": ("treatment", "outcome"),
     "the_fitted_treatment_bridge_went_negative": ("treatment", "outcome"),
     "the_fitted_treatment_bridge_went_negative_at_a_level": (
         "treatment", "outcome"),
     "the_penalty_moved_it_further_than_noise_did": ("treatment", "outcome"),
     "the_proxies_show_fewer_states_than_the_latent_has": (
-        "treatment", "outcome"),
+        "treatment", "outcome", "latent", "z", "w"),
+    "the_proxy_channel_is_singular": ("latent", "z", "w"),
+    "the_proxies_are_finer_than_the_declared_cardinality": (
+        "latent", "z", "w"),
+    "which_levels_are_one_state_is_not_in_the_data": ("z",),
+    "declare_a_proxy_coarsening": ("z", "w"),
+    "enrich_a_proxy_to_get_a_number": ("z",),
     "use_a_bridge_channel_for_more_than_two_arms": ("treatment",),
     "the_fitted_propensity_leaves_part_of_the_sample_unsupported": (
         "treatment",),

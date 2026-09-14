@@ -1383,9 +1383,15 @@ def test_the_declared_remainder_is_what_it_is():
     caveat says its value there too. The collider took ``"x"``, a
     variable those problems have, and the value took anything. Each
     place now spells the caveat it tells, held to the caveat owed.
+
+    Then 12 came off the proximal rows, where a statement names the
+    confounder nobody measured and the proxies standing in for it. Those
+    are roles of the question as much as its treatment is, and they were
+    missing from the roles a copy could be declared of, so each kept its
+    leaf for ``"x"``, a variable those problems have.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2156, total
+    assert total == 2144, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19614 passed / 518 skipped, warning-clean
+19627 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,31 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #637 问题的角色不止干预和结局：proximal 问题的潜在混杂与两侧代理（2026-09-14）
+
+**现象。** proximal 那一族有 7 句话写问题的潜在混杂和代理（`latent`、`z`、`w`）：代理通道奇异、代理状态数少于潜在状态、代理比声明的基数细、
+哪些层级是同一状态、声明代理分组、丰富代理、只剩零假设检验。把这些槽换成题目里另一个真变量，48 次换写每道门都放行。
+
+**根因。** #634 把「抄问题的槽」按问题的角色押住，而角色表是照 effect 问题的字段写的：干预与结局（槽名 `intervention` / `treatment` / `target` / `outcome`）。
+proximal 问题另有三个角色——`ProximalEffectQuery.latent`、`treatment_proxy`、`outcome_proxy`——这 7 句抄的正是它们
+（生产者只有 `dispatch.py` 一处，写 `q.latent.predicate` 和两侧代理的谓词；离散通道每侧恰一个代理）。角色表里没有，就无从声明，绑定也不追问。
+
+**为什么是根因不是表象。** 语料 12 处每处都等于问题的成员，生产者按构造抄问题——缺的是角色，不是规则判断错。
+加进角色表后 `_bind` 要求每个带这些槽、在所在语句里是名字的语句都表态：不补声明时恰好点出这 14 对，今后加一句带 `z` 的话也漏不掉。
+
+**结构。** `gap_claim_rules`：`_the_questions_members(context, field)` 取问题在该字段上的全部原子（单个或集合）的两种拼法；
+`_ROLES` 加 `latent`（the question's latent confounder）、`z`（treatment-side proxies）、`w`（outcome-side proxies）；
+`_COPIES_THE_QUESTION` 补 14 对（两句原有条目并入新槽，五句新增）。代理角色是集合，槽写的是其中一个成员——多代理时换成同侧另一个代理会放行，这是按集合押的边界。
+
+**演练（写盘之前在进程内打补丁）。** 诚实 243 个改前改后 0 拒；14 对的 48 次换写全拒（引用规则）；`said` 弯折普查 (2096, 188) 不动；余项闸口离开 12、新增 0。
+
+**没做（量到了）。** `outcome_proxy_leaks_to_treatment_proxy` / `treatment_proxy_leaks_to_outcome` 也写问题的代理，但它们属 `proximal_criterion_failure` 词表，
+住在验证器够不到的层，索引里没有，声明表按绑定只收索引里的对。
+
+**账。** 13 测试；基线 19614→**19627**。`test_a_role_a_gap_names_is_the_questions` 声明 48→62、站点 627→639（新增 latent 4、z 5、w 3）、
+两种拼法 1254→1278、换写拒 1416→1464，角色按问题存的原子集合读，语料没有答案写到的声明加 3 对（代理通道奇异那句）；`test_a_gap_quotes_the_run_back_at_the_reader` 站点 961→973；
+`test_every_answer_shape_is_asked_the_same_question` 余项 2156→2144（3 个 proximal 答案上的 latent / z / w 叶子）。
 
 ### #636 对撞警告写在三处，#632 只读了描述那一处（2026-09-14）
 

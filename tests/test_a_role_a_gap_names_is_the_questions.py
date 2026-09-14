@@ -19,6 +19,11 @@ A gap's own occasion is one of those statements. ``IF_PROVIDED`` speaks
 it under the gap's kind, and until the walk named it so, the 304
 rewrites of an ill-defined intervention's own ``said`` had no statement
 to be declared under.
+
+And a question has more roles than an effect's two. A proximal one also
+names the confounder nobody measured and the proxies standing in for it
+on each side, and seven statements copy those: 48 rewrites of them
+passed every door while the roles were read off an effect's fields.
 """
 from __future__ import annotations
 
@@ -77,16 +82,27 @@ def _said(result, where):
     return node
 
 
-def _the_questions(context, slot) -> Atom:
-    """Which atom the question puts in the role, restated per question
-    rather than read off the rule."""
+def _the_questions(context, slot) -> tuple[Atom, ...]:
+    """Which atoms the question puts in the role, restated per question
+    rather than read off the rule. A proxy role is a set."""
     query = context.query
+    if slot == "latent":
+        return (query.latent,)
+    if slot == "z":
+        return tuple(query.treatment_proxy)
+    if slot == "w":
+        return tuple(query.outcome_proxy)
     acts = slot in ("intervention", "treatment")
     if isinstance(query, ProximalEffectQuery):
-        return query.treatment if acts else query.outcome
+        return (query.treatment if acts else query.outcome,)
     if acts:
-        return query.intervention.atom
-    return getattr(query.target, "atom", query.target)
+        return (query.intervention.atom,)
+    return (getattr(query.target, "atom", query.target),)
+
+
+def _spellings(atoms) -> set[str]:
+    return {spelt for atom in atoms
+            for spelt in (atom.predicate, _atom_label_verifier(atom))}
 
 
 def _predicates(context) -> set[str]:
@@ -109,15 +125,25 @@ def test_every_role_slot_says_whether_it_copies_the_question():
              if pair[1] in _ROLES and holds_a_name(*pair)}
     assert roles == COPIES | set(_NOT_THE_QUESTIONS)
     assert not COPIES & set(_NOT_THE_QUESTIONS)
-    assert (len(COPIES), len(_NOT_THE_QUESTIONS)) == (48, 2)
+    assert (len(COPIES), len(_NOT_THE_QUESTIONS)) == (62, 2)
+
+
+_SAYS = {
+    "intervention": "the question's intervention",
+    "treatment": "the question's intervention",
+    "target": "the question's target",
+    "outcome": "the question's target",
+    "latent": "the question's latent confounder",
+    "z": "the question's treatment-side proxies",
+    "w": "the question's outcome-side proxies",
+}
 
 
 def test_a_copy_is_in_the_copy_table_under_its_role():
+    assert set(_SAYS) == set(_ROLES)
     for statement, slot in COPIES:
         says, _build, lists = _COPIED_FROM[(statement, slot)]
-        role = ("intervention" if slot in ("intervention", "treatment")
-                else "target")
-        assert says == f"the question's {role}", (statement, slot)
+        assert says == _SAYS[slot], (statement, slot)
         assert lists is False
     for pair in _NOT_THE_QUESTIONS:
         assert pair not in _COPIED_FROM, pair
@@ -130,13 +156,17 @@ def test_the_corpus_writes_the_copies_it_writes():
     for _name, _where, _statement, slot in SITES:
         split[slot] = split.get(slot, 0) + 1
     assert split == {"intervention": 566, "target": 22,
-                     "treatment": 21, "outcome": 18}, split
+                     "treatment": 21, "outcome": 18,
+                     "latent": 4, "z": 5, "w": 3}, split
     unseen = COPIES - {(statement, slot) for _n, _w, statement, slot in SITES}
     assert unseen == {
         ("feedback_loop_needs_an_instrument", "treatment"),
         ("feedback_loop_needs_an_instrument", "outcome"),
         ("feedback_loop_outside_the_simultaneous_case", "treatment"),
         ("feedback_loop_outside_the_simultaneous_case", "outcome"),
+        ("the_proxy_channel_is_singular", "latent"),
+        ("the_proxy_channel_is_singular", "z"),
+        ("the_proxy_channel_is_singular", "w"),
     }
 
 
@@ -151,9 +181,8 @@ def test_every_honest_copy_is_the_questions_own_atom(name):
     for site_name, where, statement, slot in SITES:
         if site_name != name:
             continue
-        atom = _the_questions(context, slot)
-        assert _said(result, where)[slot] in {
-            atom.predicate, _atom_label_verifier(atom)}, (where, slot)
+        assert _said(result, where)[slot] in _spellings(
+            _the_questions(context, slot)), (where, slot)
     verify_gap_quotes(result, context)
 
 
@@ -163,13 +192,12 @@ def test_the_same_atom_in_its_other_spelling_is_the_same_copy():
     accepted = 0
     for name, where, _statement, slot in SITES:
         context = CONTEXTS[name]
-        atom = _the_questions(context, slot)
-        for spelt in (atom.predicate, _atom_label_verifier(atom)):
+        for spelt in _spellings(_the_questions(context, slot)):
             forged = copy.deepcopy(SHAPES[name]["result"])
             _said(forged, where)[slot] = spelt
             verify_gap_quotes(forged, context)
             accepted += 1
-    assert accepted == 2 * len(SITES) == 1254, accepted
+    assert accepted == 2 * len(SITES) == 1278, accepted
 
 
 # --------------------------------------------------------------- the teeth
@@ -181,14 +209,14 @@ def test_another_variable_the_problem_has_is_refused():
     refused = 0
     for name, where, _statement, slot in SITES:
         context = CONTEXTS[name]
-        atom = _the_questions(context, slot)
-        for other in sorted(_predicates(context) - {atom.predicate}):
+        own = {atom.predicate for atom in _the_questions(context, slot)}
+        for other in sorted(_predicates(context) - own):
             forged = copy.deepcopy(SHAPES[name]["result"])
             _said(forged, where)[slot] = other
             with pytest.raises(VerificationError, match="the question's"):
                 verify_gap_quotes(forged, context)
             refused += 1
-    assert refused == 1416, refused
+    assert refused == 1464, refused
 
 
 @pytest.mark.parametrize("statement,slot", sorted(
@@ -198,8 +226,8 @@ def test_the_door_refuses_it_on_every_statement_the_corpus_writes(
     name, where, _s, _k = next(site for site in SITES
                                if site[2:] == (statement, slot))
     context = CONTEXTS[name]
-    atom = _the_questions(context, slot)
-    other = sorted(_predicates(context) - {atom.predicate})[0]
+    own = {atom.predicate for atom in _the_questions(context, slot)}
+    other = sorted(_predicates(context) - own)[0]
     forged = copy.deepcopy(SHAPES[name]["result"])
     _said(forged, where)[slot] = other
     with pytest.raises(VerificationError):
