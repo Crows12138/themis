@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19794 passed / 518 skipped, warning-clean
+19806 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,6 +1559,39 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
+### #650 请求的 note 没人核：表头写自条目的字段核了 target 和 priority，没核 note（2026-09-14）
+
+**现象。** `investigation_requests` 的每个请求有一个表头，由 `summarise` 从条目写出：target、priority 和 `note`。`note` 在只有一个条目时是该条目的物种和场合；有多个条目时，是所有带物种的条目共有的那一份，各不相同就没有。`_check_the_heading_describes_the_items` 核了 action、group、target、priority，没核 note。数值路径做完的答案会删掉 `missing_information`，这时 note 是问句所需 need 仅剩的另一份记录：#648 的余项闸口量到，把工具变量答案的 note 改成「需要的是联合效应可识别」，最强的门照收。framing 请求是 scheduler 手写的，只有一个条目时 note 留空，而别的渠道都会带上条目的物种（语料 1 例）。
+
+**根因。** note 和 target、priority 一样是条目的摘要，第二份记录就是条目本身，只是没人读。framing 那条路是这个摘要格式的第三个作者，手写时漏了 note。
+
+**为什么是根因不是表象。** 漏检的不只是 `need` 一个值：note 下的 `said`、`words` 同样没人核，逐字段补总会漏下一个；按摘要规则整体重述 note，就一次全核到。framing 手写是 #565 已经记下的「第三个应用点」；这条路不改，验证器按规则核就会拒掉诚实答案。
+
+**结构。**
+- 验证器新增 `_check_the_note_is_what_the_items_share`，按 `summarise` 的规则重述 note 再比对。规则是重述的，没有 import 生产者模块，新测试把重述和 `summarise` 钉在一起。
+- 它在每个请求的条目都检查完之后才跑，不和表头其余字段放在一起。note 复制条目携带的内容，在条目上说谎会连带 note 不一致；先检查 note，读者被告知的就是后果而不是缺陷。先放在表头检查里时，`test_a_patch_that_asks_for_what_the_program_already_declared` 就是这样收到了 note 的报错。
+- scheduler 的 framing 请求改由 `investigation_pusher.summarise` 写 target、note、priority，前缀参数传 action 名，多条目的 `define_variable:N_items` 拼法因此不变。
+
+**取舍（声明）。** 没有把前缀统一成 `framing:N_items`。统一要重新采集 106 个数值行：它们的数据不在快照里，采集是串行的、要几个小时，还会换样本。#565 已把这块单列，这次仍单列。语料只刷新 `needs_investigation:probability:none#6bdf54` 一行，用的是 `harvest_answer_shapes.py --only`；这一行的全部输入就是程序本身，刷新后别的行逐字节不变，这一行只多了 framing 请求的 note。
+
+**旧测试。** `test_a_note_may_honestly_be_empty_and_is_not_read` 原先只改条目里的散文 `said.note`，期望门照收。现在单条目请求的 note 带着同一句散文，只改一处就成了两份副本不一致，这是另一句话。改成两处一起改，仍期望门照收：散文说什么照旧不问。
+
+**演练。** 新文件逐项核对：
+- 语料 212 个请求的 note 全都等于 `summarise` 的输出，所有答案都过这条规则。
+- #6bdf54 的程序重跑后，framing 请求带上了条目的物种。
+- 程序单跑时除请求外其余全部与存档一致的 23 个无链结构行，多条目 framing 请求逐字节不变。另有 7 行存的答案不是 `run` 单独给出的，不拿来比。
+- 四个工具变量答案把 note 换成别的物种，规则拒、门也拒。
+- 删掉 note、给多条目请求加 note、改写 note.said 的任意一个值，都被拒。
+- 七种分组下，重述与 `summarise` 结果一致。
+
+撤掉补丁，新文件挂 9 个。定点跑了新文件、清单测试、pusher、framing 范围、严格 framing、program builder、variable framing 七个文件；mypy 过；语料 243 行四个判定 0 变。余项闸口按补丁前后各扫一次算：补丁前 48 行扫描结果与登记表一致；补丁后 48 行共 90 片离开：79 片在 note 下；另 11 片在 11 行上，是 note 复制的条目字段（`investigation_requests.[].items.[].need`、`investigation_requests.[].items.[].said.note`），单改一份就和另一份不一致。刷新那一行的 note 下新增 0 片；余项 2095→2005。**保留：** 闸口一次只改一片叶子，所以把条目的 `need` 算作有人管；两份副本一起改成同一个错物种，仍只靠缺口种类和句子空位管——「问句说的是哪个物种」照旧没人守，是 #651。
+
+**两处计数随刷新动了。** 全量第一次 2 挂，都是钉住的计数：刷新那一行多了一句 `gap_says`（note 本身），语句普查 `REACHED` 5100→5101、`PER_CARRIER["gap_says"]` 674→675；闸口提问数多了 note 的 need 和三个场合字段，32690→32694。拿刷新前的备份行和刷新后的行实测，差的正是这些；两处都补了来历。
+
+**顺带更正 #649。** #649 的条目写「留下的是 `search_budget` 与 `reference` 等不在读者面前的字段」，提交后对登记表核：那 7 行没有 `reference` 叶子，块外还登记着读者面前的 `numeric_estimate.recovered_ate` 计数与 `structural_result.value`。已改成量到的话。
+
+**账。** 12 测试；基线 19794→**19806**。新文件 `test_a_request_note_is_what_its_asks_share`（12）。
+
 ### #649 缺失数据块说给读者的，验证器只核了结论：部分观测变量、因子分解、目标式都能随便改（2026-09-14）
 
 **现象。** `verify_missing_data_recovery` 重算机制、可不可恢复、恢复式。报告给读者看的比这多：部分观测的变量、恢复式由哪些因子组成（有因子时显示因子而不显示恢复式）、每个因子的目标式、调整集、协变量那一半、估计量由哪些因子相乘、不可恢复时为什么。语料 7 行带这个块，逐字段伪造（清空、换成题目里别的变量、多加一个、改写目标式、把 `complete_criterion` 改成 true、不可恢复时补一个恢复式）最强的门每一种都收。
@@ -1569,7 +1602,7 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 
 **结构。** `verify_missing_data_recovery` 里 `_target_of` 从 `_formula_of` 拆出，`_hold_factor_row` 对条件那半和协变量那半各核 target/factorization/failure_reason（不可恢复时恢复式必须为空）；另核 `partially_observed`、`complete_criterion`（有序因子分解只是充分条件，恒为 false）、`adjustment_set`、`estimand` 的 target/requires/failure_reason（按 token 字符串重述，不 import 生产者模块）。`search_budget` 不钉：它有意从块里读，钉常数就是按算术而不是按理论一致。verify.py 行数变，架构图重建。
 
-**演练。** 新文件 18 种伪造补丁前全收、补丁后全拒且以对应字段名拒；三个程序（两半都可恢复、协变量自遮蔽、结局自遮蔽）诚实块过门。语料 243 行四个判定 0 变。余项闸口按补丁前后两次扫描算：补丁前 7 行扫出的与登记表逐行相同，补丁后 69 片离开、无新增，余项 2164→2095；留下的是 `search_budget` 与 `reference` 等不在读者面前的字段。
+**演练。** 新文件 18 种伪造补丁前全收、补丁后全拒且以对应字段名拒；三个程序（两半都可恢复、协变量自遮蔽、结局自遮蔽）诚实块过门。语料 243 行四个判定 0 变。余项闸口按补丁前后两次扫描算：补丁前 7 行扫出的与登记表逐行相同，补丁后 69 片离开、无新增，余项 2164→2095；块下只剩 `search_budget`（有意从块里读）。这 7 行块外还登记着别的叶子，其中 `numeric_estimate.recovered_ate` 的计数与 `structural_result.value` 在读者面前，不归这一条。
 
 **账。** 22 测试；基线 19772→**19794**。新文件 `test_a_missing_data_block_is_held_in_what_it_tells_a_reader`（22）。
 

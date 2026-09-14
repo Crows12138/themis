@@ -5738,14 +5738,20 @@ def _attach_framing(
         )
         for note in notes
     )
-    target = (
-        items[0].target if len(items) == 1 else f"define_variable:{len(items)}_items"
+    # The heading is the items said shortly, and one function says it for
+    # every channel. Written out by hand here it carried no note over a
+    # single ask, where every other channel carries that ask's species.
+    # The channel is still named by its action, which is how a framing
+    # request has always been spelled and what the stored answers say.
+    target, note, priority = investigation_pusher.summarise(
+        InvestigationAction.DEFINE_VARIABLE.value,
+        [(item.target, gaps.carried(item), Priority.MEDIUM) for item in items],
     )
     framing_request = InvestigationRequest(
         action=InvestigationAction.DEFINE_VARIABLE,
         target=target,
-        priority=Priority.MEDIUM,
-        note=None,
+        priority=priority,
+        note=note,
         group="framing",
         items=items,
     )

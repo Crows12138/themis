@@ -540,9 +540,9 @@ def _check_the_heading_describes_the_items(
     The heading is not a fifth thing a reader is told; it is the items
     said shortly. ``push`` writes every field of it out of them — the
     action from the channel, the target from the one item or from how
-    many there are, the priority from the strongest — so each field has a
-    second record already on the envelope and none of them needed a new
-    one. What was missing is that anybody read them: the rule below this
+    many there are, the note from what they share, the priority from the
+    strongest — so each field has a second record already on the envelope
+    and none of them needed a new one. What was missing is that anybody read them: the rule below this
     one descends into ``items`` on its first line, and the single heading
     field it does touch, ``group``, it reads as the input to a branch.
     A label read as an input cannot be wrong.
@@ -636,6 +636,42 @@ def _check_the_heading_describes_the_items(
             f"{where} is filed at {priority!r} and the asks under it are "
             f"{sorted(set(graded))}; a group is as urgent as the most "
             f"urgent thing in it"
+        )
+
+
+def _check_the_note_is_what_the_items_share(
+    where: str, request: Mapping, items: list,
+) -> None:
+    """The heading field that says what the asks under it have in common.
+
+    ``summarise`` writes it out of the items as it writes the other
+    fields: one ask's species and occasion when there is one ask; when
+    there are several, the one mapping every ask carrying a species
+    shares, and nothing when they differ. Nothing read it. A request
+    could say its asks needed one thing over asks needing another, and
+    on an answer whose ``missing_information`` the number path removed,
+    the note was a record of the need that nothing was compared with.
+
+    Restated rather than imported, for the reason the channel table is.
+    """
+    carried = [_gaps.carried(item) for item in items]
+    if not carried:
+        return
+    if len(carried) == 1:
+        owed = carried[0]
+    else:
+        distinct: list = []
+        for one in carried:
+            if one and one not in distinct:
+                distinct.append(one)
+        owed = distinct[0] if len(distinct) == 1 else None
+    note = request.get("note")
+    if note != owed:
+        _reject(
+            f"{where} sums up the asks under it as {note!r}, and what "
+            f"those asks carry comes to {owed!r}; a heading is its items "
+            f"said shortly, so this one tells a reader they need "
+            f"something none of them says"
         )
 
 
@@ -1045,3 +1081,9 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                 where, skeleton, declaration)
             _check_the_sentence_counts_what_the_patch_leaves(
                 where, said, unfilled)
+        # After the asks, not with the rest of the heading: a note copies
+        # what its asks carry, so a lie told on an ask makes the note
+        # disagree too, and the reader should be told about the ask.
+        _check_the_note_is_what_the_items_share(
+            f"investigation_requests[{ri}]", request,
+            [i for i in request.get("items") or () if isinstance(i, Mapping)])

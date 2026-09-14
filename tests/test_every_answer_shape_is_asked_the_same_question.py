@@ -1426,9 +1426,20 @@ def test_the_declared_remainder_is_what_it_is():
     where it was: it is read off the block on purpose, because a
     verifier holding a bound of its own would agree with the producer
     by arithmetic.
+
+    Then 90 came off the list a reader is told to fill. 79 were
+    under a request's note, which is what the asks under it share,
+    written out of them by the function that writes the target and the
+    priority. The verifier held those two and not the note, and on an
+    answer the number path finished, with no missing_information, the
+    note was the ask's only other record of what was needed. The other
+    11, on 11 rows, are fields of an ask that its note copies,
+    and one copy told alone now disagrees with the other. Told the same
+    in both, a need is still held only by its kind and its holes; which
+    need an ask names is the question still open.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2095, total
+    assert total == 2005, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1522,6 +1533,10 @@ def test_the_sweep_asks_about_the_whole_envelope():
     gap — was one sort however many gaps the answer held. Reading every
     enclosing record puts 1541 more questions, and this gate's share of
     the suite's wall clock rises with them.
+
+    Then 32694, by a refresh again: the one stored framing request over a
+    single ask gained the note every other channel writes, and with it a
+    need and three words about its occasion to ask about.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1531,7 +1546,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32690, asked_total
+    assert asked_total == 32694, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

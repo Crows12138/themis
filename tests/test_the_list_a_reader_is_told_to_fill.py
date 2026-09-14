@@ -434,13 +434,22 @@ def test_a_note_may_honestly_be_empty_and_is_not_read():
     refused blank ``said`` values everywhere would refuse an honest
     answer. Prose is declared, not asked — the same line drawn one
     frontier earlier for a gap's ``note``.
+
+    Rewritten in both places the answer writes it. The request over this
+    one ask carries the ask's species and occasion as its own note, and
+    two copies that disagree are a different claim from what either says.
     """
     result = SHAPES["causation_plugin"]["result"]
-    _, item = _first_item(result, "assumption")
+    request, item = _first_item(result, "assumption")
     assert item["said"] == {"note": ""}
-    _verify_with("causation_plugin",
-                 lambda r: _first_item(r, "assumption")[1]["said"]
-                 .update(note="anything at all"))
+    assert request["note"]["said"] == {"note": ""}
+
+    def rewrite(r):
+        request, item = _first_item(r, "assumption")
+        for said in (item["said"], request["note"]["said"]):
+            said.update(note="anything at all")
+
+    _verify_with("causation_plugin", rewrite)
 
 
 #: The words each heading field may legally hold. Written out rather than

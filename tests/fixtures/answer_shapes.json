@@ -83971,6 +83971,14 @@ false
 "target": "y"
 }
 ],
+"note": {
+"need": "framing_fields_unfilled",
+"said": {
+"count": "3",
+"fields": "time_window, measurement, observability",
+"predicate": "y"
+}
+},
 "priority": "medium",
 "target": "y"
 }
