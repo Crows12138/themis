@@ -1819,8 +1819,8 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     en: 'the instrument `{instrument}` is valid only given {{{conditioning}}}, and what that identifies is the stratified Wald — the effect among compliers. This sample cannot be cut that way: {reason}. So the number reported is the 2SLS coefficient, which weights each stratum\'s effect by how hard the instrument moves treatment there rather than by that stratum\'s share of compliers. The two coincide only when the first stage is equally strong in every stratum; otherwise they are two different quantities, not two estimates of one.',
   },
   the_sample_is_restricted_on_a_collider: {
-    zh: '样本被结构性限制为 `{collider}={value}` 的受试者（program 里有 ObservationStatement 编码了这个限制），但声明的 DAG 里 `{intervention}` 和 `{target}` 都是 `{collider}` 的祖先 —— `{collider}` 是 collider。Pearl d-separation：用『仅 {collider}={value} 的子样本』估计 P({target} | do({intervention})) 等于在 collider 上做条件，会打开 `{intervention}→...→{collider}←...←{target}` 这条非因果路径，给估计引入 selection-induced bias。Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 的标准结构。',
-    en: 'the sample is structurally restricted to subjects with `{collider}={value}` (an ObservationStatement in the program encodes that restriction), and in the declared DAG both `{intervention}` and `{target}` are ancestors of `{collider}` — so `{collider}` is a collider. Pearl\'s d-separation: estimating P({target} | do({intervention})) from the {collider}={value} subsample alone is conditioning on a collider, and it opens the non-causal path `{intervention}→...→{collider}←...←{target}`, putting selection-induced bias into the estimate. This is the standard structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias".',
+    zh: '样本被结构性限制为 `{collider}={value}` 的受试者（program 里有 ObservationStatement 编码了这个限制），而在 `{intervention}` 与 `{target}` 之间有一条在 `{collider}`（或它的某个祖先）相撞的路径（两条臂可经潜在/双向边，即 M-bias）。限制样本就是在做条件：用『仅 {collider}={value} 的子样本』估计 P({target} | do({intervention})) 会打开这条非因果路径，给估计引入 selection-induced bias。Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias" 的结构。',
+    en: 'the sample is structurally restricted to subjects with `{collider}={value}` (an ObservationStatement in the program encodes that restriction), and between `{intervention}` and `{target}` there is a path that collides at `{collider}` or at a node `{collider}` descends from (either arm may run through a latent or bidirected edge, which is M-bias). Restricting a sample is conditioning on it: estimating P({target} | do({intervention})) from the {collider}={value} subsample alone opens that non-causal path, putting selection-induced bias into the estimate. This is the structure of Hernán-Hernández-Díaz-Robins 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias".',
   },
   the_set_constrains_nothing: {
     zh: '这个集合是整条实线：在这个水平上，效应的每一个取值都与这批数据相容，所以工具在这里什么也约束不住。无界是结论，不是缺数——第一阶段弱的时候，bootstrap 置信区间掩盖的正是这件事。',
@@ -2149,8 +2149,8 @@ export const GAP_ROUTES: Record<string, Words> = {
     en: 'if `{collider}` is not really a collider (only X or only Y is an ancestor), update the DAG with the causal direction that is missing — the structural conclusion will change',
   },
   maybe_it_is_not_a_common_effect: {
-    zh: '如果 `{collider}` 实际并非由 `{intervention}` 和 `{target}` 共同决定，更新 DAG 删除其中一条祖先边 —— 当前结构性结论会随之改变',
-    en: 'if `{collider}` is not in fact determined by both `{intervention}` and `{target}`, update the DAG and remove one of those ancestor edges — the structural conclusion moves with it',
+    zh: '如果 `{intervention}` 与 `{target}` 之间实际并没有在 `{collider}` 相撞的路径，更新 DAG 删掉这条路径上的一条边（因果边或双向边）—— 当前结构性结论会随之改变',
+    en: 'if no path between `{intervention}` and `{target}` in fact collides at `{collider}`, update the DAG and remove an edge on that path (a cause or a bidirected edge) — the structural conclusion moves with it',
   },
   measure_the_confounder_and_reidentify: {
     zh: '测量并加入 unmeasured confounder Z，重新识别',

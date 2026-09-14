@@ -297,8 +297,10 @@ def _unrolled_no_ground_path(restricted_by):
 
 
 OWED = {
-    # x <-> w <-> y: conditioning opens a path whose arms are latent.
+    # x <-> w <-> y: conditioning opens a path whose arms are latent, and
+    # restricting the sample to w is conditioning on it.
     "latent_arms/given": lambda: _latent_arms("given"),
+    "latent_arms/observation": lambda: _latent_arms("observation"),
     # x -> c <- y, c -> d: conditioning on d activates c.
     "below_a_collider/given": lambda: _below_a_collider("given"),
     "below_a_collider/observation": lambda: _below_a_collider("observation"),
@@ -313,8 +315,6 @@ NOT_OWED = {
     # x -> y -> w reaches w from x only through y: no common effect.
     "a_chain/given": (lambda: _a_chain("given"), "w"),
     "a_chain/observation": (lambda: _a_chain("observation"), "w"),
-    # A restriction is a common effect by directed paths; latent arms are not.
-    "latent_arms/observation": (lambda: _latent_arms("observation"), "w"),
     "unrolled_no_ground_path/given": (lambda: _unrolled_no_ground_path("given"), "w"),
     "unrolled_no_ground_path/observation":
         (lambda: _unrolled_no_ground_path("observation"), "w"),

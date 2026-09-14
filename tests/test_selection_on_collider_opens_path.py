@@ -2,11 +2,13 @@
 second shape of selection bias.
 
 Triggered by program-shape: an ObservationStatement(W, value) encodes
-implicit sample restriction to W=value, AND the DAG has both intervention
-X and target Y as directed ancestors of W. Per Pearl d-separation,
+implicit sample restriction to W=value, AND restricting to W opens a
+path between intervention X and target Y. Per Pearl d-separation,
 conditioning on W (which the restricted sample implicitly does) opens
 X→…→W←…←Y; the marginal effect estimate from the restricted sample
 carries selection-induced bias that no covariate adjustment can close.
+The canonical shape is pinned here; the shapes with latent arms are in
+``test_restricting_a_sample_is_conditioning_on_it``.
 
 Authoritative trigger reference — Hernán MA, Hernández-Díaz S, Robins JM
 2004 *Epidemiology* 15:615 "A Structural Approach to Selection Bias",
@@ -24,7 +26,7 @@ gap is *within-sample* bias from a downstream collider.
 
 Key invariants pinned here:
 - fires when ObservationStatement is on a node W with X and Y as
-  directed ancestors (both conditions required)
+  directed ancestors (the canonical collider)
 - does NOT fire when W has only X as ancestor (not a collider on X→Y)
 - does NOT fire when W has only Y as ancestor (not a collider on X→Y)
 - does NOT fire when W has no ObservationStatement (just a free

@@ -340,7 +340,7 @@ def compute_data_gap_report(
         program=program, stmt=stmt, graph=graph, bidirected=bidirected,
     ))
     must_disclose_gaps.extend(_classify_selection_on_collider_opens_path(
-        program=program, stmt=stmt, graph=graph,
+        program=program, stmt=stmt, graph=graph, bidirected=bidirected,
     ))
     must_disclose_gaps.extend(_classify_ill_defined_intervention_versions(
         program=program, query_kind=query_kind, stmt=stmt, status=status,
@@ -2692,7 +2692,10 @@ def _classify_collider_conditioning_opens_backdoor(
     Detection rule: :func:`conditioned_collider_opens_path` on the ground
     graph the question was answered on, with its ground bidirected edges,
     between the intervention atom and the target atom, conditioning on every
-    given atom. An m-separation test rather than a directed-ancestor one, so
+    given atom and every atom an observation restricts the sample to: the
+    estimate is taken inside that sample, so those are conditioned on too,
+    and one estimate has one conditioning set -- the selection caveat below
+    reads the same one. An m-separation test rather than a directed-ancestor one, so
     it sees M-bias colliders whose arms are latent common causes (What If
     Fig 7.4) and colliders activated through a conditioned descendant
     (Fig 8.2), not only the direct X->W<-Y shape (Fig 8.1). W is passed over
@@ -2734,7 +2737,9 @@ def _classify_collider_conditioning_opens_backdoor(
             bidirected = bidirected_from_ground(ground)
     x, y = q.intervention.atom, q.target.atom
     intervention_pred, target_pred = x.predicate, y.predicate
-    conditioning = frozenset(getattr(item, "atom", item) for item in given)
+    conditioning = frozenset(getattr(item, "atom", item) for item in given) | {
+        st.atom for st in getattr(program, "statements", ())
+        if isinstance(st, ObservationStatement)}
 
     for given_item in given:
         w = getattr(given_item, "atom", given_item)
@@ -2775,6 +2780,7 @@ def _classify_selection_on_collider_opens_path(
     program,
     stmt,
     graph=None,
+    bidirected=None,
 ) -> Iterable[DataGap]:
     """Selection bias, the implicit-sample-restriction shape.
 
@@ -2782,11 +2788,12 @@ def _classify_selection_on_collider_opens_path(
     which fires on **explicit** conditioning via ``EffectQuery.given``.
     This classifier fires on **implicit sample restriction** encoded as
     an ``ObservationStatement(W, value)``: the data the user is about to
-    estimate from is restricted to subjects with W=value, and the
-    declared DAG has both intervention X and target Y as directed
-    ancestors of W. Per Pearl d-separation conditioning on W (which the
-    sample restriction *implicitly does*) opens X→…→W←…←Y; the marginal
-    estimate from the restricted sample carries selection-induced bias.
+    estimate from is restricted to subjects with W=value, and restricting
+    to W opens a path between intervention X and target Y. Restricting a
+    sample IS conditioning on it, so the canonical X→…→W←…←Y and every
+    shape the explicit-conditioning caveat sees -- arms that are latent
+    common causes, W a descendant of the collider -- put selection-induced
+    bias into the estimate from the restricted sample.
 
     Canonical case: Hernán-Hernández-Díaz-Robins 2004 *Epidemiology*
     15:615 "A Structural Approach to Selection Bias" — Figure 3-style
@@ -2795,15 +2802,16 @@ def _classify_selection_on_collider_opens_path(
     The "structural approach" framing is exactly: name the W node,
     surface that the sample restriction is conditioning on a collider.
 
-    Detection rule: each ground observation atom W that is a common effect
-    of the intervention atom and the target atom on the ground graph —
-    :func:`themis.runtime.structural_solver.is_common_effect`, which is also
-    what selection recovery asks before attaching its verdict. The two
-    asked different versions of the question, this one of predicates, and
-    reached opposite verdicts on one answer: a restriction on ``x`` now was
-    passed over here as the intervention itself while the recovery block
-    beside it named it a selection node; and a restriction on an atom no
-    ground path reached from X was reported, because over predicates one did.
+    Detection rule: each ground observation atom W for which
+    :func:`conditioned_collider_opens_path` holds on the ground graph with
+    its bidirected edges, conditioning on every observed atom and every
+    given atom -- the question the explicit-conditioning caveat asks, of
+    the same conditioning set. It asked whether W is a directed common
+    effect instead, and so said nothing of ``x <-> w <-> y`` restricted on
+    ``w`` while the same ``w`` in ``given`` was a collider. Selection
+    recovery still asks the directed question: its criterion is written for
+    selection nodes with no latent parents, which is a limit of what it
+    can recover and not of what biases the estimate.
 
     Severity: IMPORTANT — selection on a collider biases the marginal
     estimate identifiably; this is identification damage, not just a
@@ -2825,19 +2833,26 @@ def _classify_selection_on_collider_opens_path(
 
     from ..runtime.graph_projection import project
     from ..runtime.instantiation import instantiate
-    from ..runtime.structural_solver import is_common_effect
+    from ..runtime.structural_solver import (
+        bidirected_from_ground,
+        conditioned_collider_opens_path,
+    )
 
     ground = instantiate(program)
     if graph is None:
         graph = project(ground)
+    if bidirected is None:
+        bidirected = bidirected_from_ground(ground)
     x, y = q.intervention.atom, q.target.atom
     intervention_pred, target_pred = x.predicate, y.predicate
+    observed = [st for st in ground if isinstance(st, ObservationStatement)]
+    conditioning = frozenset(st.atom for st in observed) | {
+        getattr(item, "atom", item) for item in q.given}
 
-    for st in ground:
-        if not isinstance(st, ObservationStatement):
-            continue
+    for st in observed:
         w_pred, w_value = st.atom.predicate, st.value
-        if is_common_effect(graph, x, y, st.atom):
+        if conditioned_collider_opens_path(
+                graph, bidirected, x, y, conditioning, st.atom):
             yield DataGap(
                 kind=GapKind.SELECTION_ON_COLLIDER_OPENS_PATH,
                 describes=(_sentence(

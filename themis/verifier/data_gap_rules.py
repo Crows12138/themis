@@ -1128,17 +1128,25 @@ def _the_caveats_it_owes(program: object, context: VerificationContext) -> set:
         return set()
     graph, x, y = context.graph, query.intervention.atom, query.target.atom
     owed: set = set()
-    conditioning = frozenset(item.atom for item in query.given)
-    for w in conditioning:
+    # One estimate, one conditioning set: what the question conditions on
+    # and what the sample was restricted to. Restricting a sample is
+    # conditioning on it, so both caveats ask the same question of it.
+    given = frozenset(item.atom for item in query.given)
+    observations = [statement for statement in getattr(program, "statements", ())
+                    if isinstance(statement, ObservationStatement)]
+    restricted = frozenset(node for statement in observations for node in graph
+                           if _grounds_to(statement.atom, node, {}))
+    conditioning = given | restricted
+    for w in given:
         if w not in (x, y) and _opens_a_path_through(
                 graph, context.bidirected, x, y, conditioning, w):
             owed.add((_CONDITIONED_ON_A_COLLIDER, w.predicate, None,
                       x.predicate, y.predicate))
-    for statement in getattr(program, "statements", ()):
-        if not isinstance(statement, ObservationStatement):
-            continue
+    for statement in observations:
         for node in graph:
-            if _grounds_to(statement.atom, node, {}) and _a_common_effect(graph, x, y, node):
+            if _grounds_to(statement.atom, node, {}) and node not in (x, y) \
+                    and _opens_a_path_through(
+                        graph, context.bidirected, x, y, conditioning, node):
                 owed.add((_RESTRICTED_TO_A_COLLIDER, node.predicate,
                           language.capped(language.symbols(statement.value)),
                           x.predicate, y.predicate))

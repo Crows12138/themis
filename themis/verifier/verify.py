@@ -5818,9 +5818,11 @@ def verify_recovery_verdicts_are_owed(result: object, program: object,
 
     Which answers owe one is a fact about the program, the question and the
     ground graph, all of them here. A selection verdict: the question is an
-    effect, and some atom the program restricts the sample on is a common
-    effect of its treatment and outcome -- the reading the collider caveat
-    is held to, so the caveat and the verdict cannot part. A missing-data
+    effect, and some atom the program restricts the sample on is a directed
+    common effect of its treatment and outcome -- the recovery's own scope,
+    whose criterion is written for selection nodes with no latent parents.
+    A restriction on a collider whose arms run through latent causes owes
+    the caveat (held in data_gap_rules) and no verdict. A missing-data
     verdict: the question is an effect whose treatment and outcome are
     nodes, and the program declares a missingness indicator. Held both ways.
     """
