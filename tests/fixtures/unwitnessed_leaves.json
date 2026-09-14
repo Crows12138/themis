@@ -780,11 +780,9 @@
   "estimator_failure.recorded.identification_reason.vocabulary",
   "extensions.selection_recovery.complete_criterion",
   "extensions.selection_recovery.criterion",
-  "extensions.selection_recovery.outcome",
   "extensions.selection_recovery.query_kind",
   "extensions.selection_recovery.recovery_formula",
-  "extensions.selection_recovery.search_budget",
-  "extensions.selection_recovery.selection_nodes.[]"
+  "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.gaps.[].describes.[].words.why.said.detail",

@@ -284,7 +284,11 @@ def _audit_transport_identification(facts: "_RouteFacts") -> None:
 def _audit_selection_recovery(facts: "_RouteFacts") -> None:
     block = facts.carries("selection_recovery")
     if block is not None:
-        verify_selection_recovery(block, facts.graph)
+        verify_selection_recovery(
+            block, facts.graph,
+            [s for s in facts.program.statements
+             if isinstance(s, ObservationStatement)],
+            facts.query)
 
 
 def _audit_missing_data_recovery(facts: "_RouteFacts") -> None:

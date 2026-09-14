@@ -1389,9 +1389,17 @@ def test_the_declared_remainder_is_what_it_is():
     are roles of the question as much as its treatment is, and they were
     missing from the roles a copy could be declared of, so each kept its
     leaf for ``"x"``, a variable those problems have.
+
+    Then 2 came off the selection block on the row that could not recover
+    from its restricted sample: the outcome and the selection nodes. The
+    verifier read every name on that block back to a node by predicate
+    alone, so ``"x"`` in either was a variable the problem has, and a
+    negative verdict re-searched about the wrong nodes still came out
+    negative. Both are named by the premises -- the question and the
+    observations -- and are read from there now.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2144, total
+    assert total == 2142, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

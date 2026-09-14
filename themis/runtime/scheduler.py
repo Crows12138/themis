@@ -6281,15 +6281,17 @@ def _attach_selection_recovery(
     if x not in graph or y not in graph:
         return result
 
-    # Selection nodes = the sample-restricting ObservationStatement atoms,
-    # resolved to graph nodes by predicate (grounding may relabel args).
-    pred2node = {n.predicate: n for n in graph.nodes}
+    # Selection nodes = the atoms the sample is restricted on, as nodes.
+    # An observation is ground, so its atom is the node it names. Looked up
+    # by predicate, a variable with a second node -- a step back, or
+    # another person's -- kept whichever the graph listed last, and the
+    # restriction landed on a node nobody observed.
     s_atoms: list[Atom] = []
     for st in program.statements:
         if not isinstance(st, ObservationStatement):
             continue
-        node = pred2node.get(st.atom.predicate)
-        if node is None or node in (x, y) or node in s_atoms:
+        node = st.atom
+        if node not in graph or node in (x, y) or node in s_atoms:
             continue
         s_atoms.append(node)
     if not s_atoms:

@@ -13,7 +13,7 @@ import networkx as nx
 import pytest
 
 from themis import language
-from themis.types import Atom
+from themis.types import Atom, ObservationStatement
 from themis.runtime.selection_recovery import (
     SelectionRecoveryResult,
     recover_conditional,
@@ -368,6 +368,7 @@ def test_e2e_no_block_when_observation_not_a_collider():
 # that it accepts a truthful block and rejects every tampering.
 
 import copy  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
 
 from themis.verifier import verify_selection_recovery  # noqa: E402
 from themis.verifier.errors import VerificationError  # noqa: E402
@@ -383,17 +384,25 @@ def _block_and_graph(edges, s="s"):
 _CONFOUNDED = [("z", "x"), ("z", "y"), ("x", "y"), ("x", "s"), ("z", "s")]
 _HERNAN = [("x", "y"), ("x", "s"), ("y", "s")]
 
+#: What the verifier reads the block's nodes off: the atom the sample was
+#: restricted on and the question, which is what the block was made from.
+_PREMISES = (
+    (ObservationStatement(atom=A("s"), value=True),),
+    SimpleNamespace(intervention=SimpleNamespace(atom=A("x")),
+                    target=SimpleNamespace(atom=A("y"))),
+)
+
 
 def test_verifier_accepts_truthful_recoverable_block():
     block, g = _block_and_graph(_CONFOUNDED)
     assert block["recoverable"] is True
-    verify_selection_recovery(block, g)  # must not raise
+    verify_selection_recovery(block, g, *_PREMISES)  # must not raise
 
 
 def test_verifier_accepts_truthful_not_recoverable_block():
     block, g = _block_and_graph(_HERNAN)
     assert block["recoverable"] is False
-    verify_selection_recovery(block, g)  # must not raise
+    verify_selection_recovery(block, g, *_PREMISES)  # must not raise
 
 
 def test_verifier_rejects_false_recoverable_claim():
@@ -402,7 +411,7 @@ def test_verifier_rejects_false_recoverable_claim():
     block["recoverable"] = True
     block["criterion"] = "selection_backdoor"
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_false_not_recoverable_claim():
@@ -411,7 +420,7 @@ def test_verifier_rejects_false_not_recoverable_claim():
     block["recoverable"] = False
     block["criterion"] = None
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_tampered_zplus_that_breaks_backdoor():
@@ -420,7 +429,7 @@ def test_verifier_rejects_tampered_zplus_that_breaks_backdoor():
     block["z_plus"] = []
     block["adjustment_set"] = []
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_tampered_external_ledger():
@@ -430,14 +439,14 @@ def test_verifier_rejects_tampered_external_ledger():
          "said": {"expression": "P(z)"}}]
     block["external_data_needed"] = []
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_tampered_formula():
     block, g = _block_and_graph(_CONFOUNDED)
     block["recovery_formula"] = "P(y | do(x)) = P(y | x)"
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_partition_violation():
@@ -446,11 +455,11 @@ def test_verifier_rejects_partition_violation():
     block["z_plus"] = []
     block["z_minus"] = ["z"]  # z is a non-descendant of x → invalid Z⁻
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)
 
 
 def test_verifier_rejects_unknown_predicate():
     block, g = _block_and_graph(_CONFOUNDED)
     block["treatment"] = "ghost"
     with pytest.raises(VerificationError):
-        verify_selection_recovery(block, g)
+        verify_selection_recovery(block, g, *_PREMISES)

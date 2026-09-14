@@ -41,7 +41,7 @@ from themis.runtime.scheduler import (
     _serialize_selection_recovery,
 )
 from themis.runtime.selection_recovery import recover_conditional, recover_effect
-from themis.types import Atom, ConstTerm, MissingnessIndicator
+from themis.types import Atom, ConstTerm, MissingnessIndicator, ObservationStatement
 from themis.verifier import verify_missing_data_recovery, verify_selection_recovery
 from themis.verifier.errors import VerificationError
 
@@ -73,6 +73,10 @@ def _query(x="x", y="y", given=()):
         target=SimpleNamespace(atom=A(y)),
         given=tuple(SimpleNamespace(atom=A(g)) for g in given),
     )
+
+
+#: The atom every selection example below restricts the sample on.
+_RESTRICTED_ON_S = (ObservationStatement(atom=A("s"), value=True),)
 
 
 # Two common causes of Y and the selection node. Blocking one leaves the
@@ -149,12 +153,12 @@ def test_the_conditional_verifier_re_searches_to_the_recorded_range():
         g, A("x"), A("y"), (A("s"),), max_size=2).recoverable is True
 
     block = _serialize_selection_recovery(narrow, A("x"), A("y"))
-    verify_selection_recovery(block, g)  # truthful at the range it names
+    verify_selection_recovery(block, g, _RESTRICTED_ON_S, _query())  # truthful at the range it names
 
     wider = copy.deepcopy(block)
     wider["search_budget"] = 2
     with pytest.raises(VerificationError, match="not s-recoverable"):
-        verify_selection_recovery(wider, g)
+        verify_selection_recovery(wider, g, _RESTRICTED_ON_S, _query())
 
 
 def test_the_effect_verifier_re_searches_to_the_recorded_range():
@@ -166,12 +170,12 @@ def test_the_effect_verifier_re_searches_to_the_recorded_range():
         g, A("x"), A("y"), (A("s"),), max_size=2).recoverable is True
 
     block = _serialize_selection_recovery(narrow, A("x"), A("y"))
-    verify_selection_recovery(block, g)
+    verify_selection_recovery(block, g, _RESTRICTED_ON_S, _query())
 
     wider = copy.deepcopy(block)
     wider["search_budget"] = 2
     with pytest.raises(VerificationError, match="not SBD-recoverable"):
-        verify_selection_recovery(wider, g)
+        verify_selection_recovery(wider, g, _RESTRICTED_ON_S, _query())
 
 
 def test_the_missing_data_verifier_re_searches_to_the_recorded_range():
@@ -207,7 +211,7 @@ def test_a_recovery_block_that_names_no_range_is_refused(bad):
         analyze_missing_data(g, ind, [A("y")], [A("x")]))
 
     for block, run in (
-        (sel, lambda b: verify_selection_recovery(b, g)),
+        (sel, lambda b: verify_selection_recovery(b, g, _RESTRICTED_ON_S, _query())),
         (md, lambda b: verify_missing_data_recovery(b, g, ind, _query())),
     ):
         tampered = copy.deepcopy(block)

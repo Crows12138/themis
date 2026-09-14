@@ -5803,7 +5803,7 @@ def verify_feedback_loop(
              "coefficient of the two-equation system or nothing at all")
 
 
-def verify_selection_recovery(block: dict, graph) -> None:
+def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 
     The verdict is a set of d-separation facts about the graph plus a
@@ -5817,8 +5817,21 @@ def verify_selection_recovery(block: dict, graph) -> None:
     match) and, for a negative verdict, re-runs a bounded independent
     search to confirm no admissible set was missed (a producer that
     falsely claimed non-recoverability would be hiding a valid recovery).
+
+    Which nodes the verdict is about is read from the premises, not from
+    the block. The treatment and outcome are the question's atoms and the
+    selection nodes are the atoms the program restricts the sample on
+    (``observations``), and the block's names for them have to be theirs.
+    The adjustment set is the one part the program does not name, and the
+    block names it by predicate -- which on a program unrolled in time, or
+    about several people, can mean more than one node -- so it is held to
+    the claim its names make: some reading of them as distinct nodes the
+    search could have chosen satisfies every condition. Each name used to
+    be resolved to whichever node of its predicate the graph listed last,
+    which refused honest blocks whose variable had a second node.
     """
     import networkx as nx
+    from itertools import product
 
     from ..runtime.structural_solver import (
         is_d_connected,
@@ -5831,14 +5844,6 @@ def verify_selection_recovery(block: dict, graph) -> None:
             f"selection_recovery: {msg}",
             step_index=None, rule="selection_recovery",
         )
-
-    pred2node = {n.predicate: n for n in graph.nodes}
-
-    def _node(pred: str):
-        n = pred2node.get(pred)
-        if n is None:
-            _err(f"predicate {pred!r} is not a node in the graph")
-        return n
 
     def _dsep(a, b, cond) -> bool:
         return not is_d_connected(graph, a, b, tuple(cond))
@@ -5859,13 +5864,14 @@ def verify_selection_recovery(block: dict, graph) -> None:
     def _cond(*parts) -> str:
         return ", ".join(p for p in parts if p)
 
-    def _rederive_ledger(x_pred, s_nodes, zp_preds, zm_preds):
-        z_all_preds = list(zp_preds) + list(zm_preds)
-        if not z_all_preds:
+    def _rederive_ledger(x_pred, s_nodes, zp, zm):
+        z_all = list(zp) + list(zm)
+        if not z_all:
             return []
-        z_all = [_node(p) for p in z_all_preds]
         if all(_dsep(s, zi, ()) for zi in z_all for s in s_nodes):
             return []
+        zp_preds = [n.predicate for n in zp]
+        zm_preds = [n.predicate for n in zm]
         if not zm_preds:
             return [_unbiased(f"P({_names(zp_preds)})")]
         return [_unbiased(
@@ -5928,12 +5934,85 @@ def verify_selection_recovery(block: dict, graph) -> None:
                     return True
         return False
 
+    def _readings(names, taken):
+        """Every way to read ``names`` as distinct nodes outside ``taken``.
+
+        A name is a predicate, and the nodes it can mean are that
+        predicate's nodes the search could have offered -- never the
+        treatment, the outcome or a selection node, which it excludes.
+        """
+        pools = []
+        for name in names:
+            pool = [n for n in graph.nodes
+                    if n.predicate == name and n not in taken]
+            if not pool:
+                _err(f"{name!r} names no node the adjustment set could hold")
+            pools.append(pool)
+        for reading in product(*pools):
+            if len(set(reading)) == len(reading):
+                yield reading
+
+    def _some_reading_holds(failures) -> None:
+        """Refuse unless one reading breaks nothing.
+
+        The reason given is the first reading's, which is the only one
+        when each name has one node -- every program the corpus holds.
+        """
+        first = None
+        for failure in failures:
+            if failure is None:
+                return
+            first = first or failure
+        _err(first or "the adjustment set's names cannot be read as "
+                      "distinct nodes")
+
+    def _effect_reading_breaks(zp, zm):
+        for n in zp:
+            if n in desc_x:
+                return f"z_plus member {n.predicate!r} is a descendant of X"
+        for n in zm:
+            if n not in desc_x:
+                return f"z_minus member {n.predicate!r} is not a descendant of X"
+        if not _s_all_dsep_y(s_nodes, y, (x,) + tuple(zp) + tuple(zm)):
+            return "SBD condition (1) fails: S is not d-separated from Y | X,Z"
+        if not _zplus_blocks(x, y, zp):
+            return "SBD condition (2) fails: Z⁺ leaves a back-door path open"
+        ledger = _rederive_ledger(x.predicate, s_nodes, zp, zm)
+        if ledger != list(block["external_data_needed"]):
+            return (
+                f"external_data_needed mismatch: recomputed {ledger}, "
+                f"recorded {block['external_data_needed']}"
+            )
+        return None
+
     kind = block.get("query_kind")
-    x = _node(block["treatment"])
-    y = _node(block["outcome"])
-    s_nodes = [_node(p) for p in block["selection_nodes"]]
+    intervention = getattr(query, "intervention", None)
+    target = getattr(query, "target", None)
+    if intervention is None or target is None:
+        _err("block present on a question with no treatment and outcome")
+    x, y = intervention.atom, target.atom
+    for role, atom in (("treatment", x), ("outcome", y)):
+        if atom not in graph:
+            _err(f"the question's {role} {atom.predicate!r} is not a node "
+                 f"in the graph")
+        if block.get(role) != atom.predicate:
+            _err(f"{role} {block.get(role)!r} is not the question's "
+                 f"{atom.predicate!r}")
+    s_nodes = []
+    for observation in observations:
+        node = observation.atom
+        if node in graph and node not in (x, y) and node not in s_nodes:
+            s_nodes.append(node)
     if not s_nodes:
-        _err("block carries no selection_nodes")
+        _err("the program restricts the sample on no node of the graph")
+    restricted = [s.predicate for s in s_nodes]
+    if list(block.get("selection_nodes") or ()) != restricted:
+        _err(
+            f"selection_nodes {block.get('selection_nodes')!r} are not the "
+            f"nodes the program restricts the sample on ({restricted!r})"
+        )
+    desc_x = nx.descendants(graph, x)
+    taken = {x, y, *s_nodes}
     recoverable = block["recoverable"]
     criterion = block["criterion"]
     zp_preds = list(block["z_plus"])
@@ -5956,26 +6035,17 @@ def verify_selection_recovery(block: dict, graph) -> None:
         if recoverable:
             if criterion != "selection_backdoor":
                 _err(f"effect recoverable but criterion is {criterion!r}")
-            desc_x = nx.descendants(graph, x)
-            z_plus = [_node(p) for p in zp_preds]
-            z_minus = [_node(p) for p in zm_preds]
-            for zp in z_plus:
-                if zp in desc_x:
-                    _err(f"z_plus member {zp.predicate!r} is a descendant of X")
-            for zm in z_minus:
-                if zm not in desc_x:
-                    _err(f"z_minus member {zm.predicate!r} is not a descendant of X")
-            z_all = z_plus + z_minus
-            if not _s_all_dsep_y(s_nodes, y, (x,) + tuple(z_all)):
-                _err("SBD condition (1) fails: S is not d-separated from Y | X,Z")
-            if not _zplus_blocks(x, y, z_plus):
-                _err("SBD condition (2) fails: Z⁺ leaves a back-door path open")
-            ledger = _rederive_ledger(x.predicate, s_nodes, zp_preds, zm_preds)
-            if ledger != list(block["external_data_needed"]):
-                _err(
-                    f"external_data_needed mismatch: recomputed {ledger}, "
-                    f"recorded {block['external_data_needed']}"
-                )
+            # The search behind the verdict looks at sets no larger than
+            # its recorded range, so a larger witness is not one it found;
+            # holding it there also bounds the readings enumerated below.
+            if len(zp_preds) + len(zm_preds) > budget:
+                _err(f"adjustment set of {len(zp_preds) + len(zm_preds)} is "
+                     f"larger than the recorded search_budget {budget}")
+            _some_reading_holds(
+                _effect_reading_breaks(zp, zm)
+                for zp in _readings(zp_preds, taken)
+                for zm in _readings(zm_preds, taken | set(zp))
+            )
             formula = _rederive_effect_formula(
                 x.predicate, y.predicate, zp_preds, zm_preds
             )
@@ -5997,9 +6067,15 @@ def verify_selection_recovery(block: dict, graph) -> None:
                 if not _s_all_dsep_y(s_nodes, y, (x,)):
                     _err("claims Y ⊥ S | X but they are d-connected")
             elif criterion == "external_data":
-                z = [_node(p) for p in block["adjustment_set"]]
-                if not _s_all_dsep_y(s_nodes, y, (x,) + tuple(z)):
-                    _err("claims Y ⊥ S | X,Z but they are d-connected given X,Z")
+                named = list(block["adjustment_set"])
+                if len(named) > budget:
+                    _err(f"adjustment set of {len(named)} is larger than "
+                         f"the recorded search_budget {budget}")
+                _some_reading_holds(
+                    None if _s_all_dsep_y(s_nodes, y, (x,) + tuple(z))
+                    else "claims Y ⊥ S | X,Z but they are d-connected given X,Z"
+                    for z in _readings(named, taken)
+                )
             else:
                 _err(f"conditional recoverable but criterion is {criterion!r}")
         else:
