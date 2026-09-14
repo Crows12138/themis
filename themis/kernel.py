@@ -152,6 +152,7 @@ from .verifier import (
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
     verify_collider_caveats_are_owed,
+    verify_recovery_verdicts_are_owed,
     verify_gap_quotes,
     verify_refusal_block,
     verify_required_data,
@@ -1709,6 +1710,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # the program, the question and the ground graph with its bidirected
     # edges, all of them here.
     verify_collider_caveats_are_owed(result, prog, ctx)
+
+    # And whether it carries the verdicts on its sample: that a restriction
+    # on a common effect can or cannot be undone, and that a declared
+    # missingness leaves the effect recoverable or not. Their audits below
+    # run where the blocks are; removed, each passed, and a selection
+    # verdict on a restriction that is no common effect passed too.
+    verify_recovery_verdicts_are_owed(result, prog, ctx)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

@@ -55,6 +55,11 @@ Public surface (re-exports from sub-modules):
   missing data — rebuilds the m-graph from the declared indicators,
   reclassifies MCAR/MAR/MNAR, and re-searches the ordered factorization to
   re-derive the recoverability verdict + recovery formula) /
+  ``verify_recovery_verdicts_are_owed`` (whether those two blocks are
+  there at all. Each is audited where it is, and removed, every one on
+  the corpus passed; a selection verdict added where the sample is
+  restricted on no common effect passed too. Which answers owe one is
+  read off the program, the question and the ground graph, both ways) /
   ``verify_transport_sources`` (Bareinboim-Pearl transport across several
   declared source domains — re-derives the agreement verdict over the
   per-source numbers the block records, so a reported number that some
@@ -809,6 +814,7 @@ from .verify import (
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
+    verify_recovery_verdicts_are_owed,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_identification,
@@ -971,6 +977,7 @@ __all__ = [
     "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",
     "verify_scm_counterfactual_numeric",
+    "verify_recovery_verdicts_are_owed",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",
     "verify_simex_numeric",

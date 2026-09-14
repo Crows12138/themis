@@ -5803,6 +5803,88 @@ def verify_feedback_loop(
              "coefficient of the two-equation system or nothing at all")
 
 
+def verify_recovery_verdicts_are_owed(result: object, program: object,
+                                      context: VerificationContext) -> None:
+    """The two verdicts on a biased sample are on the answers that owe them.
+
+    Whether an effect survives a sample restricted on a common effect of the
+    treatment and the outcome, and whether it can be recovered from the rows
+    a declared missingness left observed, are each a block, audited for what
+    it says where it is. Where it was not, nothing asked: removed, each of
+    the ten on the corpus passed every door, and a selection verdict added
+    to an answer whose sample is restricted on no common effect passed too
+    -- telling a reader of a bias the sample does not carry, and how to
+    undo it.
+
+    Which answers owe one is a fact about the program, the question and the
+    ground graph, all of them here. A selection verdict: the question is an
+    effect, and some atom the program restricts the sample on is a common
+    effect of its treatment and outcome -- the reading the collider caveat
+    is held to, so the caveat and the verdict cannot part. A missing-data
+    verdict: the question is an effect whose treatment and outcome are
+    nodes, and the program declares a missingness indicator. Held both ways.
+    """
+    from collections.abc import Mapping
+
+    from ..types import MissingnessIndicator, ObservationStatement
+    from .data_gap_rules import _a_common_effect
+    from .rules import _atom_label_verifier as _label
+
+    if not isinstance(result, Mapping):
+        return
+    extensions = result.get("extensions")
+    carried = extensions if isinstance(extensions, Mapping) else {}
+    query, graph = context.query, context.graph
+    statements = getattr(program, "statements", ())
+    colliders: list[str] = []
+    nodes = False
+    question = "a question that is no effect"
+    if isinstance(query, EffectQuery):
+        x, y = query.intervention.atom, query.target.atom
+        colliders = sorted({_label(st.atom) for st in statements
+                            if isinstance(st, ObservationStatement)
+                            and _a_common_effect(graph, x, y, st.atom)})
+        nodes = x in graph and y in graph
+        question = f"the effect of {_label(x)} on {_label(y)}"
+    indicators = [st.id for st in statements
+                  if isinstance(st, MissingnessIndicator)]
+
+    def _refuse(rule: str, msg: str) -> NoReturn:
+        raise VerificationError(f"{rule}: {msg}", step_index=None, rule=rule)
+
+    selection = carried.get("selection_recovery") is not None
+    if colliders and not selection:
+        _refuse("selection_recovery",
+                f"the program restricts the sample on {colliders}, a common "
+                f"effect in {question}, and the answer carries no "
+                f"selection_recovery block: a reader is not told whether the "
+                f"effect survives the restriction")
+    if selection and not colliders:
+        _refuse("selection_recovery",
+                f"the answer carries a selection_recovery block, and in "
+                f"{question} no atom the program restricts the sample on is a "
+                f"common effect of the treatment and the outcome: a reader is "
+                f"told of a bias the sample does not carry, and how to undo it")
+    owes_missing = nodes and bool(indicators)
+    missing = carried.get("missing_data_recovery") is not None
+    if owes_missing and not missing:
+        _refuse("missing_data_recovery",
+                f"the program declares missingness indicators {indicators} "
+                f"and asks {question}, and the answer carries no "
+                f"missing_data_recovery block: a reader is not told whether "
+                f"the effect can be recovered from the rows that were observed")
+    if missing and not owes_missing:
+        if not indicators:
+            reason = "the program declares no missingness indicator"
+        elif not isinstance(query, EffectQuery):
+            reason = "the question is no effect"
+        else:
+            reason = f"{question} is not asked of two nodes of the graph"
+        _refuse("missing_data_recovery",
+                f"the answer carries a missing_data_recovery block and owes "
+                f"none: {reason}")
+
+
 def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     """Independently re-derive a Bareinboim-Pearl selection-recovery block.
 
