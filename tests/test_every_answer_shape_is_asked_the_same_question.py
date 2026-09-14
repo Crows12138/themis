@@ -1448,9 +1448,14 @@ def test_the_declared_remainder_is_what_it_is():
     re-searches to the range a negative names and bounds a positive's
     witness by it, so a range that passes is a true statement about the
     graph, whichever one it is.
+
+    Then 2 came off the 2 answers whose estimate writes back the
+    stratum a conditional question names. The values a numeric block
+    shows back were held to the question field by field, and the stratum
+    had no row: another stratum re-derived to itself from its records.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1997, total
+    assert total == 1995, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

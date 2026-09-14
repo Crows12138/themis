@@ -250,6 +250,13 @@ def _value_of(node: Any) -> Any:
     return node.get("value") if isinstance(node, dict) else None
 
 
+def _stratum_of(query: dict) -> list:
+    """The stratum a question conditions on, as an answer writes it back:
+    one ``[predicate, value]`` pair per condition, in the question's order."""
+    return [[(g.get("atom") or {}).get("predicate"), _value_of(g)]
+            for g in query.get("given") or () if isinstance(g, dict)]
+
+
 #: Which value of the question each block field shows a copy of, written per
 #: kind of question because the question is spelled differently in each.
 #:
@@ -267,6 +274,11 @@ def _value_of(node: Any) -> Any:
 #: level it reports the risk of ``target_value``, and the answer's own layer
 #: spells the same level ``outcome_high``.
 #:
+#: An effect question names one more thing a number is about: the stratum it
+#: is conditioned on. A conditional estimate writes that back as ``given``,
+#: and a contrast taken within another stratum, or over the whole population,
+#: re-derives to itself from its own records all the same.
+#:
 #: A kind absent here supplies nothing and its leaves stay unheld, which the
 #: sweep gate reports, rather than being held to a guess.
 _ASKED_VALUES: dict[str, dict[str, Any]] = {
@@ -274,6 +286,7 @@ _ASKED_VALUES: dict[str, dict[str, Any]] = {
         "target_value": lambda q: _value_of(q.get("target")),
         "outcome_high": lambda q: _value_of(q.get("target")),
         "treatment_high": lambda q: _value_of(q.get("intervention")),
+        "given": _stratum_of,
     },
     "counterfactual": {
         "observed_x": lambda q: _value_of(q.get("observed")),

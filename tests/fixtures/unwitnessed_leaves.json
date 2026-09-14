@@ -331,8 +331,7 @@
  "general_id_idc_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.identification.conditioned_on.[]",
-  "numeric_estimate.given.[].[]"
+  "extensions.identification.conditioned_on.[]"
  ],
  "general_id_plugin": [
   "bounds_results.[].contrast.reference_value",
@@ -1380,8 +1379,7 @@
  "numerically_solved:effect:numeric_general_id_estimate#5414a2": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.identification.conditioned_on.[]",
-  "numeric_estimate.given.[].[]"
+  "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
   "bounds_results.[].contrast.reference_value",
