@@ -2047,13 +2047,9 @@ def _attach_numeric_bounds(
                         cluster=cluster_ok,
                     )
                 elif method == "balke_pearl_iv":
-                    iv_ext = (result.get("extensions") or {}).get(
-                        blocks.Block.IV_IDENTIFICATION)
-                    instrument = None
-                    if isinstance(iv_ext, dict):
-                        instrument = iv_ext.get("instrument")
-                    if instrument is None:
-                        instrument = _detect_iv_candidate_structural(prog, query)
+                    # The detector the symbolic row was chosen with. A
+                    # column is a predicate, and an IV block names an atom.
+                    instrument = _detect_iv_candidate_structural(prog, query)
                     if instrument is None:
                         continue
                     nb = evaluate_balke_pearl_bounds(

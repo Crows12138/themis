@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19716 passed / 518 skipped, warning-clean
+19718 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,21 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #643 算界用的工具变量先去 IV 块里找：块里是原子标签，两层要的是谓词（2026-09-14）
+
+**现象。** 符号界（`scheduler._attach_bounds_results`）和数值界（`dispatch._attach_numeric_bounds`）取 Balke-Pearl 的工具变量时，都先读 `extensions.iv_identification.instrument`，读不到才用结构探测器 `_detect_iv_candidate_structural`。
+那个字段是 IV 路线按原子写的（`z(me)`），而两处要的都是谓词：符号端按谓词数工具变量声明了几档，数值端拿它当数据列名。给一个需要调查的答案塞上这样一个块，符号端的 Balke-Pearl 行整行消失（档数查不到）；数值端向数据要一列 `z(me)`，抛 `DataContractError`——它不是 `EstimatorFailure`，那里的 `except` 接不住，整次估计抛给调用方。
+
+**根因。** 同一个事实（这道题的工具变量是谁）有两处来源，两层都把没被读过的那一处放在前面。今天走不到：写 IV 块的三条路线都返回已解状态，界只在 `needs_investigation` 上算，后处理不改状态，数值端只遍历符号端写下的行——
+所以这是一段死分支，而且读法是错的：哪天某条路线在需要调查的答案上写了 IV 块，它就带着错的拼法活过来。验证器那边按图的候选谓词守 `instrument`，会把这种行拒掉，但那时用户拿到的是被拒的答案，不是界。
+
+**为什么是根因不是表象。** 把块里的标签解析回谓词是修读法，留下的仍是两个来源；两层的文档本来就写着「用同一个探测器」。去掉那条读，事实只剩一个来源。
+
+**结构。** 删掉两处先读块的分支，两层只用结构探测器；bounds 这一 pass 的 `reads` 去掉 `extensions.iv_identification`（它不再读那个块；那个块不是任何 pass 写的，排序不受影响）；docstring 改成说清楚为什么不读块。
+
+**账。** 2 测试；基线 19716→**19718**。新文件 `test_the_instrument_a_bound_is_taken_around_is_read_off_the_program`（2）：结果上塞一个按原子写工具变量的 IV 块，符号端的 Balke-Pearl 行仍以 `z` 为工具变量、数值端仍按 `z` 列算出界。
+撤掉补丁跑这两条都挂，打回去都过。
 
 ### #642 两个恢复块在不在没人守：删掉过门，不该有的加上也过门（2026-09-14）
 

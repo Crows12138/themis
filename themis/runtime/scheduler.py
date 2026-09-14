@@ -6468,11 +6468,11 @@ def _attach_bounds_results(
     and no closed form here can — and one unlabelled interval would hide
     which half rests on what.
 
-    IV detection (Phase 12 §S.12.6 patch): the kernel's IV identification
-    pass does NOT run on ADMG-unidentifiable effect queries, so
-    extensions.iv_identification is empty in the most common bounds-
-    triggering scenario. We do a lightweight structural check directly, via
-    the same :func:`_instrument_candidates` the counterfactual door reads.
+    IV detection (Phase 12 §S.12.6 patch): a structural check, via the same
+    :func:`_instrument_candidates` the counterfactual door reads. Not the
+    IV block: every route that writes one has solved the query, so no
+    result this pass runs on carries it, and it names the instrument as
+    an atom where everything below needs the predicate.
     """
     from dataclasses import replace as _replace
 
@@ -6532,14 +6532,10 @@ def _attach_bounds_results(
     # each sharpening, because that is the order a reader can follow. No
     # decision rides on it, which is why there is no table declaring it — a
     # precedence number here would assert a ranking these three do not have.
-    iv_ext = (result.extensions or {}).get(blocks.Block.IV_IDENTIFICATION)
-    instrument_pred: str | None = None
-    if isinstance(iv_ext, dict):
-        instrument_pred = iv_ext.get("instrument")
-    if instrument_pred is None:
-        # The kernel's IV pass does not run on ADMG-unidentifiable queries,
-        # so fall back to the structural check.
-        instrument_pred = _detect_iv_candidate_structural(program, query)
+    # Read off the program's structure and never off an IV block, which
+    # names an atom (``z(me)``) where the level count and the numeric
+    # end's column both need the predicate.
+    instrument_pred = _detect_iv_candidate_structural(program, query)
 
     found: list = []
 
@@ -6975,7 +6971,7 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
         # Before the report, so a bounded answer is classified as bounded.
         name="bounds",
         run=_attach_bounds_results,
-        reads=frozenset({"status", "extensions.iv_identification"}),
+        reads=frozenset({"status"}),
         writes=frozenset({"bounds_results"}),
     ),
     postprocess.Pass(
