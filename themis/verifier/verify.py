@@ -6036,7 +6036,7 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     from itertools import combinations, permutations
 
     from ..runtime.structural_solver import is_d_connected, minimal_adjustment_sets
-    from ..types import Atom, ConstTerm
+    from ..types import Atom
 
     def _err(msg: str) -> NoReturn:
         raise VerificationError(
@@ -6045,28 +6045,39 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
         )
 
     R_PREFIX = "__R__"
-    pred2node = {n.predicate: n for n in base_graph.nodes}
 
     def _dsep(g, a, b, cond):
         return not is_d_connected(g, a, b, tuple(cond))
 
     # --- rebuild the m-graph (independent transcription) ---
+    # The program's atoms are nodes as they stand, and each partially
+    # observed node has its own R, carrying that node's arguments and
+    # time. Looked up by predicate, a variable with several nodes kept
+    # the last one, on this side and the producer's independently.
+    # An atom that is not a node is refused rather than passed over:
+    # dropping it re-derives a verdict about a different program, and
+    # this side does not run the input check that refuses one upstream.
+    from .rules import _atom_label_verifier as _label
+
     m = base_graph.copy()
     r_of_var: dict = {}
     for mi in indicators:
-        var_node = pred2node.get(mi.missing_var.predicate)
-        if var_node is None:
-            continue
+        var_node = mi.missing_var
+        if var_node not in base_graph:
+            _err(f"indicator {mi.id}: missing_var {_label(var_node)} "
+                 f"is not a node of the graph")
         r_atom = Atom(
             predicate=f"{R_PREFIX}{var_node.predicate}",
-            args=(ConstTerm(name=var_node.predicate),),
+            args=var_node.args,
+            time_index=var_node.time_index,
         )
         m.add_node(r_atom)
         r_of_var[var_node] = r_atom
         for parent in mi.caused_by:
-            p = pred2node.get(parent.predicate)
-            if p is not None:
-                m.add_edge(p, r_atom)
+            if parent not in base_graph:
+                _err(f"indicator {mi.id}: caused_by {_label(parent)} "
+                     f"is not a node of the graph")
+            m.add_edge(parent, r_atom)
     if not r_of_var:
         _err("block present but the program declares no missingness indicators")
 
@@ -6086,14 +6097,11 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
         _err(f"mechanism: recomputed {mech}, recorded {block['mechanism']!r}")
 
     # --- reconstruct the g-formula conditioning set (as the producer did) ---
-    x = pred2node.get(query.intervention.atom.predicate)
-    y = pred2node.get(query.target.atom.predicate)
-    if x is None or y is None:
+    x = query.intervention.atom
+    y = query.target.atom
+    if x not in base_graph or y not in base_graph:
         _err("treatment or outcome not in graph")
-    given = tuple(
-        pred2node[g.atom.predicate] for g in query.given
-        if g.atom.predicate in pred2node
-    )
+    given = tuple(g.atom for g in query.given if g.atom in base_graph)
     z: tuple[Atom, ...] = ()
     try:
         adj = minimal_adjustment_sets(base_graph, x, y, given=given)

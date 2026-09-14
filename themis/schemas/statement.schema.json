@@ -165,6 +165,7 @@
             "llm_prior_without_source",
             "loop_across_time_steps",
             "loop_has_one_end",
+            "missingness_atom_not_in_graph",
             "no_diagram_for_this_target",
             "observation_not_ground",
             "predicate_declared_twice",

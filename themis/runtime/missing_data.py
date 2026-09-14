@@ -145,10 +145,17 @@ _R_PREDICATE_PREFIX = "__R__"
 
 
 def _r_node_atom(missing_var: Atom) -> Atom:
-    from ..types import ConstTerm
+    """The indicator of one node: that node's arguments and time, under
+    the reserved predicate.
+
+    Named by the predicate alone, two partially observed nodes of one
+    variable -- ``y`` now and ``y`` a step back, or ``y`` of two people --
+    were one indicator, and every separation read off it was about both.
+    """
     return Atom(
         predicate=f"{_R_PREDICATE_PREFIX}{missing_var.predicate}",
-        args=(ConstTerm(name=missing_var.predicate),),
+        args=missing_var.args,
+        time_index=missing_var.time_index,
     )
 
 
@@ -165,27 +172,38 @@ def build_m_graph(
 
     Returns ``(m_graph, r_of_var)`` where ``r_of_var`` maps each
     partially-observed variable's graph node to its R-node atom. The
-    original ``base_graph`` is not mutated. Indicators whose
-    ``missing_var`` is absent from the base graph are skipped (a missing
-    endpoint would make every d-sep vacuous — the caller validates
-    presence upstream).
+    original ``base_graph`` is not mutated.
+
+    Every atom an indicator names is a node of ``base_graph``: the
+    graph-level check ``missingness_atoms_in_V`` refuses a program where
+    one is not, so one arriving here is a broken invariant and raises.
+    It used to be skipped, which answers for a program with that edge,
+    or that indicator, taken out.
+
+    An indicator's atoms are nodes of the graph as they stand, and are
+    used as such. They used to be looked up by predicate, which keeps one
+    node per predicate: on a program unrolled in time, or about several
+    people, the indicator landed on whichever node of the variable the
+    graph happened to list last.
     """
     m_graph = base_graph.copy()
-    pred2node = {n.predicate: n for n in base_graph.nodes}
     r_of_var: dict = {}
     for mi in indicators:
         if not isinstance(mi, MissingnessIndicator):
             continue
-        var_node = pred2node.get(mi.missing_var.predicate)
-        if var_node is None:
-            continue
+        stray = [a for a in (mi.missing_var, *mi.caused_by)
+                 if a not in base_graph]
+        if stray:
+            raise ValueError(
+                f"missingness indicator {mi.id} names {stray}, which are "
+                f"not nodes of the graph"
+            )
+        var_node = mi.missing_var
         r_atom = _r_node_atom(var_node)
         m_graph.add_node(r_atom, kind="missingness_indicator")
         r_of_var[var_node] = r_atom
         for parent in mi.caused_by:
-            p_node = pred2node.get(parent.predicate)
-            if p_node is not None:
-                m_graph.add_edge(p_node, r_atom)
+            m_graph.add_edge(parent, r_atom)
     return m_graph, r_of_var
 
 

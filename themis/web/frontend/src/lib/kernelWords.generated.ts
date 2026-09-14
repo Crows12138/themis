@@ -2840,6 +2840,10 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: 'statements[{index}]：一个反馈环需要两个原子，而两端都叫 {predicate}',
     en: 'statements[{index}]: a feedback loop needs two atoms and both ends name {predicate}',
   },
+  missingness_atom_not_in_graph: {
+    zh: 'ground_statements[{index}]（{indicator}）：缺失指示变量用到的原子 {atoms} 不是图里的节点。缺失的变量和导致缺失的原因都要按图里节点的写法写——参数一样，时间下标也一样；图里没有的原因跟图里哪个变量都连不上，要么给它加上 cause 边，要么把它去掉',
+    en: 'ground_statements[{index}] ({indicator}): the missingness indicator references the atoms {atoms}, which are not nodes of the graph. The missing variable and each cause of its missingness have to be written the way the graph\'s node is written — the same arguments and the same time index; a cause the graph does not contain is connected to none of its variables, so either give it cause edges or leave it out',
+  },
   no_diagram_for_this_target: {
     zh: 'statements[{index}]（{query}）：这个查询问的是 target_population={population}，而声明的每个选择节点说的都是 {declared}；这些图描述的不是这个问题所问的那个人群',
     en: 'statements[{index}] ({query}): the query asks about target_population={population} and every declared selection node is about {declared}; the diagrams do not describe the population the question is about',

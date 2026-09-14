@@ -34,6 +34,10 @@ Graph-level (post-projection) checks:
                           Probability queries are intentionally exempt
                           — they are pure distributional lookups and
                           may reference atoms that live only in Theta.
+- ``missingness_atoms_in_V``: every atom a missingness indicator
+                          names — the partially observed variable and
+                          each cause of its missingness — is a node in
+                          G(M), written as the node is written.
 
 Reserved for later slices:
 
@@ -339,6 +343,19 @@ class Malformed(language.Word, vocabulary="malformed_program",
               "Conditioning on a purely latent-confounded node (the M-bias "
               "structure) is not supported; give the node a directed cause "
               "edge if it has an observed causal role",
+    })
+    MISSINGNESS_ATOM_NOT_IN_GRAPH = ("missingness_atom_not_in_graph", {
+        "zh": "ground_statements[{index}]（{indicator}）：缺失指示变量用到的原子 "
+              "{atoms} 不是图里的节点。缺失的变量和导致缺失的原因都要按图里"
+              "节点的写法写——参数一样，时间下标也一样；图里没有的原因跟图里"
+              "哪个变量都连不上，要么给它加上 cause 边，要么把它去掉",
+        "en": "ground_statements[{index}] ({indicator}): the missingness "
+              "indicator references the atoms {atoms}, which are not nodes "
+              "of the graph. The missing variable and each cause of its "
+              "missingness have to be written the way the graph's node is "
+              "written — the same arguments and the same time index; a "
+              "cause the graph does not contain is connected to none of its "
+              "variables, so either give it cause edges or leave it out",
     })
     FREE_VARIABLE_IN_FORMULA = ("free_variable_in_formula", {
         "zh": "公式里的 VarRef {variable} 是自由的；没有任何外层的 sum "
@@ -1500,7 +1517,7 @@ _CHECK_FUNCS = {
 # ---------------------------------------------------------------------------
 
 GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset(
-    {"probability_parents", "query_atoms_in_V"}
+    {"probability_parents", "query_atoms_in_V", "missingness_atoms_in_V"}
 )
 
 
@@ -1658,6 +1675,35 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
                                 index=idx, query=stmt.id, atoms=names)
 
 
+def _check_missingness_atoms_in_V(ground_statements, graph) -> None:
+    """Every atom a missingness indicator names must be a node of G(M).
+
+    The m-graph is the working graph with an indicator beside each
+    partially observed node and an edge into it from each declared cause,
+    so an atom that is not a node has no place in it. Both builders of it
+    -- the producer's and the verifier's -- passed over such an atom
+    without a word: a cause the graph does not have left the indicator
+    without that parent, and a missing variable it does not have left no
+    indicator at all, so the verdict was about a program other than the
+    one written. A cause spelt without the time index its node carries is
+    the ordinary way to get here, and it came back MCAR.
+
+    The atoms are named as an envelope spells them, time included, since
+    the predicate alone is the half that matched.
+    """
+    from ..runtime.graph_projection import atom_label
+
+    for idx, stmt in enumerate(ground_statements):
+        if not isinstance(stmt, MissingnessIndicator):
+            continue
+        missing = [a for a in (stmt.missing_var, *stmt.caused_by)
+                   if a not in graph]
+        if missing:
+            raise SemanticError(Malformed.MISSINGNESS_ATOM_NOT_IN_GRAPH,
+                                index=idx, indicator=stmt.id,
+                                atoms=sorted({atom_label(a) for a in missing}))
+
+
 # Keyed dispatch, not a set of interchangeable checks: the calling convention
 # differs per entry because ``bidirected`` is part of the ADMG that the
 # ``graph`` argument does not carry, so only the check that needs it is
@@ -1665,6 +1711,7 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
 _GRAPH_CHECK_FUNCS: dict[str, Callable[..., None]] = {
     "probability_parents": _check_probability_parents,
     "query_atoms_in_V": _check_query_atoms_in_V,
+    "missingness_atoms_in_V": _check_missingness_atoms_in_V,
 }
 
 
