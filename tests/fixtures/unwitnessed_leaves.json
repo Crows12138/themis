@@ -750,10 +750,6 @@
   "estimator_failure.estimator",
   "estimator_failure.recorded.identification_reason.token",
   "estimator_failure.recorded.identification_reason.vocabulary",
-  "extensions.selection_recovery.complete_criterion",
-  "extensions.selection_recovery.criterion",
-  "extensions.selection_recovery.query_kind",
-  "extensions.selection_recovery.recovery_formula",
   "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#28ee90": [
@@ -825,8 +821,6 @@
   "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "extensions.selection_recovery.adjustment_set.[]",
-  "extensions.selection_recovery.complete_criterion",
   "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#515686": [
@@ -1232,8 +1226,6 @@
   "bounds_results.[].contrast.reference_value",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.selection_recovery.adjustment_set.[]",
-  "extensions.selection_recovery.complete_criterion",
   "extensions.selection_recovery.search_budget",
   "numeric_estimate.adjustment.[]",
   "numeric_estimate.method",

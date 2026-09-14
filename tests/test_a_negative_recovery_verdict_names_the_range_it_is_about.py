@@ -75,6 +75,15 @@ def _query(x="x", y="y", given=()):
     )
 
 
+def _conditional_query(x="x", y="y"):
+    """P(y | x): the question a conditional verdict answers conditions on
+    the treatment rather than intervening on it."""
+    return SimpleNamespace(
+        target=SimpleNamespace(atom=A(y)),
+        given=(SimpleNamespace(atom=A(x)),),
+    )
+
+
 #: The atom every selection example below restricts the sample on.
 _RESTRICTED_ON_S = (ObservationStatement(atom=A("s"), value=True),)
 
@@ -153,12 +162,12 @@ def test_the_conditional_verifier_re_searches_to_the_recorded_range():
         g, A("x"), A("y"), (A("s"),), max_size=2).recoverable is True
 
     block = _serialize_selection_recovery(narrow, A("x"), A("y"))
-    verify_selection_recovery(block, g, _RESTRICTED_ON_S, _query())  # truthful at the range it names
+    verify_selection_recovery(block, g, _RESTRICTED_ON_S, _conditional_query())  # truthful at the range it names
 
     wider = copy.deepcopy(block)
     wider["search_budget"] = 2
     with pytest.raises(VerificationError, match="not s-recoverable"):
-        verify_selection_recovery(wider, g, _RESTRICTED_ON_S, _query())
+        verify_selection_recovery(wider, g, _RESTRICTED_ON_S, _conditional_query())
 
 
 def test_the_effect_verifier_re_searches_to_the_recorded_range():

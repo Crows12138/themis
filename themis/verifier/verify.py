@@ -5918,8 +5918,11 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     search to confirm no admissible set was missed (a producer that
     falsely claimed non-recoverability would be hiding a valid recovery).
 
-    Which nodes the verdict is about is read from the premises, not from
-    the block. The treatment and outcome are the question's atoms and the
+    Which quantity and which nodes the verdict is about are read from the
+    premises, not from the block. A question that intervenes on the
+    treatment asks for P(y | do(x)) and one that conditions on it asks for
+    P(y | x), so the question fixes ``query_kind`` and with it the theorem
+    re-derived. The treatment and outcome are the question's atoms and the
     selection nodes are the atoms the program restricts the sample on
     (``observations``), and the block's names for them have to be theirs.
     The adjustment set is the one part the program does not name, and the
@@ -5929,6 +5932,12 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     search could have chosen satisfies every condition. Each name used to
     be resolved to whichever node of its predicate the graph listed last,
     which refused honest blocks whose variable had a second node.
+
+    What the block tells a reader beside the verdict is fixed by the
+    verdict and held to it, in the block's spelling: whether the criterion
+    is complete, the adjustment set and its halves, the formula and the
+    ledger, and on a negative the empty witness and which condition came
+    back empty.
     """
     import networkx as nx
     from itertools import product
@@ -6085,12 +6094,22 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             )
         return None
 
-    kind = block.get("query_kind")
+    # Which quantity the verdict is about is the question's, as the nodes
+    # below are. It was the block's own word, and that word chose the
+    # theorem re-derived: an effect verdict relabelled ``conditional`` was
+    # checked as a claim about P(y | x) while both reader faces went on
+    # calling it the unbiased effect.
     intervention = getattr(query, "intervention", None)
     target = getattr(query, "target", None)
-    if intervention is None or target is None:
+    given = tuple(getattr(query, "given", None) or ())
+    if target is None or (intervention is None and len(given) != 1):
         _err("block present on a question with no treatment and outcome")
-    x, y = intervention.atom, target.atom
+    kind, asked = (("effect", intervention) if intervention is not None
+                   else ("conditional", given[0]))
+    if block.get("query_kind") != kind:
+        _err(f"query_kind {block.get('query_kind')!r} is not what the "
+             f"question asks for ({kind!r})")
+    x, y = asked.atom, target.atom
     for role, atom in (("treatment", x), ("outcome", y)):
         if atom not in graph:
             _err(f"the question's {role} {atom.predicate!r} is not a node "
@@ -6131,6 +6150,29 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             f"without it a negative verdict has no quantifier to re-derive"
         )
 
+    # What the block tells a reader beside the verdict. The report and the
+    # web page show a recoverable verdict's adjustment set -- as its two
+    # halves, or whole when neither half is named --, the ledger and the
+    # formula whatever the verdict, and on a negative why and whether that
+    # is a proof. All are fixed by the verdict re-derived below, and beside
+    # it only a positive effect's formula and ledger were checked; the rest
+    # could be emptied, swapped or filled in on an answer the door took.
+    # Held after the verdict, so a forged verdict is refused as one and not
+    # for the fields it left standing.
+    def _hold(field, restated):
+        if block.get(field) != restated:
+            _err(f"{field}: recomputed {restated!r}, recorded "
+                 f"{block.get(field)!r}")
+
+    def _hold_nothing_found(shortfall):
+        """A negative exhibits no witness and names what came back empty."""
+        for field in ("adjustment_set", "z_plus", "z_minus",
+                      "external_data_needed"):
+            _hold(field, [])
+        _hold("criterion", None)
+        _hold("recovery_formula", "")
+        _hold("failure_reason", shortfall)
+
     if kind == "effect":
         if recoverable:
             if criterion != "selection_backdoor":
@@ -6154,6 +6196,8 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
                     f"recovery_formula mismatch: recomputed {formula!r}, "
                     f"recorded {block['recovery_formula']!r}"
                 )
+            _hold("adjustment_set", zp_preds + zm_preds)
+            _hold("failure_reason", None)
         else:
             if _sbd_admissible_exists(x, y, s_nodes, budget):
                 _err(
@@ -6161,11 +6205,22 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
                     f"|Z| <= {budget}, but an admissible selection-backdoor "
                     f"set that size or smaller exists"
                 )
-    elif kind == "conditional":
+            _hold_nothing_found({
+                "token": "no_admissible_selection_backdoor_set",
+                "vocabulary": "selection_recovery_shortfall"})
+        # Selection-backdoor is sufficient and not necessary: no negative
+        # from it is a proof, and a block calling it complete tells a reader
+        # one is.
+        _hold("complete_criterion", False)
+    else:
         if recoverable:
             if criterion == "conditional_independence":
                 if not _s_all_dsep_y(s_nodes, y, (x,)):
                     _err("claims Y ⊥ S | X but they are d-connected")
+                named: list = []
+                formula = (f"P({y.predicate} | {x.predicate}) = "
+                           f"P({y.predicate} | {x.predicate}, S)")
+                ledger: list = []
             elif criterion == "external_data":
                 named = list(block["adjustment_set"])
                 if len(named) > budget:
@@ -6176,8 +6231,21 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
                     else "claims Y ⊥ S | X,Z but they are d-connected given X,Z"
                     for z in _readings(named, taken)
                 )
+                zn = _names(named)
+                formula = (
+                    f"P({y.predicate} | {x.predicate}) = "
+                    f"Σ_{{{zn}}} P({y.predicate} | {x.predicate}, {zn}, S) · "
+                    f"P({zn} | {x.predicate})"
+                )
+                ledger = [_unbiased(f"P({x.predicate}, {zn})")]
             else:
                 _err(f"conditional recoverable but criterion is {criterion!r}")
+            _hold("adjustment_set", named)
+            _hold("z_plus", named)
+            _hold("z_minus", [])
+            _hold("recovery_formula", formula)
+            _hold("external_data_needed", ledger)
+            _hold("failure_reason", None)
         else:
             if _s_all_dsep_y(s_nodes, y, (x,)) or _conditional_z_exists(
                 x, y, s_nodes, budget
@@ -6187,8 +6255,13 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
                     f"|Z| <= {budget}, but Y is d-separable from S given X "
                     f"(or X and some observed Z that size or smaller)"
                 )
-    else:
-        _err(f"unknown query_kind {kind!r}")
+            _hold_nothing_found({
+                "token": "outcome_not_separable_from_selection",
+                "vocabulary": "selection_recovery_shortfall",
+                "said": {"treatment": x.predicate, "outcome": y.predicate}})
+        # The conditional case is an iff (Bareinboim, Tian & Pearl 2014): its
+        # negative is a proof, and a block saying otherwise withholds that.
+        _hold("complete_criterion", True)
 
 
 def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> None:

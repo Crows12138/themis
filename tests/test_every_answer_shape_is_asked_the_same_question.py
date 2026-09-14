@@ -1437,9 +1437,20 @@ def test_the_declared_remainder_is_what_it_is():
     and one copy told alone now disagrees with the other. Told the same
     in both, a need is still held only by its kind and its holes; which
     need an ask names is the question still open.
+
+    Then 8 came off the 3 answers carrying a selection-recovery
+    block. Its verifier re-derived the verdict and the witness behind it,
+    and not the rest of what the block tells a reader: whether the
+    criterion is complete, the adjustment set beside its halves, and on a
+    negative the empty witness and the formula. Which theorem it
+    re-derived was the block's own word too, and
+    is the question's now. Each block's search_budget stays: the verifier
+    re-searches to the range a negative names and bounds a positive's
+    witness by it, so a range that passes is a true statement about the
+    graph, whichever one it is.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2005, total
+    assert total == 1997, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

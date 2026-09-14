@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19806 passed / 518 skipped, warning-clean
+19856 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,45 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #651 选择偏倚恢复块说给读者的，验证器只核了判定；核哪个定理还由块自己说（2026-09-14）
+
+**现象。** `verify_selection_recovery` 重新推导的是判定需要的证据：肯定时见证集合满足判据条件（effect 分支连同它给出的公式和外部数据账），否定时按记录的范围重搜为空。块上其余字段它不看，而这些字段同样由判定唯一决定，报告和网页也都展示给读者：
+- 公式和外部数据账，不管判定正反都显示；
+- 否定时显示原因，`complete_criterion` 为假时还加一句「不是证明」；
+- 肯定时显示调整集，Z⁺、Z⁻ 两半都空就显示整个 `adjustment_set`。
+
+余项闸口在语料 3 个带这个块的答案上登记着：否定块的 `complete_criterion`、`criterion`、`query_kind`、`recovery_formula`，两个肯定块的 `adjustment_set` 和 `complete_criterion`，改了都照样过门。条件分支连公式和外部数据账都没核。
+
+**根因。** 两处。
+- 块上由判定决定的读者字段没人重述，和 #649 缺失数据块同型。
+- 核哪个定理由块上的 `query_kind` 决定。块写 `conditional`，验证器就去核 P(y|x) 的命题。语料那个否定的 effect 块在条件判据下同样是否定，于是照收，读者两面却仍说「无偏效应恢复不出来」。
+
+**为什么是根因不是表象。** 逐字段补总会漏下一个；按判定把读者字段整体重述一次，才一次核全。判定是关于哪个量的，和此前处理、结局、选择节点一样由前提给出，不该由块自己说。改为从问句读之后，块就没法换一个更弱的命题交给验证器去核。
+
+**结构。**
+- 判定种类从问句读：问句有干预，问的是 P(y|do(x))；没有干预、只给定一个变量，问的是 P(y|x)。块上的 `query_kind` 必须与之一致。
+- 每个分支在原有推导之后，按判定重述并比对：
+  - 选择后门判据只是充分条件，`complete_criterion` 必须为假；条件情形是充要条件，必须为真。
+  - 肯定的 effect 块：`adjustment_set` 等于 Z⁺ 接 Z⁻，`failure_reason` 为空。
+  - 否定块：见证集合和外部数据账为空，`criterion` 为空，公式为空串，`failure_reason` 是对应的缺口句。
+  - 条件分支补上公式和外部数据账；外部数据情形 `z_plus` 等于调整集，`z_minus` 为空。
+- 这些比对都放在原有推导之后，伪造的判定就先按判定报错，不按它留下的字段报错。`test_verifier_rejects_false_not_recoverable_claim` 只翻了判定和 criterion，公式、调整集都还留着。顺序反过来它照样报错，报的却是留下的字段，测的就不再是重搜。
+
+**旧测试。** `test_the_conditional_verifier_re_searches_to_the_recorded_range` 给条件判定喂的是带干预的问句，能过只是因为种类从块上读。现在改成问 P(y|x) 的问句（给定处理、不干预），期望不变。
+
+**取舍（声明）。**
+- 每个块的 `search_budget` 仍登记为没人守。否定时验证器按记录的范围重搜，肯定时用它限定见证大小，所以能过门的范围说的都是这张图上的真话，只是换了个范围。要守住这个数，就得在验证器里再放一份生产者的常数，而 `test_neither_verifier_holds_a_search_bound_of_its_own` 正是禁止这件事的。
+- 条件判定目前没有生产者会挂到答案上（scheduler 只对 EffectQuery 挂 effect 块），条件分支的新契约只有直接调用的测试会走到。
+
+**演练。** 新文件逐项核对：
+- 六种判定形状（effect：调整非后代、调整后代、找不到；条件：独立、需外部数据、找不到）：生产者写出的块在各自的问句下全部通过；换成另一种问句，或把种类改名，都因 `query_kind` 被拒。
+- 每种形状把读者字段逐个改成同类块在别处会说的值，共 29 处，全部被拒，报错点名该字段。
+- 语料 3 个块都过最强的门，正反两种判定都有；补丁前能过门的 8 处伪造，现在都被拒。
+
+补丁打上之前先跑新文件，50 个挂 46 个。定点跑了新文件、`test_selection_recovery`、`test_a_negative_recovery_verdict_names_the_range_it_is_about`、`test_a_selection_node_is_the_node_the_sample_was_restricted_on`、`test_a_recovery_verdict_names_what_came_back_empty`、`test_selection_numeric`、`test_no_part_of_a_block_is_silent` 七个文件；mypy 过；语料 243 行四个判定 0 变。余项闸口按补丁前后各扫一次算：补丁前 3 行与登记表一致；补丁后 8 片离开（`adjustment_set`、`complete_criterion`、`criterion`、`query_kind`、`recovery_formula`），余项 2005→1997。
+
+**账。** 50 测试；基线 19806→**19856**。新文件 `test_a_selection_block_is_held_in_what_it_tells_a_reader`（50）。
 
 ### #650 请求的 note 没人核：表头写自条目的字段核了 target 和 priority，没核 note（2026-09-14）
 
