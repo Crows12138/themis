@@ -65,6 +65,7 @@ from it, which no producer wrote either.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Mapping
 
@@ -684,17 +685,22 @@ _EDGE_SITES: dict[str, tuple[str, str, str]] = {
 _LEARNED_BY = "discovery:"
 
 
-def _the_cited_edge(program: Mapping, ref_id: str):
-    """``(kind, (first, second), annotations)`` of the edge a site names and
-    whose source it cites, or ``None`` when the site names no such edge."""
+def _the_statements_cited(program: Mapping, ref_id: str) -> list:
+    """``(kind, (first, second), annotations)`` of every statement a site
+    names and whose source it cites, empty when the site names none.
+
+    Every one, not the first: a site names an edge by its predicates, and
+    several statements can be spelt that way -- an edge stated twice, or
+    written at two times or for two units."""
     for kind, (prefix, arrow, _named) in _EDGE_SITES.items():
         if not ref_id.startswith(prefix):
             continue
         spelling = ref_id[len(prefix):].removesuffix(":annotations.source")
         if arrow not in spelling:
-            return None
+            return []
         first, second = spelling.split(arrow, 1)
         one, other, either_way = _THE_ENDS_OF[kind]
+        cited = []
         for statement in _statements_of(program, kind):
             ends = (_predicate(statement.get(one)),
                     _predicate(statement.get(other)))
@@ -703,9 +709,9 @@ def _the_cited_edge(program: Mapping, ref_id: str):
                     or (either_way and ends == (second, first))) and (
                     isinstance(annotations, Mapping)
                     and "source" in annotations):
-                return kind, (first, second), annotations
-        return None
-    return None
+                cited.append((kind, (first, second), annotations))
+        return cited
+    return []
 
 
 def _what_the_edge_says(kind: str, ends: tuple, annotations: Mapping) -> list:
@@ -777,8 +783,13 @@ def verify_gap_edge_statements(result: object, program: object) -> None:
     edge it cites says.
 
     A gap citing no edge, or more than one, is refused rather than skipped:
-    its sentences are about one edge, and a reading needs one statement to
-    be a reading of.
+    its sentences are about one edge, and a reading needs a statement to be
+    a reading of. A site names its edge by predicates, so several
+    statements can stand behind it -- an edge stated twice, or written at
+    two times or for two units -- and what the gap says is held to be what
+    one of them says. Which of them the answer rests on, and that every
+    reading it rests on is told, needs the graph:
+    :func:`verify_proposed_edges_are_disclosed` holds that.
     """
     if not isinstance(program, Mapping):
         raise TypeError(
@@ -799,21 +810,24 @@ def verify_gap_edge_statements(result: object, program: object) -> None:
                 ref_id = ref.get("ref_id")
                 if isinstance(ref_id, str):
                     cited.append(ref_id)
-        edges = [edge for edge in (_the_cited_edge(program, ref_id)
-                                   for ref_id in cited) if edge is not None]
+        edges = [statements for statements in (
+            _the_statements_cited(program, ref_id) for ref_id in cited)
+            if statements]
         if len(edges) != 1:
             raise VerificationError(
                 f"T10-1: gap[{gap_index}] is about one proposal edge, and the "
-                f"edge it cites is {len(edges)} statements of this program "
+                f"edge it cites is {len(edges)} edges of this program "
                 f"({cited!r}); what it says about an edge has to be a reading "
                 f"of one",
                 step_index=None, rule="data_gap_provenance_check",
             )
-        owed = _what_the_edge_says(*edges[0])
-        if _as_read(gap.get("describes")) != _as_read(owed):
+        readings = [_what_the_edge_says(*statement) for statement in edges[0]]
+        if all(_as_read(gap.get("describes")) != _as_read(owed)
+               for owed in readings):
             raise VerificationError(
                 f"T10-1: gap[{gap_index}] says {gap.get('describes')!r}, and "
-                f"the edge it cites, {cited[0]!r}, says {owed!r}. A reader "
+                f"the edge it cites, {cited[0]!r}, says "
+                f"{' or '.join(repr(owed) for owed in readings)}. A reader "
                 f"is told from these words who put the edge there and how "
                 f"far to trust it, and the program's own annotation of that "
                 f"edge is where the words came from",
@@ -929,9 +943,24 @@ def _reached(graph, start: Atom, forward: bool) -> set:
     return seen
 
 
+def _told(kind: str, ends: tuple, describes: object) -> tuple:
+    """An edge and what is said of it, as one key: its kind, its
+    predicates, and the statements read the way T10-1 reads them."""
+    return kind, ends, json.dumps(_as_read(describes), sort_keys=True,
+                                  ensure_ascii=False, default=repr)
+
+
+def _told_of(kind: str, ends: tuple, annotations: object) -> tuple:
+    """What a gap owes an edge one of whose statements is annotated so."""
+    return _told(kind, ends, _what_the_edge_says(kind, ends, {
+        "source": getattr(annotations, "source", None),
+        "confidence": getattr(annotations, "confidence", None)}))
+
+
 def _the_edges_it_rests_on(result: Mapping, program: object,
                            context: VerificationContext) -> set:
-    """Every proposed edge the answer rests on, as ``(kind, predicates)``.
+    """Every proposed edge the answer rests on with what one of its
+    statements says, as :func:`_told` keys it -- one key per reading.
 
     On the ground graph the answer was reached on. A directed edge when a
     directed path between two distinct atoms the answer rests on runs
@@ -962,22 +991,27 @@ def _the_edges_it_rests_on(result: Mapping, program: object,
 
     owed: set = set()
     for tail, head in rested:
-        if any(_is_a_proposal(getattr(statement, "annotations", None))
-               for statement in _statements_behind(program, tail, head)):
-            owed.add(("cause", (tail.predicate, head.predicate)))
+        for statement in _statements_behind(program, tail, head):
+            annotations = getattr(statement, "annotations", None)
+            if _is_a_proposal(annotations):
+                owed.add(_told_of(
+                    "cause", (tail.predicate, head.predicate), annotations))
     for statement in getattr(program, "statements", ()):
+        annotations = getattr(statement, "annotations", None)
         if not (isinstance(statement, BidirectedStatement)
-                and _is_a_proposal(getattr(statement, "annotations", None))):
+                and _is_a_proposal(annotations)):
             continue
         if any(_grounds_to(end, atom, {}) for atom in between
                for end in (statement.left, statement.right)):
-            owed.add(("bidirected", tuple(sorted(
-                (statement.left.predicate, statement.right.predicate)))))
+            owed.add(_told_of("bidirected", tuple(sorted(
+                (statement.left.predicate, statement.right.predicate))),
+                annotations))
     return owed
 
 
 def _the_edges_its_gaps_disclose(report: object) -> dict:
-    """``(kind, predicates)`` -> the index of the first gap citing it."""
+    """An edge and what a gap says of it, as :func:`_told` keys them, ->
+    the index of the first gap saying it."""
     disclosed: dict = {}
     gaps = report.get("gaps") or () if isinstance(report, Mapping) else ()
     for index, gap in enumerate(gaps):
@@ -993,12 +1027,23 @@ def _the_edges_its_gaps_disclose(report: object) -> dict:
                     ends = tuple(spelling[len(prefix):].split(arrow, 1))
                     if kind == "bidirected":
                         ends = tuple(sorted(ends))
-                    disclosed.setdefault((kind, ends), index)
+                    disclosed.setdefault(
+                        _told(kind, ends, gap.get("describes")), index)
     return disclosed
 
 
-def _spelt(edges) -> list[str]:
-    return sorted(f" {_EDGE_SITES[kind][2]} ".join(ends) for kind, ends in edges)
+def _spelt(told) -> list[str]:
+    """Each edge with what is said of it, for a message: every sentence
+    and the words it fills in besides the edge."""
+    spelt = []
+    for kind, ends, words in told:
+        said = "; ".join(
+            " ".join([str(one.get("sentence"))] + [
+                str(value) for slot, value in sorted((one.get("said") or {}).items())
+                if slot != "edge"])
+            for one in json.loads(words) if isinstance(one, dict))
+        spelt.append(f" {_EDGE_SITES[kind][2]} ".join(ends) + f" ({said})")
+    return sorted(spelt)
 
 
 def verify_proposed_edges_are_disclosed(result: object, program: object,
@@ -1025,6 +1070,15 @@ def verify_proposed_edges_are_disclosed(result: object, program: object,
     Reachability rather than an enumeration of paths, since the graph is a
     DAG and a bound on paths is a graph that owes less the larger it is.
 
+    Held as edges together with what is said of them. A gap names its edge
+    by predicates, and several statements can stand behind a name -- an
+    edge stated twice, or grounded at two times or for two units -- that
+    read differently. Each reading among the statements the answer rests
+    on is owed once, and a reading of a statement it does not rest on is
+    not. Measured: ``x -> y`` written a step back as PC's, now as GES's and
+    two steps back as PC's again, asked about ``x`` now, was told as PC's
+    and passed every door, the one such edge it rests on being GES's.
+
     An answer owing a disclosure is refused whether its report lacks the
     gap or lacks the report: an absent report reads as nothing to tell.
     """
@@ -1046,8 +1100,9 @@ def verify_proposed_edges_are_disclosed(result: object, program: object,
         raise VerificationError(
             f"T10-2: gap[{min(disclosed[e] for e in unowed)}] discloses "
             f"{_spelt(unowed)} as a proposal this answer rests on, and it is "
-            f"not one: its source is evidence, or no path the answer rests "
-            f"on runs through it. A reader sent to find evidence for an "
+            f"not one: its source is evidence, no path the answer rests on "
+            f"runs through it, or no statement of it the answer rests on "
+            f"says so. A reader sent to find evidence for an "
             f"edge is sent on this gap's word",
             step_index=None, rule="data_gap_completeness_check",
         )

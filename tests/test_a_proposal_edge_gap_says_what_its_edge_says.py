@@ -30,7 +30,7 @@ from tests.answer_corpus import the_door_for
 from themis import language
 from themis.verifier.data_gap_rules import (
     _as_read,
-    _the_cited_edge,
+    _the_statements_cited,
     _what_the_edge_says,
     verify_gap_edge_statements,
 )
@@ -131,8 +131,9 @@ def test_every_proposal_edge_gap_says_what_its_cited_edge_says():
     """Stated as the measurement the rule is built on."""
     kinds = Counter()
     for name, _g, gap in _edge_gaps():
-        edge = _the_cited_edge(SHAPES[name]["program"], _site(gap))
-        assert edge is not None, (name, _site(gap))
+        cited = _the_statements_cited(SHAPES[name]["program"], _site(gap))
+        assert len(cited) == 1, (name, _site(gap), len(cited))
+        edge = cited[0]
         assert _as_read(gap["describes"]) == _as_read(
             _what_the_edge_says(*edge)), name
         kinds["gaps"] += 1

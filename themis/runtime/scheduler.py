@@ -5923,44 +5923,46 @@ def _gather_structural_edge_sources(
     wrong: a supporting path matched in path order only, and paths walked
     over predicates where the answer rests on ground atoms.
 
-    Returns one ConfidenceSource per (frm, to) edge whose
-    CauseStatement carries a non-None confidence.
+    Returns one ConfidenceSource per (frm, to) edge the answer rests on
+    whose CauseStatement carries a non-None confidence. The slot is named
+    by its predicates, and several statements can stand behind that name
+    -- an edge stated twice, or grounded at two times or for two units.
+    Looked up again by the name, the confidence was the last such
+    statement's, rested on or not. It is read off the statements the
+    answer rests on instead, and a slot several of them fill reports the
+    weakest, as a probability slot does (``_slot_min_source``).
     """
     from ..types import CauseStatement
-    cause_conf: dict[tuple[str, str], tuple[str | None, float]] = {}
-    for s in program.statements:
+    if not any(
+        isinstance(s, CauseStatement)
+        and s.annotations is not None and s.annotations.confidence is not None
+        for s in program.statements
+    ):
+        return ()
+
+    from ..output.data_gap_report import _statements_the_answer_rests_on
+    weakest: dict[tuple[str, str], tuple[str | None, float]] = {}
+    for s in _statements_the_answer_rests_on(
+        program, graph, getattr(result, "structural_result", None),
+        stmt, result.extensions or {},
+    ):
         if not isinstance(s, CauseStatement):
             continue
         ann = s.annotations
         if ann is None or ann.confidence is None:
             continue
-        cause_conf[(s.from_atom.predicate, s.to_atom.predicate)] = (
-            ann.source,
-            ann.confidence,
-        )
-    if not cause_conf:
-        return ()
-
-    from ..output.data_gap_report import _statements_the_answer_rests_on
-    flagged = {
-        (s.from_atom.predicate, s.to_atom.predicate)
-        for s in _statements_the_answer_rests_on(
-            program, graph, getattr(result, "structural_result", None),
-            stmt, result.extensions or {},
-        )
-        if isinstance(s, CauseStatement)
-        and s.annotations is not None and s.annotations.confidence is not None
-    }
-    if not flagged:
-        return ()
+        edge = (s.from_atom.predicate, s.to_atom.predicate)
+        # min by confidence, stable on ties (first seen wins)
+        if edge not in weakest or ann.confidence < weakest[edge][1]:
+            weakest[edge] = (ann.source, ann.confidence)
     return tuple(
         ConfidenceSource(
             slot_label=f"edge:{frm}->{to}",
-            source=cause_conf[(frm, to)][0],
-            confidence=cause_conf[(frm, to)][1],
+            source=weakest[(frm, to)][0],
+            confidence=weakest[(frm, to)][1],
             is_weakest=False,
         )
-        for frm, to in sorted(flagged)
+        for frm, to in sorted(weakest)
     )
 
 

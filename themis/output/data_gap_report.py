@@ -663,8 +663,16 @@ def _classify_unverified_proposal_edges(
 
     Which edges the answer rests on is
     :func:`_statements_the_answer_rests_on`. This keeps the ones whose
-    source is not evidence and names each once, by its predicates, which
-    is how a gap cites an edge.
+    source is not evidence and names each by its predicates, which is how
+    a gap cites an edge.
+
+    What a gap tells is read off those statements themselves. One name can
+    stand for several: an edge stated twice, or a program unrolled in time
+    or over units grounding several edges between the same two predicates.
+    Looked up again by the name, a gap told the last statement written
+    under it, one the answer might not rest on, while its verifier read
+    the first. So each reading among the statements behind a name is a gap
+    of its own, and statements that read alike are one.
     """
     if program is None:
         return
@@ -675,43 +683,42 @@ def _classify_unverified_proposal_edges(
     ):
         return
 
-    flagged: set[tuple[str, str]] = set()
+    # Each name with each reading once. A name is (from, to), a bidirected
+    # pair ordered and its second end marked with ↔ so the renderer tells
+    # it from a directed edge; a reading is what the statement's
+    # annotation says.
+    told: set[tuple[tuple[str, str], tuple[str, ...]]] = set()
     for st in _statements_the_answer_rests_on(
         program, graph, structural_result, stmt, extensions,
     ):
-        if not _is_non_evidence_source(getattr(st.annotations, "source", None)):
+        source = getattr(st.annotations, "source", None)
+        if source is None or not _is_non_evidence_source(source):
             continue
         if isinstance(st, CauseStatement):
-            flagged.add((st.from_atom.predicate, st.to_atom.predicate))
+            ends = (st.from_atom.predicate, st.to_atom.predicate)
         else:
-            # Render with ↔ so the renderer distinguishes from
-            # directed edges. Tuple ordered for deterministic output.
             a, b = sorted((st.left.predicate, st.right.predicate))
-            flagged.add((a, f"↔{b}"))
+            ends = (a, f"↔{b}")
+        confidence = getattr(st.annotations, "confidence", None)
+        if source.startswith("discovery:"):
+            reading: tuple[str, ...] = (
+                "discovery", source.split(":", 1)[1].upper(),
+                "" if confidence is None else f"{confidence:.0%}")
+        else:
+            reading = ("llm_proposal",)
+        told.add((ends, reading))
 
-    edge_sources = _index_edge_sources(program)
-    edge_confidences = _index_edge_confidence(program)
-    for frm, to in sorted(flagged):
-        # Look up the actual source string so the description can name
-        # 'LLM hypothesis' vs 'PC algorithm output' specifically.
+    for (frm, to), reading in sorted(told):
         bidirected = to.startswith("↔")
         clean_to = to[1:] if bidirected else to
-        source_key = (
-            ("bidirected", tuple(sorted((frm, clean_to))))
-            if bidirected
-            else ("cause", (frm, clean_to))
-        )
-        source_str = edge_sources.get(source_key, "")
-        confidence = edge_confidences.get(source_key)
         edge_render = f"{frm} ↔ {clean_to}" if bidirected else f"{frm} → {to}"
-        if source_str.startswith("discovery:"):
-            algo = source_str.split(":", 1)[1]
+        if reading[0] == "discovery":
             said = [_sentence(Sentence.THE_EDGE_WAS_LEARNED_BY_DISCOVERY,
-                              edge=edge_render, algorithm=algo.upper())]
-            if confidence is not None:
+                              edge=edge_render, algorithm=reading[1])]
+            if reading[2]:
                 said.append(_sentence(
                     Sentence.THE_EDGE_SURVIVED_THIS_SHARE_OF_RESAMPLES,
-                    confidence=f"{confidence:.0%}",
+                    confidence=reading[2],
                 ))
         else:
             said = [_sentence(Sentence.THE_EDGE_IS_AN_LLM_PROPOSAL,
@@ -730,43 +737,6 @@ def _classify_unverified_proposal_edges(
                         else f"program:cause:{frm}->{to}:annotations.source",
             ),
         )
-
-
-def _index_edge_sources(program) -> dict[tuple[str, tuple[str, ...]], str]:
-    """Build a lookup from (kind, predicate-pair) to the verbatim
-    annotations.source string. ``kind`` is ``"cause"`` or ``"bidirected"``.
-    Used by the proposal-edge classifier to render description text that
-    names the *kind* of non-evidence source (LLM vs discovery algorithm).
-    """
-    out: dict[tuple[str, tuple[str, ...]], str] = {}
-    for st in program.statements:
-        ann = getattr(st, "annotations", None)
-        if ann is None or ann.source is None:
-            continue
-        if isinstance(st, CauseStatement):
-            out[("cause", (st.from_atom.predicate, st.to_atom.predicate))] = ann.source
-        elif isinstance(st, BidirectedStatement):
-            pair = tuple(sorted((st.left.predicate, st.right.predicate)))
-            out[("bidirected", pair)] = ann.source
-    return out
-
-
-def _index_edge_confidence(program) -> dict[tuple[str, tuple[str, ...]], float]:
-    """Mirror of ``_index_edge_sources`` capturing ``annotations.confidence``
-    (bootstrap edge stability, when a discovery run recorded it) so the
-    proposal-edge description can report how often the edge survived
-    resampling — a low fraction flags a likely artefact."""
-    out: dict[tuple[str, tuple[str, ...]], float] = {}
-    for st in program.statements:
-        ann = getattr(st, "annotations", None)
-        if ann is None or ann.confidence is None:
-            continue
-        if isinstance(st, CauseStatement):
-            out[("cause", (st.from_atom.predicate, st.to_atom.predicate))] = ann.confidence
-        elif isinstance(st, BidirectedStatement):
-            pair = tuple(sorted((st.left.predicate, st.right.predicate)))
-            out[("bidirected", pair)] = ann.confidence
-    return out
 
 
 def _is_non_evidence_source(source: str | None) -> bool:

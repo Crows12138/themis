@@ -587,8 +587,9 @@ Public surface (re-exports from sub-modules):
   proposal, which algorithm, the share of resamples it survived — are
   that annotation read aloud, and a gap rewritten together with the
   ledger line that copies it had passed every door)
-- And whether the edges such gaps disclose are the proposed edges the
-  answer rests on, on the ground graph it was reached on:
+- And whether the edges such gaps disclose, with what each says, are the
+  proposed edges the answer rests on, with what their statements say, on
+  the ground graph it was reached on:
   ``verify_proposed_edges_are_disclosed`` (which edges had one was the
   report author's alone; removed with its ledger copy a gap passed every
   door 21 times of 21, and added for an edge that owes none, 18 of 18 —
