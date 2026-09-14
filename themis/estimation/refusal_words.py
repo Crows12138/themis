@@ -60,6 +60,20 @@ class Refuses(language.Word, vocabulary="estimation_refusal",
         "en": "the columns this estimate needs, {columns}, are not in the "
               "data",
     })
+    A_COLUMN_WOULD_HOLD_SEVERAL_NODES = ("a_column_would_hold_several_nodes", {
+        "zh": "数据里 {column} 只有一列，而程序的图里这个变量有好几个节点"
+              "（{nodes}）；一列只装得下一个节点，同一列被读成其中几个，调整"
+              "就可能调到处理或结局自己身上。把每个时刻或每个对象的值声明成"
+              "各自的变量、给各自的列；随时间变化的处理可以在 "
+              "options.longitudinal 里按期列出列名",
+        "en": "the data has one column for {column}, and the program's "
+              "graph has several nodes of that variable ({nodes}); a column "
+              "holds one node, and read as several of them an adjustment can "
+              "land on the treatment or the outcome itself. Declare the value "
+              "at each time, or for each object, as a variable of its own with "
+              "its own column; a treatment that varies over time can list a "
+              "column per period in options.longitudinal",
+    })
     SAMPLE_IS_TOO_SMALL = ("sample_is_too_small", {
         "zh": "只有 {rows} 行，低于数值估计的下限 {minimum} 行——低于这个数，"
               "算出来的不是一个估计，是这几行的算术",

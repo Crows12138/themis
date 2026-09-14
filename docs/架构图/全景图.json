@@ -10,7 +10,7 @@
       "url": "https://github.com/Crows12138/themis",
       "provider": "github",
       "link_mode": "local-only",
-      "revision": "f3899526ef83d9f0f2e4c10455d324d2c50550b0"
+      "revision": "fcbe167dc8a7c7740d10b7f2b48fbc179963ab3d"
     },
     "views": [
       {
@@ -55,7 +55,7 @@
           "gaprules",
           "probe"
         ],
-        "note": "92 个 rule 名、103 个 verify_* 入口；不 import themis.output"
+        "note": "92 个 rule 名、104 个 verify_* 入口；不 import themis.output"
       },
       {
         "id": "loop",
@@ -427,7 +427,7 @@
       "sublabel": "verify.py 7390 行",
       "row": 1,
       "col": 6,
-      "tag": "103 个入口",
+      "tag": "104 个入口",
       "sources": [
         {
           "path": "themis/verifier/verify.py",

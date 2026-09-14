@@ -812,6 +812,47 @@ def _every_layer(estimate: dict):
             yield name, block
 
 
+def verify_a_column_is_one_node(result: Any, graph: Any) -> None:
+    """A number read off a frame rests on one node per column.
+
+    The frame holds a column per variable and the estimation layer reads
+    a graph node off the column its predicate names, so where the
+    program's graph has several nodes of a variable the frame supplied,
+    some column stood for more than one of them. Every record beside the
+    number is written in columns, and columns agree with themselves: a
+    lagged outcome adjusted for as the outcome's own column re-derived
+    to the same wrong number from what it recorded, and passed.
+
+    Whether a frame was accepted is read off
+    ``estimation_context.data_columns``, which that layer writes only
+    past its contract. A result without one has made no claim about a
+    frame.
+    """
+    if not isinstance(result, dict):
+        return
+    context = result.get("estimation_context")
+    columns = context.get("data_columns") if isinstance(context, dict) else None
+    if not isinstance(columns, list):
+        return
+    from .rules import _atom_label_verifier
+
+    held = {column for column in columns if isinstance(column, str)}
+    nodes: dict[str, list[str]] = {}
+    for node in graph.nodes:
+        if node.predicate in held:
+            nodes.setdefault(node.predicate, []).append(
+                _atom_label_verifier(node))
+    for column in sorted(nodes):
+        if len(nodes[column]) > 1:
+            _reject(
+                _RULE,
+                f"estimation_context.data_columns holds {column!r}, and the "
+                f"program's graph has several nodes of that variable "
+                f"({sorted(nodes[column])}); one column cannot be all of "
+                f"them, so a number read off it is about a design nobody "
+                f"wrote")
+
+
 def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     """Hold every block's account of itself to what already said it.
 

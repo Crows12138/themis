@@ -357,6 +357,14 @@ def _route_the_estimate(
     three exits, it became a fact about which route returned early instead.
     Here an early return can only skip the rest of the routing.
     """
+    # A frame holds one column per variable, and both branches below turn a
+    # node into a column by its predicate. So before either, the program has
+    # to have one node for each variable the frame supplies: unrolled in
+    # time, a variable has a node per step, and a confounder a step back of
+    # the outcome was adjusted for as the outcome's own column -- every ATE
+    # estimator returned a number near zero for an effect of 0.3.
+    _refuse_a_column_that_would_hold_several_nodes(program)
+
     # Phase 9 §S9.2 numeric end: a program declaring missingness indicators
     # carries NaN in its partially-observed columns, which the standard data
     # contract (validate_data) forbids. Route it to the missing-data recovery
@@ -9478,6 +9486,45 @@ def _topo_order(graph, atoms):
         key=lambda a: a.predicate,
     )
     return tuple(ordered + missing)
+
+
+def _refuse_a_column_that_would_hold_several_nodes(
+    program: dict | str | bytes,
+) -> None:
+    """Refuse the frame for a program with several nodes of one of its columns.
+
+    The frame has a column per declared variable, and this layer reads a
+    graph node off the column its predicate names. That is one node per
+    column only while each variable has one node. On a program unrolled
+    in time a variable has a node per step, and about several objects a
+    node per object; the frame cannot say which of them its column holds,
+    and a design reading two of them reads one column twice. A confounder
+    a step back of the outcome is adjusted for as the outcome itself.
+
+    Raised at the contract, beside a column that is missing, because it is
+    the same finding: the frame is not a frame of this program.
+    """
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+    from ..runtime.graph_projection import atom_label, project
+    from ..runtime.instantiation import instantiate
+    from .contract import DataContractError
+    from .refusal_words import Refuses
+
+    columns = _collect_required_columns(program)
+    if not columns:
+        return
+    graph = project(instantiate(validate_program(
+        validate_ast(_ensure_dict(program)))))
+    nodes: dict[str, list[str]] = {}
+    for node in graph.nodes:
+        if node.predicate in columns:
+            nodes.setdefault(node.predicate, []).append(atom_label(node))
+    for column in sorted(nodes):
+        if len(nodes[column]) > 1:
+            raise DataContractError(
+                Refuses.A_COLUMN_WOULD_HOLD_SEVERAL_NODES,
+                column=column, nodes=sorted(nodes[column]))
 
 
 def _collect_required_columns(program: dict | str | bytes) -> set[str]:

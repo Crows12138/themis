@@ -663,6 +663,15 @@ Public surface (re-exports from sub-modules):
   columns of anything calling itself a misclassification channel, and, for
   every block on the envelope carrying its own sufficient statistics
   (corrections or not), the other writing of whatever it wrote down twice)
+- Which node a column of the frame stood for:
+  ``verify_a_column_is_one_node`` (the frame holds a column per variable
+  and the estimation layer reads a node off the column its predicate
+  names, so on a program with several nodes of a variable the frame
+  supplied — unrolled in time, or about several objects — one column
+  stood for more than one of them. Every record beside the number is
+  written in columns, which agree with themselves: a lagged outcome
+  adjusted for as the outcome's own column re-derived to the same wrong
+  number, and passed)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -851,7 +860,7 @@ from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
-from .frame_rules import verify_frame
+from .frame_rules import verify_a_column_is_one_node, verify_frame
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -901,6 +910,7 @@ __all__ = [
     "verify_bounds_account",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
+    "verify_a_column_is_one_node",
     "verify_frame",
     "verify_post_stratification",
     "verify_assoc",

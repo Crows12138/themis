@@ -161,6 +161,7 @@ from .verifier import (
     verify_investigation_items,
     verify_identification_formula,
     verify_fitted_diagnostics,
+    verify_a_column_is_one_node,
     verify_frame,
     verify_post_stratification,
     verify_feedback_loop,
@@ -1612,6 +1613,12 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # tells two words showing the same thing apart. Ordered after the kind
     # is held, because it reads the kind.
     verify_answer_status_fits_its_question(result)
+
+    # Which node each column of an accepted frame stood for. Asked of the
+    # program's graph and ahead of every rule that reads a number: the
+    # records a number is re-derived from are written in columns, and a
+    # column that stood for two nodes agrees with itself in all of them.
+    verify_a_column_is_one_node(result, ctx.graph)
 
     # Every sentence the envelope carries, against the holes the sentence
     # it names declares. Not part of any block's audit and not attached to
