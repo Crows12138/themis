@@ -58,6 +58,7 @@ from .errors import (
     RuleCheckFailed,
     UnknownRuleInputError,
 )
+from .semantic_probe import probe_identify_formula
 
 # Numeric tolerance for R7/R8 equality checks. Formula evaluation in
 # floating point can drift slightly even when the algebra is identical
@@ -10385,6 +10386,9 @@ def _check_causation_general_id_risks(
     the verifier holds a ``data_hash``, not the frame, so the plug-in VALUE is
     beyond reach here (the data-refit ceiling every numeric rule declares).
     What it pins down is that each number was read off the right estimand.
+
+    Agreeing with the engine is all that comparison can establish, so each
+    estimand is also put to the semantic probe (``_verifier_probe_arm_risk``).
     """
     from ..runtime import c_factor
 
@@ -10415,6 +10419,45 @@ def _check_causation_general_id_risks(
                 f"the one the ID algorithm derives for it",
                 step_index=step_index, rule=rule,
             )
+        _verifier_probe_arm_risk(
+            ctx, claimed, x_atom, arm, y_atom, step_index=step_index, rule=rule,
+        )
+
+
+def _verifier_probe_arm_risk(
+    ctx: VerificationContext,
+    formula,
+    x_atom,
+    arm,
+    y_atom,
+    *,
+    step_index: int,
+    rule: str,
+) -> None:
+    """Hold a recorded arm estimand to the risk it says it computes.
+
+    Its callers first compare the estimand with the one the ID engine
+    derives, and that comparison can only say the two agree: an engine that
+    identifies an arm it should not, or writes the wrong estimand for one, is
+    agreed with there. The semantic probe does not ask the engine. It samples
+    models consistent with this graph, computes ``P(Y=1 | do(X=arm))`` in
+    each by intervening on the model, and evaluates the estimand on the
+    model's observational distribution. A probe that cannot run says
+    nothing; an estimand that does not compute the risk costs the answer.
+    """
+    domains = ctx.theta.domains if ctx.theta is not None else {}
+    probe = probe_identify_formula(
+        ctx.graph, ctx.bidirected,
+        x=x_atom, x_value=arm, y=y_atom, given=(), formula=formula,
+        domains=domains, y_values=(True,),
+    )
+    if probe.refuses:
+        raise RuleCheckFailed(
+            f"{rule}: the recorded estimand for "
+            f"P({y_atom.predicate}=1 | do({x_atom.predicate}={arm})) does not "
+            f"compute it in models consistent with the graph. {probe.detail}",
+            step_index=step_index, rule=rule,
+        )
 
 
 def _check_cf_cell_general_id_risk(
@@ -10439,6 +10482,9 @@ def _check_cf_cell_general_id_risk(
     estimand evaluates to is beyond reach here (the same data-refit ceiling
     every numeric rule declares). What it does pin down is that the number was
     read off the right estimand.
+
+    Agreeing with the engine is all that comparison can establish, so the
+    estimand is also put to the semantic probe (``_verifier_probe_arm_risk``).
     """
     from ..runtime import c_factor
 
@@ -10484,6 +10530,10 @@ def _check_cf_cell_general_id_risk(
             f"{query.counterfactual_intervention.value}) on this graph",
             step_index=step_index, rule=rule,
         )
+    _verifier_probe_arm_risk(
+        ctx, claimed, x_atom, query.counterfactual_intervention.value, y_atom,
+        step_index=step_index, rule=rule,
+    )
 
 
 def _tian_pearl_poc_for_verifier(

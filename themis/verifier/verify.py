@@ -658,20 +658,6 @@ def _walk(
     return step_by_id, step_output_by_id
 
 
-#: What the probe says when it has an opinion. ``inconclusive`` is not
-#: here and that is the whole point of there being a list: a probe that
-#: could not run is silent, and a formula that is not about this graph is
-#: not silent — they were one word until the cheapest forgery in the
-#: census turned out to be the one that produced it.
-#:
-#: ``unevaluable`` is the same distinction one layer in. The text check
-#: that produces ``unfit`` runs before any sampling; inside the sampling
-#: loop every failure was still answered with the word that means
-#: silence, and a formula asking this model for a factor the model's own
-#: factorisation does not hold got past on it.
-_PROBE_REFUSES = ("mismatch", "unfit", "unevaluable")
-
-
 def verify_identify(
     derivation: tuple[DerivationStep, ...],
     context: VerificationContext,
@@ -731,7 +717,7 @@ def verify_identify(
                 y=q.target, given=_conditioned(q), formula=formula,
                 domains=domains,
             )
-            if probe.status in _PROBE_REFUSES:
+            if probe.refuses:
                 raise VerificationError(
                     # The prefix says THAT the probe refused; the detail
                     # says why. It used to say why as well, and it said
@@ -1034,7 +1020,7 @@ def verify_identification_formula(result: dict,
 
     if isinstance(query, CounterfactualConjunctionQuery):
         probe, quantity = _probe_the_conjunction(formula, query, context)
-        if probe.status in _PROBE_REFUSES:
+        if probe.refuses:
             raise VerificationError(
                 f"the estimand shown to a reader does not compute "
                 f"{quantity} in models consistent with the graph. "
@@ -1059,7 +1045,7 @@ def verify_identification_formula(result: dict,
         formula=formula, domains=domains,
         y_values=(target.value,) if hasattr(target, "value") else None,
     )
-    if probe.status in _PROBE_REFUSES:
+    if probe.refuses:
         raise VerificationError(
             f"the estimand shown to a reader is not the one this graph and "
             f"this question identify. {probe.detail}",
@@ -7566,7 +7552,7 @@ def verify_counterfactual_conjunction(
     if formula is not None and not is_zero:
         probe, quantity = _probe_the_conjunction(formula, context.query,
                                                  context)
-        if probe.status in _PROBE_REFUSES:
+        if probe.refuses:
             raise VerificationError(
                 f"counterfactual formula fails semantic verification for "
                 f"{quantity} against models consistent with the graph. "

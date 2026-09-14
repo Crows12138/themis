@@ -19,7 +19,6 @@ import pytest
 
 from themis.runtime import c_factor
 from themis.verifier import semantic_probe as sp
-from themis.verifier import verify as verify_mod
 from themis.types import (
     Atom, ConstTerm, ValuedAtom, VarRef, BindDecl,
     ProbabilityRefExpr, ProductExpr, SumExpr, FractionExpr,
@@ -126,23 +125,27 @@ def test_every_reader_of_a_probes_verdict_reads_the_same_list():
     which is what this change does. One of the three was spelled out, and
     it was the counterfactual one; it would have gone on accepting a
     formula this model cannot even be asked.
-    """
-    tree = ast.parse(
-        pathlib.Path(verify_mod.__file__).read_text(encoding="utf-8"))
-    spellings = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Compare):
-            continue
-        left = node.left
-        if not (isinstance(left, ast.Attribute) and left.attr == "status"):
-            continue
-        if not (isinstance(left.value, ast.Name)
-                and "probe" in left.value.id):
-            continue
-        spellings.append(ast.unparse(node))
 
-    assert spellings, "no call site reads a probe's verdict"
-    assert set(spellings) == {"probe.status in _PROBE_REFUSES"}, spellings
+    The decision is made on the verdict, ``ProbeResult.refuses``, and
+    every module of the verifier is read: the rules that probe a recorded
+    risk estimand read verdicts as well as ``verify.py`` does.
+    """
+    readers, spellings = set(), []
+    for path in sorted(pathlib.Path(sp.__file__).parent.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Attribute):
+                continue
+            if node.attr == "refuses":
+                readers.add(path.name)
+            elif (node.attr == "status" and isinstance(node.value, ast.Name)
+                  and "probe" in node.value.id):
+                spellings.append((path.name, ast.unparse(node)))
+
+    assert {"verify.py", "rules.py"} <= readers, readers
+    assert not spellings, spellings
+    verdicts = ("match", "mismatch", "unfit", "unevaluable", "inconclusive")
+    assert [v for v in verdicts if sp.ProbeResult(v).refuses] == [
+        "mismatch", "unfit", "unevaluable"]
 
 
 def test_probe_accepts_correct_idc_fraction():

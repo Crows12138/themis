@@ -106,6 +106,18 @@ class ProbeResult:
     status: str
     detail: str = ""
 
+    @property
+    def refuses(self) -> bool:
+        """Whether this verdict costs the answer it was asked about.
+
+        ``match`` and ``inconclusive`` do not, and the second is why this
+        is written once: a probe that could not run is silent, and a
+        formula that is not about this graph is not. Every reader in the
+        verifier asks here instead of spelling the list, so a verdict
+        added above is decided in one place.
+        """
+        return self.status in ("mismatch", "unfit", "unevaluable")
+
 
 def _evaluation_failed(exc: Exception) -> ProbeResult:
     """What a failure to evaluate says — about the probe, or the formula.
