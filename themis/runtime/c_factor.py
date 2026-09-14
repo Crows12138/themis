@@ -121,10 +121,7 @@ def identify_via_tian(
     or by the implicit query target (target = y_atom, value passed in
     by the query).
     """
-    return _run_tian_id(
-        graph, bidirected, {x_atom: x_value}, y_atom,
-        allow_full_line7=True,
-    )
+    return _run_tian_id(graph, bidirected, {x_atom: x_value}, y_atom)
 
 
 def identify_via_tian_joint(
@@ -145,15 +142,11 @@ def identify_via_tian_joint(
     corners) and the K-way interaction is a finite difference over all
     2^K of them; neither is a special case of the other.
 
-    Compact-shortcut only: a joint estimand the shortcut cannot express
-    (napkin-style nested ID) PUNTs to ``identifiable=False`` rather than
-    invoking the full nested Identify, whose numeric self-check is
-    single-atom. This keeps the set path safe (no wrong answers).
+    A joint estimand the compact Line-7 shortcut cannot express goes to the
+    full nested Identify exactly as a single intervention's does, and its
+    numeric self-check probes the formula under the whole assignment.
     """
-    return _run_tian_id(
-        graph, bidirected, dict(x_assignment), y_atom,
-        allow_full_line7=False,
-    )
+    return _run_tian_id(graph, bidirected, dict(x_assignment), y_atom)
 
 
 def _run_tian_id(
@@ -161,14 +154,11 @@ def _run_tian_id(
     bidirected: BidirectedEdgeSet,
     x_values: Mapping[Atom, object],
     y_atom: Atom,
-    *,
-    allow_full_line7: bool,
 ) -> TianResult:
-    """Shared core for :func:`identify_via_tian` (single X, full nested
-    Identify enabled) and :func:`identify_via_tian_joint` (set X, compact
-    shortcut only). ``x_values`` is the intervention — an assignment whose
-    keys are the do-set and whose values are the literals stamped into the
-    outer occurrence of each."""
+    """Shared core for :func:`identify_via_tian` (single X) and
+    :func:`identify_via_tian_joint` (set X). ``x_values`` is the
+    intervention — an assignment whose keys are the do-set and whose values
+    are the literals stamped into the outer occurrence of each."""
     x_set = frozenset(x_values)
     V = frozenset(graph.nodes()) | {a for pair in bidirected for a in pair}
     y_set = frozenset({y_atom})
@@ -198,17 +188,16 @@ def _run_tian_id(
 
     # The compact Line-7 shortcut may fail to express a genuine nested-ID
     # estimand: either it PUNTS (returns None, with no definitive hedge —
-    # its inner verdict recursion mis-reads S' as a hedge) or it emits a
-    # MALFORMED formula (a free, unbound sum variable from a variable that
-    # leaked out of S'). The canonical example is Pearl's napkin graph
-    # (W→Z→X→Y, W↔X, W↔Y). In either case, retry with Tian's full nested
-    # Identify, which expresses the estimand as the required ratio. The
-    # full path's numeric self-check is single-atom, so joint (set) callers
-    # disable it (``allow_full_line7=False``) and PUNT instead.
+    # its inner verdict recursion mis-reads S' as a hedge, or an
+    # intervention inside S' is still an ancestor of Y there, which the
+    # shortcut cannot sum) or it emits a MALFORMED formula (a free, unbound
+    # sum variable from a variable that leaked out of S'). The canonical
+    # example is Pearl's napkin graph (W→Z→X→Y, W↔X, W↔Y). In either case,
+    # retry with Tian's full nested Identify, which expresses the estimand
+    # as the required ratio.
     shortcut_ok = formula is not None and _formula_is_well_formed(formula)
     if (
-        allow_full_line7
-        and not shortcut_ok
+        not shortcut_ok
         and state.hedge is None
         and graph.number_of_nodes() <= _FULL_LINE7_MAX_NODES
     ):
@@ -227,13 +216,11 @@ def _run_tian_id(
             # Line-7 recursion, avoids double-binding a mediator an outer
             # Line-4 sum already owns.
             full_formula = _bind_free_params(full_state, full_formula, keep=y_set)
-        x_atom_single = next(iter(x_set))
         if (
             full_formula is not None
             and _formula_is_well_formed(full_formula)
             and _full_line7_numerically_sound(
-                graph, bidirected, x_atom_single, y_atom,
-                x_values[x_atom_single], full_formula,
+                graph, bidirected, x_values, y_atom, full_formula,
             )
         ):
             return TianResult(
@@ -305,8 +292,8 @@ class _IdState:
     _bind_seq: int = 0
     # Line 7 mode: False = the compact Q[S'] shortcut (correct for
     # front-door-style cases); True = Tian's full nested Identify (handles
-    # napkin-style nested ID). identify_via_tian runs the shortcut first
-    # and only re-runs with this True when the shortcut is malformed.
+    # napkin-style nested ID). _run_tian_id runs the shortcut first and
+    # re-runs with this True when the shortcut gives no well-formed estimand.
     use_full_line7: bool = False
 
     @property
@@ -381,9 +368,8 @@ def _formula_is_well_formed(formula: FormulaExpr) -> bool:
 def _full_line7_numerically_sound(
     graph: nx.DiGraph,
     bidirected: BidirectedEdgeSet,
-    x_atom: Atom,
+    x_values: Mapping[Atom, object],
     y_atom: Atom,
-    x_value,
     formula: FormulaExpr,
 ) -> bool:
     """Numeric self-check for the FULL nested-Identify Line-7 path — the
@@ -396,10 +382,10 @@ def _full_line7_numerically_sound(
     the IV escalation) instead of returning a confident wrong answer. The
     same probe backs the verifier; running it here closes the loop at the
     source. Imported locally to avoid an import cycle."""
-    from ..verifier.semantic_probe import probe_identify_formula
+    from ..verifier.semantic_probe import probe_intervention_formula
 
-    result = probe_identify_formula(
-        graph, bidirected, x=x_atom, x_value=x_value, y=y_atom,
+    result = probe_intervention_formula(
+        graph, bidirected, intervention=x_values, y=y_atom,
         given=(), formula=formula, k=3,
     )
     return result.status != "mismatch"
@@ -521,17 +507,16 @@ def _id(state: _IdState) -> FormulaExpr | None:
 
     # Line 7 of the Shpitser-Pearl algorithm: the single c-component S of
     # G\X is a STRICT subset of a c-component S' of the full G. The
-    # algorithm recurses ID(y, x∩S', Q[S'], G[S']). For the kernel's
-    # single-intervention / single-target scope the recursion always
-    # re-marginalizes the intervention atoms that fall inside S' — an
-    # intervention that stayed a parent of Y inside G[S'] would put X and
-    # Y in one c-component (a bow-arc hedge), already caught at Line 5.
-    # So the result is Q[S'] (the c-factor product over S' in topo order)
+    # algorithm recurses ID(y, x∩S', Q[S'], G[S']). When no intervention
+    # inside S' is still an ancestor of Y within G[S'], that recursion
+    # re-marginalizes all of them (Line 2 drops them, Line 1 sums), so the
+    # result is Q[S'] (the c-factor product over S' in topo order)
     # marginalized to keep Y, with those interventions turned from do(...)
     # literals into BOUND SUM variables — i.e. dropped from do_atoms so
     # ``_atom_to_target_va`` issues a VarRef rather than the literal
     # x_value. That re-marginalization Σ_{x'} P(x')·P(y | x', ...) is
-    # exactly the front-door inner sum.
+    # exactly the front-door inner sum. The shortcut below emits it only
+    # under that condition.
     #
     # This same Q[S'] shortcut with the intervention left in do_atoms
     # collapses x to the literal do-value — it has to be dropped from
@@ -598,6 +583,13 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 trail=[],
             )
             if _id(verdict_state) is None:
+                return None
+            # An intervention still an ancestor of Y inside G[S'] is held at
+            # its value by ID, not summed: do(f, b) on a with b→a, f↔a, f↔b
+            # keeps b a parent of a in S' = {f, b, a}. Summing it answers
+            # another question, so the shortcut declines and the full nested
+            # Identify is retried.
+            if x & s_prime & _ancestors_in_scope(verdict_state.graph, s_prime, y):
                 return None
             # Identifiable: emit the Q[S'] re-marginalization formula. This
             # is well-formed UNLESS a variable outside S' leaks into S''s
@@ -923,7 +915,10 @@ def _bind_and_sum(
 # Q[S'] directly gives the answer (front-door and friends). It FAILS — a
 # free, unbound sum variable — when a variable OUTSIDE S' (its own
 # c-component) leaks into S''s c-factor conditioning, the canonical example
-# being Pearl's napkin (W→Z→X→Y, W↔X, W↔Y: Z leaks into Q[{W,X,Y}]).
+# being Pearl's napkin (W→Z→X→Y, W↔X, W↔Y: Z leaks into Q[{W,X,Y}]). It
+# also DECLINES when an intervention inside S' is still an ancestor of Y
+# within G[S']: ID holds that intervention at its value, the shortcut
+# would sum it.
 #
 # The complete algorithm is Tian's recursive Identify(C, T, Q[T]): compute
 # the c-factor Q[C] from a SYMBOLIC distribution Q over T, by alternating

@@ -597,9 +597,10 @@ def estimate_joint_general_id_ate(
     absence: see ``interaction_unavailable``.
 
     Scope (declared): binary treatments that share one common two-level
-    set; binary outcome; compact-shortcut-expressible estimands only
-    (napkin-style joint nested-ID PUNTs to not-identifiable → the caller
-    refuses). Above ``MAX_JOINT_TREATMENTS`` the CONTRAST is still
+    set; binary outcome; an estimand only the full nested Identify
+    expresses is attempted on graphs within the engine's size cap and
+    otherwise PUNTs to not-identifiable → the caller refuses. Above
+    ``MAX_JOINT_TREATMENTS`` the CONTRAST is still
     reported — it needs two corners however wide the box is — and only
     the interaction is withheld.
 
