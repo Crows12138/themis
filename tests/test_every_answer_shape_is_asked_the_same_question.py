@@ -1411,9 +1411,24 @@ def test_the_declared_remainder_is_what_it_is():
     an instrument does not have. 26 leaves are declared for that. On 3
     rows a lie moved off a need nothing held, and 4 leave. Which need an
     ask names where the answer writes it once is the question still open.
+
+    Then 69 came off the missing-data block, on the seven rows
+    carrying one. The verifier re-derived its mechanism, its verdict and,
+    where the verdict was positive, its formula, and a report shows a
+    reader more than those: the partially observed variables, the
+    factors a recovery is assembled from and what each is conditioned
+    on, the target each stands for, the adjustment set, the covariate
+    half, the factors the estimand requires, the targets a negative
+    verdict names as blocked, a formula written where nothing recovers,
+    and whether the ordered factorization was said to be complete. Each
+    took any value. Each is re-derived now from the search the verdict
+    came from, in the block's own spelling. The search budget stays
+    where it was: it is read off the block on purpose, because a
+    verifier holding a bound of its own would agree with the producer
+    by arithmetic.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2164, total
+    assert total == 2095, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -6200,7 +6200,11 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
     conditioning set, and re-search the ordered factorization — all via
     low-level structural primitives, NOT by importing the producer's
     missing_data module. It then checks the block's mechanism,
-    recoverability verdict, and recovery formula match the re-derivation.
+    recoverability verdict, and recovery formula match the re-derivation,
+    and so does everything the block tells a reader beside them: the
+    partially observed variables, the factors and the target each stands
+    for, the adjustment set, the factors the estimand requires and why a
+    negative is negative -- in the spelling the block uses.
 
     When the block carries the multi-factor sub-blocks (``covariate_recovery``
     / ``estimand``), it also independently re-derives the covariate marginal
@@ -6344,10 +6348,13 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
             return f"P({inside} | {r_names})"
         return f"P({inside})"
 
-    def _formula_of(yl, xl, factors):
+    def _target_of(yl, xl):
         ynames = ", ".join(a.predicate for a in yl)
         xnames = ", ".join(a.predicate for a in xl)
-        target = f"P({ynames} | {xnames})" if xl else f"P({ynames})"
+        return f"P({ynames} | {xnames})" if xl else f"P({ynames})"
+
+    def _formula_of(yl, xl, factors):
+        target = _target_of(yl, xl)
         factor_strs = [_factor_repr(yi, xi) for yi, xi in factors]
         if len(factor_strs) == 1 and not xl and len(yl) == 1:
             return f"{target} = {factor_strs[0]}"
@@ -6372,11 +6379,45 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
                 f"{block['recovery_formula']!r}"
             )
 
+    # --- what the block tells a reader beside the verdict ---
+    # A report shows the partially observed variables, the factors a
+    # recovery is assembled from and the target each stands for, and why a
+    # negative is negative. None of them restates the verdict, so holding
+    # the verdict held none of them: each could be emptied, renamed or
+    # replaced on an answer the door took.
+    def _hold(where, recorded, restated):
+        if recorded != restated:
+            _err(f"{where}: recomputed {restated!r}, recorded {recorded!r}")
+
+    def _hold_factor_row(where, part, yl, xl, factors):
+        _hold(f"{where}target", part.get("target"), _target_of(yl, xl))
+        _hold(f"{where}factorization", part.get("factorization"), [
+            {"factor": yi.predicate,
+             "conditioned_on": [a.predicate for a in xi]}
+            for yi, xi in factors or ()])
+        if factors is None:
+            _hold(f"{where}recovery_formula", part.get("recovery_formula"), "")
+            _hold(f"{where}failure_reason", part.get("failure_reason"), {
+                "token": "no_recoverable_ordered_factorization",
+                "vocabulary": "missing_data_shortfall"})
+        else:
+            _hold(f"{where}failure_reason", part.get("failure_reason"), None)
+
+    _hold_factor_row("", block, y_list, x_list, cond_factors)
+    _hold("partially_observed", block.get("partially_observed"),
+          sorted(v.predicate for v in vm))
+    # Ordered factorization is sufficient and not necessary: no negative
+    # from it is a proof, and a block saying its criterion is complete
+    # tells a reader one is.
+    _hold("complete_criterion", block.get("complete_criterion"), False)
+
     # --- covariate marginal P(Z | given) + full-estimand combination ---
     # Only when the block carries the multi-factor sub-blocks (the real
     # scheduler path always does; a bare conditional-only block skips this).
     if "estimand" in block or block.get("covariate_recovery") is not None:
         z_list = list(z)
+        _hold("adjustment_set", block.get("adjustment_set"),
+              [a.predicate for a in z_list])
         cov_factors = None
         cov_recoverable = True            # empty Z ⇒ nothing to recover
         if z_list:
@@ -6400,6 +6441,8 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
                         f"{cov_formula!r}, recorded "
                         f"{cov_block['recovery_formula']!r}"
                     )
+            _hold_factor_row("covariate_recovery.", cov_block, z_list,
+                             list(given), cov_factors)
         elif cov_block is not None:
             _err("covariate_recovery: empty Z but a block was recorded")
 
@@ -6412,12 +6455,36 @@ def verify_missing_data_recovery(block: dict, base_graph, indicators, query) -> 
                     f"estimand recoverable: recomputed {est_recoverable}, "
                     f"recorded {est_block['recoverable']}"
                 )
+            gnames = ", ".join(a.predicate for a in given)
+            estimand = (
+                f"P({y.predicate} | do({x.predicate}), {gnames})"
+                if given else f"P({y.predicate} | do({x.predicate}))"
+            )
+            _hold("estimand.target", est_block.get("target"), estimand)
+            factors = [("adjusted_conditional", "the_adjusted_conditional",
+                        _target_of(y_list, x_list), cond_recoverable)]
+            if z_list:
+                factors.append(("covariate_marginal", "the_covariate_marginal",
+                                _target_of(z_list, list(given)),
+                                cov_recoverable))
+            _hold("estimand.requires", est_block.get("requires"), [
+                {"token": role, "vocabulary": "recovery_factor",
+                 "said": {"target": target}}
+                for role, _shortfall, target, _ok in factors])
+            _hold("estimand.failure_reason", est_block.get("failure_reason"),
+                  None if est_recoverable else {
+                      "token": "a_product_is_blocked_by_its_factors",
+                      "vocabulary": "missing_data_shortfall",
+                      "words": {"factors": [
+                          {"token": shortfall,
+                           "vocabulary": "missing_data_shortfall",
+                           "said": {"target": target}}
+                          for _role, shortfall, target, ok in factors
+                          if not ok]}})
+            if not est_recoverable:
+                _hold("estimand.recovery_formula",
+                      est_block.get("recovery_formula"), "")
             if est_recoverable:
-                gnames = ", ".join(a.predicate for a in given)
-                estimand = (
-                    f"P({y.predicate} | do({x.predicate}), {gnames})"
-                    if given else f"P({y.predicate} | do({x.predicate}))"
-                )
                 cond_rhs = _rhs(_formula_of(y_list, x_list, cond_factors))
                 if z_list:
                     cov_rhs = _rhs(_formula_of(z_list, list(given), cov_factors))
