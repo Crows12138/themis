@@ -319,6 +319,7 @@ _FROM_THE_QUESTION = (
     ("selection_recovery", "treatment", "_q_effect"),
     ("selection_recovery", "outcome", "_q_effect"),
     ("selection_recovery", "query_kind", "_q_effect"),
+    ("selection_recovery", "given", "_q_effect"),
     ("proximal_estimand", "treatment", "_q_proximal_effect"),
     ("proximal_estimand", "outcome", "_q_proximal_effect"),
     ("scm_counterfactual", "intervention", "_q_scm_counterfactual"),

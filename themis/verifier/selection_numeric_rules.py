@@ -94,6 +94,35 @@ def verify_selection_recovery_numeric(result: dict) -> None:
     zp_vars = tuple(suff.get("z_plus_vars") or ())
     zm_vars = tuple(suff.get("z_minus_vars") or ())
 
+    # --- 0. the stratum the tables are about ---
+    # Which stratum the question named is held on the frame, where the
+    # question is. Here the answer's stratum is held to the structural
+    # verdict beside it and to the tables: a condition is adjusted for, and
+    # every recorded cell sits at its level -- or the sum below ran over
+    # rows other than the stratum's, and re-derives to itself all the same.
+    stratum = ne.get("given") or []
+    _require(isinstance(stratum, list) and all(
+                 isinstance(pair, list) and len(pair) == 2 for pair in stratum),
+             f"numeric_estimate.given {stratum!r} is not a list of "
+             f"[name, level] pairs")
+    verdict = (result.get("extensions") or {}).get("selection_recovery") or {}
+    _require(sorted(str(pair[0]) for pair in stratum)
+             == sorted(verdict.get("given") or []),
+             f"numeric_estimate.given {stratum!r} is not the subpopulation the "
+             f"recovery verdict is about ({verdict.get('given')!r})")
+    for name, level in stratum:
+        _require(name in zp_vars,
+                 f"stratum {name!r} is not adjusted for (z_plus_vars={list(zp_vars)})")
+        at = zp_vars.index(name)
+        for table in ("ref_p_zplus", "ref_p_zminus_given", "biased_strata"):
+            for rec in suff.get(table, []):
+                # The level as the rows were selected on it: equal as the
+                # data's own values compare, so a 0/1 column read at True
+                # records 1 and is at that level.
+                _require(_key(rec["z_plus"])[at] == level,
+                         f"{table} records z⁺={rec['z_plus']} outside the "
+                         f"stratum {name}={level!r}")
+
     # --- 1. rebuild the recorded tables into keyed lookups ---
     # P_ref(z⁺): marginal over z⁺.
     p_zplus: dict[tuple, float] = {}

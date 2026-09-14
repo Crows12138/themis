@@ -6262,6 +6262,10 @@ def _serialize_selection_recovery(rec, x: Atom, y: Atom) -> dict:
         "query_kind": rec.query_kind,
         "treatment": x.predicate,
         "outcome": y.predicate,
+        # The subpopulation the verdict is about, written only when there is
+        # one: every block before it was about the whole population, and an
+        # empty list would say nothing a reader could not already assume.
+        **({"given": [a.predicate for a in rec.given]} if rec.given else {}),
         "recoverable": rec.recoverable,
         "criterion": rec.criterion,
         "selection_nodes": [a.predicate for a in rec.selection_nodes],
@@ -6339,7 +6343,11 @@ def _attach_selection_recovery(
     if not any(structural_solver.is_common_effect(graph, x, y, s) for s in s_atoms):
         return result
 
-    rec = recover_effect(graph, x, y, tuple(s_atoms))
+    # The stratum the question asks about goes to the analysis with it. It
+    # used to stop here, and a question about one stratum was answered
+    # with the population's verdict and, on data, the population's number.
+    rec = recover_effect(graph, x, y, tuple(s_atoms),
+                         given=tuple(g.atom for g in q.given))
     block = _serialize_selection_recovery(rec, x, y)
     new_ext = dict(result.extensions or {})
     new_ext[blocks.Block.SELECTION_RECOVERY] = block

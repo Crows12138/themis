@@ -283,6 +283,7 @@
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "selection_recovery_shortfall" } } },
           "then": { "properties": { "token": { "enum": [
+            "given_is_not_upstream_of_the_treatment",
             "no_admissible_selection_backdoor_set",
             "outcome_not_separable_from_selection",
             "treatment_or_outcome_not_in_graph"

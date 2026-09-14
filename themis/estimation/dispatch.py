@@ -5066,12 +5066,15 @@ def _try_selection_recovery_estimate(
     block = (result.get("extensions") or {}).get(blocks.Block.SELECTION_RECOVERY) or {}
     x = q_stmt.query.intervention.atom.predicate
     y = q_stmt.query.target.atom.predicate
+    # The stratum the question conditions on, as the answer writes it back.
+    stratum = [[g.atom.predicate, g.value] for g in q_stmt.query.given]
+    conditioned = "".join(f", {name}" for name, _ in stratum)
 
     if not block.get("recoverable"):
         result["estimator_failure"] = refusals.block(
             estimator="selection_backdoor_recovery",
             failure_type=Refusal.NOT_RECOVERABLE,
-            details={"estimand": f"P({y}|do({x}))",
+            details={"estimand": f"P({y}|do({x}){conditioned})",
                      "mechanism": refusals.Recovery.FROM_SELECTION},
             recorded={"identification_reason": block.get("failure_reason")},
         )
@@ -5108,6 +5111,7 @@ def _try_selection_recovery_estimate(
             treatment=x, outcome=y,
             z_plus=z_plus, z_minus=z_minus,
             selection_nodes=selection_nodes, selected_values=sel_vals,
+            given=dict((name, value) for name, value in stratum),
             ci_bootstrap=ci_bootstrap, random_state=random_state,
             cluster=cluster if (cluster is None or cluster in contract.data.columns) else None,
         )
@@ -5135,6 +5139,11 @@ def _try_selection_recovery_estimate(
         "adjustment": list(est.z_plus) + list(est.z_minus),
         "treatment": est.treatment,
         "outcome": est.outcome,
+        # The stratum the number is about, when the question names one --
+        # held to the question by the frame, and to the tables below by the
+        # numeric verifier.
+        **({"given": [[name, level] for name, level in est.given]}
+           if est.given else {}),
         # selection-backdoor recovery detail (audit trail + verifier inputs)
         "selection_recovery_numeric": {
             "reference_sample_size": est.reference_sample_size,

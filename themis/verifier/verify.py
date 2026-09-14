@@ -5973,7 +5973,22 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
     def _cond(*parts) -> str:
         return ", ".join(p for p in parts if p)
 
-    def _rederive_ledger(x_pred, s_nodes, zp, zm):
+    def _rederive_ledger(x_pred, s_nodes, zp, zm, strata=()):
+        if strata:
+            # The two weights the conditional formula uses, each read off
+            # the biased sample when selection leaves it alone: P(z⁻ | x, z⁺)
+            # when S ⊥ Z⁻ | X, Z⁺, and P(z⁺∖c | c) when S ⊥ Z⁺∖C | C.
+            zp_names = [n.predicate for n in zp]
+            zm_names = [n.predicate for n in zm]
+            rest = [n for n in zp if n not in strata]
+            if not all(_dsep(s, m, (x,) + tuple(zp))
+                       for m in zm for s in s_nodes):
+                return [_unbiased(
+                    f"P({_cond(x_pred, _names(zp_names), _names(zm_names))})")]
+            if not all(_dsep(s, r, tuple(strata))
+                       for r in rest for s in s_nodes):
+                return [_unbiased(f"P({_names(zp_names)})")]
+            return []
         z_all = list(zp) + list(zm)
         if not z_all:
             return []
@@ -5998,8 +6013,25 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
         return {"vocabulary": "unbiased_distribution", "token": "unbiased",
                 "said": {"expression": expression}}
 
-    def _rederive_effect_formula(x_pred, y_pred, zp, zm):
+    def _rederive_effect_formula(x_pred, y_pred, zp, zm, condition=()):
         zpn, zmn = _names(zp), _names(zm)
+        if condition:
+            c = _names(condition)
+            rest = list(zp)
+            for name in condition:
+                rest.remove(name)
+            restn = _names(rest)
+            lhs = f"P({y_pred} | do({x_pred}), {c})"
+            inner = (
+                f"P({y_pred} | {_cond(x_pred, zpn)}, S)" if not zm else
+                f"Σ_{{{zmn}}} P({y_pred} | {_cond(x_pred, zpn, zmn)}, S) · "
+                f"P({zmn} | {_cond(x_pred, zpn)})"
+            )
+            if not rest:
+                return f"{lhs} = {inner}"
+            if not zm:
+                return f"{lhs} = Σ_{{{restn}}} {inner} · P({restn} | {c})"
+            return f"{lhs} = Σ_{{{restn}}} [ {inner} ] · P({restn} | {c})"
         if not zp and not zm:
             return f"P({y_pred} | do({x_pred})) = P({y_pred} | {x_pred}, S)"
         if not zm:
@@ -6019,16 +6051,18 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             f"· P({zmn} | {_cond(x_pred, zpn)}) ] · P({zpn})"
         )
 
-    def _sbd_admissible_exists(x_node, y_node, s_nodes, max_size):
+    def _sbd_admissible_exists(x_node, y_node, s_nodes, max_size, strata=()):
         from itertools import combinations
         desc_x = nx.descendants(graph, x_node)
-        forbidden = {x_node, y_node} | set(s_nodes)
+        forbidden = {x_node, y_node} | set(s_nodes) | set(strata)
         cands = [n for n in graph.nodes if n not in forbidden]
-        for size in range(0, min(len(cands), max_size) + 1):
+        # The condition is in every set, so it takes its share first.
+        for size in range(0, min(len(cands), max_size - len(strata)) + 1):
             for combo in combinations(cands, size):
-                if not _s_all_dsep_y(s_nodes, y_node, (x_node,) + combo):
+                z = combo + tuple(strata)
+                if not _s_all_dsep_y(s_nodes, y_node, (x_node,) + z):
                     continue
-                zp = [n for n in combo if n not in desc_x]
+                zp = [n for n in z if n not in desc_x]
                 if _zplus_blocks(x_node, y_node, zp):
                     return True
         return False
@@ -6061,6 +6095,19 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             if len(set(reading)) == len(reading):
                 yield reading
 
+    def _with_strata(names, rest_reading):
+        """Z⁺ in the block's order: the question's condition as the
+        question's own nodes, every other name as it was read."""
+        pending, rest, out = list(strata), iter(rest_reading), []
+        for name in names:
+            hit = next((c for c in pending if c.predicate == name), None)
+            if hit is not None:
+                pending.remove(hit)
+                out.append(hit)
+            else:
+                out.append(next(rest))
+        return tuple(out)
+
     def _some_reading_holds(failures) -> None:
         """Refuse unless one reading breaks nothing.
 
@@ -6086,7 +6133,7 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             return "SBD condition (1) fails: S is not d-separated from Y | X,Z"
         if not _zplus_blocks(x, y, zp):
             return "SBD condition (2) fails: Z⁺ leaves a back-door path open"
-        ledger = _rederive_ledger(x.predicate, s_nodes, zp, zm)
+        ledger = _rederive_ledger(x.predicate, s_nodes, zp, zm, strata)
         if ledger != list(block["external_data_needed"]):
             return (
                 f"external_data_needed mismatch: recomputed {ledger}, "
@@ -6173,6 +6220,33 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
         _hold("recovery_formula", "")
         _hold("failure_reason", shortfall)
 
+    # The subpopulation the verdict is about is the question's as well. An
+    # effect question's ``given`` is a stratum, and the verdict, its formula
+    # and its ledger are about P(y | do(x), given); a conditional question's
+    # one given is its treatment and names no stratum. With no slot for it,
+    # every conditional question was answered with the population's verdict.
+    strata = (tuple(sorted((g.atom for g in given), key=lambda a: a.predicate))
+              if kind == "effect" else ())
+    condition = [c.predicate for c in strata]
+    if block.get("given", []) != condition or ("given" in block and not condition):
+        _err(f"given {block.get('given')!r} is not the subpopulation the "
+             f"question conditions on ({condition!r})")
+    stray = [c for c in strata if c not in graph or c in taken or c in desc_x]
+    if stray:
+        # Not a stratum this criterion can adjust for, so no set holding it
+        # is a witness, and the verdict is that whatever a search would say.
+        if recoverable:
+            _err(f"claims the effect recoverable within the subpopulation on "
+                 f"{[c.predicate for c in stray]!r}, which is not upstream of "
+                 f"the treatment and cannot be adjusted for")
+        from .. import language
+        _hold_nothing_found(language.spelt(
+            "selection_recovery_shortfall",
+            "given_is_not_upstream_of_the_treatment",
+            variables=[c.predicate for c in stray]))
+        _hold("complete_criterion", False)
+        return
+
     if kind == "effect":
         if recoverable:
             if criterion != "selection_backdoor":
@@ -6183,13 +6257,22 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             if len(zp_preds) + len(zm_preds) > budget:
                 _err(f"adjustment set of {len(zp_preds) + len(zm_preds)} is "
                      f"larger than the recorded search_budget {budget}")
+            # The condition is read as the question's own nodes, and only the
+            # rest of Z⁺ as whatever nodes its names can mean.
+            rest_preds = list(zp_preds)
+            for c in strata:
+                if c.predicate not in rest_preds:
+                    _err(f"z_plus {zp_preds!r} does not hold the question's "
+                         f"condition {c.predicate!r}")
+                rest_preds.remove(c.predicate)
             _some_reading_holds(
                 _effect_reading_breaks(zp, zm)
-                for zp in _readings(zp_preds, taken)
+                for rest in _readings(rest_preds, taken | set(strata))
+                for zp in (_with_strata(zp_preds, rest),)
                 for zm in _readings(zm_preds, taken | set(zp))
             )
             formula = _rederive_effect_formula(
-                x.predicate, y.predicate, zp_preds, zm_preds
+                x.predicate, y.predicate, zp_preds, zm_preds, condition
             )
             if formula != block["recovery_formula"]:
                 _err(
@@ -6199,7 +6282,7 @@ def verify_selection_recovery(block: dict, graph, observations, query) -> None:
             _hold("adjustment_set", zp_preds + zm_preds)
             _hold("failure_reason", None)
         else:
-            if _sbd_admissible_exists(x, y, s_nodes, budget):
+            if _sbd_admissible_exists(x, y, s_nodes, budget, strata):
                 _err(
                     f"block claims P(y|do(x)) is not SBD-recoverable within "
                     f"|Z| <= {budget}, but an admissible selection-backdoor "

@@ -3831,6 +3831,10 @@ export const REMEDY_WORDS: Record<string, Words> = {
 }
 
 export const SELECTION_SHORTFALL_WORDS: Record<string, Words> = {
+  given_is_not_upstream_of_the_treatment: {
+    zh: '问题给定的 {variables} 不是处理上游、可以调整的变量，这个判据给不出这个子总体里的效应',
+    en: 'the question conditions on {variables}, which is not a variable upstream of the treatment that can be adjusted for, so this criterion gives no effect within that subpopulation',
+  },
   no_admissible_selection_backdoor_set: {
     zh: '没有一组已观测的变量同时满足选择-后门的两个条件',
     en: 'no observed set satisfies both selection-backdoor conditions',

@@ -109,6 +109,9 @@ class SelectionRecoveryEstimate:
     mu_control: float
     sufficient_statistics: dict = field(default_factory=dict)
     cluster: str | None = None
+    #: The stratum the question conditions on, as ``(column, level)`` pairs
+    #: in the question's order. Empty is the whole population.
+    given: tuple = ()
     #: The replicates this interval was taken over — see
     #: :class:`themis.estimation.resample.Draws`. ``None`` when no
     #: bootstrap ran, which is the one case with no answer to give.
@@ -137,6 +140,7 @@ def estimate_selection_recovery(
     z_minus: tuple[str, ...],
     selection_nodes: tuple[str, ...],
     selected_values: dict | None = None,
+    given: dict | None = None,
     ci_bootstrap: int = 500,
     ci_level: float = CONFIDENCE_LEVEL,
     random_state: int = 42,
@@ -155,6 +159,9 @@ def estimate_selection_recovery(
     z_plus / z_minus: the SBD partition (non-descendants / descendants of X).
     selection_nodes / selected_values: the S node(s) and the value(s) that
         define "selected"; default value is ``True`` for any node not listed.
+    given: the stratum the question conditions on, ``{column: level}``. Each
+        column has to be in ``z_plus``; both samples are restricted to it and
+        the point is the stratum's effect, P(y | do(x), given).
     ci_bootstrap / ci_level / random_state / cluster: percentile bootstrap
         controls; ``cluster`` names a cluster-id column in the biased sample.
 
@@ -214,6 +221,31 @@ def estimate_selection_recovery(
         if v in rdf.columns:
             _require_discrete(rdf[v], v)
 
+    # 3b. The stratum the question conditions on. Every condition is inside
+    #     Z⁺, so once both samples hold only its rows the formula's P(z⁺) is
+    #     P(z⁺∖c | c), and every risk and inner weight is taken within it --
+    #     the same sum, about the stratum asked. Without this a question
+    #     about one stratum was answered with the population's number.
+    strata = {c: envelope_scalar(v) for c, v in (given or {}).items()}
+    outside = sorted(set(strata) - set(zp_vars))
+    if outside:
+        raise ValueError(
+            f"given {outside} is not in z_plus {list(zp_vars)}: a stratum is "
+            f"recovered within only when it is adjusted for")
+    if strata:
+        keys = tuple(strata)
+        levels = tuple(strata[k] for k in keys)
+        bdf = bdf.loc[_stratum_mask(bdf, keys, levels)].reset_index(drop=True)
+        rdf = rdf.loc[_stratum_mask(rdf, keys, levels)].reset_index(drop=True)
+        for frame, sample in ((bdf, "biased"), (rdf, "reference")):
+            if frame.empty:
+                raise EstimatorFailure(
+                    Refusal.INSUFFICIENT_SUPPORT,
+                    cells=[dict(strata)],
+                    quantity="P(" + ", ".join(keys) + ")",
+                    recorded={"sample": sample},
+                )
+
     groups = (
         cluster_labels(bdf, cluster, expected_n=len(bdf))
         if cluster is not None else None
@@ -263,6 +295,7 @@ def estimate_selection_recovery(
             "biased_restricted": bool(restricted),
         },
         cluster=cluster,
+        given=tuple(strata.items()),
         draws=draws,
     )
 

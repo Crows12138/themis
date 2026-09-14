@@ -109,6 +109,19 @@ class Shortfall(language.Word, vocabulary="selection_recovery_shortfall",
             "en": "no observed set satisfies both selection-backdoor "
                   "conditions",
         })
+    #: The question names a subpopulation, and the criterion reaches a
+    #: subpopulation's effect only through a condition it can adjust for:
+    #: a node upstream of the treatment that is neither the treatment, the
+    #: outcome nor a selection node.
+    GIVEN_IS_NOT_UPSTREAM_OF_THE_TREATMENT = (
+        "given_is_not_upstream_of_the_treatment", {
+            "zh": "问题给定的 {variables} 不是处理上游、可以调整的变量，"
+                  "这个判据给不出这个子总体里的效应",
+            "en": "the question conditions on {variables}, which is not a "
+                  "variable upstream of the treatment that can be adjusted "
+                  "for, so this criterion gives no effect within that "
+                  "subpopulation",
+        })
 
 
 @unique
@@ -180,6 +193,12 @@ class SelectionRecoveryResult:
     #: verdict, including the ones the search never ran for, because what it
     #: states is how this analysis was configured.
     search_budget: int = 0
+    #: The subpopulation the question conditions on, sorted by name. The
+    #: verdict, the formula and the ledger are about P(y | do(x), given)
+    #: when it is not empty, and about the whole population only when it
+    #: is -- a verdict with no slot for it answered every conditional
+    #: question with the population's.
+    given: tuple[Atom, ...] = ()
 
 
 # ============================================================= helpers
@@ -339,7 +358,7 @@ def recover_conditional(
 
 
 def _effect_formula_repr(
-    x: Atom, y: Atom, z_plus, z_minus,
+    x: Atom, y: Atom, z_plus, z_minus, given=(),
 ) -> str:
     """Render the SBD recovery formula (Theorem 3.5) symbolically.
 
@@ -348,6 +367,11 @@ def _effect_formula_repr(
       Z⁺, ∅:  P(y|do(x)) = Σ_{z⁺} P(y|x,z⁺,S) · P(z⁺)
       ∅, Z⁻:  P(y|do(x)) = Σ_{z⁻} P(y|x,z⁻,S) · P(z⁻|x)
       Z⁺, Z⁻: P(y|do(x)) = Σ_{z⁺}[ Σ_{z⁻} P(y|x,z⁺,z⁻,S)·P(z⁻|x,z⁺) ]·P(z⁺)
+
+    Under a condition C ⊆ Z⁺ the target is P(y|do(x), c). Z⁺ holds no
+    descendant of X, so do(x) leaves its distribution alone and the outer
+    weight is P(z⁺∖c | c) where it was P(z⁺); the inner sum is unchanged.
+    Four shapes again, by whether Z⁺∖C and Z⁻ are present.
     """
     yv, xv = y.predicate, x.predicate
     zp, zm = _names(z_plus), _names(z_minus)
@@ -356,6 +380,20 @@ def _effect_formula_repr(
         # join the conditioning list, dropping empty pieces
         return ", ".join(p for p in parts if p)
 
+    if given:
+        c = _names(given)
+        rest = _names(a for a in z_plus if a not in set(given))
+        lhs = f"P({yv} | do({xv}), {c})"
+        inner = (
+            f"P({yv} | {_cond(xv, zp)}, S)" if not z_minus else
+            f"Σ_{{{zm}}} P({yv} | {_cond(xv, zp, zm)}, S) · "
+            f"P({zm} | {_cond(xv, zp)})"
+        )
+        if not rest:
+            return f"{lhs} = {inner}"
+        if not z_minus:
+            return f"{lhs} = Σ_{{{rest}}} {inner} · P({rest} | {c})"
+        return f"{lhs} = Σ_{{{rest}}} [ {inner} ] · P({rest} | {c})"
     if not z_plus and not z_minus:
         return f"P({yv} | do({xv})) = P({yv} | {xv}, S)"
     if not z_minus:
@@ -376,14 +414,36 @@ def _effect_formula_repr(
 
 
 def _external_ledger(
-    graph: nx.DiGraph, x: Atom, s_nodes, z_plus, z_minus,
+    graph: nx.DiGraph, x: Atom, s_nodes, z_plus, z_minus, given=(),
 ) -> tuple[language.Statement, ...]:
     """Unbiased distributions the SBD formula needs beyond P(v | S).
 
     Per Assumption 3.4 condition (3): the adjustment weights come from
     unbiased data T. They collapse to biased marginals when S ⊥ Z, so no
     external data is needed in that case.
+
+    Under a condition C the weights are the two that formula uses, each
+    taken off the biased sample when selection leaves it alone:
+    P(z⁻ | x, z⁺) when S ⊥ Z⁻ | X, Z⁺, and P(z⁺∖c | c) when S ⊥ Z⁺∖C | C.
+    The first one it does not leave alone names what the unbiased sample
+    has to supply -- the joint P(x, z⁺, z⁻) gives both. A weight over
+    nothing is no weight.
     """
+    if given:
+        rest = tuple(a for a in z_plus if a not in set(given))
+        within = (x, *z_plus)
+        if not all(_dsep(graph, s, m, within)
+                   for m in z_minus for s in s_nodes):
+            joint = ", ".join(
+                p for p in (x.predicate, _names(z_plus), _names(z_minus)) if p
+            )
+            return (language.state(External.UNBIASED,
+                                   expression=f"P({joint})"),)
+        if not all(_dsep(graph, s, r, tuple(given))
+                   for r in rest for s in s_nodes):
+            return (language.state(External.UNBIASED,
+                                   expression=f"P({_names(z_plus)})"),)
+        return ()
     z_all = tuple(z_plus) + tuple(z_minus)
     if not z_all:
         return ()
@@ -407,6 +467,7 @@ def recover_effect(
     y: Atom,
     s_nodes: tuple[Atom, ...],
     max_size: int = 4,
+    given: tuple[Atom, ...] = (),
 ) -> SelectionRecoveryResult:
     """Recoverability of the causal effect P(y | do(x)) under selection bias.
 
@@ -414,8 +475,16 @@ def recover_effect(
     sufficient). Among equally small admissible sets it prefers one that
     needs no external data. A ``recoverable=False`` verdict means "not
     via selection-backdoor adjustment", not "provably non-recoverable".
+
+    ``given`` is the subpopulation the question conditions on. The search
+    then holds it inside Z⁺, counted against ``max_size``, and the verdict
+    is about P(y | do(x), given). A condition that is not upstream of the
+    treatment -- or is the treatment, the outcome or a selection node -- is
+    not one this criterion can adjust for, and the verdict says so instead
+    of answering for the whole population.
     """
     kind = "effect"
+    given = _sorted_atoms(given)
     if x not in graph or y not in graph:
         return SelectionRecoveryResult(
             query_kind=kind, recoverable=False, criterion=None,
@@ -442,18 +511,35 @@ def recover_effect(
 
     descendants_x = nx.descendants(graph, x)
     forbidden = {x, y} | set(s_nodes)
-    candidates = [n for n in graph.nodes if n not in forbidden]
+    stray = tuple(c for c in given
+                  if c not in graph or c in forbidden or c in descendants_x)
+    if stray:
+        return SelectionRecoveryResult(
+            query_kind=kind, recoverable=False, criterion=None,
+            selection_nodes=s_nodes, adjustment_set=(), z_plus=(), z_minus=(),
+            formula_repr="", external_data_needed=(),
+            failure_reason=language.state(
+                Shortfall.GIVEN_IS_NOT_UPSTREAM_OF_THE_TREATMENT,
+                variables=[c.predicate for c in stray]),
+            search_budget=max_size,
+            complete_criterion=False,
+            given=given,
+        )
+    candidates = [n for n in graph.nodes
+                  if n not in forbidden and n not in set(given)]
 
     # The loop stops at whichever is smaller, but ``max_size`` itself is
     # left alone: it is what the verdict is relative to and travels on the
     # result, and a budget rewritten to "however many candidates there
-    # happened to be" would say something else.
-    for size in range(0, min(len(candidates), max_size) + 1):
+    # happened to be" would say something else. The condition is part of
+    # every set looked at, so it takes its share of the budget first.
+    for size in range(0, min(len(candidates), max_size - len(given)) + 1):
         admissible: list[tuple[tuple[Atom, ...], tuple[Atom, ...]]] = []
         for combo in combinations(candidates, size):
-            z = frozenset(combo)
+            z = frozenset(combo) | frozenset(given)
             # SBD condition (1): S ⊥ Y | {X, Z}
-            if not _s_all_dsep_from_y(graph, s_nodes, y, (x,) + tuple(combo)):
+            if not _s_all_dsep_from_y(graph, s_nodes, y,
+                                      (x,) + tuple(combo) + given):
                 continue
             z_plus = _sorted_atoms(z - descendants_x)
             z_minus = _sorted_atoms(z & descendants_x)
@@ -468,9 +554,11 @@ def recover_effect(
         # is always available as the fallback, and the scan below only ever
         # replaces it with a cheaper one.
         z_plus, z_minus = admissible[0]
-        chosen_ledger = _external_ledger(graph, x, s_nodes, z_plus, z_minus)
+        chosen_ledger = _external_ledger(graph, x, s_nodes, z_plus, z_minus,
+                                         given)
         for cand_plus, cand_minus in (admissible[1:] if chosen_ledger else ()):
-            ledger = _external_ledger(graph, x, s_nodes, cand_plus, cand_minus)
+            ledger = _external_ledger(graph, x, s_nodes, cand_plus, cand_minus,
+                                      given)
             if not ledger:
                 z_plus, z_minus, chosen_ledger = cand_plus, cand_minus, ledger
                 break
@@ -479,11 +567,12 @@ def recover_effect(
             selection_nodes=s_nodes,
             adjustment_set=tuple(z_plus) + tuple(z_minus),
             z_plus=z_plus, z_minus=z_minus,
-            formula_repr=_effect_formula_repr(x, y, z_plus, z_minus),
+            formula_repr=_effect_formula_repr(x, y, z_plus, z_minus, given),
             external_data_needed=chosen_ledger,
             failure_reason=None,
             search_budget=max_size,
             complete_criterion=False,
+            given=given,
         )
 
     return SelectionRecoveryResult(
@@ -500,4 +589,5 @@ def recover_effect(
         # sentence above, so a reader states it in their own words and a
         # caller choosing what to try next can branch on it.
         complete_criterion=False,
+        given=given,
     )

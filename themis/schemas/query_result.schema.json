@@ -175,6 +175,7 @@
             "query_kind": { "enum": ["conditional", "effect"] },
             "treatment": { "type": "string" },
             "outcome": { "type": "string" },
+            "given": { "type": "array", "items": { "type": "string" }, "description": "The subpopulation an effect question conditions on, by name and sorted, written only when the question names one. The verdict, the recovery formula and external_data_needed are then about P(y|do(x), given) — the condition held inside z_plus, the outer weight P(z_plus minus given | given) — and a condition that is not upstream of the treatment is a negative verdict of its own. Absent is the whole population. A conditional question's one given is its treatment and names no subpopulation." },
             "recoverable": { "type": "boolean" },
             "criterion": { "enum": ["conditional_independence", "external_data", "selection_backdoor", null] },
             "selection_nodes": { "type": "array", "items": { "type": "string" } },
@@ -1847,7 +1848,7 @@
         },
         "given": {
           "type": "array",
-          "description": "general_id_idc_plugin only: the Z=z stratum the conditional ATE P(Y|do(X),Z=z) is taken within. Each entry is a [predicate, value] pair.",
+          "description": "The Z=z stratum a conditional ATE P(Y|do(X),Z=z) is taken within, written when the question conditions on one — by general_id_idc_plugin and by selection_backdoor_recovery. Each entry is a [predicate, value] pair, in the question's order.",
           "items": {
             "type": "array",
             "minItems": 2,
