@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-19627 passed / 518 skipped, warning-clean
+19632 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,32 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #638 验证器按不带时间的拼法回读节点：带时间下标的程序大面积误拒（2026-09-14）
+
+**现象。** 把语料 242 个不带时间的程序逐个改写成每个原子都带 `time_index: relative 0`——同一个问题、同一个时间片——生产者答得一模一样（0 崩溃、0 状态变化），
+门却拒掉 109 个原本全收的诚实答案（只数第一处拒）：identification 57、gap_names_check 31、proximal_estimand 14、joint_identification 5、longitudinal_identification 2。
+prompts 的时间例子本来就教 LLM 把滞后写进 `time_index`，这是用户碰得到的形状。
+
+**根因。** 块在信封上点名节点用 `graph_projection.atom_label`：谓词、参数，程序按时间展开时再加上是哪一刻（`z(u)@t-1`）。
+验证器把名字读回节点时，六个复核各自临时拼了一张键为「谓词(参数)」的表（identification、longitudinal、mediation、joint 四张 `label`，proximal、feedback 两个 `_label`），没有时间：
+带 `@t` 的名字查不到节点，同一变量的两个时刻挤进一个键、`setdefault` 留下先遇到的那个。名字规则是同一个错写在词上：`m(me)@t` 由 `t` 拼成，而 gap 的名字只拿去对问题的谓词和对象。
+
+**为什么是根因不是表象。** 不带时间的程序上两种拼法恰好是同一个字符串，语料全是这种，所以一直没暴露；验证器里早有与生产者逐字一致的完整拼法 `rules._atom_label_verifier`，缺的是回读走它。
+逐处补 `@t` 会在六处各写一遍时间记号，下一个复核照旧自己拼。
+
+**结构。** `rules._verifier_nodes_by_label(graph)`：图的节点按信封写它的名字建表，全验证器唯一的「名字→节点」；四张 `label` 表改读它，proximal、feedback 直接用 `_atom_label_verifier`。
+`gap_claim_rules.words_its_names_are_spelt_with`：名字拼写用到的词（按同一拼法切词，时间记号在内），名字规则改对它；`words_the_problem_uses` 不动——它另一个读者（样本量规则）问的是「去测哪个变量」，`t` 不是变量。两者共用 `_the_problems_atoms`。
+
+**演练。** 补丁后同一探针：242 个改写程序门的判定与未加时间时逐个相同（109→0）；混合时间的混杂小例全收。
+反面：语料 243 个上下文里，旧表与新表逐个相等 242、只差那 1 个本就带时间的答案（`cause_via_directed_path#3d935c`，新增 `t`）；词集同样 242 相等、差 1。不带时间的程序上拒绝一个不少。
+
+**没做（量到了）。** 选择恢复与缺失数据两个块按**谓词**点名（生产者就写谓词，数值端拿它当列名）：补丁后缺失数据探针的诱饵露出来——`x@-1` 诱饵验证器重算不可恢复，`y@-1` 诱饵生产者公式丢 `R_y`、门拒；
+选择恢复 `m@-1` 诱饵仍误拒。那是数据层谓词粒度的另一条，另开。语料 `needs_investigation:effect:none#6898ab` 不带数据重跑时被 investigation_item_check 拒（`do(raise_amount=true)` 而域是 [0, 5, 100]），与时间无关，也另开。
+
+**账。** 5 测试；基线 19627→**19632**。新文件 `test_a_node_is_read_back_by_the_name_the_envelope_writes`：语料改写前后门说的一样（242）、验证器拼法等于生产者拼法、
+两时刻是两个节点、调整集按它写的时刻核（换成同名另一时刻→不满足后门准则，写成不带时间→不是图里的节点）、带时间名字的词含 `t` 而问题的词不含。
+全量跑出 1 挂：架构图数 `rules.py` / `verify.py` 行数（12527→12542、7307→7306），按测试给的命令重建 spec 并渲染页面，该文件 23 过；基线按全量 19631 过加这 1 条计。
 
 ### #637 问题的角色不止干预和结局：proximal 问题的潜在混杂与两侧代理（2026-09-14）
 

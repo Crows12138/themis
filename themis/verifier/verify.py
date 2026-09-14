@@ -4899,6 +4899,7 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     from .rules import (
         _verifier_directed_descendants,
         _verifier_is_m_connected,
+        _verifier_nodes_by_label,
         iv_criterion_holds,
     )
 
@@ -4926,10 +4927,7 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     )
 
     bidir = frozenset(bidirected or ())
-    label: dict = {}
-    for n in graph.nodes:
-        args = ",".join(a.name for a in n.args)
-        label.setdefault(f"{n.predicate}({args})", n)
+    label = _verifier_nodes_by_label(graph)
 
     def _node(name: str):
         n = label.get(name)
@@ -5151,14 +5149,13 @@ def verify_proximal_estimand(block: dict, query) -> None:
     first is not a fact about anything.
     """
 
+    from .rules import _atom_label_verifier as _label
+
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
             f"proximal_estimand: {msg}", step_index=None,
             rule="proximal_estimand",
         )
-
-    def _label(atom) -> str:
-        return f"{atom.predicate}({','.join(a.name for a in atom.args)})"
 
     for field, declared in (
         ("treatment", getattr(query, "treatment", None)),
@@ -5235,7 +5232,11 @@ def verify_longitudinal_identification(
     block records only whether all of them held. The gap beside it names
     the first failure, and that is the gap report's own object.
     """
-    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+    from .rules import (
+        _verifier_directed_descendants,
+        _verifier_is_m_connected,
+        _verifier_nodes_by_label,
+    )
 
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
@@ -5243,10 +5244,7 @@ def verify_longitudinal_identification(
             rule="longitudinal_identification",
         )
 
-    label: dict = {}
-    for node in graph.nodes:
-        label.setdefault(
-            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+    label = _verifier_nodes_by_label(graph)
 
     def _node(name: str):
         found = label.get(name)
@@ -5349,7 +5347,11 @@ def verify_mediation_decomposition(
     """
     from itertools import combinations
 
-    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+    from .rules import (
+        _verifier_directed_descendants,
+        _verifier_is_m_connected,
+        _verifier_nodes_by_label,
+    )
 
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
@@ -5357,10 +5359,7 @@ def verify_mediation_decomposition(
             rule="mediation_decomposition",
         )
 
-    label: dict = {}
-    for node in graph.nodes:
-        label.setdefault(
-            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+    label = _verifier_nodes_by_label(graph)
 
     def _node(name: str):
         found = label.get(name)
@@ -5650,7 +5649,11 @@ def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
     """
     from itertools import combinations
 
-    from .rules import _verifier_directed_descendants, _verifier_is_m_connected
+    from .rules import (
+        _verifier_directed_descendants,
+        _verifier_is_m_connected,
+        _verifier_nodes_by_label,
+    )
 
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
@@ -5658,10 +5661,7 @@ def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
             rule="joint_identification",
         )
 
-    label: dict = {}
-    for node in graph.nodes:
-        label.setdefault(
-            f"{node.predicate}({','.join(a.name for a in node.args)})", node)
+    label = _verifier_nodes_by_label(graph)
 
     def _node(name: str):
         found = label.get(name)
@@ -5767,13 +5767,12 @@ def verify_feedback_loop(
     what an independent re-derivation is defined against.
     """
 
+    from .rules import _atom_label_verifier as _label
+
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
             f"feedback_loop: {msg}", step_index=None, rule="feedback_loop",
         )
-
-    def _label(atom) -> str:
-        return f"{atom.predicate}({','.join(a.name for a in atom.args)})"
 
     declared = {frozenset(_label(a) for a in pair)
                 for pair in (feedback or frozenset())}

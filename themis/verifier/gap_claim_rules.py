@@ -840,6 +840,15 @@ def names_said(report: Any) -> Iterator[tuple[str, Any]]:
                 yield f"{said_at}.{key}", value
 
 
+def _the_problems_atoms(context) -> set:
+    atoms = set(context.graph.nodes)
+    if context.theta is not None:
+        atoms |= set(context.theta.domains)
+    for pair in getattr(context, "bidirected", ()) or ():
+        atoms |= set(pair)
+    return atoms
+
+
 def words_the_problem_uses(context) -> set[str]:
     """Every word the verifier knows this problem is written in.
 
@@ -850,19 +859,28 @@ def words_the_problem_uses(context) -> set[str]:
     latent pair may name an atom that is in neither. Asking one source
     reads "took part in no edge" as "does not exist".
     """
-    atoms = set(context.graph.nodes)
-    if context.theta is not None:
-        atoms |= set(context.theta.domains)
-    for pair in getattr(context, "bidirected", ()) or ():
-        atoms |= set(pair)
     words: set[str] = set()
-    for atom in atoms:
+    for atom in _the_problems_atoms(context):
         words.add(atom.predicate)
         for term in getattr(atom, "args", ()) or ():
             name = getattr(term, "name", None)
             if name:
                 words.add(str(name))
     return words
+
+
+def words_its_names_are_spelt_with(context) -> set[str]:
+    """Every word a name this problem has is written with.
+
+    A name is an atom as the envelope spells it, and on a program
+    unrolled in time the spelling says when: ``m(me)@t-1``. So the words
+    of the names are the problem's words and the notation for a time.
+    Kept apart from :func:`words_the_problem_uses` rather than folded into
+    it, because its other reader asks for a variable to measure, and
+    ``t`` is not a variable.
+    """
+    return {word for atom in _the_problems_atoms(context)
+            for word in _IDENT.findall(_atom_label_verifier(atom))}
 
 
 def verify_gap_quotes(result: Mapping, context) -> None:
@@ -952,7 +970,7 @@ def verify_gap_names(result: Mapping, context) -> None:
     report = result.get("data_gap_report")
     if not isinstance(report, Mapping):
         return
-    known = words_the_problem_uses(context)
+    known = words_its_names_are_spelt_with(context)
     for where, value in names_said(report):
         if not isinstance(value, str) or not value.strip():
             raise VerificationError(

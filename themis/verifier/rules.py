@@ -8119,6 +8119,21 @@ def _atom_label_verifier(atom: Atom) -> str:
     return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
+def _verifier_nodes_by_label(graph) -> dict:
+    """The graph's nodes under the name an envelope writes each one with.
+
+    A block names a node the way ``_atom_label_verifier`` spells it, time
+    included, so the way back from a name to a node is that spelling and
+    nothing shorter. Six re-derivations each kept a map of their own keyed
+    on the predicate and its arguments. On an untimed program the two
+    spellings are the same string, which is every answer the corpus holds;
+    on a program unrolled in time every name carrying ``@t`` named nothing,
+    and two times of one variable shared a key the map settled by keeping
+    whichever node it met first.
+    """
+    return {_atom_label_verifier(node): node for node in graph.nodes}
+
+
 def _validate_path_as_tuple_of_atoms(
     path,
     step_index: int,
