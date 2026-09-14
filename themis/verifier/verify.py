@@ -5218,7 +5218,10 @@ def verify_longitudinal_identification(
     DECLARED. Treatments, outcome and per-time covariate blocks all come
     from ``options.longitudinal``; a block naming others describes a
     question nobody asked, and the order is part of the description because
-    the history is built by walking it.
+    the history is built by walking it. That reading needs each declared
+    name to be one node: on a program unrolled in time a column's variable
+    has a node per step, and a block naming one of them names a step the
+    declaration never chose.
 
     The second is the criterion itself, per time. H_k is the measured
     history — every covariate block up to and including k, plus the
@@ -5233,6 +5236,7 @@ def verify_longitudinal_identification(
     the first failure, and that is the gap report's own object.
     """
     from .rules import (
+        _atom_label_verifier,
         _verifier_directed_descendants,
         _verifier_is_m_connected,
         _verifier_nodes_by_label,
@@ -5253,6 +5257,18 @@ def verify_longitudinal_identification(
         return found
 
     declared = (spec or {}) if isinstance(spec, dict) else {}
+    held_at: dict = {}
+    for node in graph.nodes:
+        held_at.setdefault(node.predicate, []).append(node)
+    for name in (*(declared.get("treatments") or ()), declared.get("outcome"),
+                 *(c for blk in declared.get("confounders_by_time") or ()
+                   for c in blk)):
+        nodes = held_at.get(name, ()) if isinstance(name, str) else ()
+        if len(nodes) > 1:
+            _err(f"is written for a declaration naming {name!r}, which this "
+                 f"graph holds at {len(nodes)} nodes ("
+                 f"{', '.join(sorted(_atom_label_verifier(n) for n in nodes))}"
+                 f"); which of them the declaration meant is written nowhere")
     for field, stated in (
         ("treatments", [t.predicate for t in
                         (_node(s) for s in block.get("treatments") or ())]),

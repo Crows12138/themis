@@ -1397,9 +1397,23 @@ def test_the_declared_remainder_is_what_it_is():
     negative verdict re-searched about the wrong nodes still came out
     negative. Both are named by the premises -- the question and the
     observations -- and are read from there now.
+
+    Then the count went up by 22 and no rule changed. A species was added
+    to the vocabulary an ask's need is drawn from, second in its declared
+    order, and the lies a vocabulary leaf is told are spread across that
+    order, so the second and the third lie each moved by one member. On
+    18 rows the second now tells an ask whose effect is reachable only by
+    an instrument, or is not identified, that what it needed was a joint
+    effect identified: a need repaired through the same gap, so the
+    species check passes, and no other record disagrees. A request's
+    note is compared with nothing, and an item only with a
+    missing_information row of its own name, which an answer reached by
+    an instrument does not have. 26 leaves are declared for that. On 3
+    rows a lie moved off a need nothing held, and 4 leave. Which need an
+    ask names where the answer writes it once is the question still open.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2142, total
+    assert total == 2164, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

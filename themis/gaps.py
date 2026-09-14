@@ -151,6 +151,10 @@ class Need(EnvelopeName):
     ATOM_NOT_IN_GRAPH = (
         "atom_not_in_graph", GapKind.MISSING_STRUCTURAL_INPUT,
         "a query named a variable that is not in the instantiated set V")
+    NAME_HOLDS_SEVERAL_NODES = (
+        "name_holds_several_nodes", GapKind.MISSING_STRUCTURAL_INPUT,
+        "a declaration names a column whose variable the instantiated graph "
+        "holds at more than one node")
     GIVEN_VIOLATES_BACKDOOR = (
         "given_violates_backdoor", GapKind.MISSING_STRUCTURAL_INPUT,
         "identify.given holds X, Y, or a descendant of X")
@@ -348,6 +352,13 @@ SAYS: dict[str, language.Words] = {
         "zh": "{part}指到了 `{atom}`，而它不在实例化变量集 V 中",
         "en": "{part} names `{atom}`, which is not in the instantiated "
               "variable set V",
+    },
+    "name_holds_several_nodes": {
+        "zh": "{part}指到了 `{atom}`，而实例化的图里它不止一个节点：{atoms}；"
+              "这里的一个名字是一列数据，只能是其中一个，却没写是哪一个",
+        "en": "{part} names `{atom}`, and the instantiated graph holds it at "
+              "more than one node: {atoms}; a name there is one column of "
+              "data, which can be only one of them, and which is not written",
     },
     "given_violates_backdoor": {
         "zh": "identify.given 违反了后门前置条件（含 X、Y，或 X 的某个"
@@ -2220,6 +2231,11 @@ NO_SPECIES_ESCAPE: dict[Need, str] = {
         "the sentence names the atom and the instantiated set it is absent "
         "from; adding it or correcting the query is the whole repair, and "
         "a route would be that sentence twice"
+    ),
+    Need.NAME_HOLDS_SEVERAL_NODES: (
+        "the sentence names the name and every node it could be; writing "
+        "each step as a variable of its own is the whole repair, and a "
+        "route would be that sentence twice"
     ),
     Need.GIVEN_VIOLATES_BACKDOOR: (
         "the sentence lists the offending atoms, and taking them out of "

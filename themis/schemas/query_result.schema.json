@@ -3381,6 +3381,7 @@
     "need": {
       "enum": [
         "atom_not_in_graph",
+        "name_holds_several_nodes",
         "given_violates_backdoor",
         "mediator_off_the_directed_paths",
         "mediator_set_off_the_directed_paths",

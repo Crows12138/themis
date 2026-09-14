@@ -4770,10 +4770,16 @@ def _dispatch_longitudinal(
     conf_blocks_names = [list(b) for b in (spec.get("confounders_by_time") or [])]
     outcome_name = spec.get("outcome")
 
-    pred2node = {n.predicate: n for n in graph.nodes}
+    # The spec names columns, and a column is one node. On a program
+    # unrolled in time a variable has a node per step, and which of them a
+    # name meant is written nowhere -- a map keyed on the predicate kept
+    # whichever node the graph listed last.
+    nodes_named: dict = {}
+    for n in graph.nodes:
+        nodes_named.setdefault(n.predicate, []).append(n)
     all_names = [*treatment_names, outcome_name,
                  *[c for blk in conf_blocks_names for c in blk]]
-    missing_names = [nm for nm in all_names if nm not in pred2node]
+    missing_names = [nm for nm in all_names if nm not in nodes_named]
     if missing_names:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -4792,9 +4798,32 @@ def _dispatch_longitudinal(
             ),
         )
 
-    treatments = tuple(pred2node[nm] for nm in treatment_names)
-    y = pred2node[outcome_name]
-    conf_blocks = tuple(tuple(pred2node[c] for c in blk) for blk in conf_blocks_names)
+    several = [nm for nm in dict.fromkeys(all_names)
+               if len(nodes_named[nm]) > 1]
+    if several:
+        return QueryResult(
+            status=ResultStatus.NEEDS_INVESTIGATION,
+            query_kind=QueryKind.EFFECT,
+            query_id=stmt.id,
+            missing_information=tuple(
+                gaps.missing(
+                    kind=MissingKind.STRUCTURE,
+                    name=f"longitudinal:name_holds_several_nodes:{nm}",
+                    priority=Priority.HIGH,
+                    need=gaps.Need.NAME_HOLDS_SEVERAL_NODES,
+                    part=gaps.QueryPart.LONGITUDINAL_SPEC,
+                    atom=nm,
+                    atoms=", ".join(sorted(
+                        _atom_to_str(n) for n in nodes_named[nm])),
+                )
+                for nm in several
+            ),
+        )
+
+    treatments = tuple(nodes_named[nm][0] for nm in treatment_names)
+    y = nodes_named[outcome_name][0]
+    conf_blocks = tuple(tuple(nodes_named[c][0] for c in blk)
+                        for blk in conf_blocks_names)
 
     # Per-time sequential back-door admissibility. H_k accumulates the
     # measured covariates up to and including time k plus the past

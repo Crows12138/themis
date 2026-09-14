@@ -2415,6 +2415,10 @@ export const GAP_SAYS: Record<string, Words> = {
     zh: '至少有一个中介不落在有向路径 X → … → M → … → Y 上（或者这个集合是空的 / 含 X 或 Y）；请检查中介的声明或图上的边',
     en: 'at least one mediator lies off the directed paths X → … → M → … → Y (or the set is empty, or holds X or Y); check the mediator declaration or the edges in the graph',
   },
+  name_holds_several_nodes: {
+    zh: '{part}指到了 `{atom}`，而实例化的图里它不止一个节点：{atoms}；这里的一个名字是一列数据，只能是其中一个，却没写是哪一个',
+    en: '{part} names `{atom}`, and the instantiated graph holds it at more than one node: {atoms}; a name there is one column of data, which can be only one of them, and which is not written',
+  },
   no_backdoor_or_frontdoor: {
     zh: '不存在有效的后门或前门调整',
     en: 'no valid back-door or front-door adjustment exists',
