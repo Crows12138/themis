@@ -779,13 +779,17 @@ def _graph_instrument_candidates(
 ) -> set[str]:
     """Predicates this graph could offer as an instrument for X → Y.
 
-    The instrument's structural half and nothing else, read off the
-    programme's ``cause`` statements: an edge into the treatment
-    (relevance) and none into the outcome (exclusion). Transcribed here
-    rather than imported, for the same reason the response-function
-    partition below is transcribed here — a producer and an auditor that
-    share one implementation of a criterion agree by construction, and
-    agreement by construction is not evidence.
+    Read off the programme's ``cause`` and ``bidirected`` statements and
+    held to :func:`themis.verifier.rules.unconditional_instrument_holds`: an
+    edge into the treatment, and no open path to the outcome once the
+    treatment's outgoing edges are cut, with nothing conditioned. Balke-Pearl
+    is built on such an instrument. An edge in and none into the outcome is
+    not that condition -- a cause the candidate shares with the outcome
+    passes it, and the interval fitted around that candidate need not
+    contain the effect. Transcribed on this side rather than imported, for
+    the same reason the response-function partition below is -- a producer
+    and an auditor that share one implementation of a criterion agree by
+    construction, and agreement by construction is not evidence.
 
     NECESSARY, not sufficient. Whether a candidate has a finite domain to
     enumerate, and whether the model that follows is inside the
@@ -796,20 +800,33 @@ def _graph_instrument_candidates(
     row naming a variable that could not be an instrument in this graph
     at all.
     """
-    into_treatment: set[str] = set()
-    into_outcome: set[str] = set()
+    import networkx as nx
+
+    from .rules import unconditional_instrument_holds
+
+    ends = {"cause": ("from", "to"), "bidirected": ("left", "right")}
+    graph = nx.DiGraph()
+    bidirected: set[frozenset[str]] = set()
     for stmt in program.get("statements") or []:
-        if not isinstance(stmt, dict) or stmt.get("kind") != "cause":
+        if not isinstance(stmt, dict) or stmt.get("kind") not in ends:
             continue
-        frm = (stmt.get("from") or {}).get("predicate")
-        to = (stmt.get("to") or {}).get("predicate")
-        if not isinstance(frm, str) or not isinstance(to, str):
+        first, second = ends[stmt["kind"]]
+        a = (stmt.get(first) or {}).get("predicate")
+        b = (stmt.get(second) or {}).get("predicate")
+        if not isinstance(a, str) or not isinstance(b, str) or a == b:
             continue
-        if to == treatment:
-            into_treatment.add(frm)
-        if to == outcome:
-            into_outcome.add(frm)
-    return (into_treatment - into_outcome) - {treatment, outcome}
+        if stmt["kind"] == "cause":
+            graph.add_edge(a, b)
+        else:
+            graph.add_nodes_from((a, b))
+            bidirected.add(frozenset({a, b}))
+    if treatment not in graph or outcome not in graph:
+        return set()
+    return {
+        z for z in graph.predecessors(treatment)
+        if unconditional_instrument_holds(
+            graph, frozenset(bidirected), treatment, outcome, z)
+    }
 
 
 def verify_balke_pearl_iv_bounds_result(
@@ -914,9 +931,10 @@ def verify_balke_pearl_iv_bounds_result(
         raise VerificationError(
             f"Balke-Pearl IV bounds name {instrument!r} as the instrument "
             f"for {treatment_pred!r} → {target_pred!r}, which this graph "
-            f"does not offer: an instrument needs an edge into the "
-            f"treatment and none into the outcome, and the predicates with "
-            f"both are {sorted(offered)!r}",
+            f"does not offer: an instrument with nothing conditioned needs "
+            f"an edge into the treatment and no open path to the outcome "
+            f"once the treatment's outgoing edges are cut, and the "
+            f"predicates with both are {sorted(offered)!r}",
             step_index=None, rule="bounds_balke_pearl_iv",
         )
 

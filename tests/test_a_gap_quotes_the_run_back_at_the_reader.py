@@ -100,14 +100,16 @@ def test_the_facts_this_rule_speaks_for():
     split: dict[str, int] = {}
     for _name, _where, _statement, key in SITES:
         split[key] = split.get(key, 0) + 1
+    # 4 fewer each of assumptions and method: the sentence naming a Balke-Pearl interval's method and assumptions went with the
+    # interval on four refreshed answers, whose instrument needs something conditioned.
     assert split == {
-        "assumptions": 40, "method": 67, "what": 87,
+        "assumptions": 36, "method": 63, "what": 87,
         "methods": 73, "field": 19, "population": 16, "source": 10,
         "kind": 11, "target": 33,
         "intervention": 566, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3,
     }, split
-    assert len(SITES) == 973, len(SITES)
+    assert len(SITES) == 965, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -126,7 +128,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 973, refused
+    assert refused == 965, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -146,7 +148,9 @@ def test_a_listed_slot_is_refused_one_member_at_a_time():
         with pytest.raises(VerificationError, match="never did"):
             the_door_for(row["result"])(row["program"], forged)
         checked += 1
-    assert checked == 113, checked
+    # 4 fewer: the sentence naming a Balke-Pearl interval's method and assumptions went with the
+    # interval on four refreshed answers, whose instrument needs something conditioned.
+    assert checked == 109, checked
 
 
 def test_the_rule_is_never_asked_without_a_record_to_appeal_to():

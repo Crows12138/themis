@@ -43,7 +43,8 @@ CARRIERS = sorted(n for n in SHAPES if SHAPES[n]["result"].get(
     "bounds_results"))
 
 MANSKI = "aipw"
-IV = "general_id_plugin"
+#: An answer whose sharp row is taken around an instrument the graph offers.
+IV = "iv_acr"
 
 
 def _pair(method):

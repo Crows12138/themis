@@ -59,7 +59,10 @@ CARRIERS = sorted(
 
 def test_the_rows_that_carry_the_flag():
     """The denominator, and that the corpus shows only one of its values."""
-    assert len(CARRIERS) == 63, len(CARRIERS)
+    # 63 when this was written; 4 numeric Balke-Pearl rows taken around a
+    # node that is not an instrument with nothing conditioned have since
+    # been refreshed away.
+    assert len(CARRIERS) == 59, len(CARRIERS)
     values = {SHAPES[n]["result"]["bounds_results"][i]["numeric_uninformative"]
               for n, i in CARRIERS}
     assert values == {False}, values
@@ -92,7 +95,7 @@ def test_every_flipped_flag_is_refused():
         with pytest.raises(VerificationError, match="numeric_uninformative"):
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 63, refused
+    assert refused == 59, refused
 
 
 def test_an_interval_that_really_says_nothing_is_allowed_to_say_so():

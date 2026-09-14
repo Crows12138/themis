@@ -1453,9 +1453,15 @@ def test_the_declared_remainder_is_what_it_is():
     stratum a conditional question names. The values a numeric block
     shows back were held to the question field by field, and the stratum
     had no row: another stratum re-derived to itself from its records.
+
+    Then 18 left with the intervals they were on, from six answers.
+    Their Balke-Pearl interval was taken around a node that is not an
+    instrument with nothing conditioned, which the producer no longer
+    does, and the refresh took the interval and the sentence about it
+    off each row. Nothing here is newly held; what those rows say is less.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1995, total
+    assert total == 1977, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1553,6 +1559,10 @@ def test_the_sweep_asks_about_the_whole_envelope():
     Then 32694, by a refresh again: the one stored framing request over a
     single ask gained the note every other channel writes, and with it a
     need and three words about its occasion to ask about.
+
+    Then 32514, by a refresh the other way: six answers lost a
+    Balke-Pearl interval taken around a node that is not an instrument
+    with nothing conditioned, and the sentence about it.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1562,7 +1572,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32694, asked_total
+    assert asked_total == 32514, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

@@ -548,6 +548,38 @@ def iv_sets(
     return tuple(all_results)
 
 
+def unconditional_instruments(
+    graph: nx.DiGraph,
+    x: Atom,
+    y: Atom,
+    *,
+    bidirected: "BidirectedEdgeSet | None" = None,
+) -> tuple[Atom, ...]:
+    """The instruments for X → Y that need nothing conditioned.
+
+    The criterion :func:`iv_sets` applies, at the empty conditioning set: Z
+    is a parent of X, is not Y, and is m-separated from Y once X's outgoing
+    edges are cut. Relevance is taken as the edge Z → X, as both readers
+    this replaces took it.
+
+    Balke-Pearl bounds and the response-function polytopes are built on an
+    instrument with nothing conditioned, and every door that fits one reads
+    this. "An edge into X and none into Y" was read as the criterion, and it
+    is not one: with W → Z and W → Y, Z has both edges and shares W with Y,
+    and the interval fitted around it need not contain the effect.
+    """
+    if x not in graph or y not in graph or x == y:
+        return ()
+    bid: BidirectedEdgeSet = bidirected or frozenset()
+    mutilated = graph.copy()
+    mutilated.remove_edges_from(list(mutilated.out_edges(x)))
+    return tuple(sorted(
+        (z for z in graph.predecessors(x)
+         if z != y and not is_m_connected(mutilated, bid, z, y, ())),
+        key=lambda a: (a.predicate, repr(a.args)),
+    ))
+
+
 class VectorIVCandidate(NamedTuple):
     """A valid instrument for a treatment VECTOR.
 

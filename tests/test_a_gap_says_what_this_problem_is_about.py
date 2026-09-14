@@ -448,6 +448,10 @@ def test_the_remainder_is_counted_rather_than_described():
     caveat names, on the gap's own occasion (3) and on the way past that
     reweights for it (3). The collider in those places was refused here
     already, being a name.
+
+    And 8 fewer when four answers stopped carrying a Balke-Pearl interval
+    around an instrument that needs something conditioned: the sentence
+    about that interval, its method and its assumptions, went with it.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -462,7 +466,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2096, 188), (refused, accepted)
+    assert (refused, accepted) == (2088, 188), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -489,7 +493,8 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
     leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
     assert len(chainless) == 71, len(chainless)
-    assert len(leaves) == 998, len(leaves)
+    # 4 fewer: two of those answers take no route.
+    assert len(leaves) == 994, len(leaves)
     assert sum(len(_name_leaves(SHAPES[name]["result"]))
                for name in chainless) == 469, len(leaves)
     # The three with no name claim in them have nothing here to ask, which

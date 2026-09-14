@@ -1988,6 +1988,9 @@ def _attach_numeric_bounds(
     """
     from ..input.semantic_validator import validate_program
     from ..input.syntactic_validator import validate_ast
+    from ..runtime import structural_solver
+    from ..runtime.graph_projection import project
+    from ..runtime.instantiation import instantiate
     from ..runtime.scheduler import (
         _detect_iv_candidate_structural,
         _detect_monotonicity_for_query,
@@ -2001,6 +2004,9 @@ def _attach_numeric_bounds(
 
     ast = _ensure_dict(program)
     prog = validate_program(validate_ast(ast))
+    ground = instantiate(prog)
+    graph = project(ground)
+    bidirected = structural_solver.bidirected_from_ground(ground)
     cols = set(contract.data.columns)
     cluster_ok = cluster if (cluster is None or cluster in cols) else None
 
@@ -2049,7 +2055,8 @@ def _attach_numeric_bounds(
                 elif method == "balke_pearl_iv":
                     # The detector the symbolic row was chosen with. A
                     # column is a predicate, and an IV block names an atom.
-                    instrument = _detect_iv_candidate_structural(prog, query)
+                    instrument = _detect_iv_candidate_structural(
+                        prog, query, graph, bidirected)
                     if instrument is None:
                         continue
                     nb = evaluate_balke_pearl_bounds(

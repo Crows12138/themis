@@ -73,7 +73,10 @@ SHAPES = json.loads(
 #: shows up as a number rather than as a quieter gate. One statement was
 #: added by a refresh: the stored framing request over a single ask began
 #: carrying that ask's species as its note, a ``gap_says`` statement.
-REACHED = 5101
+#: 16 went with another: six answers lost a Balke-Pearl
+#: interval taken around a node that is not an instrument with nothing
+#: conditioned, and what it and its gap sentence said.
+REACHED = 5085
 PER_CARRIER = {
     "gap_routes": 1193,
     # These three and the ledger below moved together, by eight and eight
@@ -82,7 +85,7 @@ PER_CARRIER = {
     # entry across six rows. Four carriers of the same eight gaps is what
     # a per-carrier pin is for — a narrowing shows up as one of them
     # falling while the others hold.
-    "gap_describes": 1152,
+    "gap_describes": 1148,
     "gap_if_provided": 974,
     "gap_says": 675,
     "assumption_claim": 508,

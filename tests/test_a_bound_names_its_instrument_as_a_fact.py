@@ -275,8 +275,9 @@ def test_the_graph_condition_is_necessary_and_not_the_producers_choice():
             bounds, program=program, query_dict=query)
 
 
-def test_the_candidates_are_read_off_the_edges_and_nothing_else():
-    """Relevance and exclusion, and not the declaration or the cardinality.
+def test_the_candidates_are_read_off_the_graph_and_nothing_else():
+    """Relevance and exclusion on the graph, and not the declaration or the
+    cardinality.
 
     A candidate with no declared domain is one the producer would refuse
     to build a response-function partition over. That refusal is the

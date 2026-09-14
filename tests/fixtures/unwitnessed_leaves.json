@@ -335,9 +335,6 @@
  ],
  "general_id_plugin": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].contrast.reference_value@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
@@ -415,9 +412,6 @@
  ],
  "iv_stratified_wald": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].contrast.reference_value@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
   "data_gap_report.gaps.[].describes.[].words.why.token",
   "estimation_context.ci_bootstrap",
@@ -681,6 +675,15 @@
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "missing_information.[].name"
  ],
+ "needs_investigation:effect:none#0e36ff": [
+  "bounds_results.[].data_required.[].said.expression",
+  "bounds_results.[].data_required.[].said.expression@method=manski_tamer_monotonicity,tightness=sharp",
+  "data_gap_report.gaps.[].describes.[].said.count",
+  "data_gap_report.gaps.[].describes.[].words.why.token",
+  "investigation_requests.[].items.[].skeleton.annotations.source",
+  "missing_information.[].name",
+  "missing_information.[].observable.variables.[]"
+ ],
  "needs_investigation:effect:none#11ec26": [
   "bounds_results.[].data_required.[].said.expression",
   "bounds_results.[].data_required.[].said.expression@method=balke_pearl_iv,tightness=sharp",
@@ -936,6 +939,16 @@
   "estimator_failure.remedies.[].subject",
   "estimator_failure.remedies.[].subject@remedy=use_method"
  ],
+ "needs_investigation:effect:none#a58bcc": [
+  "bounds_results.[].data_required.[].said.expression",
+  "bounds_results.[].data_required.[].said.expression@method=manski_tamer_monotonicity,tightness=sharp",
+  "data_gap_report.gaps.[].describes.[].said.count",
+  "data_gap_report.gaps.[].describes.[].words.why.said.total",
+  "data_gap_report.gaps.[].describes.[].words.why.token",
+  "data_gap_report.gaps.[].describes.[].words.why.token@blocks=point_estimate,kind=missing_assumption,severity=important,sentence=an_identification_premise_is_missing",
+  "missing_information.[].name",
+  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_stratum_weights_not_normalized,priority=high"
+ ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
@@ -976,19 +989,6 @@
  ],
  "needs_investigation:effect:none#b26e61": [
   "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:effect:none#b2c556": [
-  "bounds_results.[].data_required.[].said.expression",
-  "bounds_results.[].data_required.[].said.expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].data_required.[].said.expression@method=manski_tamer_monotonicity,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
-  "data_gap_report.gaps.[].describes.[].said.count",
-  "data_gap_report.gaps.[].describes.[].words.why.said.total",
-  "data_gap_report.gaps.[].describes.[].words.why.token",
-  "data_gap_report.gaps.[].describes.[].words.why.token@blocks=point_estimate,kind=missing_assumption,severity=important,sentence=an_identification_premise_is_missing",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_stratum_weights_not_normalized,priority=high"
  ],
  "needs_investigation:effect:none#b2e77c": [
   "bounds_results.[].data_required.[].said.expression",
@@ -1043,18 +1043,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.estimator"
- ],
- "needs_investigation:effect:none#d4c455": [
-  "bounds_results.[].data_required.[].said.expression",
-  "bounds_results.[].data_required.[].said.expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].data_required.[].said.expression@method=manski_tamer_monotonicity,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
-  "data_gap_report.gaps.[].describes.[].said.count",
-  "data_gap_report.gaps.[].describes.[].words.why.token",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
-  "missing_information.[].name",
-  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#dd007d": [
   "estimation_context.ci_bootstrap",
@@ -1369,9 +1357,6 @@
  ],
  "numerically_solved:effect:numeric_general_id_estimate": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].contrast.reference_value@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "formula.body.terms.[].denominator.body.body.terms.[].given.[].value"
@@ -1410,11 +1395,8 @@
   "numeric_estimate.acr_declined",
   "outcome_error.sufficient_statistics.n"
  ],
- "numerically_solved:effect:numeric_iv_estimate#c2764f": [
+ "numerically_solved:effect:numeric_iv_estimate#a7b446": [
   "bounds_results.[].contrast.reference_value",
-  "bounds_results.[].contrast.reference_value@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].alternative_paths.[].route@blocks=interpretation,kind=iv_estimand_fallback_to_linear,severity=informational",
   "data_gap_report.gaps.[].describes.[].said.conditioning",
   "data_gap_report.gaps.[].describes.[].said.count",

@@ -59,7 +59,10 @@ def test_every_copy_of_the_count_already_agrees():
                     ["sample_size"])
         total += len(counts)
         agree += sum(1 for _, v in counts if v == run_wide)
-    assert (agree, total) == (343, 343)
+    # 4 fewer copies: four refreshed answers no longer carry a numeric
+    # Balke-Pearl interval around a node that is not an instrument with
+    # nothing conditioned, and each such row wrote its own.
+    assert (agree, total) == (339, 339)
 
 
 def test_the_count_is_written_in_more_than_one_block():

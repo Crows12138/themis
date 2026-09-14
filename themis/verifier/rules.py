@@ -1225,6 +1225,21 @@ def iv_criterion_holds(
     return upstream, iv1, iv23
 
 
+def unconditional_instrument_holds(graph, bidirected, x, y, z) -> bool:
+    """Z is an instrument for X → Y with nothing conditioned, entering X.
+
+    :func:`iv_criterion_holds` at the empty conditioning set, with relevance
+    taken as the edge Z → X the response-function doors read. The one
+    transcription the bounds rows, the theta tables and the data polytopes
+    are held to. An edge into the treatment and none into the outcome is
+    not it: a cause the candidate shares with the outcome passes that and
+    fails this.
+    """
+    if z in (x, y) or not graph.has_edge(z, x):
+        return False
+    return all(iv_criterion_holds(graph, bidirected, x, y, z, frozenset()))
+
+
 def _rule_iv_criterion_check(
     ctx: VerificationContext,
     inputs: dict,
@@ -7149,6 +7164,9 @@ def _rule_numeric_causation_estimate(
     #    point is re-derived where the route can have one, and the loop below
     #    checks that an absent point is consistent either way.
     if provenance == "instrument_response_polytope":
+        _check_the_data_instrument(
+            ctx, inputs, x_atom, y_atom, step_index=step_index, rule=rule,
+        )
         recomputed = _rederive_causation_over_response_polytope(
             ctx, inputs, cells, monotonic, step_index=step_index, rule=rule,
         )
@@ -8976,11 +8994,13 @@ def _recorded_instrument_table_matches_theta(
             step_index=step_index, rule=rule,
         )
     z_atom = z_atoms[0]
-    if graph.has_edge(z_atom, y_atom) or not graph.has_edge(z_atom, x_atom):
+    if not unconditional_instrument_holds(
+            graph, bidirected, x_atom, y_atom, z_atom):
         raise RuleCheckFailed(
-            f"{rule}: {instrument!r} is not an instrument on this graph — the "
-            f"route's licence asserts an edge into the treatment and none "
-            f"into the outcome",
+            f"{rule}: {instrument!r} is not an instrument on this graph with "
+            f"nothing conditioned — the route's licence needs an edge into "
+            f"the treatment and no open path to the outcome once the "
+            f"treatment's outgoing edges are cut",
             step_index=step_index, rule=rule,
         )
 
@@ -9849,8 +9869,10 @@ def _rule_numeric_counterfactual_cell_estimate(
                 ctx, inputs, query, step_index=step_index, rule=rule,
             )
         elif provenance == "instrument_response_polytope":
-            _check_cf_cell_instrument(
-                ctx, inputs, query, step_index=step_index, rule=rule,
+            _check_the_data_instrument(
+                ctx, inputs, query.observed.atom,
+                query.counterfactual_target.atom,
+                step_index=step_index, rule=rule,
             )
 
     # 4. CI (present only when a bootstrap ran). A point must sit inside its
@@ -9893,10 +9915,11 @@ def _rule_numeric_counterfactual_cell_estimate(
         )
 
 
-def _check_cf_cell_instrument(
+def _check_the_data_instrument(
     ctx: VerificationContext,
     inputs: dict,
-    query,
+    treatment: Atom,
+    outcome: Atom,
     *,
     step_index: int,
     rule: str,
@@ -9904,22 +9927,18 @@ def _check_cf_cell_instrument(
     """Re-derive, from ``ctx.graph`` alone, that the claimed column IS an
     instrument for this treatment and outcome.
 
-    Pearl's criterion transcribed here rather than imported: an instrument is
-    m-separated from the outcome once the treatment's outgoing edges are cut,
-    and has an edge into the treatment. A producer that named a covariate, a
-    mediator, or a second confounder as its instrument would otherwise be
-    audited only on arithmetic it did consistently — and the arithmetic is
-    correct for whichever column it fed in.
+    Held to :func:`unconditional_instrument_holds`. A producer that named a
+    covariate, a mediator, or a second confounder as its instrument would
+    otherwise be audited only on arithmetic it did consistently — and the
+    arithmetic is correct for whichever column it fed in. Asked of the
+    counterfactual cell and of the probabilities of causation alike: both
+    fit the same polytope to the same kind of column.
 
     Uniqueness is re-derived too. Two valid instruments carry more information
     than either alone, so a producer reporting one of them has bounded the
     right quantity from less than the graph offered; the verifier rejects it
     rather than confirming a claim about a narrower model.
     """
-    from ..runtime import structural_solver
-
-    import networkx as nx
-
     claimed = inputs.get("instrument")
     if not isinstance(claimed, str) or not claimed:
         raise RuleCheckFailed(
@@ -9927,18 +9946,10 @@ def _check_cf_cell_instrument(
             f"instrument column; got {claimed!r}",
             step_index=step_index, rule=rule,
         )
-    treatment = query.observed.atom
-    outcome = query.counterfactual_target.atom
-    cut = nx.DiGraph()
-    cut.add_nodes_from(ctx.graph.nodes())
-    cut.add_edges_from(
-        (u, v) for u, v in ctx.graph.edges() if u != treatment
-    )
     bid = ctx.bidirected or frozenset()
     valid = [
         z for z in ctx.graph.predecessors(treatment)
-        if z != outcome
-        and structural_solver.m_separated(cut, bid, z, outcome, ())
+        if unconditional_instrument_holds(ctx.graph, bid, treatment, outcome, z)
     ]
     if len(valid) != 1 or valid[0].predicate != claimed:
         raise RuleCheckFailed(

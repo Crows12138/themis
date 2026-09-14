@@ -2407,6 +2407,7 @@ def _dispatch_counterfactual(
         route = _instrument_route_from_theta(
             graph, theta, ancestral,
             x_atom=q.observed.atom, y_atom=q.counterfactual_target.atom,
+            bidirected=bidirected,
         )
         values, note = _over_the_response_polytope(
             route,
@@ -2545,12 +2546,13 @@ def _instrument_route_from_theta(
     *,
     x_atom: Atom,
     y_atom: Atom,
+    bidirected: "frozenset[frozenset[Atom]]",
 ) -> InstrumentRoute:
     """The instrument this graph offers for X→Y, and its table off theta."""
     if ancestral is None:
         return InstrumentRoute()
     z_atom = _instrument_for_theta_cell(
-        graph, theta, x_atom=x_atom, y_atom=y_atom,
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
     )
     if z_atom is None or z_atom not in ancestral.topo:
         return InstrumentRoute()
@@ -2633,45 +2635,31 @@ def _over_the_response_polytope(
     return values, None
 
 
-def _instrument_candidates(
-    edges, *, treatment: str, outcome: str,
-) -> set[str]:
-    """Predicates with an edge into the treatment and none into the outcome.
-
-    The instrument's structural half and nothing else: relevance (Z→X) and
-    exclusion (no Z→Y), read off the edges. Whether a candidate has a finite
-    domain to enumerate is a SEPARATE question with a different authority at
-    each door — a declared domain where the answer is a symbolic expression,
-    the recovered theta where it is a table — so each door asks that one for
-    itself. What must not differ between the doors is whether the graph
-    offers an instrument at all, which is why that half is here once.
-    """
-    into_treatment = {frm for frm, to in edges if to == treatment}
-    into_outcome = {frm for frm, to in edges if to == outcome}
-    return (into_treatment - into_outcome) - {treatment, outcome}
-
-
 def _instrument_for_theta_cell(
     graph: nx.DiGraph,
     theta: Theta,
     *,
     x_atom: Atom,
     y_atom: Atom,
+    bidirected: "frozenset[frozenset[Atom]]",
 ) -> Atom | None:
     """The one instrument this graph offers for X→Y, or nothing.
+
+    Whether a node is an instrument is
+    :func:`structural_solver.unconditional_instruments`, the answer every
+    door reads. Whether it has a finite domain to enumerate is a separate
+    question with a different authority at each door -- a declared domain
+    where the answer is a symbolic expression, the recovered theta where it
+    is a table -- so this door asks theta.
 
     Nothing on a tie, for the reason the effect door refuses one: a graph
     carrying two valid instruments makes the answer depend on which was
     picked, and picking is not something the caller asked for.
     """
-    names = _instrument_candidates(
-        [(frm.predicate, to.predicate) for frm, to in graph.edges()],
-        treatment=x_atom.predicate,
-        outcome=y_atom.predicate,
-    )
     atoms = [
-        node for node in graph.nodes
-        if node.predicate in names and len(set(theta.domain_of(node))) >= 2
+        node for node in structural_solver.unconditional_instruments(
+            graph, x_atom, y_atom, bidirected=bidirected)
+        if len(set(theta.domain_of(node))) >= 2
     ]
     return atoms[0] if len(atoms) == 1 else None
 
@@ -2918,6 +2906,7 @@ def _causation_over_the_instrument(
     risk_missing: "tuple[MissingItem, ...]",
     x_atom: Atom,
     y_atom: Atom,
+    bidirected: "frozenset[frozenset[Atom]]",
 ) -> QueryResult:
     """PN / PS / PNS over the response-type polytope, or the gap that stands.
 
@@ -2940,6 +2929,7 @@ def _causation_over_the_instrument(
 
     route = _instrument_route_from_theta(
         graph, theta, ancestral, x_atom=x_atom, y_atom=y_atom,
+        bidirected=bidirected,
     )
     direction = Monotonicity.NON_DECREASING if q.monotonic else None
     values, note = _over_the_response_polytope(
@@ -3131,7 +3121,7 @@ def _dispatch_causation(
         return _causation_over_the_instrument(
             stmt, graph, theta, q, joint, ancestral,
             risk_missing=risk_missing,
-            x_atom=x_atom, y_atom=y_atom,
+            x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
         )
     if joint is None or risk_missing:
         return _causation_gap(
@@ -6580,7 +6570,8 @@ def _attach_bounds_results(
     # Read off the program's structure and never off an IV block, which
     # names an atom (``z(me)``) where the level count and the numeric
     # end's column both need the predicate.
-    instrument_pred = _detect_iv_candidate_structural(program, query)
+    instrument_pred = _detect_iv_candidate_structural(
+        program, query, inputs.graph, inputs.bidirected)
 
     found: list = []
 
@@ -7068,11 +7059,14 @@ POST_PASSES: tuple[postprocess.Pass, ...] = postprocess.order((
 def _detect_iv_candidate_structural(
     program: Program,
     query: "EffectQuery",
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]",
 ) -> str | None:
-    """Lightweight IV candidate detection from program edge structure.
+    """The instrument a Balke-Pearl row is fitted around, by predicate.
 
-    Returns predicate name of Z iff the structural half holds (Z→X and no
-    Z→Y) and Z is declared with a finite domain of at least two levels.
+    Returns the predicate of Z iff Z is what
+    :func:`structural_solver.unconditional_instruments` offers and Z is
+    declared with a finite domain of at least two levels.
 
     The domain requirement is about the response-function model needing a
     finite ``z → x`` map to enumerate, not about the instrument being
@@ -7083,17 +7077,14 @@ def _detect_iv_candidate_structural(
 
     Returns None if zero or multiple candidates (don't guess on tie).
     """
-    from ..types import CauseStatement, VariableDeclaration
+    from ..types import VariableDeclaration
 
-    candidates = _instrument_candidates(
-        [
-            (s.from_atom.predicate, s.to_atom.predicate)
-            for s in program.statements
-            if isinstance(s, CauseStatement)
-        ],
-        treatment=query.intervention.atom.predicate,
-        outcome=query.target.atom.predicate,
-    ) & {
+    candidates = {
+        z.predicate for z in structural_solver.unconditional_instruments(
+            graph, query.intervention.atom, query.target.atom,
+            bidirected=bidirected,
+        )
+    } & {
         s.predicate for s in program.statements
         if isinstance(s, VariableDeclaration)
         and s.domain is not None and len(set(s.domain)) >= 2

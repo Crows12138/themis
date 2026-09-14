@@ -538,17 +538,27 @@ def test_the_derivation_chain_names_which_route_ran():
     assert "响应函数多面体" in text
 
 
-def test_both_doors_read_the_same_instrument_off_the_same_edges():
-    """The structural half of "is Z an instrument here" is one function. Two
-    copies of it would let the effect query and the cell disagree about a
-    graph, which is the shape that put the two ends out of step to begin
-    with."""
-    from themis.runtime.scheduler import _instrument_candidates
+def test_every_door_reads_the_same_instrument_off_the_graph():
+    """"Is Z an instrument here, with nothing conditioned" is one function.
+    Two answers to it let the effect query's bounds and the cell disagree
+    about a graph, and the edge-only answer called a node that shares a
+    cause with the outcome an instrument."""
+    import networkx as nx
 
-    edges = [("z", "x"), ("x", "y")]
-    assert _instrument_candidates(edges, treatment="x", outcome="y") == {"z"}
-    assert _instrument_candidates(
-        edges + [("z", "y")], treatment="x", outcome="y") == set()
+    from themis.runtime.structural_solver import unconditional_instruments
+    from themis.types import Atom
+
+    x, y, z, w = (Atom(predicate=p, args=()) for p in "xyzw")
+    bow = frozenset({frozenset({x, y})})
+
+    def offered(*edges):
+        graph = nx.DiGraph()
+        graph.add_edges_from(edges)
+        return unconditional_instruments(graph, x, y, bidirected=bow)
+
+    assert offered((z, x), (x, y)) == (z,)
+    assert offered((z, x), (x, y), (z, y)) == ()
+    assert offered((z, x), (x, y), (w, z), (w, y)) == ()
 
 
 # ------------------------------------------------ the audit, on this route
