@@ -93,8 +93,9 @@ Public surface (re-exports from sub-modules):
   inside the intervention. The general solution is held to being general
   here too) /
   ``verify_proximal_estimand`` (the proximal descriptor, held to the
-  question it describes. The criterion rule re-runs Miao's model (f) on the
-  graph and takes the roles from the QUERY, so identifiability was
+  question it describes. The criterion rule asks Miao's model (f) of the
+  graph, in its own transcription, and takes the roles from the QUERY, so
+  identifiability was
   established for the question asked while the block a reader reads could
   name a different one — the two proxy roles exchanged, or the unobserved
   confounder named as an observed variable. Both proxy roles compare as

@@ -5129,8 +5129,9 @@ def verify_iv_surfaces(
 def verify_proximal_estimand(block: dict, query) -> None:
     """Hold the proximal descriptor to the question it describes.
 
-    ``_rule_proximal_criterion`` re-runs Miao's model (f) on the graph and
-    is a real re-derivation — but it takes the roles from ``ctx.query``,
+    ``_rule_proximal_criterion`` asks Miao's model (f) of the graph in the
+    verifier's own transcription, and is a real re-derivation — but it
+    takes the roles from ``ctx.query``,
     never from this block. So identifiability is established for the
     question that was asked while the block a reader reads can name a
     different one, and the two swaps that matter most are invisible: the
@@ -7636,13 +7637,15 @@ def verify_proximal_effect(
 ) -> None:
     """Verify a structural proximal-identification derivation.
 
-    The terminal ``proximal_criterion`` rule re-runs ``identify_proximal`` on
-    the context's (graph, bidirected) and the query's roles, confirming the
-    effect is proximal-identifiable (Miao model (f)) — the independent safety
-    check. Here we pin the terminal rule and confirm the last step's output
-    equals the claim. Proximal identification produces a matrix estimand
-    descriptor, not a formula, so there is no formula to semantically probe —
-    the independent re-run of identify_proximal IS the semantic check.
+    The terminal ``proximal_criterion`` rule asks Miao's model (f) of the
+    context's (graph, bidirected) and the query's roles, covariates included,
+    in the verifier's own transcription — the independent safety check. Here
+    we pin the terminal rule and confirm the last step's output equals the
+    claim. Proximal identification produces a matrix estimand descriptor,
+    not a formula, so there is no formula to semantically probe — that
+    transcription IS the semantic check, which is why it cannot be a re-run
+    of the producer's ``identify_proximal``: a re-run agrees with the
+    producer by construction.
 
     Raises ``VerificationError`` on reject; returns ``None`` on accept.
     """
@@ -7676,8 +7679,8 @@ def verify_proximal_numeric(
     numeric counterpart of ``verify_proximal_effect``.
 
     The derivation must end in one of the three proximal numeric terminals,
-    atop a ``proximal_criterion`` structural witness. The rule handlers re-run
-    ``identify_proximal`` to confirm proximal-identifiability (safety-critical:
+    atop a ``proximal_criterion`` structural witness. The criterion rule asks
+    the verifier's own model (f) to confirm proximal-identifiability (safety-critical:
     a number is licensed ONLY for an identified effect) and then re-derive the
     number itself: formula (5) is a matrix inversion of a contingency table,
     the estimate records that table as counts, and the terminal rule rebuilds

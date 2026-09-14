@@ -53,16 +53,18 @@ SHAPES = json.loads((ROOT / "tests" / "fixtures" / "answer_shapes.json")
                     .read_text(encoding="utf-8"))
 
 #: The runtime modules the verifier does import, by file. ``numeric_estimator``
-#: supplies the probability-table types both sides read, and ``verify.py``
-#: takes only a type from ``ctf_identify``. In ``rules.py``, ``c_factor``,
-#: ``ctf_identify`` and ``proximal_identify`` are the general-ID,
-#: counterfactual-ID and proximal-ID engines, which the rules calling them
-#: re-run rather than reimplement. That is a dependency declared here, not
-#: closed: a module leaves this map by being reimplemented, and one turning up
-#: without being entered here is a dependency nobody declared.
+#: supplies the probability-table types both sides read; ``semantic_probe.py``
+#: also takes the formula evaluator from it, so the probe computes the true
+#: do-quantity with its own elimination but evaluates the claimed formula with
+#: the runtime's. ``verify.py`` takes only a type from ``ctf_identify``. In
+#: ``rules.py``, ``c_factor`` and ``ctf_identify`` are the general-ID and
+#: counterfactual-ID engines, which the rules calling them re-run rather than
+#: reimplement. These are dependencies declared here, not closed: a module
+#: leaves this map by being reimplemented, and one turning up without being
+#: entered here is a dependency nobody declared.
 DECLARED_RUNTIME_IMPORTS = {
     "context.py": {"numeric_estimator"},
-    "rules.py": {"numeric_estimator", "c_factor", "ctf_identify", "proximal_identify"},
+    "rules.py": {"numeric_estimator", "c_factor", "ctf_identify"},
     "semantic_probe.py": {"numeric_estimator"},
     "serialization.py": {"numeric_estimator"},
     "verify.py": {"ctf_identify"},

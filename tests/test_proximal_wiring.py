@@ -10,8 +10,9 @@ and get back an identifiability verdict (Miao model (f)) and, with data, an ATE
 recovered under an unobserved confounder that a second, independent pass
 re-checks.
 
-The verifier mirror ``proximal_criterion`` RE-RUNS identify_proximal on the
-context graph (never trusting the result), so a result claiming
+The verifier mirror ``proximal_criterion`` re-derives Miao's model (f) on the
+context graph in its own transcription (never trusting the result), so a
+result claiming
 identifiability is rejected when verified against a graph that actually breaks
 the proxy structure — ``test_verify_criterion_reruns_identification_from_graph``
 proves it has teeth.
@@ -190,8 +191,7 @@ def test_verify_rejects_tampered_data_hash():
 
 def test_verify_rejects_tampered_criterion_flag():
     # Flip the proximal_criterion step's output True→False: the criterion rule
-    # re-runs identify_proximal (which says identifiable=True) and rejects the
-    # False claim.
+    # re-derives model (f), which holds, and rejects the False claim.
     prog = _ast()
     df = _sample_scm(40_000, seed=5)
     res = _result(themis.estimate(prog, df))
@@ -207,7 +207,7 @@ def test_verify_rejects_tampered_criterion_flag():
 def test_verify_criterion_reruns_identification_from_graph():
     # A result claiming proximal-identifiable, verified against a program whose
     # graph actually breaks the proxy structure (Z→Y). proximal_criterion
-    # re-runs identify_proximal on ctx.graph and must reject — it does not trust
+    # re-derives model (f) on ctx.graph and must reject — it does not trust
     # the result's descriptor. This is the safety property of the mirror.
     res = _result(themis.run(_ast()))
     broken = _ast(extra=(_cause("z", "y"),))

@@ -1,6 +1,6 @@
 """A proximal descriptor, held to the question it describes.
 
-``_rule_proximal_criterion`` re-runs Miao's model (f) on the graph — the
+``_rule_proximal_criterion`` re-derives Miao's model (f) on the graph — the
 proxy criteria W ⊥ (Z, X) | (U, C) and Z ⊥ Y | (U, X, C), plus {U, C}
 sufficient — and it is a real re-derivation. It takes the roles from
 ``ctx.query``. Never from ``extensions.proximal_estimand``, which is where

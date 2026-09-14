@@ -8,8 +8,8 @@ derivation is rejected. The verifier carries the theorem statements;
 the elaborator merely claims to satisfy them.
 
 The runtime modules this file does import are the probability-table
-types both sides read and three identification engines re-run here
-rather than reimplemented (general ID, counterfactual ID, proximal ID).
+types both sides read and two identification engines re-run here
+rather than reimplemented (general ID, counterfactual ID).
 ``tests/test_the_verifier_asks_its_own_graph_questions.py`` holds that
 list, reading every import in the verifier, function bodies included.
 
@@ -5145,6 +5145,70 @@ _NUMERIC_PROXIMAL_METHODS = frozenset({"proximal_matrix"})
 _PROXIMAL_MAX_CONDITION = 1e10
 
 
+def _verifier_proximal_criterion_fails(graph, bidirected, query) -> str | None:
+    """Miao's model (f), in the verifier's own words: ``None`` when the
+    question's effect is proximal-identifiable on this ADMG, otherwise the
+    condition that does not hold.
+
+    Read within the covariates C the question conditions on, because that
+    is the question: every separation below holds C, and so does the
+    back-door check. The conditions are the paper's, taken in the order that
+    names the most precise failure first -- a leaking proxy also opens a
+    path the latent cannot block, and the leak is the useful thing to say.
+
+    - every role is a node, and the roles are distinct variables;
+    - no covariate and not the latent is caused by the treatment (the
+      back-door condition (i), for the set the caller added and for U);
+    - a discrete channel posits at least two states of the latent;
+    - W is separated from Z and from X given (U, C), for every W and Z;
+    - Z is separated from Y given (U, X, C), for every Z;
+    - (U, C) blocks every back-door path from X to Y.
+
+    Set separation is pairwise separation for a fixed conditioning set, so
+    several proxies are the same criterion over more pairs.
+    """
+    from ..types import DiscreteChannel
+
+    label = _atom_label_verifier
+    x, y, u = query.treatment, query.outcome, query.latent
+    zs, ws, cs = query.treatment_proxy, query.outcome_proxy, query.covariates
+    roles = (x, y, u, *zs, *ws, *cs)
+    for node in roles:
+        if node not in graph:
+            return f"{label(node)} is not a node of the graph"
+    if len(set(roles)) != len(roles):
+        return "the roles do not name distinct variables"
+    caused_by_x = _verifier_directed_descendants(graph, x)
+    for c in cs:
+        if c in caused_by_x:
+            return f"the covariate {label(c)} is caused by the treatment"
+    channel = query.channel
+    if isinstance(channel, DiscreteChannel) and channel.latent_cardinality < 2:
+        return "a latent with fewer than two states confounds nothing"
+    if u in caused_by_x:
+        return f"the latent {label(u)} is caused by the treatment"
+
+    held = frozenset((u, *cs))
+    held_text = ", ".join(label(a) for a in (u, *cs))
+    for w in ws:
+        for z in zs:
+            if _verifier_is_m_connected(graph, bidirected, w, z, held):
+                return (f"the outcome proxy {label(w)} is not separated from "
+                        f"the treatment proxy {label(z)} given {held_text}")
+        if _verifier_is_m_connected(graph, bidirected, w, x, held):
+            return (f"the outcome proxy {label(w)} is not separated from "
+                    f"the treatment given {held_text}")
+    for z in zs:
+        if _verifier_is_m_connected(graph, bidirected, z, y, held | {x}):
+            return (f"the treatment proxy {label(z)} is not separated from "
+                    f"the outcome given the treatment and {held_text}")
+    cut = graph.copy()
+    cut.remove_edges_from(list(graph.out_edges(x)))
+    if _verifier_is_m_connected(cut, bidirected, x, y, held):
+        return f"{held_text} leave a back-door path from the treatment open"
+    return None
+
+
 def _rule_proximal_criterion(
     ctx: VerificationContext,
     inputs: dict,
@@ -5155,17 +5219,20 @@ def _rule_proximal_criterion(
     ADMG — the structural licence for a proximal matrix plug-in estimate and
     the primary answer of a structural proximal query.
 
-    Re-runs ``proximal_identify.identify_proximal`` on the context's
-    (graph, bidirected) and the query's roles (treatment/outcome/latent/
-    proxies + k), and confirms the outcome is a ``ProximalEstimand``. A
-    ``ProximalNotIdentified`` must NEVER back a numeric estimate. Like
-    ``ctf_conjunction_criterion`` / ``general_id_criterion``, it re-runs the
-    identification engine independently rather than trusting the result.
+    Asks :func:`_verifier_proximal_criterion_fails` of the context's (graph,
+    bidirected) and the query's roles, covariates included. An effect model
+    (f) does not identify must NEVER back a numeric estimate.
+
+    This rule used to call the producer's ``identify_proximal``, and to
+    call it without the covariates the question conditions on. A stratified
+    question was held to the unstratified criterion, which refused an
+    honest answer only the covariates identify and accepted one the
+    covariates undo; and a re-run of the producer's code has nothing to
+    disagree with the producer about.
 
     inputs: graph
     output: bool
     """
-    from ..runtime.proximal_identify import ProximalEstimand, identify_proximal
     from ..types import ProximalEffectQuery
 
     graph = _require(inputs, "graph", step_index, "proximal_criterion")
@@ -5179,18 +5246,13 @@ def _rule_proximal_criterion(
             step_index=step_index, rule="proximal_criterion",
         )
 
-    bidir = ctx.bidirected
-    outcome = identify_proximal(
-        graph, bidir,
-        treatment=q.treatment, outcome=q.outcome, latent=q.latent,
-        treatment_proxy=q.treatment_proxy, outcome_proxy=q.outcome_proxy,
-        channel=q.channel,
-    )
-    identified = isinstance(outcome, ProximalEstimand)
+    failed = _verifier_proximal_criterion_fails(graph, ctx.bidirected, q)
+    identified = failed is None
     if identified != bool(claimed_output):
         raise RuleCheckFailed(
-            f"proximal_criterion claimed {claimed_output!r}, but "
-            f"identify_proximal recomputed identifiable={identified!r}",
+            f"proximal_criterion claimed {claimed_output!r}, but model (f) "
+            + ("holds on this graph" if identified
+               else f"does not hold on this graph: {failed}"),
             step_index=step_index, rule="proximal_criterion",
         )
 
