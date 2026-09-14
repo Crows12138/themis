@@ -463,9 +463,12 @@ def iv_sets(
     (most real-world conditional IV use |W| ≤ 2) against enumeration
     cost (O(n choose k) subsets for each Z).
 
-    W is drawn from nodes that are not X, Y, Z, or descendants of X
-    in G. Descendants are excluded to prevent conditioning on
-    mediators (standard IV practice).
+    Neither Z nor W is a descendant of X in G. A descendant of X in W
+    is a mediator held fixed. A descendant as Z passes both tests above
+    -- m-connected to X, and cut off from Y once X's outgoing edges are
+    removed, because every path from it back to X starts with one of
+    them -- while it shares every cause of X with Y: a Wald ratio taken
+    around a child of X is X's confounded contrast.
 
     Returns a tuple of ``IVCandidate`` entries, sorted by:
 
@@ -492,9 +495,12 @@ def iv_sets(
     # (conditioning on mediators breaks identification).
     x_descendants = nx.descendants(graph, x)
 
-    # Instrument candidates: all nodes except X and Y.
-    # IV1 will filter out any Z with no directed route to X.
-    z_candidates = [v for v in graph.nodes if v != x and v != y]
+    # Instrument candidates: every node X does not cause, except Y.
+    # IV1 will filter out any Z with no route to X.
+    z_candidates = [
+        v for v in graph.nodes
+        if v != x and v != y and v not in x_descendants
+    ]
 
     all_results: list[IVCandidate] = []
 
@@ -582,9 +588,9 @@ def vector_iv_sets(
       coverage does not depend on it; what it predicts is whether the region
       comes back bounded.
 
-    ``W`` is drawn from nodes that are not a treatment, Y, Z, or a descendant
-    of any treatment — conditioning on a mediator of any treatment in the
-    vector breaks the same thing it breaks in the scalar case.
+    Neither ``Z`` nor ``W`` is a descendant of any treatment, for the reasons
+    :func:`iv_sets` gives in the scalar case: a mediator held fixed, and an
+    instrument that shares its treatment's causes with Y.
 
     Returns candidates sorted by (|W|, instrument, W), with only subset-minimal
     valid W per instrument.
@@ -611,7 +617,10 @@ def vector_iv_sets(
     for t in x_set:
         descendants |= nx.descendants(graph, t)
 
-    z_candidates = [v for v in graph.nodes if v not in x_set and v != y]
+    z_candidates = [
+        v for v in graph.nodes
+        if v not in x_set and v != y and v not in descendants
+    ]
 
     results: list[VectorIVCandidate] = []
     for z in z_candidates:

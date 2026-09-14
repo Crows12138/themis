@@ -123,6 +123,9 @@ Themis 的结构化检查是真实价值。
 给定 DAG/ADMG G、intervention X、outcome Y。候选工具变量 Z ∈ V \ {X, Y}
 满足 IV 当且仅当：
 
+- **上游**：Z 不是 X 的后代（conditional IV 的 W 同样）。X 的后代和 Y
+  共享 X 的全部原因；在删掉 X 出边的图上判 m-separation 看不到这一点，
+  所以这一条要单独写出来
 - **IV1 相关性**：G 里存在从 Z 到 X 的有向路径（经过或不经过其他节点）
 - **IV2 排他性**：在 G\{X→Y} （删掉 X → Y 的直接边所得子图）中，Z
   和 Y 不 m-connected；换句话说 Z 对 Y 的**所有**影响必须经过 X

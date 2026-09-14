@@ -4994,14 +4994,15 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
             _err(f"holds {sorted(block.get('conditioning') or [])} while the "
                  f"instrument is valid only given a set disjoint from the "
                  f"treatment, the outcome and the instrument itself")
-        iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
-        if not (iv1 and iv23):
-            # Which half failed is the useful half of the message: a
-            # relevance failure names an instrument that moves nothing, an
-            # exclusion failure names one with its own path to the outcome.
+        upstream, iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
+        if not (upstream and iv1 and iv23):
+            # Which part failed is the useful part of the message: an
+            # instrument the treatment causes, one that moves nothing, or
+            # one with its own path to the outcome.
             _err(f"names {name!r} as an instrument valid given "
                  f"{sorted(block.get('conditioning') or [])}, which does not "
-                 f"satisfy the IV criterion (IV1 relevance={iv1}, "
+                 f"satisfy the IV criterion (not caused by the treatment="
+                 f"{upstream}, IV1 relevance={iv1}, "
                  f"IV2+IV3 exclusion={iv23})")
         return
 
@@ -5616,6 +5617,11 @@ def verify_vector_iv_identification(
         if z in treatments or z == y:
             _err(f"names {z.predicate!r} as an instrument, which is "
                  f"{'a treatment' if z in treatments else 'the outcome'}")
+        if z in descendants:
+            _err(f"names {z.predicate!r} as an instrument, which a treatment "
+                 f"causes: it shares that treatment's causes with the "
+                 f"outcome, and cutting the treatments' outgoing edges hides "
+                 f"that")
         if _verifier_is_m_connected(cut, bidir, z, y, w):
             _err(f"names {z.predicate!r} as an instrument valid given "
                  f"{sorted(block.get('conditioning') or [])}, while it reaches "

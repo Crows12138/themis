@@ -1186,12 +1186,21 @@ def _rule_identify_via_front_door(
 
 # ========================================================== Phase 6.iv S.IV.3
 
-def iv_criterion_holds(graph, bidirected, x, y, z, w) -> "tuple[bool, bool]":
-    """Pearl's IV criterion for (Z, W) on (X, Y), as two m-separation facts.
+def iv_criterion_holds(
+    graph, bidirected, x, y, z, w,
+) -> "tuple[bool, bool, bool]":
+    """Pearl's IV criterion for (Z, W) on (X, Y), as three facts.
 
+    (upstream)       neither Z nor anything in W is a descendant of X
     (IV1 relevance)  Z is m-connected to X given W in G
     (IV2 + IV3)      Z is m-separated from Y given W in G[x̄], G with X's
                      outgoing edges removed
+
+    The first is what lets the other two be read on G[x̄]. Cutting X's
+    outgoing edges removes every path that starts with one, and a path from
+    a node X causes back to X starts with one: a child of X is m-connected
+    to X and cut off from Y, and it shares every cause of X with Y all the
+    same. A descendant of X in W is a mediator held fixed.
 
     See PHASE_6_IV_CHARTER.md §3 for the reduction of Pearl's three
     conditions to these two. The mutilated graph is built here rather than
@@ -1207,11 +1216,13 @@ def iv_criterion_holds(graph, bidirected, x, y, z, w) -> "tuple[bool, bool]":
     hold the same three facts, and a second transcription of the criterion
     would be one more place for them to disagree.
     """
+    downstream = _verifier_directed_descendants(graph, x)
+    upstream = z not in downstream and not (frozenset(w) & downstream)
     iv1 = _verifier_is_m_connected(graph, bidirected, z, x, w)
     mutilated = graph.copy()
     mutilated.remove_edges_from(list(mutilated.out_edges(x)))
     iv23 = not _verifier_is_m_connected(mutilated, bidirected, z, y, w)
-    return iv1, iv23
+    return upstream, iv1, iv23
 
 
 def _rule_iv_criterion_check(
@@ -1259,14 +1270,14 @@ def _rule_iv_criterion_check(
         )
 
     bidir = ctx.bidirected
-    iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
+    upstream, iv1, iv23 = iv_criterion_holds(graph, bidir, x, y, z, w)
 
-    recomputed = iv1 and iv23
+    recomputed = upstream and iv1 and iv23
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"iv_criterion_check claimed {claimed_output!r}, "
-            f"recomputed {recomputed!r} (IV1={iv1}, IV2+IV3={iv23}, "
-            f"admg={bool(bidir)})",
+            f"recomputed {recomputed!r} (not caused by x={upstream}, "
+            f"IV1={iv1}, IV2+IV3={iv23}, admg={bool(bidir)})",
             step_index=step_index, rule="iv_criterion_check",
         )
 
@@ -1409,11 +1420,17 @@ def _rule_vector_iv_criterion_check(
         )
 
     # The mutilated graph is built here rather than borrowed, so that a bug in
-    # the producer's cut is visible from this side.
+    # the producer's cut is visible from this side. What any treatment causes
+    # is no instrument and no conditioning, for the reasons
+    # :func:`iv_criterion_holds` gives: the cut hides it.
+    downstream = frozenset().union(
+        *(_verifier_directed_descendants(graph, t) for t in treatments))
     mutilated = graph.copy()
     for t in treatments:
         mutilated.remove_edges_from(list(mutilated.out_edges(t)))
-    recomputed = not _verifier_is_m_connected(mutilated, ctx.bidirected, z, y, w)
+    recomputed = (
+        z not in downstream and not (w & downstream)
+        and not _verifier_is_m_connected(mutilated, ctx.bidirected, z, y, w))
 
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
@@ -1808,16 +1825,23 @@ def _rule_iv_wald_numeric_evaluate(
             step_index=step_index, rule=RULE,
         )
     w_set = frozenset(conditioning)
-    if not _verifier_is_m_connected(graph, bidir, z_atom, x_atom, w_set):
+    upstream, iv1, iv23 = iv_criterion_holds(
+        graph, bidir, x_atom, y_atom, z_atom, w_set)
+    if not upstream:
+        raise RuleCheckFailed(
+            f"{RULE}: the treatment causes the instrument or something in "
+            f"the recorded conditioning set, so the ratio is the "
+            f"treatment's confounded contrast and not a LATE",
+            step_index=step_index, rule=RULE,
+        )
+    if not iv1:
         raise RuleCheckFailed(
             f"{RULE}: instrument is not m-connected to the treatment given "
             f"the recorded conditioning set — IV1 (relevance) fails, so the "
             f"first stage is not an instrument shift",
             step_index=step_index, rule=RULE,
         )
-    mutilated = graph.copy()
-    mutilated.remove_edges_from(list(mutilated.out_edges(x_atom)))
-    if _verifier_is_m_connected(mutilated, bidir, z_atom, y_atom, w_set):
+    if not iv23:
         raise RuleCheckFailed(
             f"{RULE}: instrument is m-connected to the outcome given the "
             f"recorded conditioning set in G[x-bar] — IV2/IV3 (exclusion + "
