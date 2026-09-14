@@ -372,11 +372,17 @@ def _audit_refusal_claims(result: dict, facts) -> None:
     perfectly consistent with an envelope and still describe a graph that
     identifies the estimand it says nothing identifies.
     """
+    from .verifier.refusal_rules import (
+        verify_refusal_claims, verify_species_claims,
+    )
     report = result.get("data_gap_report")
-    if report is None:
-        return
-    from .verifier.refusal_rules import verify_refusal_claims
-    verify_refusal_claims(report, facts)
+    if report is not None:
+        verify_refusal_claims(report, facts)
+    # Then which verdict the answer names, held to its question. After the
+    # witness, which is the stronger news -- the estimand is identified, so
+    # no verdict of that kind is the answer's -- and outside the report's
+    # guard, because the species is written on the asks as well.
+    verify_species_claims(result, facts)
 
 
 def _audit_selection_recovery_numeric(result: dict) -> None:

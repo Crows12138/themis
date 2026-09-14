@@ -50,18 +50,22 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 
 import networkx as nx
 
-from ..gaps import GapKind
-from ..types import Atom, EffectQuery, Query
+from ..gaps import NEEDED, GapKind, Need
+from ..types import (
+    Atom, CausationQuery, CounterfactualConjunctionQuery, CounterfactualQuery,
+    EffectQuery, IdentifyQuery, ProximalEffectQuery, Query,
+)
 from .errors import VerificationError
 from .rules import (
     _check_d_separation,
     _graph_minus_x_outgoing,
     _verifier_is_admg_backdoor_connected,
+    iv_criterion_holds,
 )
 
 #: How far the front-door search looks. Unlike the adjustment search below
@@ -525,6 +529,236 @@ UNWITNESSED: frozenset[GapKind] = frozenset(
     if s is THE_PROGRAM and k not in _REFUTERS)
 
 
+# ===================================================== which verdict a species is
+#
+# A gap's kind says what repairs it and its species says which verdict it is.
+# The first is declared on the member (``Need.gap``). The second depends on
+# the question and the graph, those facts live where a producer picks the
+# species, and on the envelope the pick is one token: any member of the kind
+# with the same holes read as the answer's own.
+#
+# Each species of the unidentifiable kind is reached from one kind of
+# question. Every route that claims an effect question -- a declared loop or
+# strategy, a treatment set, a target population, a mediator -- answers it
+# itself, so what reaches the effect cascade's last resort is one treatment's
+# plain effect, or the plain effect a causation or counterfactual question
+# derives with nothing conditioned; and the last resort picks among its four
+# by the graph. A falsifier needs only what must hold wherever a species can
+# be raised, and that is what each row below states.
+
+#: A question the rows below cannot hold a species to, and why, or ``None``.
+_Condition = Callable[[RefusalFacts], "str | None"]
+
+#: The most nodes a search for an instrument conditions on. The verdict that
+#: no instrument reaches an effect and the verdict that one does are that
+#: search's two outcomes, so each claims what a search of this reach finds,
+#: and neither can be held to a search of another: one that stops sooner
+#: refutes an honest "an instrument reaches it", one that goes further an
+#: honest "none does".
+_CONDITIONING_SEARCHED = 3
+
+
+def _one_effect(q: Query) -> tuple[Atom, Atom] | None:
+    """The treatment and the outcome of the one effect a question rests on.
+
+    A causation or counterfactual question derives the plain effect of its
+    cause on its outcome, and asks it with nothing conditioned.
+    """
+    if isinstance(q, (EffectQuery, IdentifyQuery)):
+        target = q.target.atom if isinstance(q, EffectQuery) else q.target
+        return q.intervention.atom, target
+    if isinstance(q, CausationQuery):
+        return q.cause, q.effect
+    if isinstance(q, CounterfactualQuery):
+        return (q.counterfactual_intervention.atom,
+                q.counterfactual_target.atom)
+    return None
+
+
+def _an_instrument_found(
+    facts: RefusalFacts,
+) -> tuple[Atom, tuple[Atom, ...]] | None:
+    """An instrument for the effect and what it is conditioned on, or ``None``
+    if a search of :data:`_CONDITIONING_SEARCHED` finds none.
+
+    Conditioned only on what the treatment does not cause: a descendant of
+    the treatment is a mediator, and holding one fixed is not the effect.
+    """
+    ends = _one_effect(facts.query)
+    graph = facts.graph
+    if ends is None or ends[0] not in graph or ends[1] not in graph:
+        return None
+    x, y = ends
+    downstream = nx.descendants(graph, x)
+    others = sorted((n for n in graph.nodes if n not in (x, y)),
+                    key=lambda a: a.predicate)
+    for z in others:
+        pool = [n for n in others if n != z and n not in downstream]
+        for size in range(min(_CONDITIONING_SEARCHED, len(pool)) + 1):
+            for w in itertools.combinations(pool, size):
+                if all(iv_criterion_holds(graph, facts.bidirected, x, y, z,
+                                          frozenset(w))):
+                    return z, w
+    return None
+
+
+def _is(kind: type, what: str) -> _Condition:
+    def condition(facts: RefusalFacts) -> str | None:
+        if isinstance(facts.query, kind):
+            return None
+        return f"the question is not {what}"
+    return condition
+
+
+def _names_the_declared_strategy(facts: RefusalFacts) -> str | None:
+    """A declared treatment and the declared outcome, asked as an effect."""
+    spec, q = facts.longitudinal, facts.query
+    if (isinstance(spec, Mapping) and isinstance(q, EffectQuery)
+            and q.target.atom.predicate == spec.get("outcome")
+            and q.intervention.atom.predicate in (spec.get("treatments") or ())):
+        return None
+    return ("the question does not ask about a treatment and the outcome of a "
+            "strategy the program declares")
+
+
+def _names_a_treatment_set(facts: RefusalFacts) -> str | None:
+    q = facts.query
+    if isinstance(q, EffectQuery) and q.extra_interventions:
+        return None
+    return "the question intervenes on no treatment set"
+
+
+def _names_a_target_population(facts: RefusalFacts) -> str | None:
+    """A target population, with no treatment set: that route outranks it."""
+    q = facts.query
+    if (isinstance(q, EffectQuery) and q.target_population is not None
+            and not q.extra_interventions):
+        return None
+    return "the question carries the effect to no other population"
+
+
+def _asks_one_plain_effect(facts: RefusalFacts) -> str | None:
+    q = facts.query
+    if isinstance(q, (CausationQuery, CounterfactualQuery)):
+        return None
+    if (isinstance(q, EffectQuery) and not q.extra_interventions
+            and q.target_population is None and q.mediator is None
+            and not q.mediators
+            and _names_the_declared_strategy(facts) is not None):
+        return None
+    return ("the question is not one treatment's plain effect, and what it "
+            "declares beside the treatment is answered by the route that "
+            "declaration names")
+
+
+def _conditioned(facts: RefusalFacts) -> str | None:
+    q = facts.query
+    if isinstance(q, EffectQuery) and q.given:
+        return None
+    return "the question conditions the effect on nothing"
+
+
+def _unconditioned(facts: RefusalFacts) -> str | None:
+    q = facts.query
+    if isinstance(q, EffectQuery) and q.given:
+        return "the question conditions the effect on a stratum"
+    return None
+
+
+def _latent_confounding(facts: RefusalFacts) -> str | None:
+    return None if facts.bidirected else (
+        "the program declares no latent confounding")
+
+
+def _no_latent_confounding(facts: RefusalFacts) -> str | None:
+    return "the program declares latent confounding" if facts.bidirected else None
+
+
+def _no_instrument(facts: RefusalFacts) -> str | None:
+    found = _an_instrument_found(facts)
+    if found is None:
+        return None
+    z, w = found
+    given = ", ".join(a.predicate for a in w) or "nothing"
+    return f"{z.predicate} is an instrument for it with {given} conditioned"
+
+
+def _no_instrument_unless_conditioned(facts: RefusalFacts) -> str | None:
+    """An identify query offers the instrument route only when it conditions
+    on nothing."""
+    q = facts.query
+    if isinstance(q, IdentifyQuery) and q.given:
+        return None
+    return _no_instrument(facts)
+
+
+def _an_instrument(facts: RefusalFacts) -> str | None:
+    if _one_effect(facts.query) is None or _an_instrument_found(facts):
+        return None
+    return (f"no node is an instrument for it with at most "
+            f"{_CONDITIONING_SEARCHED} of what the treatment does not cause "
+            f"conditioned")
+
+
+#: What has to hold of the question for each species of the unidentifiable
+#: kind to be its verdict. Total over the kind: see :func:`_bind_species`.
+_ANSWERS: dict[Need, tuple[_Condition, ...]] = {
+    Need.NO_C_FACTOR_WITNESS: (
+        _is(IdentifyQuery, "an identify query"),
+        _no_instrument_unless_conditioned),
+    Need.COUNTERFACTUAL_NOT_IDENTIFIABLE: (
+        _is(CounterfactualConjunctionQuery, "a counterfactual conjunction"),),
+    Need.PROXIMAL_NOT_IDENTIFIABLE: (
+        _is(ProximalEffectQuery, "a proximal effect"),),
+    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: (_names_the_declared_strategy,),
+    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: (_names_a_treatment_set,),
+    Need.TRANSPORT_NOT_IDENTIFIABLE: (_names_a_target_population,),
+    Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE: (
+        _asks_one_plain_effect, _conditioned, _latent_confounding),
+    Need.ADMG_EFFECT_NOT_IDENTIFIABLE: (
+        _asks_one_plain_effect, _unconditioned, _latent_confounding,
+        _no_instrument),
+    Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT: (
+        _asks_one_plain_effect, _unconditioned, _latent_confounding,
+        _an_instrument),
+    Need.NO_BACKDOOR_OR_FRONTDOOR: (
+        _asks_one_plain_effect, _no_latent_confounding),
+}
+_SPECIES = {str(member): member for member in _ANSWERS}
+
+
+def _bind_species() -> None:
+    """The kind is closed, so which question each species answers is a fact."""
+    kind = GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET
+    members = {m for m in Need if m.gap is kind}
+    unanswered = sorted(str(m) for m in members - set(_ANSWERS))
+    stray = sorted(str(m) for m in set(_ANSWERS) - members)
+    if unanswered or stray:
+        raise RuntimeError(
+            f"species of {kind.value} that state no question they answer: "
+            f"{unanswered}; rows for species of another kind: {stray}")
+
+
+_bind_species()
+
+
+def _species_written(node: object, where: str = "") -> Iterator[tuple[str, Need]]:
+    """Every copy of a species these rows answer for, and where it sits: a
+    ``need`` field, or a statement in the species' own vocabulary."""
+    if isinstance(node, Mapping):
+        for key, value in node.items():
+            here = f"{where}.{key}" if where else str(key)
+            spelled = (key == "need" or (
+                key == "token" and node.get("vocabulary") == NEEDED))
+            if spelled and isinstance(value, str) and value in _SPECIES:
+                yield here, _SPECIES[value]
+            else:
+                yield from _species_written(value, here)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _species_written(value, f"{where}[{index}]")
+
+
 # ===================================================== the pass
 
 
@@ -555,3 +789,28 @@ def verify_refusal_claims(report: dict, facts: RefusalFacts) -> None:
                 f"gap {position} says {kind.value}, and the program says "
                 f"otherwise: {witness}. A reader is being sent to collect "
                 f"data for an estimand this graph already identifies")
+
+
+def verify_species_claims(result: Mapping, facts: RefusalFacts) -> None:
+    """Refuse a species its question could not have been answered with.
+
+    Every copy is held, wherever the envelope spells one, because each is
+    what some reader acts on: the ask a caller fills, the report's sentence
+    and the routes it offers. Raises :class:`VerificationError` naming the
+    copy and what the program says instead; silent on every other species.
+    """
+    if not isinstance(result, Mapping):
+        return
+    judged: dict[Need, str | None] = {}
+    for where, species in _species_written(result):
+        if species not in judged:
+            judged[species] = next(
+                (said for said in (holds(facts) for holds in _ANSWERS[species])
+                 if said is not None), None)
+        said = judged[species]
+        if said is not None:
+            raise VerificationError(
+                f"{where} says the verdict is {str(species)!r}, and {said}. A "
+                f"species is which verdict an answer reached, and this one is "
+                f"not reached from this question -- a reader sent after its "
+                f"remedy is sent after another problem's")

@@ -303,8 +303,16 @@ def test_conditioning_the_reader_asked_for_can_be_what_blocks_it(honest):
     """The same graph, asked about the subgroup s — which is downstream of
     the treatment and a collider. No set is admissible beside that, so this
     refusal stands and the door says nothing. The pair is the point: the
-    witness is a fact about the estimand, not about the graph alone."""
-    themis.verify_refusal(_conditioned(given=("s",)), _forge(honest))
+    witness is a fact about the estimand, not about the graph alone.
+
+    Asked of the witness rule itself. The refusal it lifts also names the
+    verdict an unconditioned effect on an ADMG reaches, which a conditioned
+    question on a graph with no latent confounding cannot, and the door
+    refuses it for that."""
+    program, forged = _conditioned(given=("s",)), _forge(honest)
+    verify_refusal_claims(forged["data_gap_report"], _facts(program, "q"))
+    with pytest.raises(VerificationError, match="admg_effect_not_identifiable"):
+        themis.verify_refusal(program, forged)
 
 
 def test_the_full_door_runs_the_same_pass(answer):
@@ -370,12 +378,16 @@ def test_a_claim_the_data_settles_is_not_answered_from_the_graph(honest):
     """The other denominator. A door that refused everything it could not
     confirm would refuse the forgeries too and mean nothing by it — so a
     gap about a distribution passes here even when the graph is fine,
-    because the graph was never what that gap was about."""
+    because the graph was never what that gap was about.
+
+    Asked of the rule rather than the door: the asks this report was lifted
+    beside still name a verdict about latent confounding, which this graph
+    does not have, and the door refuses that on its own account."""
     bad = copy.deepcopy(honest)
     bad["query_id"] = "q"
     bad["data_gap_report"]["gaps"] = [
         _gap(GapKind.MISSING_DISTRIBUTION, "point_estimate")]
-    themis.verify_refusal(OPEN, bad)
+    verify_refusal_claims(bad["data_gap_report"], _facts(OPEN, "q"))
 
 
 # ============================================================== the binding
