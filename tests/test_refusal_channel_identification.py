@@ -48,12 +48,15 @@ def _program(query, *, x_domain=(True, False)):
             {"kind": "variable", "predicate": "x", "domain": list(x_domain)},
             {"kind": "variable", "predicate": "y", "domain": [True, False]},
             {"kind": "cause", "from": X, "to": Y},
-            {"kind": "probability", "target": {"atom": X, "value": True},
+            # x's own values, whichever it declares: a value its domain
+            # does not list is refused before the question is reached.
+            {"kind": "probability",
+             "target": {"atom": X, "value": x_domain[0]},
              "given": [], "value": 0.5},
             {"kind": "probability", "target": {"atom": Y, "value": True},
-             "given": [{"atom": X, "value": True}], "value": 0.2},
+             "given": [{"atom": X, "value": x_domain[0]}], "value": 0.2},
             {"kind": "probability", "target": {"atom": Y, "value": True},
-             "given": [{"atom": X, "value": False}], "value": 0.1},
+             "given": [{"atom": X, "value": x_domain[1]}], "value": 0.1},
             {"kind": "query", "id": "q1", "query": query},
         ],
     }

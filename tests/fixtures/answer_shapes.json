@@ -64678,7 +64678,7 @@ false
 ],
 "predicate": "raise_amount"
 },
-"value": true
+"value": 5.0
 },
 "kind": "effect",
 "target": {
@@ -65023,7 +65023,7 @@ false
 ],
 "predicate": "raise_amount"
 },
-"value": true
+"value": 5.0
 }
 ],
 "kind": "probability_ref",

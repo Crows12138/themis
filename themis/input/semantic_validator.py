@@ -21,6 +21,8 @@ Program-level (pre-graph) checks:
 - ``ground_queries``:     query atoms contain no VarTerm (v0.1 only
                           answers ground queries; patterned queries
                           are out-of-language for now).
+- ``values_in_domains``:  a literal written beside a variable that
+                          declares a domain is one of its values.
 
 Graph-level (post-projection) checks:
 
@@ -49,8 +51,9 @@ On success ``validate_program`` returns a typed ``Program`` object;
 """
 from __future__ import annotations
 
+import dataclasses
 from enum import StrEnum
-from typing import Callable, NamedTuple
+from typing import Callable, Iterator, NamedTuple
 
 from .. import language
 from ..ledger import Monotonicity
@@ -117,6 +120,10 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         # estimator each would surface as a missing column or a singular
         # matrix, in a vocabulary about matrices rather than the question.
         "proximal_sieve_design",
+        # A literal beside a variable against the values its declaration
+        # lists. Every layer past this one reads a domain as those values;
+        # a program saying another of one variable says two things of it.
+        "values_in_domains",
     }
 )
 
@@ -297,6 +304,13 @@ class Malformed(language.Word, vocabulary="malformed_program",
               "没有在 domain.objects 里声明",
         "en": "statements[{index}]: the constant {const} used in predicate "
               "{predicate} is not declared in domain.objects",
+    })
+    VALUE_NOT_IN_DOMAIN = ("value_not_in_domain", {
+        "zh": "statements[{index}]：{predicate} 声明的取值是 {domain}，"
+              "这里写的 {value} 不是其中之一",
+        "en": "statements[{index}]: {predicate} is declared to take one of "
+              "{domain}, and the value written here, {value}, is not one "
+              "of them",
     })
     FORALL_VARIABLE_UNUSED = ("forall_variable_unused", {
         "zh": "statements[{index}]：forall 声明了变量 {variables}，"
@@ -1047,6 +1061,62 @@ def _check_ground_queries(program: Program) -> None:
                                     variables=sorted(vars_used))
 
 
+def _valued_literals(node: object) -> Iterator[tuple[Atom, object]]:
+    """Every ``(atom, value)`` under ``node`` that pairs an atom with a
+    literal: an intervention, an observation, a valued atom in a query or
+    a probability, a counterfactual event (whose atom is ``variable``).
+
+    Walked over the fields rather than listed by kind, so a statement or
+    query kind added later is held without being named here. A value an
+    enclosing query binds -- ``None``, or a reference -- is not a literal.
+    """
+    if isinstance(node, (list, tuple)):
+        for one in node:
+            yield from _valued_literals(one)
+        return
+    if not dataclasses.is_dataclass(node) or isinstance(node, type):
+        return
+    atom = getattr(node, "atom", None) or getattr(node, "variable", None)
+    value = getattr(node, "value", None)
+    if isinstance(atom, Atom) and isinstance(value, (bool, int, float, str)):
+        yield atom, value
+    for field in dataclasses.fields(node):
+        if field.name not in ("atom", "variable"):
+            yield from _valued_literals(getattr(node, field.name))
+
+
+def _check_values_in_declared_domains(program: Program) -> None:
+    """A value written beside a variable is one its declaration lists.
+
+    Every layer past this one reads ``domain`` as the values the variable
+    takes: the theta layer as the atom's values, a dose-response route as
+    the points it estimates at, the verifier as what a reader can be asked
+    to record. Nothing here held a literal to it, so a program could say
+    two things of one variable and each layer believed one of them.
+    Measured: ``do(raise_amount=True)`` with ``raise_amount`` declared
+    ``[0.0, 5.0, 100.0]`` was taken, its curve drawn over the domain while
+    its request for data copied the query's value, and the answer was
+    refused at the door for asking a reader for a value the variable does
+    not have.
+
+    Silent where the variable declares no domain, as the verifier is:
+    there is then nothing to appeal to. Equality is the verifier's too.
+    """
+    domains = {st.predicate: st.domain for st in program.statements
+               if isinstance(st, VariableDeclaration) and st.domain}
+    if not domains:
+        return
+    for idx, stmt in enumerate(program.statements):
+        if isinstance(stmt, VariableDeclaration):
+            continue
+        for atom, value in _valued_literals(stmt):
+            domain = domains.get(atom.predicate)
+            if domain and not any(member == value for member in domain):
+                raise SemanticError(Malformed.VALUE_NOT_IN_DOMAIN,
+                                    index=idx, predicate=atom.predicate,
+                                    value=value, domain=list(domain))
+
+
 def _check_unique_variable_declarations(program: Program) -> None:
     """Slice A0 follow-up: a predicate may have at most one
     ``variableDeclaration``. Duplicate declarations used to silently
@@ -1509,6 +1579,7 @@ _CHECK_FUNCS = {
     "transport_runtime_gate": _check_transport_runtime_gate,
     "temporal_monotonicity": _check_temporal_monotonicity,
     "llm_prior_requires_source": _check_llm_prior_requires_source,
+    "values_in_domains": _check_values_in_declared_domains,
 }
 
 

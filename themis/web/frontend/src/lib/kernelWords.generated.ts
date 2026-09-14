@@ -2900,6 +2900,10 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: '查询声明了处理桥 q，而 estimator 是 outcome_regression，它一眼都不会看 q。声明一座不进算式的桥，读的人会以为答案受它保护——要么换 estimator，要么别声明它',
     en: 'the query declares a treatment bridge and the estimator is outcome_regression, which never consults it. A bridge that does not enter the arithmetic reads as protection the answer does not have — either change the estimator or drop it',
   },
+  value_not_in_domain: {
+    zh: 'statements[{index}]：{predicate} 声明的取值是 {domain}，这里写的 {value} 不是其中之一',
+    en: 'statements[{index}]: {predicate} is declared to take one of {domain}, and the value written here, {value}, is not one of them',
+  },
   variable_not_in_forall: {
     zh: 'statements[{index}]：谓词 {predicate} 里用到了变量 {variables}，而 forall 没有声明它们',
     en: 'statements[{index}]: predicate {predicate} uses the variables {variables} and the forall does not declare them',

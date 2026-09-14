@@ -180,6 +180,7 @@
             "sum_over_not_ground",
             "treatment_bridge_not_declared",
             "treatment_bridge_unused",
+            "value_not_in_domain",
             "variable_not_in_forall"
           ] } } }
         },

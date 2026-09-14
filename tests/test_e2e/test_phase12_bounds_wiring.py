@@ -2,8 +2,11 @@
 results that needed_investigation."""
 from __future__ import annotations
 
+import pytest
+
 import themis
 from themis import language
+from themis.input.semantic_validator import Malformed, SemanticError
 
 
 from tests.bounds_rows import methods, row
@@ -678,10 +681,12 @@ def test_likert_outcome_gets_manski_bounds():
     assert "raise_1k" in bounds["lower_expression"]
 
 
-def test_target_value_outside_declared_domain_no_bounds():
-    """Defensive: target.value=99 with domain=[1,2,3,4,5] is asking
-    about an event that isn't in the declared range — fall back to
-    'no bounds' rather than emit something the user can't interpret."""
+def test_target_value_outside_declared_domain_is_refused():
+    """target.value=99 with domain=[1,2,3,4,5] asks about an event that
+    is not in the declared range. This fell back to 'no bounds' rather
+    than emit something the user could not interpret; the program says
+    two things of one variable, and is now refused before anything runs,
+    naming the value and the domain."""
     program = {
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
@@ -709,6 +714,6 @@ def test_target_value_outside_declared_domain_no_bounds():
                  "given": []}},
         ],
     }
-    envelope = themis.run(program)
-    result = envelope["results"][0]
-    assert not result.get("bounds_results")
+    with pytest.raises(SemanticError) as raised:
+        themis.run(program)
+    assert raised.value.species is Malformed.VALUE_NOT_IN_DOMAIN

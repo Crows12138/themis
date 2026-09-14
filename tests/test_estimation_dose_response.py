@@ -243,6 +243,9 @@ def test_dose_response_uses_declared_domain_when_available():
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
             stmt["domain"] = [0.0, 5.0, 10.0]
+    # The query's value is one of those points: a value the declaration
+    # does not list is refused before anything runs.
+    program["statements"][-1]["query"]["intervention"]["value"] = 5.0
     out = themis.estimate(program, _synth_data(), model="linear")
     ne = out["results"][0]["numeric_estimate"]
     assert ne["sampling_points"] == [0.0, 5.0, 10.0]
@@ -368,6 +371,9 @@ def test_drlearner_sparsity_failure_when_bin_empty():
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "raise_amount":
             stmt["domain"] = [0.0, 5.0, 100.0]  # 100 is far outside [0, 10]
+    # The query's value is one of those points: a value the declaration
+    # does not list is refused before anything runs.
+    program["statements"][-1]["query"]["intervention"]["value"] = 5.0
     out = themis.estimate(program, _nonlinear_synth(n=600), model="drlearner")
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
@@ -404,6 +410,9 @@ def test_too_sparse_when_sampling_point_in_gap():
             # Observed data is uniform on [0, 10]. Declaring 100 forces
             # a sampling point that's nowhere near any observation.
             stmt["domain"] = [0.0, 5.0, 100.0]
+    # The query's value is one of those points: a value the declaration
+    # does not list is refused before anything runs.
+    program["statements"][-1]["query"]["intervention"]["value"] = 5.0
     out = themis.estimate(program, _synth_data(), model="linear")
     failure = out["results"][0].get("estimator_failure")
     assert failure is not None
