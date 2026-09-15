@@ -8,6 +8,12 @@ side-channel of unresolved naming questions, filtered to the query in
 hand. Neither is derived from anything, which is why each can be
 re-derived in full — and why nothing having done so was worth a module.
 
+What else an answer repeats back to its caller lives here for the same
+reason: the variables it says it is about, and the specification a
+time-varying answer says it was fitted from. Those come from the program
+rather than from the chain, so no derivation step records them and the
+rules that re-run the chain have nothing to hold them against.
+
 What a copy is worth is what it costs to edit. A review with one edge
 removed tells a reader a person drew a graph a language model drew. An
 ambiguity nobody declared is worse than noise, because the gap report
@@ -402,6 +408,82 @@ def verify_answer_names_its_question(estimate, program: dict, *, query_id
                 f"answer to a question nobody asked",
                 rule="answer_names_its_question",
             )
+
+
+#: What the numeric block of a time-varying answer repeats from the spec it
+#: was fitted from, and the value the estimator uses where the program is
+#: silent. The defaults are the estimator's own signature defaults
+#: (``estimation/longitudinal.py``), which is what the block shows when the
+#: program names nothing — a reading that stopped at "the program did not
+#: say" would leave the answer free exactly where the caller left it free.
+_LONGITUDINAL_COPIES: dict[str, dict[str, Any]] = {
+    "longitudinal_gformula": {
+        "strategy_treated": 1, "strategy_control": 0, "n_sim": 10_000},
+    "longitudinal_ipw_msm": {
+        "strategy_treated": 1, "strategy_control": 0, "stabilized": True},
+}
+
+
+def _one_option_value(shown, asked) -> bool:
+    """Two spellings of one option value.
+
+    A strategy level written ``1`` by a caller and ``1.0`` by an estimator
+    that declares it a float is the same level. ``True`` is not the number
+    one: the weight form and a strategy level are different answers, and a
+    comparison that let them stand for each other would accept either in
+    place of the other.
+    """
+    if isinstance(shown, bool) or isinstance(asked, bool):
+        return shown is asked
+    if isinstance(shown, (int, float)) and isinstance(asked, (int, float)):
+        return float(shown) == float(asked)
+    return bool(shown == asked)
+
+
+def verify_longitudinal_option_copy(estimate, program: dict) -> None:
+    """The spec a time-varying answer was fitted from, as the answer repeats it.
+
+    ``options.longitudinal`` is the caller's own words: which strategies to
+    contrast, how many forward simulations to draw, whether the weights are
+    stabilized. The numeric block repeats them beside its numbers and a
+    reader is shown them — the IPW/MSM weight sentence says Hajek or
+    Horvitz-Thompson on the strength of one boolean.
+
+    Nothing read them. ``verify_longitudinal_numeric`` audits that block and
+    is handed the estimate alone, so every leaf it holds is one it recomputes
+    from the block's own figures; these have their source outside the block.
+    The rule that does read ``options.longitudinal`` audits the
+    IDENTIFICATION block, a different claim about a different half of the
+    answer. The specification sat between two auditors, each missing what
+    the other had.
+
+    Held against the program where it declares a value and against the
+    estimator's default where it does not, because the block shows one
+    either way. The two estimators are read from one table: the leaves
+    differ — ``n_sim`` is the g-formula's simulation budget, ``stabilized``
+    the MSM's weight form — and the direction is the same.
+    """
+    if not isinstance(estimate, dict):
+        return
+    declared = (program.get("options") or {}).get("longitudinal")
+    if not isinstance(declared, dict):
+        declared = {}
+    for name, copies in _LONGITUDINAL_COPIES.items():
+        block = estimate.get(name)
+        if not isinstance(block, dict):
+            continue
+        for leaf, default in copies.items():
+            if leaf not in block:
+                continue
+            asked = declared.get(leaf, default)
+            if not _one_option_value(block[leaf], asked):
+                raise VerificationError(
+                    f"the answer says it was fitted with {leaf}="
+                    f"{block[leaf]!r} and the program asked for {asked!r}; "
+                    f"the numbers beside it are then an answer to a "
+                    f"specification nobody wrote",
+                    rule="longitudinal_option_copy",
+                )
 
 
 def verify_ambiguity_copy(block, program: dict, *, query_id) -> None:

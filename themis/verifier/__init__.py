@@ -422,6 +422,15 @@ Public surface (re-exports from sub-modules):
   per query kind, because a causation query names a cause where an effect
   query names an intervention, and a reading applied to the wrong kind would
   hold an answer to the wrong question)
+- The specification a time-varying answer was fitted from:
+  ``verify_longitudinal_option_copy`` (the strategies contrasted, the
+  simulation budget, whether the IP weights are stabilized — the caller's
+  own words in ``options.longitudinal``, repeated beside the numbers and
+  read by the page a reader is shown. The rule auditing that block is
+  handed the estimate alone, so it holds only what the block recomputes
+  from its own figures; these are held against the program where it
+  declares a value and against the estimator's default where it does not,
+  because the block shows one either way)
 - Figures the envelope worked out from its own figures:
   ``verify_envelope_arithmetic`` (the interval's half width, its width as a
   share of the effect, the sample that would halve it, a mediation total
@@ -840,6 +849,7 @@ from .program_copy_rules import (
     verify_ambiguity_copy,
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
+    verify_longitudinal_option_copy,
     verify_llm_proposed_review,
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
@@ -898,6 +908,7 @@ __all__ = [
     "verify_ambiguity_copy",
     "verify_answer_names_its_kind",
     "verify_answer_names_its_question",
+    "verify_longitudinal_option_copy",
     "verify_answer_tier",
     "verify_answer_status",
     "verify_answer_status_fits_its_question",

@@ -141,6 +141,7 @@ from .verifier import (
     verify_ambiguity_copy,
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
+    verify_longitudinal_option_copy,
     verify_answer_status,
     verify_answer_status_fits_its_question,
     verify_answer_tier,
@@ -2149,6 +2150,13 @@ def _hold_what_the_estimate_calls_for(
     # record never carried.
     verify_answer_names_its_question(
         result.get("numeric_estimate"), ast, query_id=target_id)
+    # And the specification a time-varying answer repeats beside its
+    # numbers. The same direction as the check above with a different
+    # source: the strategies, the simulation budget and the weight form are
+    # the caller's words in ``options.longitudinal`` rather than the
+    # query's, and the rule auditing the block they sit in is handed the
+    # estimate alone.
+    verify_longitudinal_option_copy(result.get("numeric_estimate"), ast)
     # And the figures the envelope worked out from its own figures. Neither
     # a copy nor an estimate: an identity, whose every input is already on
     # the envelope. Nothing records the sums somebody took after the

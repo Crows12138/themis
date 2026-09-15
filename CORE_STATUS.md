@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20346 passed / 518 skipped, warning-clean
+20352 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,32 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #667 时变答案重述它被拟合时那份说明书，没人核（2026-09-15）
+
+**现象。** 叶子普查声明文件里，两行纵向答案除掉共有的 `derivation.steps.[].step_id` 和 `estimation_context.random_state` 之后，剩下的是四片：`longitudinal_gformula` 的 `n_sim`、`strategy_treated`、`strategy_control`，`longitudinal_ipw_msm` 的 `stabilized`。四片都是同一件东西——答案把 `options.longitudinal` 抄在自己数字旁边。读者看得见：IPW/MSM 明细那句「Hajek 权重 / Horvitz-Thompson 权重」，整句就靠那一个布尔写出来（`output/analysis_report.py` 的 `_detail_longitudinal_ipw_msm`）。改掉它们，内核所有公开门都放行。
+
+**根因。** 这个块的审计者是 `verify_longitudinal_numeric(estimate)`——**签名里只有 estimate，拿不到程序**。于是它守住的每一样都是能从块内部重算的：点估计等于两个策略均值之差、两个均值等于 β 的闭式。而这四片的出处在块外面，是调用方写在 `options.longitudinal` 里的话，可对照的那一方它手里没有。反过来，读 `options.longitudinal` 的 `verify_longitudinal_identification` 审的是**识别块**，是关于答案另一半的另一个主张。这件事正好卡在两个审计者中间，各缺对方手里的那一半。
+
+**为什么是根因不是表象。** 同一个块里其余的叶子都被块内部的重算守着（点、两个均值、每个 β；篡改任何一个都被拒），唯独这四片的来源在块外。给块内部再发明一条关系是假的；唯一诚实的出处就是程序，而拿到程序需要换审计者，不是换算法。旁证：`strategy_treated` / `strategy_control` 只在 gformula 那行被声明，MSM 那行没有——因为 MSM 的 β 闭式 `E[Y_{ā=v}] = β0 + v·Σβ` 把 v 算进去了，已经守住；没有那条恒等式的 gformula 就自由。**同一个词，有恒等式的地方被守住，没恒等式的地方自由**，这正说明缺的不是某一条检查，是那个方向。
+
+**结构。** 新规则 `program_copy_rules.verify_longitudinal_option_copy(estimate, program)`：把数值纵向块对照 `options.longitudinal`，程序声明了就按声明比，没声明就按估计器自己的签名缺省比（`strategy_treated=1`、`strategy_control=0`、`n_sim=10_000`、`stabilized=True`）——块两种情况下都会显示一个值，停在「程序没说」就等于把答案放在调用方留白的地方自由。归处不是改 `verify_longitudinal_numeric` 的签名：那个模块的职责本来就是「答案对程序原话的抄写」（里面已有 `verify_ambiguity_copy`、`verify_answer_names_its_question`），而 `verify_longitudinal_numeric` 的职责是「能从块内部重算的量」。挂在 `kernel._hold_what_the_estimate_calls_for` 里 `verify_answer_names_its_question` 那一行之后，于是 `verify` 和 `verify_answer_claims` 两扇门都敲得到。
+
+两个估计器共用一张表：叶子不同（`n_sim` 是 g-formula 的模拟预算，`stabilized` 是 MSM 的权重形态），方向是同一个。值的比较由 `_one_option_value` 定：调用方写 `1`、把层级声明成 float 的估计器记 `1.0`，是同一个层级；`True` 不是数字 1——权重形态和策略层级是两种不同的答案，让它们互相顶替等于两边都可以拿对方冒充。
+
+**测量。** 声明余项 1976→**1972**。闸门不再报这四片；两行存档答案原样仍被接受。
+
+两处卫生闸门跟着动（第一遍全量各红一条，都不是行为问题）：verifier 包的 docstring 要清点每个导出（`test_subpackage_init_docstrings_inventory_all_exports`），新规则补进去了；架构图上「92 个 rule 名、106 个 verify_* 入口」是从仓库现算的，多了一条规则就变成 93 / 107，spec 与页面按 `scripts/build_arch_spec.py` + archify 重画（没有手改页面）。
+
+**取舍（声明）。**
+- `longitudinal_ipw_msm` 的 `weight_mean` / `weight_max` 仍然声明着：那是数据事实，不是抄写，验证器没有数据，属既有天花板，不在这一条里。
+- 两行共有的 `derivation.steps.[].step_id`、`estimation_context.random_state` 不动，根因不同。
+- MSM 那行的两个策略层级本来已被 β 恒等式守住，这条规则从第二个方向再守一次。这不是重复：一个方向是块自己的算术，另一个方向是调用方的原话，两者各自能抓的伪造不同（自洽地伪造整个 β 向量连同派生量，恒等式抓不到，抄写这一侧抓得到）。
+- 这条规则读程序，所以它顺带也抓「估计器没听程序的话」：程序声明了 `stabilized: false` 而块写 `true`，同样被拒。这不是额外发明的检查，是同一个比较的另一侧。
+
+**演练。** 新文件 6 个测试（两条参数化）。补丁前 5 挂 1 过（「存档答案被接受」那条两侧都过）；撤掉补丁后同样 5 挂；打回后三个源文件哈希和撤之前一致，6 个全过。连同叶子普查闸门整份文件、三个纵向测试文件和静态穷尽性门共 548 个全过。
+
+**账。** 新文件 6 个测试，基线 20346→**20352**。
 
 ### #666 反事实合取的答案说自己是关于哪个反事实的，没人核（2026-09-15）
 
