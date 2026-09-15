@@ -266,8 +266,7 @@
  "ctf_conjunction_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
-  "numeric_estimate.estimand"
+  "extensions.mechanism_audit.mechanisms.[].target"
  ],
  "differential_outcome_correction": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",

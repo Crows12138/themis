@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20342 passed / 518 skipped, warning-clean
+20346 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,34 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #666 反事实合取的答案说自己是关于哪个反事实的，没人核（2026-09-15）
+
+**现象。** `numeric_estimate.estimand` 是这条路上唯一用文字说出「这个数属于哪个反事实」的地方（`P(y_{x=True}=True | x=False)`）。把它换成任何别的字符串，内核所有 `verify*` 公开门全部放行。仓库自己的叶子普查闸门早就记下了这一片：`tests/fixtures/unwitnessed_leaves.json` 里 241 行、1977 条声明中的一条。
+
+**根因。** 守「答案说自己回答哪个问题」的是 `program_copy_rules.verify_answer_names_its_question`，它按查询种类查 `_QUESTION_READS`。表里每条读法都返回**变量名**（谓词或谓词列表）；而反事实合取不是用变量命名它的问题的，它的问题是一串事件（变量＋下标干预＋取值）。所以表里没有 `counterfactual_conjunction` 这一项——不是漏填一行，是读法的形状装不下这种问题。数值规则的 docstring 把这句话写在明处：「There is no treatment / outcome pair」。
+
+**为什么是根因不是表象。** 其他形状的同类叶子都被这条规则守着：语料 82 个带数值的答案上，effect / causation / counterfactual / proximal 的 treatment、outcome、mediator、proxy 全部拒。唯独这一形状因为「不用变量名命名问题」整体落在规则视野外，于是它那片最详细地陈述问题的叶子反而最自由。
+
+**结构。** 两处：
+- `_QUESTION_READS` 加 `counterfactual_conjunction` 一项，读法返回 γ（和 δ）的渲染。渲染在验证器这边独立转写，不从估计器 import——生产方交过来的副本天然和生产方一致，而这条规则的全部用处就是跟它不一致。两种拼写由新测试互钉。
+- 循环里那条「含逗号就放弃」的退让，改成由 shown 和 asked 两个值共同决定（答案把一串东西写进了问题只命名一样东西的字段）。那条退让本是给纵向 treatment 序列写的；只读 shown 一个值的话，任何自身拼写带逗号的读法都会被一并豁免——反事实渲染只要一个下标里按住两个干预就带逗号，于是加了读法也照样静默免检。
+
+**测量。**
+- 补丁前：闸门的 12 扇门对这一行全部放行 estimand 的四种弯折。
+- 补丁后：闸门不再报这一片，声明余项 1977→**1976**。
+- 语料里只有这一行带 `numeric_estimate.estimand`；其余 81 个带数值的答案不受影响。
+
+**一条关于测量本身的更正。** 我先用 `themis.verify` 一扇门扫了语料，读出 `point`、`conditional`、`sample_size`、`std_error`、`tmle_epsilon` 五类「也没人守」。换成闸门自己的门集（所有 `themis.verify*` 公开入口）重测，这五类全部有别的门守着，真正幸存的只有已声明的三片（本条关掉的 estimand，加上 `stabilized`、`acr_declined`）。**覆盖率是关于「问了哪些门」的事实**——这正是那面闸门自己在 docstring 里写的教训，我又踩了一次。
+
+**取舍（声明）。**
+- 语料里另外两片幸存叶子（`ipw_stabilized` 的 `stabilized`、`iv_2sls` 的 `acr_declined`）本轮不关：它们各属别的规则，根因不同，混进来会让这条条目讲两件事。
+- 这一行仍声明着的三片（`estimation_context.ci_bootstrap` / `random_state`、`extensions.mechanism_audit.mechanisms.[].target`）不动。
+- 渲染的拼写由测试钉住，不是由类型钉住：生产方改了写法而没改验证器，测试红，不是规则默默放行。这是本仓库对验证器重复的一贯处理。
+
+**演练。** 新文件 4 个测试。补丁前 3 个失败（诚实答案那个两侧都过）；撤掉补丁后同样 3 个失败；打回后文件哈希和撤之前一致，4 个全过。连同静态穷尽性测试共 12 个全过。叶子普查闸门整份文件（含这一行的 sweep 和余项断言）在打补丁后单独跑过一轮 730 全过——那一轮的 `_conjunction_said` 与现在只差内部写法（为让 mypy 干净，列表推导改成循环）——最终这份代码由全量套件再跑一次。
+
+**账。** 新文件 4 个测试，基线 20342→**20346**。
 
 ### #665 同一个反事实问题在不同进程里换个顺序告诉读者缺什么（2026-09-15）
 

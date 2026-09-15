@@ -200,7 +200,68 @@ def _predicates(nodes) -> list[str] | None:
     return None if any(p is None for p in out) else [p for p in out if p]
 
 
-#: How each kind of question names the variables an answer claims to be
+def _a_course_where_the_question_names_one_thing(shown, asked) -> bool:
+    """Has the answer spelled a course of values into a field the question
+    names one thing by?
+
+    The two values say it together. Read off the shown one alone — a comma
+    anywhere in it — the decline also exempted every reading whose own
+    spelling carries commas, and a counterfactual conjunction's spelling
+    carries one as soon as two interventions are held in a subscript.
+    """
+    return (isinstance(shown, str) and "," in shown
+            and isinstance(asked, str) and "," not in asked)
+
+
+def _event_said(event) -> str | None:
+    """One counterfactual event, spelled the way an answer spells it.
+
+    Transcribed here rather than taken from the estimator that renders it:
+    a copy handed over by the producer agrees with the producer by
+    construction, and disagreeing with it is the whole of what this rule
+    is for. A test holds the two spellings to each other.
+    """
+    if not isinstance(event, dict):
+        return None
+    variable = _predicate(event.get("variable"))
+    if variable is None:
+        return None
+    subscript = event.get("subscript") or []
+    if not isinstance(subscript, list):
+        return None
+    held = []
+    for fixed in subscript:
+        if not isinstance(fixed, dict):
+            return None
+        atom = _predicate(fixed.get("atom"))
+        if atom is None:
+            return None
+        held.append((atom, fixed.get("value")))
+    held.sort(key=lambda pair: pair[0])
+    sub = "_{" + ",".join(f"{a}={v}" for a, v in held) + "}" if held else ""
+    return f"{variable}{sub}={event.get('value')}"
+
+
+def _conjunction_said(query: dict) -> str | None:
+    """P(γ) or P(γ|δ), as the answer beside the number writes it."""
+    events = query.get("events")
+    condition = query.get("condition") or []
+    if not isinstance(events, list) or not events:
+        return None
+    if not isinstance(condition, list):
+        return None
+    spelled: list[str] = []
+    for event in (*events, *condition):
+        one = _event_said(event)
+        if one is None:
+            return None
+        spelled.append(one)
+    said = " ∧ ".join(spelled[:len(events)])
+    given = spelled[len(events):]
+    return f"P({said} | {' ∧ '.join(given)})" if given else f"P({said})"
+
+
+#: How each kind of question names the quantity an answer claims to be
 #: about. Written per kind because the question is spelled differently in
 #: each — a causation query has a cause and an effect where an effect query
 #: has an intervention and a target — and a reading invented for one kind
@@ -228,6 +289,9 @@ _QUESTION_READS: dict[str, dict[str, Callable[[dict], Any]]] = {
         "outcome": lambda q: _predicate(q.get("outcome")),
         "treatment_proxy": lambda q: _predicates(q.get("treatment_proxy")),
         "outcome_proxy": lambda q: _predicates(q.get("outcome_proxy")),
+    },
+    "counterfactual_conjunction": {
+        "estimand": _conjunction_said,
     },
 }
 
@@ -303,6 +367,12 @@ def verify_answer_names_its_question(estimate, program: dict, *, query_id
     from the one the query's single atom names, and is declined rather
     than compared. Declining leaves the leaf unheld, which the sweep
     reports; comparing would refuse an honest answer.
+
+    What a question names its quantity by is not always a variable. A
+    counterfactual conjunction names it by its events, and the answer
+    spells them out; a reading that returns that spelling is compared
+    like any other, which is why the decline above is read off the two
+    values together rather than off the shown one alone.
     """
     if not isinstance(estimate, dict):
         return
@@ -316,8 +386,6 @@ def verify_answer_names_its_question(estimate, program: dict, *, query_id
         if name not in estimate:
             continue
         shown = estimate[name]
-        if isinstance(shown, str) and "," in shown:
-            continue
         asked = read(query)
         if asked is None:
             continue
@@ -325,6 +393,8 @@ def verify_answer_names_its_question(estimate, program: dict, *, query_id
             shown = [str(s) for s in shown]
         elif shown is not None:
             shown = str(shown)
+        if _a_course_where_the_question_names_one_thing(shown, asked):
+            continue
         if shown != asked:
             raise VerificationError(
                 f"the answer says its {name} is {shown!r} and the question "
