@@ -354,8 +354,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
-  "numeric_estimate.outcome_saturation.p_min",
-  "numeric_estimate.stabilized"
+  "numeric_estimate.outcome_saturation.p_min"
  ],
  "iv_2sls": [
   "data_gap_report.gaps.[].alternative_paths.[].said.treatment",

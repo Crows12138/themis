@@ -148,8 +148,8 @@ def test_ipw_stabilized_and_ht_both_recover_under_correct_propensity():
                             stabilized=True, ci_bootstrap=0)
     ht = estimate_ipw_ate(df, treatment="A", outcome="Y", adjustment=("Z",),
                           stabilized=False, ci_bootstrap=0)
-    assert stab.method == "ipw_stabilized" and stab.stabilized is True
-    assert ht.method == "ipw_ht" and ht.stabilized is False
+    assert stab.method == "ipw_stabilized"
+    assert ht.method == "ipw_ht"
     assert abs(stab.point - TRUE_ATE) < 0.15
     assert abs(ht.point - TRUE_ATE) < 0.15
 

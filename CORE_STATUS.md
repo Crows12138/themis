@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20352 passed / 518 skipped, warning-clean
+20363 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,47 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #668 一个数是按哪种权重算的，信封记了五遍，没人读的是第五遍（2026-09-15）
+
+**现象。** `ipw_stabilized` 语料行的声明余项里有 `numeric_estimate.stabilized`。用闸门自己的门集实测（21 个 `themis.verify*` 公开入口，其中 13 个会读这份信封）：把这个布尔翻成 `False`，13 扇门全部放行；把它整个删掉，同样全部放行。读者那边一个也没有——`output/analysis_report.py` 里读 `stabilized` 的那处是 MSM 块（#667 刚守住的那一片），浏览器的 `types.ts` 连这个顶层字段都没声明，prompt 只讲 `ipw_stabilized` / `ipw_ht` 两个方法名。
+
+**根因。** 同一个比特在这份信封里被记了**五遍**，写第五遍的是刚把这根杆传进去的那一层。前四遍各自都被守着，逐个实测：
+
+| 记录 | 单独弯它 |
+|---|---|
+| `numeric_estimate.method`（两个成员就是两种权重） | 拒，`numeric_display_copy_check`：「产出它的那一步记的是 `ipw_stabilized`」 |
+| 产出该数的推导步 | 就是上一行做的对照 |
+| `mechanism_audit` 记的拟合 | 拒，`assumption_ledger_check`：「机制审核说拟合是 `ipw_stabilized`，估计却报 `ipw_ht`」 |
+| 估计器自述的 `hajek_stabilized_weights` | 拒，台账不许丢掉估计器声明的 id；而且它是**到达读者的那一份**：报告里「IPW 用 Hájek 稳定化权重（组内归一，方差更小）　（来源 估计器默认选择）」 |
+| `numeric_estimate.stabilized` | **13 扇门全放行** |
+
+把前四份**一起自洽地翻掉**仍然被拒（推导步与机制审核是两个独立方向）。于是这个布尔买不到任何东西：`dispatch` 是把估计器 dataclass 的字段抄进信封的一层，而 `IPWEstimate` 同时带着「杆的解析值」和「由它算出来的名字」（`aipw.py` 里 `method = "ipw_stabilized" if stabilized else "ipw_ht"`），抄出来就多一份。
+
+**为什么是根因不是表象。** 三条旁证。①**本仓库删 `inference` 块时写下的理由就在这一行上面两行**（`estimation/dispatch.py` 的 `if` 分支注释），同型，而这次更强：那次的 bool 因为只记 True/False 而结构上无法被佐证，这次的事实有四个方向互相佐证，第五份不增加任何可核对的东西。②**从 JSON 程序这个布尔不可达**：`dispatch.py:616` 只在 `estimator == "ipw_msm"` 时读 `spec["stabilized"]`，`kernel_ast.schema.json` 也写着 ipw_msm only，所以信封上它恒为 `true`——`answers.py` 那句注释「`ipw_ht` declared from ipw_stabilized; suite never triggers」说的就是这件事。③**同一个 `if/else` 里的兄弟布尔 `doubly_robust` 不是这一类**：它被推导终步的 `terminal_inputs` 读，也被 prompt 明文要求转述给读者，所以它留下。「没人读它」的三种解法里（渲染、留给非读者消费者、删），这一条落在第三种。
+
+**结构。** 删，不是守：
+- `estimation/dispatch.py` 去掉 `ne["stabilized"] = est.stabilized`，理由写在 `inference` 那段旁边（两段并排，是同一个判据的两次应用）。
+- `estimation/aipw.py` 去掉 `IPWEstimate.stabilized`。信封那行删掉之后，这个字段的读者只剩 `tests/test_aipw.py` 的一句断言——**不删就是把同一个病灶留在下一层**，而且是只写不读的那种。`method` 是每条规则、每个读者、契约枚举都在用的那一份记录，杆的位置由它承载。
+- schema 删掉该属性：`numeric_estimate` 是 `additionalProperties: false`，于是「谁再写回去」由合同当场拒绝，不靠记性。
+- 语料那一行删掉那片叶子，声明余项删掉那一条。
+
+**测量。** 声明余项 1972→**1971**。
+
+**这一轮多找到一个钉子，记下来。** 那面闸门有**两个**计数：声明余项（1972→1971），以及它一共问了多少个问题 `test_the_sweep_asks_about_the_whole_envelope`（32585→**32584**）。第二个我事先没找到，是跑那个文件时它自己红的；它的 docstring 是这个数每一次移动的流水记录，所以这次的移动也写在那里。顺带**改掉那面闸门关于自己的一句话**：模块 docstring 原来写「一片叶子只有被关掉才能离开那个文件」，而它自己的流水里早就有十八片是因为刷新把字段拿走而离开的——这一轮把第二条路变成有意为之，于是那句话改成「被关掉，或者不在了」。
+
+架构图这次**不动**：量过了，重建出来的 spec 与已提交的只差 `meta.repository.revision` 一个字段（rule 名 93、`verify_*` 入口 107 都没变，这两个数才是画里印着的），而闸门在 HEAD 上就是带着上一轮的 revision 过的。
+
+**取舍（声明）。**
+- `ipw_ht` 从 JSON 仍然不可达。这一轮**没有**顺手把它开出去——那是加能力不是修病灶，而且它一旦可达，`verify_longitudinal_option_copy` 那种「答案抄程序」的规则就该跟着覆盖到普通 IPW，属另一条前沿。Python API 的杆原样保留，`stabilized=False` 仍然给出 `ipw_ht` 与 Horvitz-Thompson 词条。
+- `tests/test_aipw.py` 两句断言各少了后半句（`and stab.stabilized is True`）。前半句 `method == "ipw_stabilized"` 本来就在那里，是同一件事的同一次断言。
+- MSM 块的 `stabilized` 留着，理由正好相反：读者看得见（那句权重形态的话整句靠它），而且 #667 已经把它守到 `options.longitudinal`。同一个词，一处删一处守。
+- 这一行其余的声明叶子（`data_gap_report...said.*` 九片、`derivation.steps.[].inputs.propensity_*` 四片、`outcome_saturation.p_min/p_max`、`bounds_results.[].contrast.reference_value`、`estimation_context` 两片）不动，根因不同。
+- **语料没有重采，这是一条对前沿清单原有前提的更正。** 原来记着「删字段要刷语料＋普查钉子，代价大」。实测：快照是按键排序、一键一行的 JSON，而这个字段没有任何代码读它，删掉它不可能改变该行别的任何值——手删那一行与重采得到的字节完全一致。真正的代价是那两个计数钉子，不是采集。
+
+**演练。** 新文件 11 个测试。补丁前 6 挂 5 过，过的 5 个正是「什么都没少」那一半（存档答案仍被接受、三种弯法仍被拒、读者仍看得见）；把补丁整份撤掉，工作树与 HEAD **逐字节相同**（`git status` 只剩那个新文件），同样 6 挂；打回后七个文件哈希与撤之前一致，11 个全过。连同 `test_aipw.py` 共 29 过；连同契约、形状、静默部件、叶名、杆、纵向、机制、静态穷尽性等 15 个文件共 795 过 1 skip；`mypy` 全包 190 个文件 clean。
+
+**账。** 新文件 11 个测试，基线 20352→**20363**。
 
 ### #667 时变答案重述它被拟合时那份说明书，没人核（2026-09-15）
 

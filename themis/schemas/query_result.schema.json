@@ -2270,10 +2270,6 @@
           "enum": ["influence_function", "bootstrap"],
           "description": "AIPW / TMLE: how the CI was formed — 'influence_function' is the analytic Wald CI from the efficient influence curve (the default, the doubly-robust estimators' advantage over the bootstrap-only g-formula); 'bootstrap' refits the estimator per resample."
         },
-        "stabilized": {
-          "type": "boolean",
-          "description": "IPW only: True for the Hajek (stabilized-weights) estimator, False for the raw Horvitz-Thompson form."
-        },
         "longitudinal_gformula": {
           "type": "object",
           "description": "Phase 7.L: longitudinal parametric g-formula (g-computation) detail for a time-varying treatment STRATEGY (Hernán & Robins, What If, ch.21). point/ci mirror the top-level fields; the rest exposes the time-ordered treatment + covariate spec, the two simulated strategy means, and the Monte-Carlo / bootstrap budgets so a consumer can audit the always-treat vs never-treat contrast.",

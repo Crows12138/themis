@@ -8324,7 +8324,19 @@ def _try_doubly_robust_estimate(
         # because it recorded a boolean rather than the column name there was
         # nothing in it to corroborate.
     else:
-        ne["stabilized"] = est.stabilized
+        # The IPW branch attaches nothing of its own either. It used to
+        # write ``stabilized``, the resolved position of the weights
+        # lever — and that position IS the ``method`` above, whose two
+        # members are the two forms; the derivation step that produced
+        # the number records it, the mechanism audit records the fit, and
+        # the estimator declares ``hajek_stabilized_weights`` or
+        # ``horvitz_thompson_weights`` in its own assumptions, where it
+        # reaches a reader as a sentence. Measured against every public
+        # door: bending any of those is refused, bending all of them
+        # together is still refused, and bending the boolean was accepted
+        # by all thirteen doors that read that answer. A fifth record
+        # written by the layer that had just passed the lever in comes
+        # from none of those directions and nothing read it.
         _attach_bootstrap_meta(ne, cluster, est.draws)
 
     result["numeric_estimate"] = ne

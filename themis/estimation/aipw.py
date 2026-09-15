@@ -159,6 +159,9 @@ class IPWEstimate:
     ci_lower: float | None
     ci_upper: float | None
     ci_level: float
+    #: Which weights this estimate was taken over, and the only record of
+    #: it: the two members ARE the two forms. A boolean beside it said the
+    #: same bit a second time — see the else branch in ``dispatch.py``.
     method: str                # "ipw_stabilized" | "ipw_ht"
     assumptions: tuple[str, ...]
     sample_size: int
@@ -168,7 +171,6 @@ class IPWEstimate:
     treatment: str
     outcome: str
     propensity: PropensitySummary
-    stabilized: bool
     form: str = ""
     #: Nothing chose this shape: it IS the method, and the only way to
     #: overrule it is to answer by a different one.
@@ -303,7 +305,6 @@ def estimate_ipw_ate(
         treatment=treatment,
         outcome=outcome,
         propensity=prop,
-        stabilized=stabilized,
         draws=draws,
         form="logistic_propensity",
         # Three shapes, and the propensity model is the only one the constant

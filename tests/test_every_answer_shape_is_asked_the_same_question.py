@@ -30,8 +30,10 @@ is about.
 That is not a list of bugs this file fixes. It is a denominator this file
 makes impossible to lose: the remainder is declared in
 ``fixtures/unwitnessed_leaves.json``, and a leaf leaves that file only by
-being closed. A leaf that appears in it without being added deliberately is
-a new hole, and this test says its name.
+being closed or by being gone — the field deleted, because the fact it
+recorded is already recorded where a rule and a reader reach it. A leaf
+that appears in it without being added deliberately is a new hole, and
+this test says its name.
 
 What the remainder is right now is not written here. It is written in that
 file, and asserted once below — a count restated in prose is a copy that
@@ -1461,7 +1463,7 @@ def test_the_declared_remainder_is_what_it_is():
     off each row. Nothing here is newly held; what those rows say is less.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1972, total
+    assert total == 1971, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1569,6 +1571,15 @@ def test_the_sweep_asks_about_the_whole_envelope():
     picked up what its producer had grown since the row was kept: a
     framing note and a gap about the second treatment's definition, and
     the bootstrap premise on its ledger.
+
+    Then 32584, downwards and not by a refresh: the IPW answer's
+    ``stabilized`` was deleted rather than closed. Which weights the
+    number was taken over is already the ``method``'s own two members,
+    the derivation step that produced it, the mechanism audit's record
+    of the fit and the estimator's own declaration — and the boolean was
+    the one of the five no door read and no reader saw. A leaf leaves
+    this gate by being closed or by being gone, and the second way is
+    why this count is asserted rather than derived.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1578,7 +1589,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32585, asked_total
+    assert asked_total == 32584, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [
