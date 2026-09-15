@@ -213,28 +213,6 @@ _RENDERS_ITS_TARGET: frozenset[str] = frozenset({
 _ONE_ARM_TWO_SPELLINGS: frozenset[str] = frozenset({"logistic", "logit"})
 
 
-#: The fits that honour a caller's word by BEING what it asks for.
-#:
-#: ``iv_overidentified`` declares ``2sls`` beside ``auto`` and has no
-#: ``model=`` parameter to receive it: the row IS the two-stage fit, several
-#: instruments and the Sargan test beside it. So a caller who writes that
-#: word gets exactly what they named — and the shape is still not theirs to
-#: change, because withdrawing the word leaves the same row answering. The
-#: block therefore says the caller settled nothing, correctly, and the
-#: context's word has no block to corroborate it. That is what this
-#: exemption costs and it is not free: the word on such an answer is
-#: recorded and unwitnessed, as it was everywhere before this pair existed.
-#:
-#: Keyed on ``method``, which the estimate beside the block records too and
-#: which is already held equal to it, so reaching this exemption dishonestly
-#: costs a second lie about which estimator ran. What keeps the set honest
-#: is not this comment: a row belongs here exactly when its vocabulary is
-#: neither the do-nothing word alone nor one of the three families', and the
-#: tests read that off the strategy table rather than trusting the name
-#: below.
-_HONOURS_A_WORD_BY_BEING_IT: frozenset[str] = frozenset({"iv_2sls_overid"})
-
-
 def word_that_could_not_have_asked_for(word: object, form: object) -> str | None:
     """A complaint if the caller's ``model=`` cannot have asked for this
     form, else ``None``.

@@ -35,11 +35,14 @@ for two reasons at once and made this repair unmeasurable. A premise that
 fails loudly is cheaper than a measurement that can no longer be read.
 
 WHAT THIS FILE DOES NOT CLAIM. A named word on an answer that discloses no
-mechanism at all is not checked, and cannot be: three of IV's five words
-select an estimator with no functional-form assumption to disclose, so
-there is no block to attribute anything to, and requiring one would refuse
-those three honest answers. The limit is pinned below rather than left to
-be discovered — a coverage claim is a fact about the question that was
+mechanism at all is not checked HERE, and cannot be: three of IV's five
+words select an estimator with no functional-form assumption to disclose,
+so there is no block to attribute anything to, and requiring one would
+refuse those three honest answers. They are held by something else, in
+``test_the_word_a_caller_wrote_is_held_by_whatever_honours_it.py``: their
+word names a ROW rather than a shape, and the row that ran is the record
+of what became of the request. The limit is pinned below rather than left
+to be discovered — a coverage claim is a fact about the question that was
 asked.
 """
 from __future__ import annotations
@@ -63,9 +66,11 @@ from themis.estimation.form import (
     MODEL_WORDS_OUTCOME,
     outcome_form,
 )
-from themis.verifier.assumption_ledger_rules import _DECLINED_TO_CHOOSE
+from themis.verifier.assumption_ledger_rules import (
+    _DECLINED_TO_CHOOSE,
+    _THE_ROWS_A_WORD_NAMES,
+)
 from themis.verifier.mechanism_rules import (
-    _HONOURS_A_WORD_BY_BEING_IT,
     _ONE_ARM_TWO_SPELLINGS,
     word_that_could_not_have_asked_for,
 )
@@ -310,15 +315,17 @@ def test_one_arm_under_two_spellings_is_not_a_disagreement():
 
 @pytest.mark.parametrize("word", ["wald", "acr", "stratified_wald"])
 def test_a_named_word_whose_route_discloses_no_shape_is_left_alone(word):
-    """THE DECLARED LIMIT, pinned rather than described.
+    """THE LIMIT OF THE PAIR THIS FILE IS ABOUT, pinned rather than
+    described.
 
     These three answer with no functional-form assumption at all, so there
     is no mechanism block to attribute the caller's word to. The check that
-    holds the context is scoped to answers that disclose a shape, and these
+    reads a block is scoped to answers that disclose a shape, and these
     are why: a rule asking every named word for a block would refuse all
     three, and a refusal of an honest answer is worse than the hole it
-    closes. What it costs is that ``model_preference`` on these three rows
-    is still corroborated by nothing.
+    closes. It costs nothing in corroboration, which is what it used to
+    cost: the word on these rows names the row that ran, and the ``method``
+    it names is what holds it.
     """
     result = _answer(_IV, word)
     assert result["estimation_context"]["model_preference"] == word
@@ -335,6 +342,10 @@ def test_a_row_that_honours_a_word_by_being_it_is_left_alone():
     caller settled nothing. That is the honest block: withdraw the word and
     the same row answers, so the shape is not theirs to change. A check
     asking every named word for a block would refuse this honest answer.
+
+    Left alone by the check on the block, and no longer left alone: the
+    word on this row is read against the row that ran, which is why the
+    exemption this test used to pin is gone.
     """
     result = _answer(_OVERID, "2sls")
     assert result["numeric_estimate"]["method"] == "iv_2sls_overid"
@@ -347,19 +358,25 @@ def test_a_row_that_honours_a_word_by_being_it_is_left_alone():
         "iv_2sls_overid")
 
 
-def test_the_rows_that_honour_a_word_by_being_it_are_the_ones_exempted():
-    """The exemption read off the strategy table, not off its own name.
+def test_the_row_that_honours_a_word_by_being_it_is_named_by_that_word():
+    """Read off the strategy table, not off its own name.
 
-    A row belongs there exactly when its vocabulary is neither the
+    A row is one of these exactly when its vocabulary is neither the
     do-nothing word alone nor one of the three families' — it declares a
-    word and has no parameter to receive it. Reading it from the table is
-    what makes a second such row a red suite instead of a quiet second.
+    word and has no parameter to receive it. This used to pin an exemption
+    list, and there is no list any more: such a row is held to its word
+    like every other, so what has to be true is that the word it declares
+    names it. Reading the row off the table is what makes a second such
+    row a red suite instead of a quiet second.
     """
     families = (MODEL_WORDS_NONE, MODEL_WORDS_OUTCOME, MODEL_WORDS_IV,
                 MODEL_WORDS_DOSE_RESPONSE)
     odd = {s.id for s in _EFFECT_STRATEGIES if s.models not in families}
     assert odd == {"iv_overidentified"}
-    assert _HONOURS_A_WORD_BY_BEING_IT == {"iv_2sls_overid"}
+    word, = set(next(s for s in _EFFECT_STRATEGIES
+                     if s.id == "iv_overidentified").models) - {AUTO}
+    assert _answer(_OVERID, word)["numeric_estimate"]["method"] in (
+        _THE_ROWS_A_WORD_NAMES[word])
 
 
 def test_the_only_shape_lever_a_caller_can_reach_is_the_model_word():

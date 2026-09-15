@@ -1461,9 +1461,18 @@ def test_the_declared_remainder_is_what_it_is():
     instrument with nothing conditioned, which the producer no longer
     does, and the refresh took the interval and the sentence about it
     off each row. Nothing here is newly held; what those rows say is less.
+
+    Then 29 came off the word a caller writes to choose an estimator or
+    a shape. Each of those rows answers through a route with no shape
+    lever at all, so the field said ``auto`` and could be rewritten to
+    say the caller had asked for 2SLS or for a link function. The
+    producer already refuses to answer with a word the answering row
+    does not accept; what was missing was the verifier's half, and it
+    was missing because it sat inside a check that returns when an
+    answer discloses no fitted shape — which is every one of these 29.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1969, total
+    assert total == 1940, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

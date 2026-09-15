@@ -105,7 +105,6 @@ from ..assumption_glossary import answerable, declares
 from ..gaps import DESCRIBED, Sentence
 from .errors import VerificationError
 from .mechanism_rules import (
-    _HONOURS_A_WORD_BY_BEING_IT,
     shape_the_method_cannot_fit,
     word_that_could_not_have_asked_for,
 )
@@ -116,6 +115,28 @@ from .mechanism_rules import (
 #: is the envelope's, and a test drives a run that leaves the option alone to
 #: pin the two.
 _DECLINED_TO_CHOOSE = "auto"
+
+#: The words a caller writes to pick an ESTIMATOR, and which row each one
+#: picks. The rest of the vocabulary — ``linear``, ``logistic``, ``forest``,
+#: ``drlearner`` — names a SHAPE instead, and the two kinds are honoured by
+#: different things: a shape word by a fit taking that shape, a row word by
+#: that row running. Which is why one rule asking every word for a
+#: disclosed shape refuses four honest IV answers, and why the arrangement
+#: that avoided that was an exemption list whose own note conceded that the
+#: word on the rows it exempted stayed corroborated by nothing.
+#:
+#: Transcribed here for the reason :data:`_DECLINED_TO_CHOOSE` is, and held
+#: to the producer the same way: a test writes each word at the public entry
+#: and asks what ran. Derived from the strategy table it would be this side
+#: agreeing with the producer by running the producer's code — and that
+#: table answers a different question anyway, which words a row ACCEPTS
+#: rather than which row a word names.
+_THE_ROWS_A_WORD_NAMES: Mapping[str, frozenset[str]] = {
+    "2sls": frozenset({"iv_2sls", "iv_2sls_overid"}),
+    "acr": frozenset({"iv_acr"}),
+    "stratified_wald": frozenset({"iv_stratified_wald"}),
+    "wald": frozenset({"iv_wald"}),
+}
 
 #: The origin a shape carries when the caller's own lever settled it.
 _THE_CALLER_S_OWN = "caller_asserted"
@@ -636,6 +657,7 @@ def verify_assumption_ledger(result: dict) -> None:
     _check_one_run_settles_one_shape_per_lever(extensions)
     _check_every_shape_the_ledger_names_has_a_mechanism(entries, extensions)
     _check_the_block_describes_the_fit_that_ran(result, extensions)
+    _check_the_word_the_caller_pointed_at(result, extensions)
 
 
 # --- the four channels the ledger owes ----------------------------------------
@@ -1445,19 +1467,14 @@ def _check_the_block_describes_the_fit_that_ran(
     weigh.
 
     A ``caller_asserted`` among the origins is asked against
-    ``estimation_context.model_preference``, and until it was, that context
-    field was witnessed by nothing on any answer this build gives: the word
-    could be rewritten from ``auto`` to a shape the estimator chose for
-    itself and every public door said yes. The two are one decision recorded
-    twice — the context at the entry, before a route was chosen; the origin
-    on the far side of the cascade, off the estimate that resolved a shape —
-    so a route that drops the knob shows up here as a disagreement rather
-    than as an envelope telling a reader they chose a shape they did not
-    get. Held in BOTH directions, because a block claiming a caller the
-    context has none of, and a context naming a word no block attributes to
-    anybody, are the same lie told from the two ends. And in a third: which
-    shape the word names, since the two ends can agree that the caller chose
-    and still disagree about what.
+    ``estimation_context.model_preference`` by
+    :func:`_check_the_word_the_caller_pointed_at`, beside this function
+    rather than inside it. It was inside, and being inside cost it the
+    direction that reads the context: this one returns before anything when
+    the answer discloses no mechanism, which is right for a check on a block
+    and wrong for a check on a word, because a word no disclosed fit
+    attributes to anybody is at its most complete exactly when there is no
+    fit to attribute it to.
 
     ``form`` reaches the envelope through this block alone — the estimate
     records which method ran, never the shape word — so it stands as the
@@ -1492,8 +1509,6 @@ def _check_the_block_describes_the_fit_that_ran(
             "envelope has no record of"
         )
     declared = {str(a) for a in estimate.get("assumptions") or ()}
-    asked_for = str((result.get("estimation_context") or {})
-                    .get("model_preference") or _DECLINED_TO_CHOOSE)
     for m in mechanisms:
         if m.get("method") != estimate.get("method"):
             _reject(
@@ -1511,20 +1526,6 @@ def _check_the_block_describes_the_fit_that_ran(
         complaint = shape_the_method_cannot_fit(m.get("method"), m.get("form"))
         if complaint is not None:
             _reject(complaint)
-        # WHICH shape the word names. The other direction of this pair — a
-        # block attributing a shape to a caller who named none — is held
-        # already, and not from here: :func:`_check_caller_assertions` reads
-        # the same context field to decide whether any ``caller_asserted``
-        # line may be handed to the reader at all. Adding a second gate for
-        # it would be a rule whose counterexample another rule refuses
-        # first, which reads as coverage and is not.
-        if _a_caller_settled_a_shape_here(m) and (
-            asked_for != _DECLINED_TO_CHOOSE
-        ):
-            complaint = word_that_could_not_have_asked_for(
-                asked_for, m.get("form"))
-            if complaint is not None:
-                _reject(complaint)
         for named in m.get("assumptions") or ():
             if not isinstance(named, dict):
                 continue
@@ -1535,31 +1536,124 @@ def _check_the_block_describes_the_fit_that_ran(
                     f"{sorted(declared)}; a mechanism points at assumptions "
                     "already declared and does not introduce one"
                 )
-    # The other end of the same pair. Asked once, of the blocks together,
-    # because an answer may disclose several fits and the caller's word
-    # settled the shape of one of them — a measurement route's own form is
-    # not a shape any ``model=`` names, and requiring the claim of every
-    # block would refuse an honest answer for carrying an extra one. What
-    # cannot be honest is a word on the context that NO disclosed fit
-    # attributes to the caller: the field would then be the only record of a
-    # choice, which is what it was before this pair existed.
-    #
-    # Except where the row honoured the word by BEING it, which is a real
-    # way to honour a request and not a loophole — see
-    # :data:`~themis.verifier.mechanism_rules._HONOURS_A_WORD_BY_BEING_IT`.
-    # An answer with no disclosed fit at all never reaches here, and that is
-    # the same exemption one step earlier: three of IV's five words select
-    # an estimator with no functional form to disclose, so there is no block
-    # for the word to be attributed to.
-    if (
-        asked_for != _DECLINED_TO_CHOOSE
-        and str(estimate.get("method")) not in _HONOURS_A_WORD_BY_BEING_IT
-        and not any(_a_caller_settled_a_shape_here(m) for m in mechanisms)
+
+
+def _check_the_word_the_caller_pointed_at(result: dict,
+                                          extensions: dict) -> None:
+    """The caller's ``model=``, held to whatever honoured it.
+
+    ``estimation_context.model_preference`` is this run's record of what was
+    asked for, written at the entry before any route was chosen. What became
+    of it is recorded on the far side of the cascade — and by WHICH record
+    depends on what kind of word it is. A shape word (``linear``,
+    ``logistic``, ``forest``, ``drlearner``) is honoured by a fit taking that
+    shape, and the mechanism block that discloses a shape says whether the
+    caller settled it. A row word (IV's four) is honoured by that row running,
+    and the record is ``method``: the option there selects an estimator rather
+    than a link function, which is the whole of what
+    :data:`_THE_ROWS_A_WORD_NAMES` says and the reason the word is checkable
+    at all on an answer that discloses no shape.
+
+    THE PRODUCER'S HALF OF THIS PAIR EXISTS AND HAS NO COUNTERPART HERE, which
+    is the hole. ``run_cascade`` will not answer a query with a word the
+    answering row does not accept: it rolls the result back and records a
+    refusal, so there is no honest envelope on which a concrete word stands
+    beside a method whose row never offered it. Nothing on this side said so.
+    Measured over the answer-shape corpus with the leaf sweep's own door set,
+    29 answers record ``auto`` beside a route that has no shape lever at all —
+    proximal, measurement-error, transport, RMST, the three IV rows that fit
+    nothing, the counterfactual plug-ins — and on every one of them the field
+    could be rewritten to say the caller chose 2SLS, or a link function, and
+    every public door said yes.
+
+    WHY THAT WAS UNREACHABLE RATHER THAN MISSING. The check lived inside
+    :func:`_check_the_block_describes_the_fit_that_ran`, behind that
+    function's first line: no disclosed mechanism, nothing to check, return.
+    For a check on a block that is correct. For a check on the context it
+    removes exactly the answers the check is for, because a word that no
+    disclosed fit attributes to anybody is most completely unwitnessed when
+    there is no fit to attribute it to. The exemption that arrangement needed
+    says the same thing from the other end: it named the one row that honours
+    a word by being it, and conceded in its own note that the word there was
+    corroborated by nothing. Read against the method, that row needs no
+    exemption — the method IS the corroboration.
+
+    Two statements. Of EVERY disclosed block: the caller settled its shape
+    if and only if the word names its form. Asked first, because where both
+    records exist what each of them says is a sharper thing to tell a reader
+    than that nothing corroborates the word. And then the word must be
+    honoured by something at all: a row word by the row that ran, a shape
+    word by some disclosed fit taking a shape that word names.
+
+    The first was two rules, and either half alone leaves a hole. Asking
+    only that SOME block claim the caller refuses the row that honours
+    ``2sls`` by being the two-stage fit: its form is
+    ``two_stage_least_squares``, which no caller's word names, so its block
+    correctly says nobody settled it — and that refusal is what the
+    exemption list existed to undo. Asking only the row word against its
+    method, and nothing of its blocks, frees the forgery in the other
+    direction, measured rather than feared: on an answer whose word DID
+    settle its form, both copies of that origin rewritten to ``default``
+    passed every door. As one biconditional neither hole is there and the
+    exemption has nothing to do.
+
+    An answer that reports no fit is left alone, and that is this door's
+    declared ceiling: nothing was honoured and nothing was dropped, so there
+    is no second record to disagree with. It covers 33 further rows, four of
+    them carrying a concrete word beside an investigation request.
+
+    The other end of the pair — a block attributing a shape to a caller who
+    named none — is held already and not from here:
+    :func:`_check_caller_assertions` reads this same context field to decide
+    whether any ``caller_asserted`` line may be handed to a reader at all.
+    Adding a second gate for it would be a rule whose counterexample another
+    rule refuses first, which reads as coverage and is not.
+    """
+    asked_for = str((result.get("estimation_context") or {})
+                    .get("model_preference") or _DECLINED_TO_CHOOSE)
+    if asked_for == _DECLINED_TO_CHOOSE:
+        return
+    estimate = _the_fit_this_run_reported(result, extensions)
+    if estimate is None:
+        return
+    mechanisms = ((extensions.get("mechanism_audit") or {})
+                  .get("mechanisms") or ())
+    for m in mechanisms:
+        complaint = word_that_could_not_have_asked_for(asked_for,
+                                                      m.get("form"))
+        settled = _a_caller_settled_a_shape_here(m)
+        if complaint is not None:
+            if settled:
+                _reject(complaint)
+        elif not settled:
+            _reject(
+                f"estimation_context records the caller asking for "
+                f"{asked_for!r} and the mechanism fitted through "
+                f"{str(m.get('form'))!r} says no caller settled it; the word "
+                f"and that origin are one decision recorded twice, so an "
+                f"answer fitted through exactly what was asked for while "
+                f"reporting that nobody asked for it is a route that took "
+                f"the knob without saying so"
+            )
+    rows = _THE_ROWS_A_WORD_NAMES.get(asked_for)
+    if rows is not None:
+        if str(estimate.get("method")) not in rows:
+            _reject(
+                f"estimation_context records the caller asking for "
+                f"{asked_for!r}, which names the estimator "
+                f"{' or '.join(sorted(rows))}, and this answer reports "
+                f"{str(estimate.get('method'))!r}; a word that selects a row "
+                f"is honoured by that row running, so an answer from another "
+                f"one is a request this run dropped and this envelope kept"
+            )
+    elif not any(
+        word_that_could_not_have_asked_for(asked_for, m.get("form")) is None
+        for m in mechanisms
     ):
         _reject(
             f"estimation_context records the caller asking for "
-            f"{asked_for!r} and no disclosed mechanism says a caller's "
-            f"model= settled its shape; the word would be the answer's only "
+            f"{asked_for!r} and no disclosed mechanism was fitted through a "
+            f"shape that word names; the word would be the answer's only "
             f"record that anybody chose anything, and a record nothing "
             f"corroborates cannot tell a run that honoured the word from one "
             f"that dropped it"
