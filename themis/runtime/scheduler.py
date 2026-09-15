@@ -3313,6 +3313,11 @@ def _dispatch_scm_counterfactual(
     mutilated = graph.copy()
     mutilated.remove_edges_from(list(graph.in_edges(x_atom)))
     relevant = set(nx.ancestors(mutilated, y_atom)) | {y_atom}
+    # Walked in causal order, never in the set's: the gaps below are listed
+    # in the order these loops meet their variables, and a set's order moves
+    # with the process, so one question listed its gaps differently from
+    # one run to the next.
+    topo = tuple(n for n in nx.topological_sort(graph) if n in relevant)
 
     obs_map = _scm_observation_map(program)
     missing: list[MissingItem] = []
@@ -3323,7 +3328,7 @@ def _dispatch_scm_counterfactual(
     # constant, so we never abduct its exogenous term and its incoming
     # edges/parents are irrelevant.
     equations: dict = {}
-    for v in relevant:
+    for v in topo:
         if v == x_atom:
             continue
         terms: list[tuple] = []
@@ -3344,7 +3349,7 @@ def _dispatch_scm_counterfactual(
         equations[v] = tuple(terms)
 
     # The unit must be fully observed over the relevant set (abduction).
-    for v in relevant:
+    for v in topo:
         if v not in obs_map:
             missing.append(gaps.missing(
                 kind=MissingKind.OBSERVATION,
@@ -3369,7 +3374,6 @@ def _dispatch_scm_counterfactual(
             investigation_requests=investigation_pusher.push(tuple(deduped)),
         )
 
-    topo = tuple(n for n in nx.topological_sort(graph) if n in relevant)
     observed = {v: obs_map[v] for v in relevant}
 
     result = scm.linear_scm_counterfactual(
