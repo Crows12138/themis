@@ -409,25 +409,55 @@ _MAX_CTF_DEPTH = 64
 
 @dataclass(frozen=True)
 class _SumVar:
-    """A value slot bound by the Line-6 summation over the unvalued
-    observable nodes ``V(G')\\γ'``. Carried as a counterfactual event value
-    through the recursion and rendered as a FormulaExpr ``VarRef`` at the
-    base case, so the same summed variable in a sibling's subscript and in
-    its own event share one binding."""
+    """The value of one unvalued observable node of ``G'``, summed out by
+    ``Σ_{V(G')\\γ'}``. Carried as a counterfactual event value through the
+    recursion and rendered as a FormulaExpr ``VarRef`` at the base case, so
+    the node's value in a sibling's subscript and in its own event share one
+    binding."""
 
     name: str
 
 
-def _sumvar_name(node: PWNode) -> str:
-    args = "_".join(t.name for t in node.variable.args)
-    base = f"cf_{node.variable.predicate}"
-    return f"{base}_{args}" if args else base
+def _summed_values(cf: CfGraph, gamma: Conjunction) -> dict:
+    """The value of every observable node of ``G'``: the one ``γ'`` gives it,
+    or a sum variable of its own for a node of ``V(G')\\γ'``.
+
+    ``V(G')\\γ'`` is a set of counterfactual nodes, not of variables: two
+    copies of one variable read in two worlds are two random variables with
+    two values. Named after the variable they shared one name, so a
+    sub-conjunction held both copies at "the same value", the next make-cg
+    merged children that are different random variables, and the
+    contradiction it then found came back as ``P(γ)=0``. So each summed node
+    is given a name of its own, and never a name a value in ``γ`` already
+    carries: that one is bound by a sum further out, and binding it again
+    here would capture the reference.
+    """
+    summed = cf.observable() - {n for n, _v in cf.gamma_prime}
+    values = {n: cf.value[n] for n in cf.observable() - summed}
+    taken = {value.name for e in gamma
+             for value in (e.value, *(v for _a, v in e.subscript))
+             if isinstance(value, _SumVar)}
+    for node in sorted(summed, key=lambda n: _node_order(cf, n)):
+        args = "_".join(t.name for t in node.variable.args)
+        base = f"cf_{node.variable.predicate}" + (f"_{args}" if args else "")
+        name, suffix = base, 1
+        while name in taken:
+            suffix += 1
+            name = f"{base}_{suffix}"
+        taken.add(name)
+        values[node] = _SumVar(name)
+    return values
 
 
-def _node_value(cf: CfGraph, node: PWNode):
-    if node in cf.value:
-        return cf.value[node]
-    return _SumVar(_sumvar_name(node))  # unvalued observable → outer-Σ bound
+def _node_order(cf: CfGraph, node: PWNode) -> tuple:
+    """The order sum names are handed out in: by variable, then by the
+    interventions its world holds fixed above it, then by its world — which
+    representative make-cg elected for a merged group decides only the last."""
+    def assignment(pairs) -> tuple:
+        return tuple(sorted((a.predicate, tuple(t.name for t in a.args), repr(v))
+                            for a, v in pairs))
+    return (node.variable.predicate, tuple(t.name for t in node.variable.args),
+            assignment(cf.subscript[node]), assignment(node.world))
 
 
 def _to_value_expr(value):
@@ -472,16 +502,17 @@ def _id_star(graph, bidirected, gamma, depth):
         return ZERO   # Line 5.
 
     parts = cf.c_component_partition()
-    obs = cf.observable()
-    gp_nodes = frozenset(n for n, _v in cf.gamma_prime)
-    summed = obs - gp_nodes   # V(G') \ γ'
+    values = _summed_values(cf, gamma)
+    summed = cf.observable() - {n for n, _v in cf.gamma_prime}   # V(G') \ γ'
 
+    # P(γ') = Σ_{V(G')\γ'} P(v(G')), whichever line computes P(v(G')). The sum
+    # belongs to that equation rather than to Line 6: with one c-component the
+    # unvalued nodes still carry their sum variables into the base case.
     if len(parts) > 1:
-        # Line 6: Σ_{V(G')\γ'} Π_i ID*(G, S^i_{ v(G')\S^i }).
+        # Line 6: P(v(G')) = Π_i ID*(G, S^i_{ v(G')\S^i }).
         factors: list = []
         for si in parts:
-            sub_gamma = _subconjunction(cf, si, obs)
-            f = _id_star(graph, bidirected, sub_gamma, depth + 1)
+            f = _id_star(graph, bidirected, _subconjunction(cf, si, values), depth + 1)
             if f is FAIL:
                 return FAIL
             if f is ZERO:
@@ -490,46 +521,51 @@ def _id_star(graph, bidirected, gamma, depth):
         body: FormulaExpr = (
             factors[0] if len(factors) == 1 else ProductExpr(terms=tuple(factors))
         )
-        for m in sorted(summed, key=_sumvar_name):
-            body = SumExpr(
-                bind=BindDecl(name=_sumvar_name(m)), over=m.variable, body=body)
-        return body
+    else:
+        # Lines 7-9: single c-component.
+        (s,) = parts
+        leaf = _base_case(graph, bidirected, cf, s, values)
+        if leaf is FAIL:
+            return FAIL
+        body = leaf
+    for m in sorted(summed, key=lambda n: values[n].name):
+        body = SumExpr(bind=BindDecl(name=values[m].name), over=m.variable, body=body)
+    return body
 
-    # Lines 7-9: single c-component.
-    (s,) = parts
-    return _base_case(graph, bidirected, cf, s)
 
-
-def _subconjunction(cf: CfGraph, si, obs) -> Conjunction:
+def _subconjunction(cf: CfGraph, si, values) -> Conjunction:
     """Build ``S^i_{ v(G')\\S^i }`` (Line 6): the events of ``S^i``, each
-    additionally intervened by fixing every OTHER observable node to its
-    value.
+    intervened on the nodes outside ``S^i`` that are its ancestors in ``G'``,
+    at their ``values``.
 
-    An added intervention on a variable that already fixes the node's own
-    world (i.e. it is present in ``cf.subscript[n]``) is DROPPED: it refers to
-    a *different* world-copy of that variable and must not override the
-    node's own ancestral value. Without this, a node like ``W_x`` (whose own
-    world fixes ``X=x``) collides with the factual observation ``x'`` on the
-    base variable ``X`` — the subscript becomes ``{(X,x),(X,x')}`` and the
-    downstream ``P(W)`` is evaluated under the wrong intervention value. This
-    is exactly the paper's "remove redundant subscripts" step: the {W}
-    c-component of ``P(y_{x,z},x')`` reduces to ``P(w_x)``, keeping only
-    ``x`` and dropping the added ``x'`` and ``y``."""
-    others = tuple((m.variable, _node_value(cf, m)) for m in (obs - set(si)))
+    The intervention is on counterfactual NODES, and an event can only carry
+    an assignment to a VARIABLE. A node outside ``n``'s ancestry cannot move
+    ``n``, and of the copies of one variable read in different worlds only the
+    copy in ``n``'s own world is its ancestor — so that copy's value is the
+    one ``n`` is read under. Turning every other node into an assignment gave
+    ``n`` every copy's value at once: ``P(d_c ∧ d'_{c'})`` through
+    ``c → b → d`` put the values of ``b_c`` and ``b_{c'}`` into one world, the
+    next make-cg read whichever the set yielded first, and one question came
+    back non-identifiable in one process and ``P(γ)=0`` in another. The
+    worked example's ``{W_x}`` component of ``P(y_{x,z}, x')`` is the same
+    fact one step smaller: neither the factual ``x'`` nor ``y`` is an ancestor
+    of ``W_x``, so it is read as ``P(w_x)``."""
     events = []
     for n in si:
-        own_vars = {a for (a, _v) in cf.subscript[n]}
-        extra = frozenset((v, val) for (v, val) in others if v not in own_vars)
+        ancestors = nx.ancestors(cf.graph, n)
+        extra = frozenset((m.variable, value) for m, value in values.items()
+                          if m in ancestors and m not in si)
         events.append(CtfEvent(
             variable=n.variable,
             subscript=cf.subscript[n] | extra,
-            value=_node_value(cf, n),
+            value=values[n],
         ))
     return tuple(events)
 
 
-def _base_case(graph, bidirected, cf: CfGraph, s):
-    """Lines 7-9: single c-component ``S``. Line 8 fails on a subscript /
+def _base_case(graph, bidirected, cf: CfGraph, s, values):
+    """Lines 7-9: single c-component ``S``, its nodes read at ``values``
+    (:func:`_summed_values`). Line 8 fails on a subscript /
     observation conflict; Line 9 returns ``P_x(var(S))`` with ``x=⋃sub(S)``,
     reduced to observational ``P(v)`` through the ID engine."""
     from .c_factor import (
@@ -547,7 +583,7 @@ def _base_case(graph, bidirected, cf: CfGraph, s):
             sub_by_var.setdefault(a, set()).add(av)
     obs_by_var: dict = {}
     for n in s:
-        obs_by_var.setdefault(n.variable, set()).add(_node_value(cf, n))
+        obs_by_var.setdefault(n.variable, set()).add(values[n])
 
     # Line 8: FAIL when a variable is intervened to two different values, or a
     # subscript value conflicts with an observed value of the same variable
@@ -567,7 +603,7 @@ def _base_case(graph, bidirected, cf: CfGraph, s):
 
     # Line 9: P_x(var(S)), x = ⋃ sub(S). make_cg's subscripts are An(ω)∩sub(γ)
     # — already ancestor-restricted, so redundant subscripts are gone.
-    target_value = {n.variable: _node_value(cf, n) for n in s}
+    target_value = {n.variable: values[n] for n in s}
     xsub = {a: next(iter(vals)) for a, vals in sub_by_var.items()}
     y_set = frozenset(target_value)
     x_set = frozenset(xsub) - y_set
