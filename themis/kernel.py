@@ -498,8 +498,15 @@ _ESTIMATE_AUDITS: tuple[_EstimateAudit, ...] = (
                    methods=frozenset({"iv_2sls_overid"})),
     # An IV number over an ordered dose carries the margin table that says
     # which steps it averages over; re-derived from the recorded
-    # per-instrument-level counts and sums.
-    _EstimateAudit(verify_acr_decomposition, methods=frozenset({"iv_acr"})),
+    # per-instrument-level counts and sums. Keyed on what the answer SAYS
+    # about that route rather than on the method that took it, for the
+    # reason the box above is: the other thing an answer can say is why
+    # there is no table, and that sentence exists precisely because the
+    # method is ``iv_2sls`` — so keyed by method it could never be
+    # reached, and every lie about it was accepted by every door.
+    _EstimateAudit(verify_acr_decomposition,
+                   blocks=frozenset({"acr_decomposition",
+                                     "acr_declined"})),
     # A front door whose mediator conditional came from the arms' own rows:
     # the point is re-derived from the two standardized arms, and on the
     # linear form from the coefficients and the mediator shift. Keyed on the

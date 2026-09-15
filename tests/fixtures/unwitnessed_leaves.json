@@ -368,8 +368,7 @@
   "estimation_context.random_state",
   "extensions.feedback_loop.withdrew.[]",
   "extensions.identification.pattern",
-  "extensions.iv_identification.alternatives_count",
-  "numeric_estimate.acr_declined"
+  "extensions.iv_identification.alternatives_count"
  ],
  "iv_2sls_overid": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
@@ -1386,7 +1385,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "investigation_requests.[].priority",
-  "numeric_estimate.acr_declined",
   "outcome_error.sufficient_statistics.n"
  ],
  "numerically_solved:effect:numeric_iv_estimate#a7b446": [

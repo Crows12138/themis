@@ -17,6 +17,7 @@ inspect ``step_index`` / ``rule`` on the exception.
 """
 from __future__ import annotations
 
+import re
 from typing import Callable, NoReturn, TypeVar
 
 from ..types import (
@@ -4679,6 +4680,74 @@ def verify_transport_sources(block: dict) -> None:
 
 _ACR_TOL = 1e-7
 
+#: What an answer may give as its reason for not decomposing an ordered
+#: dose, transcribed. The verifier may not import the estimation layer, so
+#: the producer's words and this reading of them are two copies, pinned
+#: equal by asking the producer rather than by comparing source text.
+#:
+#: Two readings travel and a third does not: a treatment with a single
+#: margin is true of every binary treatment ever passed to the estimator,
+#: so it never reaches an envelope, and accepting it here would accept a
+#: reason the producer cannot give.
+_ACR_DECLINED_CONDITIONAL = "conditional_estimand_is_not_the_unconditional_ACR"
+_ACR_LEVEL_CAP = 12
+_ACR_DECLINED_LEVELS = re.compile(
+    r"^dose_has_(\d+)_levels_over_the_cap_of_(\d+)$")
+
+
+def _hold_the_reason_there_is_no_margin_table(estimate: dict, said) -> None:
+    """The ACR route not taken, and the answer's account of why.
+
+    Everything asked here is answered by the envelope alone. The cap is
+    this build's; the level count is not, and cannot be — the verifier has
+    no data — but a count is still held from both sides: it must exceed the
+    cap, which is what the sentence claims, and it cannot exceed the row
+    count, because distinct values of a column are rows of it. A reason
+    that contradicts itself was accepted by every door before this.
+
+    Which reason is owed is decided the way the producer decides it: a
+    conditioning set is looked at first and settles the answer, so the
+    conditional reading is owed exactly when the estimate conditions on
+    something. Both directions are held — a conditional reason on an
+    unconditional question is as wrong as the level count on a
+    conditional one.
+    """
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"acr_declined: {msg}", step_index=None,
+            rule="acr_decomposition",
+        )
+
+    if estimate.get("acr_decomposition") is not None:
+        _err("the answer carries the margin table and a reason there is "
+             "none; one of the two is about another answer")
+    if str(estimate.get("method") or "") == "iv_acr":
+        _err("the method IS the decomposition and the answer says it was "
+             "declined")
+    if not isinstance(said, str):
+        _err(f"the reason is {type(said).__name__}, not something a reader "
+             f"can be told")
+    conditioning = tuple(estimate.get("conditioning") or ())
+    if said == _ACR_DECLINED_CONDITIONAL:
+        if not conditioning:
+            _err("the reason is the conditioning set and the answer "
+                 "conditions on nothing")
+        return
+    if conditioning:
+        _err(f"the answer conditions on {', '.join(conditioning)}, which is "
+             f"why this route is declined, and it gives {said!r} instead")
+    found = _ACR_DECLINED_LEVELS.match(said)
+    if found is None:
+        _err(f"{said!r} is not a reason this build declines for")
+    levels, cap = int(found[1]), int(found[2])
+    if cap != _ACR_LEVEL_CAP:
+        _err(f"names a cap of {cap} and this build's is {_ACR_LEVEL_CAP}")
+    if levels <= cap:
+        _err(f"{levels} levels is not over the cap of {cap}")
+    rows = estimate.get("sample_size")
+    if isinstance(rows, int) and levels > rows:
+        _err(f"{levels} distinct levels in {rows} rows")
+
 
 def verify_acr_decomposition(estimate: dict) -> None:
     """Independently re-derive the average-causal-response decomposition.
@@ -4702,7 +4771,17 @@ def verify_acr_decomposition(estimate: dict) -> None:
     a producer would most usefully lie about: a negative weight says the
     reported number is not an average of anything, and it hides behind a
     perfectly ordinary aggregate first stage.
+
+    The other thing an answer can say about this route is that it did not
+    take it, and why. That is a claim about the same route, so it is held
+    here — and it was held nowhere, because this audit was keyed on the
+    method ``iv_acr`` while a decline exists precisely because the method
+    is ``iv_2sls``. A claim that is there BECAUSE a route was not taken
+    can never be reached through the route's own name.
     """
+    declined = estimate.get("acr_declined")
+    if declined is not None:
+        _hold_the_reason_there_is_no_margin_table(estimate, declined)
     acr = estimate.get("acr_decomposition")
     if acr is None:
         return

@@ -1463,7 +1463,7 @@ def test_the_declared_remainder_is_what_it_is():
     off each row. Nothing here is newly held; what those rows say is less.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1971, total
+    assert total == 1969, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

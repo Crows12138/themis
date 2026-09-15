@@ -1278,7 +1278,7 @@
         },
         "acr_declined": {
           "type": "string",
-          "description": "Present on an iv_2sls answer that COULD have been described as an average causal response and was not, naming why — today, that the dose has more distinct levels than a margin table a reader can read. The route decides what the number says about itself, so the reason travels rather than vanishing, the same contract stratified_wald_fallback keeps. Absent when the ACR was never a candidate (a binary treatment is one margin carrying all the weight, which is the point restated)."
+          "description": "Present on an iv_2sls answer that COULD have been described as an average causal response and was not, naming why. Two readings: that the question conditions on something, so the estimand is not the unconditional ACR, and that the dose has more distinct levels than a margin table a reader can read (the level count and this build's cap, both named). The route decides what the number says about itself, so the reason travels rather than vanishing, the same contract stratified_wald_fallback keeps — and verify_acr_decomposition holds it: the cap is this build's, the count must exceed it and cannot exceed the row count, and which reading is owed follows from `conditioning`. Absent when the ACR was never a candidate (a binary treatment is one margin carrying all the weight, which is the point restated)."
         },
         "acr_decomposition": {
           "type": "object",
