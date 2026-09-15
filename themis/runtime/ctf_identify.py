@@ -182,11 +182,21 @@ class CfGraph:
 
     def c_component_partition(self) -> tuple[frozenset, ...]:
         """The maximal c-components of ``G'`` over the observable nodes
-        (fixed / intervened nodes are excluded, R-336 §A.8)."""
+        (fixed / intervened nodes are excluded, R-336 §A.8), in an order read
+        off the nodes.
+
+        Line 6 writes its product in this order, and ``c_components`` yields
+        the order a set happens to iterate in, so one question's estimand
+        listed its factors differently from one process to the next. The key
+        is the one sum variables are named by (:func:`_node_order`): one rule
+        decides every order an ID* estimand is written in."""
         obs = self.observable()
         sub_graph = self.graph.subgraph(obs)
         sub_bi = frozenset(p for p in self.bidirected if p <= obs)
-        return c_components(sub_graph, sub_bi)
+        return tuple(sorted(
+            c_components(sub_graph, sub_bi),
+            key=lambda component: tuple(sorted(_node_order(self, n) for n in component)),
+        ))
 
 
 # ---------------------------------------------------------------------------
