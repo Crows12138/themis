@@ -128,6 +128,7 @@ import pathlib
 import pytest
 
 import themis
+from themis import language
 from themis.verifier import verify_answer_names_its_question
 from themis.verifier.errors import VerificationError
 
@@ -193,10 +194,20 @@ def _is_material(old, new) -> bool:
     return old != new
 
 
-#: What the contract says a leaf may hold, where it says anything. Read
-#: from the document the door validates against, keyed by the spelling
-#: ``_shape_of`` already produces, so a leaf's domain is a lookup and not a
-#: second table that has to be kept in step with the first.
+#: What the contract says a leaf may hold WHERE THAT IS A FACT ABOUT ITS
+#: PATH. Read from the document the door validates against, keyed by the
+#: spelling ``_shape_of`` already produces, so a leaf's domain is a lookup
+#: and not a second table that has to be kept in step with the first.
+#:
+#: Half the question, and the half a table can answer. A statement carries
+#: its set beside its token, so the domain of the two leaves it is made of
+#: is carried too: which members ``token`` may hold depends on the
+#: ``vocabulary`` next to it, and the slot a statement sits in inside
+#: ``words`` is named after the sentence's hole, so the contract writes
+#: ``additionalProperties`` and there is no path to key on at all. 1096
+#: word slots on 61 leaves are in that position, and this table has an
+#: entry for none of them. :func:`_the_domain_of` is where both halves are
+#: asked; this stays what it was.
 _DOMAIN: dict[str, tuple] = {}
 for _path, _sub, _container in schema_walk.RESULT.walk():
     _members = schema_walk.RESULT.resolve(_sub).get("enum")
@@ -224,7 +235,49 @@ def _from_domain(value, members) -> list:
     return [others[int(i * step)] for i in range(_PER_LEAF)]
 
 
-def _bends(value, shape):
+def _the_domain_of(result, path, shape):
+    """What this leaf may hold, HERE.
+
+    A domain is a fact about a leaf's path only where the contract states
+    it by path. A statement's two halves are the case where it does not:
+    the set travels beside the token because a token alone does not say
+    which set it came from, so what the token may be is decided by a
+    SIBLING, and a table keyed by the shape cannot express that — the
+    shape is the same for every set the carrier holds. That was written
+    down as a limit of this instrument and this is it being lifted.
+
+    The members come from the registry a producer fills rather than from
+    the contract, and the lie is still one the contract permits: for the
+    sets it enumerates, ``test_a_listed_set_is_enumerated_as_the_kernel
+    _has_it`` holds the two equal, and for the rest it enumerates nothing,
+    so every string is permitted and a member is a string. Reading the
+    registry is also the only way to reach the second kind: a set whose
+    members the envelope's schema does not restate.
+    """
+    if len(path) >= 2 and path[-1] in ("token", "vocabulary"):
+        statement = _at(result, path[:-1])
+        if (isinstance(statement, dict) and "token" in statement
+                and isinstance(statement.get("vocabulary"), str)):
+            if path[-1] == "vocabulary":
+                return tuple(sorted(language.VOCABULARIES))
+            owner = language.VOCABULARIES.get(statement["vocabulary"])
+            if owner is not None:
+                return tuple(str(member) for member in owner)
+    return _DOMAIN.get(shape)
+
+
+def _at(result, path):
+    """The node at ``path``, or None where the walk cannot land."""
+    node = result
+    for step in path:
+        try:
+            node = node[step]
+        except (KeyError, IndexError, TypeError):
+            return None
+    return node
+
+
+def _bends(value, members):
     """Several KINDS of lie per leaf, not one.
 
     This returned a single value, and "held" was then partly a fact about
@@ -245,10 +298,11 @@ def _bends(value, shape):
     rule reads it. The sweep counts a refusal as a catch, correctly, so
     every such leaf was scored held while nothing had ever asked WHICH
     member it is: the gate was measuring the validator and reporting it as
-    coverage. Where the contract declares a domain, the lies come out of
-    that domain instead.
+    coverage. Where a domain is declared, the lies come out of it instead,
+    and :func:`_the_domain_of` is asked what this leaf may hold here —
+    which for the two leaves a statement is made of is carried beside them
+    rather than fixed by where they sit.
     """
-    members = _DOMAIN.get(shape)
     if members is not None and value in members:
         return _from_domain(value, members)
     if isinstance(value, bool):
@@ -457,7 +511,7 @@ def _sweep(program, result):
 
     survived = []
     for name, shape, path, value in _asked(result):
-        for bent in _bends(value, shape):
+        for bent in _bends(value, _the_domain_of(result, path, shape)):
             if not _is_material(value, bent):
                 continue
             bad = _tamper(result, path, bent)
@@ -553,6 +607,58 @@ def test_the_doors_this_gate_asks_are_the_ones_the_kernel_opens():
         "verify_refusal",
         "verify_selection_recovery_numeric",
     )
+
+
+def _statement_leaves():
+    """Every leaf that is one of a statement's two halves, with the
+    statement it belongs to."""
+    for name, pair in sorted(SHAPES.items()):
+        for path, _value in _leaves(pair["result"]):
+            if path[-1] not in ("token", "vocabulary"):
+                continue
+            statement = _at(pair["result"], path[:-1])
+            if (isinstance(statement, dict) and "token" in statement
+                    and isinstance(statement.get("vocabulary"), str)):
+                yield name, pair["result"], path, statement
+
+
+def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
+    """The instrument's reach over the half a path cannot key.
+
+    This gate recorded, for two frontiers, that it could not ask a word
+    slot which member it held: the domain is conditioned on the sibling
+    ``vocabulary``, and a shape is the same for every set the carrier
+    holds. So the only lie it told there was one validation refuses, and
+    every such leaf read as held while nothing had asked. Asserted here
+    because losing it again would look exactly like coverage.
+    """
+    asked = 0
+    for _name, result, path, statement in _statement_leaves():
+        shape = _shape_of(path)
+        domain = _the_domain_of(result, path, shape)
+        assert domain, (shape, statement["vocabulary"])
+        asked += 1
+        if path[-1] == "vocabulary":
+            assert set(domain) == set(language.VOCABULARIES), shape
+        else:
+            owner = language.VOCABULARIES[statement["vocabulary"]]
+            assert set(domain) == {str(m) for m in owner}, shape
+    assert asked == 2192, asked
+
+
+def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
+    """Why the lookup above exists, said as a measurement.
+
+    A word slot is keyed by the sentence's hole, so the contract writes
+    ``additionalProperties`` and there is no path for the table to hold;
+    and where a statement IS reached by named properties, the set it may
+    be from is enumerated in the shared statement schema, which the
+    table resolves in the wrong document. Neither is visible from a leaf
+    that passes, so both are counted.
+    """
+    shapes = {_shape_of(path) for _n, _r, path, _s in _statement_leaves()}
+    assert shapes and not (shapes & set(_DOMAIN)), sorted(
+        shapes & set(_DOMAIN))
 
 
 def test_a_door_that_will_not_read_the_answer_witnesses_nothing():
@@ -1216,14 +1322,16 @@ def test_the_declared_remainder_is_what_it_is():
     the 26 that were missing are now enumerated and a bent token is refused
     before any rule reads it.
 
-    What this sweep is therefore NOT asking about those leaves: whether the
-    token is the right member. ``_bends`` draws from ``_DOMAIN``, which is
-    built from unconditional enums, and a ``closedSets`` enum is conditioned
-    on the sibling ``vocabulary`` — which a shape path cannot express, since
-    the shape is the same for every set the carrier holds. A leaf that is
-    held here is held against nonsense and not against another real member
-    of another real set. That is a limit of this instrument, and it is
-    written here rather than left to be discovered from a passing test.
+    What this sweep was therefore NOT asking about those leaves: whether
+    the token is the right member. That limit was written here, and it is
+    lifted — see the last paragraph. Its diagnosis was right about the
+    shape and narrow about the cause: a ``closedSets`` enum is conditioned
+    on the sibling ``vocabulary``, which a shape path cannot express, AND
+    the unconditional enum beside it — the 57 sets themselves — was lost
+    as well, at 20 paths carrying 898 leaves, because the table resolved
+    every reference in the envelope's own document while the walk recurses
+    in the document each shape came from. A domain is not always a fact
+    about a path, and both ways of assuming it is were costing coverage.
 
     Then 26, and they are the fifth value typed at every construction site
     and declared nowhere. A way past a gap is a member of a closed
@@ -1482,9 +1590,33 @@ def test_the_declared_remainder_is_what_it_is():
     sites typed as open objects the set NAME could be too. What asks
     now is the statement walk, which was already total over the
     envelope and was returning where it could not find the word.
+
+    Then 474 came ON, from this instrument starting to ask a
+    statement the question it had recorded itself as unable to ask:
+    which MEMBER, and which SET. A statement carries both beside it, so
+    neither domain is a fact about a path — the slot a statement sits in
+    inside ``words`` is named after the sentence's hole, so the contract
+    writes ``additionalProperties`` and there is no path to key on, and
+    which members the token may hold is decided by the set named next to
+    it. So for 1096 word slots on 61 leaves the only lie ever told was
+    "not a word at all", which validation refuses — the gate measuring
+    the validator, in the one place it had said so.
+
+    What the new lies found, in two families. 414 of them on 140 rows
+    are the SET half, and they are one hole told over and over: relabel
+    any statement to the single set whose ids another layer coins, keep
+    the token, and nothing objects — membership is not asked of an open
+    set, by design, and no site says which sets it may carry. The other
+    60, on 58 rows, are the MEMBER half, and they concentrate: the scale
+    a way past asks a column to be measured on (21) and the role a gap
+    gives a variable (19) — binary for continuous, exposure for outcome —
+    each stated a second time by the question or by another block. Both
+    are frontiers rather than this round's work: what landed here is the
+    instrument, and a remainder that goes up on the day the question
+    widens is it working.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1890, total
+    assert total == 2364, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20423 passed / 518 skipped, warning-clean
+20425 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,36 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #672 一片叶子能装什么，被当成了它路径的函数；而语句把自己的域随身带着（2026-09-16）
+
+**现象。** #671 把「这个 token 根本不是一个词」从「校验器拒」变成「规则也拒」，但留下一条自己声明的天花板：**「是哪个成员」没人问**。实测这条天花板有多大——语料 1096 个词槽，两半各弯一遍：
+- **token 半**（弯成同词表里另一个成员）：2875 次，**197 个逃逸**，13 片叶子、58 行。最重的两片全逃：`alternative_paths.[].words.scale.token`（108/108，21 行，说某列该按二值还是连续测）、`describes.[].words.variables.[].words.role.token`（57/57，19 行，说某个变量是暴露还是结局）。
+- **vocabulary 半**（弯成另一个已声明的集合）：3288 次，**506 个逃逸**，35 片叶子，**全部是 `→ assumption_claim`**——那是唯一一个「别人铸 id」的开放集合，#671 按设计对它放行成员资格，于是**任何一条语句把自己改标成它、token 原封不动，所有门都放行**。
+- 这两种谎话**此前一次都没被说出口**：`_DOMAIN` 共 95 条，没有一条以 `.token` 或 `.vocabulary` 结尾，也没有一条含 `.words.`。
+
+**根因。** **量具把「一片叶子能装什么」当成它路径的函数。** 这个假设在语句的两半上都不成立，而且是以两种不同的方式：
+1. **`words` 里的槽在契约里没有路径**。槽名就是句子那个洞的名字（`why`／`scale`／`role`），所以契约写的是 `additionalProperties`，`schema_walk` 只遍历 `properties`，走到 `...words` 就停（31 处）。按路径的表**永远不可能**有这 1096 个词槽的条目。
+2. **就算路径存在，域也丢了**：`_DOMAIN` 用 `RESULT.resolve(sub)` 解析每一个 `$ref`，而 `walk` 的递归是在**那个 shape 所属的文档**里继续的。`#/$defs/declaredVocabulary` 住在 `statement.schema.json`，拿 query_result 去查查不到——**20 条具名路径、898 个叶子实例**因此连那个无条件的 57 成员域都没有。
+
+**为什么是根因不是表象。** 这条限制**仓库自己写下来过**，就在余项那段 docstring 里：「`_bends` draws from `_DOMAIN`, which is built from unconditional enums, and a `closedSets` enum is conditioned on the sibling `vocabulary` — **which a shape path cannot express, since the shape is the same for every set the carrier holds**. A leaf that is held here is held against nonsense and not against another real member of another real set.」——**形状说对了，原因说窄了**：它只归咎于「条件化 enum」，而实测**连那个无条件的也丢了**，丢法是解析用错了文档。两条都是同一个假设的下游。而这不是「少问几句」：`_bends` 自己的 docstring 就写着，只会造「我不是这些词里的任何一个」这种谎的叶子被记成 held 时，**记下来的是校验器，不是任何规则**。
+
+**结构。**
+- 弯折的域从「按 shape 查表」改成**问这片叶子在这里能装什么**：新增 `_the_domain_of(result, path, shape)`——语句的 `token` 取它旁边那个 `vocabulary` 命名集合的成员，语句的 `vocabulary` 取本 build 声明的全部集合，其余仍走 `_DOMAIN`。
+- **`_bends` 不再收 shape，改收「域」**——shape 本来就只用来查域，收着它就等于把「域是路径的函数」写进了签名。
+- `_DOMAIN` 保持原样，但它的注释现在**说明自己只答一半**：能按路径答的那一半。
+- 成员从 `language.VOCABULARIES` 读而不是从契约读，谎仍然是契约允许的：契约枚举了的 34 个集合有 `test_a_listed_set_is_enumerated_as_the_kernel_has_it` 押着两边相等，其余的契约什么都没枚举、任何字符串都允许。读注册表也是**唯一**能够到第二类的办法（成员表不在信封 schema 里的那些集合）。
+- `_asked` 本来就交出 path，`_sweep` 不改形状；`_the_words_that_say_which_sort` 仍只读 `_DOMAIN`，所以**现有条目的 `@种类` 标签不变**，已声明的那 1890 条含义不变。
+
+**测量。** 声明余项 1890→**2364**（新增 474：**414 条在 140 行上是集合半边**，60 条在 58 行上是成员半边；0 条变为守住）。提问数 32584 不变——这一轮没动 `_asked`。架构图不用重画。**这一轮的账是变大的**，那是测量恢复诚实的代价。
+
+**取舍（声明）。**
+- **`schema_walk` 那条解析缺陷本轮不修。** 实测 713 条路径 `RESULT.resolve` 答不出（`atom.schema.json` 83、`derivation.schema.json` 48、以及借来文档内部的本地 `$ref`），其中今天真正丢掉域的只有 `declaredVocabulary` 那一族 20 条，且全部被新函数的语句分支覆盖。修它要让 `walk` 把「这个 shape 属于哪份文档」交出来，而 `walk` 是多份测试共用的助手——**将来别的借来文档长出一个枚举，域会再一次悄悄没有**。这条写在这里，不靠记性。
+- **这一轮只换量具，不关洞。** 新暴露的两族各是一条独立前沿，已按大小排好：①**改标成开放集合**（414 条）——根因大概率是「没有任何一处说这个位置可以携带哪些集合」，而 `statement_rules._CARRIERS` 已经为 12 个 carrier 站点做过这件事、还带着一道对着契约的闸门；②**`scale` 与 `role`**（40 条）——两者在问题或别的块里都有第二份记录。
+
+**演练。** 两条新钉子，都是「narrowing 会变成一个通过的测试」那一类：`test_the_lies_a_statement_is_told_come_from_where_its_set_is_named` 走遍语料 **2192** 个语句叶子（1096 个词槽 × 两半），逐个断言域就是它旁边那个集合的成员／全部已声明集合；`test_no_statement_leaf_has_a_domain_its_path_could_have_given_it` 反向押住「这些形状一个都不在 `_DOMAIN` 里」——那正是这个函数存在的理由，也是它被悄悄绕回去时唯一会红的地方。
+
+**账。** 闸门新增 2 个测试，基线 20423→**20425**。
 
 ### #671 一个词的域是随它携带的，而问它的两方都按位置问（2026-09-16）
 
