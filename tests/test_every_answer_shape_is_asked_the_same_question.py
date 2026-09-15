@@ -1470,9 +1470,21 @@ def test_the_declared_remainder_is_what_it_is():
     does not accept; what was missing was the verifier's half, and it
     was missing because it sat inside a check that returns when an
     answer discloses no fitted shape — which is every one of these 29.
+
+    Then 50 came off the two halves a statement carries.
+    A statement travels as the SET and the MEMBER, both beside it,
+    because a token alone does not say which set it came from — so
+    neither half is fixed by the position, and both authorities that
+    asked about membership asked by position. The enumerations sit on
+    the field each set was first written at and follow it to no other,
+    so a gap's own reason for itself, four levels inside ``words``,
+    could be rewritten to any word at all on 42 answers, and at the two
+    sites typed as open objects the set NAME could be too. What asks
+    now is the statement walk, which was already total over the
+    envelope and was returning where it could not find the word.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1940, total
+    assert total == 1890, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

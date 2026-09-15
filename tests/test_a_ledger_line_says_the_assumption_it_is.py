@@ -231,22 +231,44 @@ def test_a_declared_line_may_not_send_a_reader_to_another_glossary(shape):
     failure this prevents is a lookup that lands in the wrong table, and a
     nonsense name would be refused by a weaker rule than this.
 
-    It names ``gap_describes`` rather than ``theta_prior_claim``, which it
-    named while the contract enumerated the members of eight sets. It
-    enumerates thirty-four now, ``theta_prior_claim`` among them, so that
-    forgery is refused by validation before this rule reads it — the token
-    stays and no longer belongs to the set the line claims. The refusal was
-    still a refusal, which is exactly why the substitution matters: a test
-    whose subject is WHICH rule objects has to keep handing that rule
-    something to object to. ``gap_describes`` is a table of ids another
-    layer coins, so no enumeration stands in front of it, and the two are
-    the two sets a ledger claim may honestly quote.
+    It has moved twice and both moves are one lesson. It named
+    ``theta_prior_claim`` while the contract enumerated eight sets'
+    members; thirty-four are enumerated now, so that forgery is refused by
+    validation, and the test below holds it there. It then named
+    ``gap_describes`` on the grounds that no enumeration stands in front of
+    a TABLE — and that reason was wrong about which tables hold ids
+    somebody else coins. ``gap_describes`` is 88 gap sentences this build
+    declares, so the statement walk refuses an estimator's id inside it,
+    as a word the named set has no row for, before this rule reads it.
+
+    There is no third set to move to, and that is the answer rather than a
+    loss: a ledger claim's token belongs to the one set whose ids another
+    layer coins, so moving it into ANY other declared set makes it a word
+    from nowhere there. So this holds what a reader gets, and the sentence
+    the ledger objects with is held at the ledger's own door, below.
     """
     program, result = _pair(shape)
     i, entry = _first_anchored(result)
     entry["claim"][0]["vocabulary"] = "gap_describes"
-    with pytest.raises(VerificationError, match="states its sentence from"):
+    with pytest.raises(VerificationError, match="has no such word"):
         the_door_for(result)(program, result)
+
+
+@pytest.mark.parametrize("shape", ANCHORED[:3])
+def test_the_ledger_says_which_glossary_a_declared_line_quotes(shape):
+    """The sentence the gate above used to reach, at its only speaker.
+
+    Two rules refuse that forgery and the earlier one speaks, which is
+    what a reader gets and what the gate above pins. WHY the ledger
+    objects is a different fact and not the walk's to state: a declared
+    assumption states its sentence from the glossary its id is written in,
+    and a lookup in another set falls through to printing the token.
+    """
+    _program, result = _pair(shape)
+    _i, entry = _first_anchored(result)
+    entry["claim"][0]["vocabulary"] = "gap_describes"
+    with pytest.raises(VerificationError, match="states its sentence from"):
+        themis.verify_assumption_ledger(result)
 
 
 @pytest.mark.parametrize("shape", ANCHORED[:3])

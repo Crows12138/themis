@@ -485,14 +485,23 @@ def fill(words: Words, lang: Lang | str = DEFAULT, **slots) -> str:
 #: is a set nothing imported, and a token from a set nothing imported is a
 #: token nothing could have produced.
 #:
-#: **A vocabulary is a token and its words; where that mapping LIVES is the
-#: only difference between the two kinds registered here.** :class:`Word`
-#: keeps it on the members, which is what a set wants when its tokens are
-#: OURS — a raise site names one, a slot is filled with one, and the name is
-#: worth writing. A TABLE keeps it in the table, which is what a set wants
-#: when its tokens are somebody else's: the assumption ids an estimator
-#: declares are already named, and giving each a member would be a second
-#: spelling of every one of them that nothing would ever reference.
+#: **A vocabulary is a token and its words; where that mapping LIVES is one
+#: fact about a set, and whose the TOKENS are is another.** :class:`Word`
+#: keeps the words on the members, which is what a set wants when a raise
+#: site names one, a slot is filled with one, and the name is worth writing.
+#: A TABLE keeps them in the table, which is what a set wants when giving
+#: eighty-eight sentences a member each would be eighty-eight second
+#: spellings of names that already exist.
+#:
+#: This paragraph called the first difference the only one, and read the two
+#: doors as answering the second as well: a table, it said, is what a set
+#: wants when its tokens are somebody else's — the assumption ids an
+#: estimator declares. That is true of one table out of the seven here. The
+#: other six hold sentences for species THIS build declares, and are tables
+#: because a member each would be a second spelling, not because the tokens
+#: came from outside. Anything reading a token back off an envelope was
+#: being told by this registry that six closed sets were open.
+#: :data:`TOKENS_ARE_OURS` is where the second fact is declared.
 #:
 #: While this held only the first kind, a set of the second kind could not
 #: be a vocabulary at all — so its sentences were looked up and rendered in
@@ -522,20 +531,59 @@ SEAMS: dict[str, "Words"] = {}
 SEAM_ORDER: tuple["Words", ...] = (BETWEEN_ITEMS, BETWEEN_STATEMENTS,
                                    BETWEEN_SENTENCES)
 
+#: Whether a vocabulary's tokens are this build's own, by vocabulary.
+#:
+#: The half :data:`VOCABULARIES` cannot answer, and the half that decides
+#: what a token from OUTSIDE a set means. Where the set is ours it means a
+#: forgery, or a build that has lost a word it is still writing; where the
+#: set is somebody else's it is what the lookup is for, and refusing it
+#: would refuse every assumption id an estimator ever adds.
+#:
+#: Declared rather than read off the owner, because the owner is available
+#: and answers a different question — see the paragraph above. Declared
+#: rather than restated in a roster somewhere downstream, because a roster
+#: of which sets are closed is a second record of a fact each declaring
+#: module holds, and it goes stale on the day the next set is declared
+#: without it.
+#:
+#: :class:`Word` answers by construction: its members ARE the set, so there
+#: is nowhere else a token under its name could have come from. A table has
+#: to say, and :func:`declare` will not register one that does not.
+TOKENS_ARE_OURS: dict[str, bool] = {}
+
 
 def declare(vocabulary: str, words: Mapping[str, "Words"],
-            between: "Words") -> None:
+            between: "Words", *,
+            tokens_are_ours: bool | None = None) -> None:
     """Register a vocabulary whose words live in a table.
 
     :meth:`Word.__init_subclass__` is the other door onto the same registry.
     Both say the same thing — this set answers to this name on an envelope,
     and this is what goes between two of its members — and which one a set
     uses is decided by where its words are, not by what the set is for.
+
+    Which is why this door asks one thing the other cannot need. A member
+    of :class:`Word` has nowhere but the class to come from. A table's keys
+    are a LIST, and a list is either every token that can arrive under this
+    name or a glossary of the ones this build happens to know — opposite
+    instructions to everything downstream, and not readable off the table.
+    So the declaration says which. See :data:`TOKENS_ARE_OURS`.
     """
-    _answers_to(vocabulary, words, between)
+    if tokens_are_ours is None:
+        raise TypeError(
+            f"{vocabulary!r} does not say whether its tokens are this "
+            f"build's own, and a table's keys do not say: they are either "
+            f"the whole set, where a token outside them is a forgery, or a "
+            f"glossary of an id space somebody else coins, where a token "
+            f"outside them is what the lookup exists for; declare it as "
+            f"`declare({vocabulary!r}, ..., tokens_are_ours=True)`, or "
+            f"`False` if another layer names them"
+        )
+    _answers_to(vocabulary, words, between, tokens_are_ours)
 
 
-def _answers_to(vocabulary: str, owner, between: "Words") -> None:
+def _answers_to(vocabulary: str, owner, between: "Words",
+                tokens_are_ours: bool) -> None:
     """Claim one name on the envelope for one vocabulary.
 
     Two sets under one name is not something a reader can recover from: the
@@ -562,6 +610,7 @@ def _answers_to(vocabulary: str, owner, between: "Words") -> None:
             f"one set out of all of them"
         )
     SEAMS[vocabulary] = between
+    TOKENS_ARE_OURS[vocabulary] = tokens_are_ours
 
 
 def _members_are_what_the_seam_says(named: str, owner,
@@ -663,7 +712,7 @@ class Word(EnvelopeName):
                 f"if it is a whole sentence"
             )
         cls.vocabulary = vocabulary
-        _answers_to(vocabulary, cls, between)
+        _answers_to(vocabulary, cls, between, True)
 
     def __new__(cls, value: str, words: Words) -> "Word":
         member = str.__new__(cls, value)

@@ -1711,7 +1711,14 @@ CLAIMS: dict[str, language.Words] = {
     _UNSPLIT_INSTRUMENT: _ERROR_AND_INSTRUMENT_UNSPLIT,
     _UNSPLIT_CLIP: _CLIPPED_PROPENSITY_UNSPLIT,
 }
-language.declare(CLAIM, CLAIMS, language.BETWEEN_STATEMENTS)
+#: The one table here whose tokens are NOT this build's own. An estimator
+#: names the assumption it made and the name arrives as the token; this
+#: table is the glossary of the ones this build has words for, and an
+#: estimator adding one is not a change to the envelope. What holds a
+#: claim instead is the ledger's own second record of it — the ``id`` the
+#: estimator declared, which the token is a prefix of.
+language.declare(CLAIM, CLAIMS, language.BETWEEN_STATEMENTS,
+                 tokens_are_ours=False)
 
 
 # --- who can overrule it ------------------------------------------------------

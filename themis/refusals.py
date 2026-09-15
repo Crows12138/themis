@@ -3158,7 +3158,8 @@ SAYS: dict[str, language.Words] = {
 #: the browser first had to say a refusal; the kernel's own reader could
 #: not, which is why the door on this side is younger than the name.
 REFUSED = "refusal_sentence"
-language.declare(REFUSED, SAYS, language.BETWEEN_STATEMENTS)
+language.declare(REFUSED, SAYS, language.BETWEEN_STATEMENTS,
+                 tokens_are_ours=True)
 
 
 def sentence(failure_type, details=None,

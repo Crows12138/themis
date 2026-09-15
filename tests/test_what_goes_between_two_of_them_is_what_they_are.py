@@ -135,7 +135,7 @@ def test_a_set_of_clauses_whose_member_ends_is_refused():
             "a_set_of_clauses_that_ended",
             {"a": {"zh": "少了一列", "en": "a column is missing"},
              "b": {"zh": "少了一行。", "en": "a row is missing."}},
-            language.BETWEEN_STATEMENTS)
+            language.BETWEEN_STATEMENTS, tokens_are_ours=True)
     assert "a_set_of_clauses_that_ended" not in language.VOCABULARIES
 
 
@@ -150,7 +150,7 @@ def test_a_template_that_ends_in_a_hole_is_not_a_whole_sentence():
         language.declare(
             "a_set_that_left_it_to_the_hole",
             {"a": {"zh": "识别路径失败：{why}", "en": "the route failed: {why}"}},
-            language.BETWEEN_SENTENCES)
+            language.BETWEEN_SENTENCES, tokens_are_ours=True)
     assert language.ends_a_sentence("识别路径失败：{why}。")
     assert language.ends_a_sentence("the route failed: {why}.")
 

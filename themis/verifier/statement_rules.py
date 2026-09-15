@@ -47,16 +47,38 @@ occasion's facts beside them, and neither was asked anything, because the
 instrument that decides what is covered had its range fixed by what was
 already covered.
 
-A token this build does not carry is passed over rather than refused, and
-that is :func:`themis.language.spelt`'s design rather than a hole here: the
-door exists so a producer can name a member of somebody else's set — an
-assumption id an estimator declared — and a reader meets an unknown token
-as a stand-in they are told to look up. Which member a token is, where the
-set is ours, is a schema enum and is asked by the census; this rule asks
-the question that comes after it, and asks it of members and non-members
-alike. The exception is a table that is partial ON PURPOSE, whose other
-half this build writes down (:data:`_DECLARED_SILENT`): a token there has
-no sentence by declaration, so its holes are none rather than unknown.
+A token this build does not carry is passed over where the set is somebody
+else's, and that is :func:`themis.language.spelt`'s design rather than a
+hole: the door exists so a producer can name an id another layer coined —
+an assumption an estimator declared — and a reader meets it as a stand-in
+they are told to look up. Where the set is OURS the same token is a word
+from nowhere, and this rule refuses it.
+
+It passed over both, on the grounds that which member a token is, where
+the set is ours, is a schema enum asked by the census. The census asks a
+leaf by its PATH, and a word slot's set is named BESIDE the token — the
+carrier is built on that, because a token alone does not say which set it
+came from and two sets are free to spell a member the same way. So the
+enumerations sit on the fields a set was first written at and reach no
+other position the same set turns up in: across 243 answers there are
+1096 word slots on 61 leaves, and the census had a domain for none of
+them. On five of those leaves the token could be rewritten to any word
+at all, and the largest of the five is the reason a gap gives for
+itself, which 42 answers carry — a reason that is not a label beside
+the sentence. For those gaps it IS the sentence.
+
+The SET is carried for the same reason and asked here for it. The
+contract enumerates the declared sets wherever the shared statement def
+reaches, and two sites on the envelope are typed as open objects, where
+the set name could be rewritten to any string and a reader sent to a
+table no surface holds.
+
+Membership is read, not restated: :data:`themis.language.TOKENS_ARE_OURS`
+is where a set says whose its tokens are, and the words the producer wrote
+are the member list. The exception is a table that is partial ON PURPOSE,
+whose other half this build writes down (:data:`_DECLARED_SILENT`): a
+token there is a member with no sentence by declaration, so its holes are
+none rather than unknown, and it is not a stranger.
 """
 from __future__ import annotations
 
@@ -158,10 +180,43 @@ def _facts(entry: Mapping) -> set[str]:
 
 
 def _hold(where: str, vocabulary: str, token: str, entry: Mapping) -> None:
-    """One statement against its template."""
+    """One statement against its template, and its pair against its set.
+
+    Both halves the statement carries are asked, because both travel with
+    it and neither is fixed by where it sits. The contract refuses an
+    undeclared SET wherever the shared statement def reaches, and two
+    sites are typed loosely enough that it does not reach them — a
+    refusal's recorded reason and the factors under it, where the set
+    name could be rewritten to any string at all. A rule that walks the
+    whole envelope does not have to know which sites those are.
+
+    Then the token, against that set. One lookup answers it and the holes
+    both: a token with no row in the set it names has no holes to be held
+    to, and whether that is a hole in this build or a token this build was
+    never going to carry is the set's own answer.
+    """
+    if vocabulary not in language.VOCABULARIES:
+        raise VerificationError(
+            f"{where} sends a reader to {vocabulary!r} for the word "
+            f"{token!r}, and this build declares no such set; the surface "
+            f"that turns a word into text holds one table per set and "
+            f"would have none for this one, so the reader is handed the "
+            f"token back with nowhere to look it up",
+            rule=_RULE,
+        )
     words = _template(vocabulary, token)
     if words is None:
         if token not in _DECLARED_SILENT.get(vocabulary, ()):
+            if language.TOKENS_ARE_OURS.get(vocabulary):
+                raise VerificationError(
+                    f"{where} tells a reader to look {token!r} up in "
+                    f"{vocabulary!r}, and that set has no such word; the "
+                    f"reader's surface hands a token it cannot find back "
+                    f"as a stand-in to go and look up, so a word from "
+                    f"nowhere arrives where the sentence was promised and "
+                    f"says it is one this reader has yet to learn",
+                    rule=_RULE,
+                )
             return
         declared: set[str] = set()
     else:

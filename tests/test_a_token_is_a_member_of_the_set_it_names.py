@@ -312,6 +312,15 @@ def test_the_sets_left_open_are_open_for_a_reason():
     not a change to the envelope. ``gap_says`` is already enumerated, in
     ``query_result.schema.json``'s own ``$defs/need``, and the shared
     carrier must not reach back into one artifact's file to find it.
+
+    Both reasons stand and the second was read as more than it says. An
+    enumeration in an artifact's schema constrains the FIELD it is
+    written at — ``missing_information[].need`` for this one — and a
+    statement carries its set beside its token so that the same set can
+    travel anywhere. ``gap_says`` reaches 49 word slots inside ``words``
+    on this corpus and that enum follows it to none of them. What asks
+    there is a verifier rule reading the set named beside the token; see
+    ``test_a_word_slot_is_held_to_the_set_beside_it``.
     """
     assert "assumption_claim" not in LISTED
     assert "gap_says" not in LISTED

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20401 passed / 518 skipped, warning-clean
+20423 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,39 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #671 一个词的域是随它携带的，而问它的两方都按位置问（2026-09-16）
+
+**现象。** 243 行语料带 1096 个词槽——`{vocabulary, token}` 对，61 片 `…token` 叶子。按闸门自己的门集全量弯折 3288 次：3126 被拒、162 逃逸，而且 **3288 次全是「非成员」弯折**，一次成员→成员的弯折都没生成。逃逸集中在 5 片叶子上，最大一片是 `data_gap_report.gaps.[].describes.[].words.why.token`：**42 行**答案上，一个缺口给自己的理由可以被改写成任何一个词，读这些信封的门全部放行。另有 3 条是**词表名**那一半（`estimator_failure.recorded.identification_reason.vocabulary` 与它下面的 `words.factors.[].vocabulary`），能改写成任何字符串。
+
+**根因。** **一个 token 的合法取值由它旁边的 `vocabulary` 决定，而问它的三方都按「位置」问。**
+- **契约**：`statement.schema.json` 的 `closedSets` 做法是对的——按 `vocabulary` 条件化，钉住 34 个词表的 token 枚举。剩下 23 个明说不管，其中 7 个的成员表整份躺在 `query_result.schema.json` 里（`refusal_sentence` 138/138、`gap_describes` 88/88、`gap_routes` 85/85、`gap_says` 38/38…），理由写着「已在工件自己的 schema 里枚举，共享载体不该反向伸进那一份」。那些枚举钉的是 `missing_information[].need`、`estimator_failure.failure_type` 这类**字段**，够不到同一个词表出现在 `words.<槽>` 里——语料里已经深到四层。
+- **验证器**：唯一读词槽的 `statement_rules._hold` 第一句是 `words = _template(vocabulary, token)`，`words is None` 就 `return`。
+- **测量工具**：`_DOMAIN` 从 `schema_walk.RESULT.walk()` 按路径建，对这 61 片叶子**一条条目都没有**（0/61）。
+
+**为什么是根因不是表象。**
+1. **载体的设计前提就是「域随身携带」**。`statement.schema.json` 自己写：「a token on its own does not say which set it belongs to, and two sets are free to spell a member the same way」——`vocabulary` 字段存在就是为了让同一个词表可以出现在任意位置（实测确有 4 个 token 被两个集合各自拼写）。按位置索引在「首发字段」上碰巧覆盖，一进 `words` 必漏；逐字段补枚举只是把洞往下一层推。
+2. **注册表的文档把两件事说成一件，而且七个表里只答对一个**。`VOCABULARIES` 的注释写「**where that mapping LIVES is the only difference** between the two kinds registered here」，并把「表」解释成「token 是别人的——估计器声明的 assumption id」。实测 7 个表里只有 `assumption_claim` 是别人的；`gap_says`／`gap_routes`／`gap_describes`／`gap_if_provided`／`refusal_sentence`／`discovery_note` 的 token 全是**本仓自己声明的物种**，它们是表只因为给 88 个句子各写一个成员是第二份拼写。`_hold` 那个静默 `return` 正是这个混同的下游：`_template(...) is None` 被读成「别人的 token，放行」，而对六个表它的意思是「根本不是一个词」。
+3. **同一条错理由在三处被写下来，其中两处是钉住它的测试**。`statement_rules` 模块文档：「Which member a token is, where the set is ours, is a schema enum and is asked by the census」；`test_a_kind_from_another_build_is_passed_over_rather_than_refused` 把它钉成测试——而那个测试的夹具用的是 `gap_if_provided`，**本仓自己的集合**，与它自己给的理由矛盾；`test_a_declared_line_may_not_send_a_reader_to_another_glossary`（92 个参数化）当初把伪造目标从 `theta_prior_claim` 换成 `gap_describes`，理由写着「`gap_describes` is a table of ids another layer coins, so no enumeration stands in front of it」——**同一句错话**，而它正是这一轮补丁后唯一一片红的地方。一条错理由能让一个 92 例的闸门挑错伪造目标，这不是措辞问题。
+4. **后果不是崩溃**。`language.spoke` 查不到词时走 `gloss({}, tok)` → `absent("no_word_for_this_token", token=tok)`，**把伪造的 token 原文摆到读者面前**，包装成「一个你该去查的词」。语言层的全部前提是信封不携带语言；token 不受约束时，token 本身就成了文本。对那 42 个缺口，这个词不是句子旁边的标签——**它就是句子**。
+
+**结构。**
+- **把「token 是谁的」从「词住在哪」里拆出来，记在词表被声明的那一处**：新增 `language.TOKENS_ARE_OURS`，与 `SEAMS` 由 `_answers_to` 同一处写入，两扇注册门都经过它。`declare()` 加一个**必答**关键字，不答就在 import 时 TypeError（新表加进来必须回答）；`Word` 子类按构造为真——成员就是集合，token 没有别的来处，让它再声明一遍就是让它复述自己的构造，而复述可以写错。七个表逐一作答：`assumption_claim` 答否，其余六个答是。
+- **`_hold` 那个静默 `return` 换成两句问话**，对应统计出的两个洞：词表名不是本仓声明的集合 → 拒（读者会被送到一张没有任何表面持有的表）；token 不是它自称集合的成员、且不在「声明为无句子」的那一半 → 词表封闭时拒。成员集**不需要新记录**——`_hold` 本来就在算它，`_DECLARED_SILENT` 本来就持着 `IF_PROVIDED` 与 `NOTHING_FILLS` 那道划分（语料里 215 个缺口的 kind 落在无句子那一半，把它们当成非成员就是拒诚实答案）。
+- **遍历一行没动**：`_walk` 本来就穿过整个信封而不是穿过一张块名单，所以「哪两个位置的契约没套上 statement 定义」这件事不必有任何人知道。
+- `assumption_claim` 保持开放没有代价：信封上每条 claim 都有第二份记录（估计器声明的 `id`，token 是它的前缀），`assumption_ledger_rules` 押着这一对——那条规则的 docstring 自己写着「needs no new authority and **no table of legal tokens**」，说的正是这个集合。
+
+**测量。** 声明余项 1940→**1890**（47 条 token ＋ 3 条 vocabulary）。诚实侧实测：1096 个词槽 ＋ 12 个 carrier 站点的 3993 条语句，**一条不拒**。提问数 32584 不变——这一轮没有删字段。架构图不用重画：`verify.py` / `rules.py` 行数、rule 名与 `verify_*` 入口数都没动。
+
+**取舍（声明）。** **「是哪个成员」这个问题，这一轮仍然没人问。** 测量工具的域按路径建，对全部 61 片 token 叶子没有条目，于是它能造的谎只有「根本不是一个词」这一种——`_bends` 自己的 docstring 写着这种谎「is refused by validation before any rule reads it … the gate was measuring the validator and reporting it as coverage」。本轮把这一种从「校验器拒」变成「规则也拒」（并把校验器够不到的 5＋2 片补上），**没有**开始问「是不是另一个成员」。那要给词槽按 `vocabulary` 取域，是下一轮，而且它会让声明余项**变大**而不是变小。这件事写在新测试文件的「WHAT THIS FILE DOES NOT CLAIM」段里，不靠记性。
+
+**演练。** 补丁前实测在先：那 5 片 token 叶子的每一种弯法、那 3 条词表名的每一种弯法，门全部放行；同时验明语句遍历在这些位置**是通的**——把 token 弯成同词表里另一个洞不一样的成员，54 个实例 54 个被拒（`verify` / `verify_answer_claims`），所以缺的不是可达性而是那句问话。补丁后：诚实侧 243 行一条不拒（5089 条语句逐条查成员资格）；伪造侧按「只有这条规则守着的六个词表」参数化，每个词表两个方向——集合里没有的词、以及**从另一个真实集合借来的词**（成员资格抓得到、拼写检查抓不到的那种），并押住「哪些词表没有可伪造的槽位」（`gap_if_provided`／`gap_routes`：它们的 token 只写在自带字段上，被契约先拒）。原先那条把错理由钉住的测试拆成两个：本仓自己的集合里没有的 kind → 拒；真正属于别人的那个集合（`assumption_claim`）里没有的 id → 放行。
+
+**两处既有闸门按同一条根因改**（不是让路，是各自挪到它真正的说话位置）：
+- 台账那条 92 例的伪造（把 claim 的词表改成 `gap_describes`）现在被语句遍历更早拒掉，所以端到端那一条改成钉**读者实际拿到的那句**，并新增 3 例把台账自己那句话钉在**台账自己的门**上（`verify_assumption_ledger`）。没有第三个集合可搬了，而这正是答案而非损失：账本 claim 的 token 属于唯一那个「别人铸 id」的集合，搬进任何别的已声明集合都是「那里没有这个词」。
+- 两条演示**接缝**错误的 `declare()` 调用补上新关键字——它们问的是「两个成员之间放什么」，不该被「token 是谁的」这句先拦住。
+
+**账。** 新文件 18 个测试，台账闸门补 3 例，基线 20401→**20423**。
 
 ### #670 一个词的审计住在「块的审计」里面，于是这份审计承诺的那个方向永远到不了（2026-09-16）
 

@@ -460,14 +460,38 @@ def test_a_kind_declared_to_have_no_sentence_carries_no_facts():
         verify_statements_carry_their_facts(result)
 
 
-def test_a_kind_from_another_build_is_passed_over_rather_than_refused():
-    """The case that looks the same and is not. An unknown token may be a
-    member of somebody else's set — which ``language.spelt`` exists to
-    allow — and refusing it would make this rule an enum check written in
-    the wrong place. Which member a token of OUR sets is, is a schema enum
-    and is asked where enums are asked."""
+def test_a_kind_this_build_does_not_declare_is_a_word_from_nowhere():
+    """The case that looked like somebody else's set and was ours.
+
+    An unknown token may be a member of a set another layer coins, which
+    ``language.spelt`` exists to allow, and refusing that would refuse
+    every assumption id an estimator adds. A gap's kind is not that: it
+    comes from a set THIS build declares, so a kind from the future is a
+    word the reader is sent to look up and will not find.
+
+    The reason recorded for passing it over was that which member a token
+    of our sets is, is a schema enum asked where enums are asked. Enums
+    are asked by PATH, and a statement carries its set beside its token —
+    so the same set one level in, inside ``words``, was asked by nobody.
+    See ``test_a_word_slot_is_held_to_the_set_beside_it``.
+    """
     result = {"data_gap_report": {"gaps": [
         {"kind": "a_species_from_the_future", "said": {"a_fact": "1"}}]}}
+    with pytest.raises(VerificationError, match="has no such word"):
+        verify_statements_carry_their_facts(result)
+
+
+def test_a_token_from_a_set_another_layer_coins_is_passed_over():
+    """And the case that reason was describing, on a set where it holds.
+
+    ``assumption_claim`` is keyed on ids an estimator declares, so a token
+    outside the table is the door working and not a forgery. What holds
+    such a claim is the ledger's own second record of it — the ``id``, of
+    which the token is a prefix — and not this rule.
+    """
+    result = {"extensions": {"assumption_ledger": {"assumptions": [
+        {"claim": [{"vocabulary": "assumption_claim",
+                    "token": "an_id_an_estimator_coined"}]}]}}}
     verify_statements_carry_their_facts(result)
 
 

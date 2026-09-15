@@ -202,7 +202,8 @@ NOTES: dict[str, language.Words] = {
     },
 }
 
-language.declare(VOCABULARY, NOTES, language.BETWEEN_STATEMENTS)
+language.declare(VOCABULARY, NOTES, language.BETWEEN_STATEMENTS,
+                 tokens_are_ours=True)
 
 
 def said(token: str, **facts) -> language.Statement:
