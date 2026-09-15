@@ -551,12 +551,13 @@ def _observational_cond(scm: _SCM, target: Atom, tv, given: dict[Atom, object]) 
     return num / den if den > 0 else 0.0
 
 
-def _true_do_enum(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
-                  given: dict[Atom, object]) -> float:
-    """True P(Y=yv | do(intervention), given) by direct structural
+def _true_do_enum(scm: _SCM, intervention: Mapping[Atom, object],
+                  outcome: Mapping[Atom, object],
+                  given: Mapping[Atom, object]) -> float:
+    """True P(outcome | do(intervention), given) by direct structural
     intervention, computed by brute-force enumeration. Reference oracle for
     ``_true_do``."""
-    num = 0.0   # P(Y=yv, given | do)
+    num = 0.0   # P(outcome, given | do)
     den = 0.0   # P(given | do)
     for a in _full_assignments(scm):
         if any(a[x] != xv for x, xv in intervention.items()):
@@ -565,14 +566,15 @@ def _true_do_enum(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
             continue
         m = _cell_prob(scm, a, fixed=intervention)
         den += m
-        if a[y] == yv:
+        if all(a[o] == ov for o, ov in outcome.items()):
             num += m
     return num / den if den > 0 else 0.0
 
 
-def _true_do(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
-             given: dict[Atom, object]) -> float:
-    """True P(Y=yv | do(intervention), given), via variable elimination on
+def _true_do(scm: _SCM, intervention: Mapping[Atom, object],
+             outcome: Mapping[Atom, object],
+             given: Mapping[Atom, object]) -> float:
+    """True P(outcome | do(intervention), given), via variable elimination on
     the do-mutilated factor graph (every intervened node's CPT dropped, each
     clamped to its value). Equals ``_true_do_enum`` exactly (pinned by test)
     but costs ~2^treewidth, not 2^|V|, and never enumerates — so it neither
@@ -582,7 +584,7 @@ def _true_do(scm: _SCM, intervention: Mapping[Atom, object], y: Atom, yv,
     den = _ve_prob(factors, {**intervention, **given})
     if den <= 0:
         return 0.0
-    num = _ve_prob(factors, {**intervention, y: yv, **given})
+    num = _ve_prob(factors, {**intervention, **outcome, **given})
     return num / den
 
 
@@ -711,40 +713,54 @@ def probe_identify_formula(
     seed: int = 0x5CA1AB1E,
 ) -> ProbeResult:
     """:func:`probe_intervention_formula` for an intervention on a single
-    variable."""
-    return probe_intervention_formula(
-        graph, bidirected, intervention={x: x_value}, y=y, given=given,
-        formula=formula, domains=domains, y_values=y_values, k=k, seed=seed,
-    )
+    variable and a single outcome. ``y_values`` names the values of Y the
+    formula is about, each asked in turn; ``None`` leaves Y open."""
+    values = (None,) if y_values is None else tuple(y_values)
+    if not values:
+        return ProbeResult(
+            "inconclusive", "no value of the outcome to ask the formula about")
+    result = ProbeResult("match")
+    for value in values:
+        result = probe_intervention_formula(
+            graph, bidirected, intervention={x: x_value},
+            outcome=(ValuedAtom(atom=y, value=value),), given=given,
+            formula=formula, domains=domains, k=k, seed=seed,
+        )
+        if result.status != "match":
+            return result
+    return result
 
 
 def probe_intervention_formula(
     graph: nx.DiGraph,
     bidirected: frozenset,
     *,
-    intervention: Mapping[Atom, AtomValue],
-    y: Atom,
+    intervention: Mapping[Atom, AtomValue | None],
+    outcome: tuple[ValuedAtom, ...],
     given: tuple[ValuedAtom, ...],
     formula: FormulaExpr,
     domains: dict[Atom, tuple] | None = None,
-    y_values: tuple | None = None,
     k: int = 3,
     seed: int = 0x5CA1AB1E,
 ) -> ProbeResult:
     """Semantic backbone: does ``formula`` compute the true
-    ``P(Y | do(intervention), Z=given)`` in models consistent with the graph?
+    ``P(outcome | do(intervention), given)`` in models consistent with the
+    graph?
 
     ``intervention`` is one argument whether it sets one variable or several:
     a corner of a treatment box sets every treatment at once, and it is the
-    whole assignment the corner's estimand is about.
+    whole assignment the corner's estimand is about. ``outcome`` is one
+    argument for the same reason: the ID sub-problems inside IDC and ID*
+    ask for the joint distribution of several variables.
 
     Samples ``k`` random SCMs (fixed seed → reproducible), and for each
-    checks the formula against the true do-quantity for every (Y, Z)
-    binding. Returns ``match`` / ``mismatch`` / ``inconclusive``.
+    checks the formula against the true do-quantity for every binding of
+    what the question leaves open. Returns ``match`` / ``mismatch`` /
+    ``inconclusive``.
 
-    ``domains`` says which values the variables HAVE. ``y_values`` says
-    which values of Y this formula is ABOUT — an effect answer's estimand
-    names one, an identify query's leaves it open. They are two questions,
+    ``domains`` says which values the variables HAVE. An outcome's value
+    says which value of it this formula is ABOUT — an effect answer's
+    estimand names one, an identify query's leaves it open. They are two questions,
     and a caller that had only the first parameter asked the second by
     narrowing it: with Y's domain cut to the single value, Y is a constant
     in every sampled model, every probability is one, the true
@@ -759,8 +775,12 @@ def probe_intervention_formula(
     with nowhere to put them — and a caller that passed its valued atoms
     into a parameter compared against graph nodes got neither: the
     membership test answered no, and the whole probe declined in silence.
-    So the loop ranges over a conditioned variable's domain exactly when
-    the question leaves it open.
+    So the loop ranges over a variable's domain exactly when the question
+    leaves it open — a conditioned variable's, an outcome's, and an
+    intervened variable's alike. An open intervention is how the ID engine
+    asks about an estimand it built before any value was chosen (IDC and
+    ID* stamp values afterwards): each value is asked in turn, and a slot
+    the formula already fills with a literal is left as it is.
 
     A model with no room for the value it is asked about is the same
     silence wearing the other hat — both sides come back zero, which reads
@@ -779,63 +799,68 @@ def probe_intervention_formula(
         return unfit
 
     # Probe needs a fully-instantiated ADMG over the formula's variables.
-    if y not in graph or any(x not in graph for x in intervention):
+    if (any(o.atom not in graph for o in outcome)
+            or any(x not in graph for x in intervention)):
         return ProbeResult(
-            "inconclusive", "an intervened variable or y absent from graph")
+            "inconclusive", "an intervened variable or an outcome absent from graph")
     if any(g.atom not in graph for g in given):
         return ProbeResult("inconclusive", "a conditioned Z is absent from graph")
 
-    y_dom = tuple(y_values) if y_values is not None else _domain_of(y, domains)
-    if not y_dom:
+    named = [*intervention.items(), *((o.atom, o.value) for o in outcome),
+             *((g.atom, g.value) for g in given)]
+    for atom, value in named:
+        if value is not None:
+            domains[atom] = _room_for(_domain_of(atom, domains), (value,))
+
+    def every(pairs: list) -> list[dict]:
+        """One binding per combination: a named value is asked as itself, an
+        open one at every value of its variable's domain."""
+        atoms = [atom for atom, _ in pairs]
+        choices = [(value,) if value is not None else _domain_of(atom, domains)
+                   for atom, value in pairs]
+        return [dict(zip(atoms, values)) for values in itertools.product(*choices)]
+
+    outcomes = every([(o.atom, o.value) for o in outcome])
+    if not outcome or not outcomes:
         return ProbeResult(
             "inconclusive", "no value of the outcome to ask the formula about")
-    domains[y] = _room_for(_domain_of(y, domains), y_dom)
-    for x, x_value in intervention.items():
-        domains[x] = _room_for(_domain_of(x, domains), (x_value,))
-    for g in given:
-        if g.value is not None:
-            domains[g.atom] = _room_for(
-                _domain_of(g.atom, domains), (g.value,))
-
-    given_atoms = tuple(g.atom for g in given)
-    given_doms = [
-        (g.value,) if g.value is not None else _domain_of(g.atom, domains)
-        for g in given
-    ]
-    given_combos = list(itertools.product(*given_doms)) if given else [()]
+    openings = every([(x, v) for x, v in intervention.items() if v is None])
+    givens = every([(g.atom, g.value) for g in given])
 
     for i in range(k):
         rng = random.Random(seed + i)
         scm = _sample_scm(graph, bidirected, domains, rng)
 
-        for gvals in given_combos:
-            given_map = dict(zip(given_atoms, gvals))
-            for yv in y_dom:
-                bindings = {y: yv, **given_map}
-                bound = _bind_holes(formula, bindings)
-                try:
-                    theta = _theta_from_scm(scm, bound, graph, bidirected)
-                    got = ve_estimate_formula(bound, theta)
-                    true = _true_do(scm, intervention, y, yv, given_map)
-                except _VEIntractable:
-                    return ProbeResult(
-                        "inconclusive",
-                        "variable elimination exceeded the probe cap (high treewidth)",
-                    )
-                except Exception as exc:  # noqa: BLE001 — probe is best-effort
-                    return _evaluation_failed(exc)
-                if abs(got - true) > 1e-7:
-                    conditions = ", ".join(
-                        ["do(" + ", ".join(f"{_atom_text(x)}={xv}"
-                                           for x, xv in intervention.items()) + ")"]
-                        + [f"{_atom_text(g)}={v}"
-                           for g, v in given_map.items()])
-                    return ProbeResult(
-                        "mismatch",
-                        f"SCM #{i}: formula gives {got:.6f} for "
-                        f"P({_atom_text(y)}={yv} | {conditions}) but the true "
-                        f"interventional value is {true:.6f}",
-                    )
+        for opened in openings:
+            done = {**intervention, **opened}
+            for given_map in givens:
+                for asked in outcomes:
+                    bound = _bind_holes(formula, {**opened, **asked, **given_map})
+                    try:
+                        theta = _theta_from_scm(scm, bound, graph, bidirected)
+                        got = ve_estimate_formula(bound, theta)
+                        true = _true_do(scm, done, asked, given_map)
+                    except _VEIntractable:
+                        return ProbeResult(
+                            "inconclusive",
+                            "variable elimination exceeded the probe cap (high treewidth)",
+                        )
+                    except Exception as exc:  # noqa: BLE001 — probe is best-effort
+                        return _evaluation_failed(exc)
+                    if abs(got - true) > 1e-7:
+                        conditions = ", ".join(
+                            ["do(" + ", ".join(f"{_atom_text(x)}={xv}"
+                                               for x, xv in done.items()) + ")"]
+                            + [f"{_atom_text(g)}={v}"
+                               for g, v in given_map.items()])
+                        said = ", ".join(f"{_atom_text(o)}={ov}"
+                                         for o, ov in asked.items())
+                        return ProbeResult(
+                            "mismatch",
+                            f"SCM #{i}: formula gives {got:.6f} for "
+                            f"P({said} | {conditions}) but the true "
+                            f"interventional value is {true:.6f}",
+                        )
 
     return ProbeResult("match")
 

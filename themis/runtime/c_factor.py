@@ -184,22 +184,48 @@ def _run_tian_id(
         x_values=dict(x_values),
         trail=[],
     )
-    formula = _id(state)
+    formula, trail, hedge = _identify(state, caller_resolves=frozenset())
+    if formula is None:
+        return TianResult(
+            identifiable=False, formula=None, witness_trail=trail, hedge=hedge,
+        )
+    return TianResult(identifiable=True, formula=formula, witness_trail=trail)
 
-    # The compact Line-7 shortcut may fail to express a genuine nested-ID
-    # estimand: either it PUNTS (returns None, with no definitive hedge —
-    # its inner verdict recursion mis-reads S' as a hedge, or an
-    # intervention inside S' is still an ancestor of Y there, which the
-    # shortcut cannot sum) or it emits a MALFORMED formula (a free, unbound
-    # sum variable from a variable that leaked out of S'). The canonical
-    # example is Pearl's napkin graph (W→Z→X→Y, W↔X, W↔Y). In either case,
-    # retry with Tian's full nested Identify, which expresses the estimand
-    # as the required ratio.
-    shortcut_ok = formula is not None and _formula_is_well_formed(formula)
+
+def _identify(
+    state: _IdState,
+    *,
+    caller_resolves: frozenset[Atom],
+) -> tuple[FormulaExpr | None, tuple, frozenset[Atom] | None]:
+    """Run the ID recursion as every entry point runs it, returning
+    ``(formula, trail, hedge)``: the single and joint effect through
+    ``_run_tian_id``, IDC's numerator and denominator and ID*'s base case
+    through ``_id_set_structural``. A retry held by one entry point is a
+    nested-ID estimand the others punt on.
+
+    The compact Line-7 shortcut may fail to express a genuine nested-ID
+    estimand: either it PUNTS (returns None, with no definitive hedge —
+    its inner verdict recursion mis-reads S' as a hedge, or an
+    intervention inside S' is still an ancestor of Y there, which the
+    shortcut cannot sum) or it emits a MALFORMED formula (a free, unbound
+    sum variable from a variable that leaked out of S'). The canonical
+    example is Pearl's napkin graph (W→Z→X→Y, W↔X, W↔Y). In either case,
+    retry with Tian's full nested Identify, which expresses the estimand
+    as the required ratio, and keep it only where the numeric self-check
+    does not disprove it.
+
+    Malformed is asked of the formula the caller will hold.
+    ``caller_resolves`` names the atoms a caller reads as query-bound when
+    the recursion leaves them tagged by a variable nothing binds (IDC's
+    ``_apply_idc_values`` does, for Y and every Z): a free occurrence of
+    one of those is not a leak, and every other free variable is.
+    """
+    formula = _id(state)
+    if _caller_can_finish(formula, caller_resolves):
+        return formula, tuple(state.trail), None
     if (
-        not shortcut_ok
-        and state.hedge is None
-        and graph.number_of_nodes() <= _FULL_LINE7_MAX_NODES
+        state.hedge is None
+        and state.graph.number_of_nodes() <= _FULL_LINE7_MAX_NODES
     ):
         # The full nested Identify + its numeric probe self-check are
         # exponential in the graph; bound the attempt to small graphs
@@ -215,42 +241,48 @@ def _run_tian_id(
             # claimed (e.g. Z in the napkin). Doing it here, not inside the
             # Line-7 recursion, avoids double-binding a mediator an outer
             # Line-4 sum already owns.
-            full_formula = _bind_free_params(full_state, full_formula, keep=y_set)
+            full_formula = _bind_free_params(full_state, full_formula, keep=state.y)
         if (
             full_formula is not None
-            and _formula_is_well_formed(full_formula)
+            and _caller_can_finish(full_formula, caller_resolves)
             and _full_line7_numerically_sound(
-                graph, bidirected, x_values, y_atom, full_formula,
+                full_state, full_formula, caller_resolves,
             )
         ):
-            return TianResult(
-                identifiable=True,
-                formula=full_formula,
-                witness_trail=tuple(full_state.trail),
-            )
+            return full_formula, tuple(full_state.trail), None
+    # Even the full path could not produce an estimand the caller can
+    # finish — PUNT so the scheduler degrades to the IV escalation /
+    # needs_investigation instead of crashing the public API.
+    return None, tuple(state.trail), state.hedge if formula is None else None
 
-    if formula is None:
-        return TianResult(
-            identifiable=False,
-            formula=None,
-            witness_trail=tuple(state.trail),
-            hedge=state.hedge,
-        )
-    if not _formula_is_well_formed(formula):
-        # Even the full path could not produce a well-formed estimand —
-        # PUNT so the scheduler degrades to the IV escalation /
-        # needs_investigation instead of crashing the public API.
-        return TianResult(
-            identifiable=False,
-            formula=None,
-            witness_trail=tuple(state.trail),
-            hedge=None,
-        )
-    return TianResult(
-        identifiable=True,
-        formula=formula,
-        witness_trail=tuple(state.trail),
-    )
+
+def _caller_can_finish(
+    formula: FormulaExpr | None,
+    caller_resolves: frozenset[Atom],
+) -> bool:
+    """Is ``formula`` an estimand once its caller has read what it resolves
+    as the query-bound holes they are? See :func:`_identify`."""
+    return formula is not None and _formula_is_well_formed(
+        _free_as_holes(formula, caller_resolves))
+
+
+def _free_as_holes(
+    formula: FormulaExpr,
+    atoms: frozenset[Atom],
+) -> FormulaExpr:
+    """``formula`` with each occurrence of one of ``atoms`` that is tagged by
+    a variable no enclosing sum binds read as the query-bound hole (None)
+    it is: the reading ``_apply_idc_values`` gives a free target."""
+    if not atoms:
+        return formula
+
+    def hole(va: ValuedAtom, bound: frozenset[str]) -> ValuedAtom:
+        if (va.atom in atoms and isinstance(va.value, VarRef)
+                and va.value.name not in bound):
+            return ValuedAtom(atom=va.atom, value=None)
+        return va
+
+    return _map_valued_atoms(formula, hole)
 
 
 # ============================================ internals
@@ -292,8 +324,8 @@ class _IdState:
     _bind_seq: int = 0
     # Line 7 mode: False = the compact Q[S'] shortcut (correct for
     # front-door-style cases); True = Tian's full nested Identify (handles
-    # napkin-style nested ID). _run_tian_id runs the shortcut first and
-    # re-runs with this True when the shortcut gives no well-formed estimand.
+    # napkin-style nested ID). _identify runs the shortcut first and re-runs
+    # with this True when the shortcut gives no estimand its caller can finish.
     use_full_line7: bool = False
 
     @property
@@ -366,11 +398,9 @@ def _formula_is_well_formed(formula: FormulaExpr) -> bool:
 
 
 def _full_line7_numerically_sound(
-    graph: nx.DiGraph,
-    bidirected: BidirectedEdgeSet,
-    x_values: Mapping[Atom, object],
-    y_atom: Atom,
+    state: _IdState,
     formula: FormulaExpr,
+    caller_resolves: frozenset[Atom],
 ) -> bool:
     """Numeric self-check for the FULL nested-Identify Line-7 path — the
     hardest, least-battle-tested code in the engine. Probe the produced
@@ -381,12 +411,34 @@ def _full_line7_numerically_sound(
     case the construction gets wrong PUNTS (the scheduler then degrades to
     the IV escalation) instead of returning a confident wrong answer. The
     same probe backs the verifier; running it here closes the loop at the
-    source. Imported locally to avoid an import cycle."""
+    source.
+
+    The question is the sub-problem's own: the joint distribution of its
+    targets under its intervention. An intervention still holding the
+    value-blind placeholder (IDC and ID* stamp values afterwards) is asked
+    at every value, so is every target, and a free occurrence the caller
+    resolves is asked as the hole it becomes. Imported locally to avoid an
+    import cycle."""
     from ..verifier.semantic_probe import probe_intervention_formula
 
+    def opened(va: ValuedAtom, _bound: frozenset[str]) -> ValuedAtom:
+        if va.value is _IDC_VALUE_SENTINEL:
+            return ValuedAtom(atom=va.atom, value=None)
+        return va
+
     result = probe_intervention_formula(
-        graph, bidirected, intervention=x_values, y=y_atom,
-        given=(), formula=formula, k=3,
+        state.graph, state.bidirected,
+        intervention={
+            atom: None if value is _IDC_VALUE_SENTINEL else value
+            for atom, value in state.x_values.items()
+        },
+        outcome=tuple(
+            ValuedAtom(atom=target, value=None)
+            for target in sorted(state.y, key=_atom_sort_key)
+        ),
+        given=(),
+        formula=_map_valued_atoms(_free_as_holes(formula, caller_resolves), opened),
+        k=3,
     )
     return result.status != "mismatch"
 
@@ -536,7 +588,7 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 # that fell outside S' (e.g. Z in the napkin) are left as
                 # value=None here — an ENCLOSING context may still bind
                 # them (a Line-4 Σ over a mediator), so the genuinely-free
-                # ones are bound once, at the top level, by identify_via_tian
+                # ones are bound once, at the top level, by _identify
                 # (_bind_free_params). Binding them here would double-count
                 # a variable an outer sum already owns (the extended-napkin
                 # bug).
@@ -593,8 +645,8 @@ def _id(state: _IdState) -> FormulaExpr | None:
                 return None
             # Identifiable: emit the Q[S'] re-marginalization formula. This
             # is well-formed UNLESS a variable outside S' leaks into S''s
-            # c-factor conditioning (nested ID / napkin) — identify_via_tian
-            # detects that malformedness and re-runs with use_full_line7.
+            # c-factor conditioning (nested ID / napkin) — _identify detects
+            # that malformedness and re-runs with use_full_line7.
             formula_state = replace(state, x_values={
                 a: v for a, v in state.x_values.items() if a not in s_prime
             })
@@ -1217,6 +1269,7 @@ def identify_via_idc(
     # Numerator: ID(Y ∪ Z_rem, X').
     num_formula, _trail, num_hedge = _id_set_structural(
         graph, bidirected, full_topo, V, x_set=do_set, y_set=y_set | z_rem,
+        caller_resolves=free_targets,
     )
     if num_formula is None:
         return IdcResult(identifiable=False, formula=None, hedge=num_hedge)
@@ -1242,6 +1295,7 @@ def identify_via_idc(
     # in the do-set, so the recursion sums it out).
     den_formula, _dtrail, den_hedge = _id_set_structural(
         graph, bidirected, full_topo, V, x_set=do_set, y_set=z_rem,
+        caller_resolves=free_targets,
     )
     if den_formula is None:
         return IdcResult(identifiable=False, formula=None, hedge=den_hedge)
@@ -1338,15 +1392,16 @@ def _id_set_structural(
     *,
     x_set: frozenset[Atom],
     y_set: frozenset[Atom],
+    caller_resolves: frozenset[Atom] = frozenset(),
 ) -> tuple[FormulaExpr | None, tuple, frozenset[Atom] | None]:
     """Run the ID recursion for an arbitrary (set-valued) intervention
     ``x_set`` and target ``y_set``, returning ``(formula, trail, hedge)``.
 
     The recursion is value-blind, so do-atoms get the sentinel value;
-    the caller stamps real values via ``_apply_idc_values``. This is the
-    same ``_id`` the single-target ``identify_via_tian`` drives — the
-    recursion already operates on frozensets, so no algorithmic change
-    is needed for IDC's set-valued sub-problems.
+    the caller stamps real values (``_apply_idc_values``, ID*'s base
+    case). It runs through :func:`_identify` exactly as
+    ``identify_via_tian`` does, the full nested Identify and its
+    self-check included; ``caller_resolves`` is passed on to it.
     """
     state = _IdState(
         V=V,
@@ -1358,8 +1413,7 @@ def _id_set_structural(
         x_values=dict.fromkeys(x_set, _IDC_VALUE_SENTINEL),
         trail=[],
     )
-    formula = _id(state)
-    return formula, tuple(state.trail), state.hedge
+    return _identify(state, caller_resolves=caller_resolves)
 
 
 def _apply_idc_values(

@@ -10574,8 +10574,8 @@ def _verifier_probe_risk(
     domains = ctx.theta.domains if ctx.theta is not None else {}
     probe = probe_intervention_formula(
         ctx.graph, ctx.bidirected,
-        intervention=intervention, y=y_atom, given=(), formula=formula,
-        domains=domains, y_values=(y_value,),
+        intervention=intervention, outcome=(ValuedAtom(atom=y_atom, value=y_value),),
+        given=(), formula=formula, domains=domains,
     )
     if probe.refuses:
         raise RuleCheckFailed(

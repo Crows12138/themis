@@ -237,7 +237,7 @@ def test_the_probe_tells_one_corner_s_estimand_from_another_s():
         assert derived.identifiable
         for other in box:
             verdict = sp.probe_intervention_formula(
-                graph, bidirected, intervention=dict(zip((a, b), other)), y=y,
-                given=(), formula=derived.formula)
+                graph, bidirected, intervention=dict(zip((a, b), other)),
+                outcome=(ValuedAtom(atom=y, value=None),), given=(), formula=derived.formula)
             assert verdict.status == ("match" if other == mask else "mismatch"), (
                 mask, other, verdict)

@@ -320,8 +320,8 @@ def test_true_do_ve_matches_enumeration():
     ``_true_do_enum`` EXACTLY (float tol) — it is the numeric oracle the
     whole probe rests on, so any drift is a correctness bug. Checked across
     mediator counts and a second (non-chain) family, unconditional and
-    conditioned, with one variable intervened on and with two, both Y
-    values, several SCMs."""
+    conditioned, with one variable intervened on and with two, one outcome
+    and two, both Y values, several SCMs."""
     import random
 
     families = [_napkin_chain(k) for k in (0, 2, 4)]
@@ -335,17 +335,20 @@ def test_true_do_ve_matches_enumeration():
         for seed in range(1, 5):
             scm = sp._sample_scm(g, bi, {}, random.Random(seed))
             for yv in (True, False):
-                assert abs(sp._true_do_enum(scm, {x: True}, y, yv, {})
-                           - sp._true_do(scm, {x: True}, y, yv, {})) < 1e-9
+                assert abs(sp._true_do_enum(scm, {x: True}, {y: yv}, {})
+                           - sp._true_do(scm, {x: True}, {y: yv}, {})) < 1e-9
                 if others:
                     gvar = others[0]
                     for gv in (True, False):
                         assert abs(
-                            sp._true_do_enum(scm, {x: True}, y, yv, {gvar: gv})
-                            - sp._true_do(scm, {x: True}, y, yv, {gvar: gv})) < 1e-9
+                            sp._true_do_enum(scm, {x: True}, {y: yv}, {gvar: gv})
+                            - sp._true_do(scm, {x: True}, {y: yv}, {gvar: gv})) < 1e-9
                         both = {x: True, gvar: gv}
-                        assert abs(sp._true_do_enum(scm, both, y, yv, {})
-                                   - sp._true_do(scm, both, y, yv, {})) < 1e-9
+                        assert abs(sp._true_do_enum(scm, both, {y: yv}, {})
+                                   - sp._true_do(scm, both, {y: yv}, {})) < 1e-9
+                        joint = {y: yv, gvar: gv}
+                        assert abs(sp._true_do_enum(scm, {x: True}, joint, {})
+                                   - sp._true_do(scm, {x: True}, joint, {})) < 1e-9
 
 
 def test_full_nested_id_identifies_with_ve_probe():

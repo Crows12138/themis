@@ -23,7 +23,7 @@ import random
 import networkx as nx
 
 from themis.runtime import c_factor
-from themis.types import Atom, ConstTerm
+from themis.types import Atom, ConstTerm, ValuedAtom
 from themis.verifier import semantic_probe as sp
 
 
@@ -40,7 +40,8 @@ def test_every_corner_of_the_measured_box_is_identified_and_computes_its_risk():
         derived = c_factor.identify_via_tian_joint(graph, bidirected, corner, a)
         assert derived.identifiable, corner
         verdict = sp.probe_intervention_formula(
-            graph, bidirected, intervention=corner, y=a, given=(), formula=derived.formula)
+            graph, bidirected, intervention=corner,
+            outcome=(ValuedAtom(atom=a, value=None),), given=(), formula=derived.formula)
         assert verdict.status == "match", (corner, verdict)
 
 
@@ -72,7 +73,8 @@ def test_no_corner_estimand_the_engine_emits_is_refused_on_random_graphs():
                 seen["unidentified"] = seen.get("unidentified", 0) + 1
                 continue
             verdict = sp.probe_intervention_formula(
-                graph, bidirected, intervention=corner, y=y, given=(),
+                graph, bidirected, intervention=corner,
+                outcome=(ValuedAtom(atom=y, value=None),), given=(),
                 formula=derived.formula)
             assert not verdict.refuses, (sorted(graph.edges), bidirected, corner, y, verdict)
             seen[verdict.status] = seen.get(verdict.status, 0) + 1
@@ -93,7 +95,8 @@ def test_no_single_estimand_the_engine_emits_is_refused_on_random_graphs():
             seen["unidentified"] = seen.get("unidentified", 0) + 1
             continue
         verdict = sp.probe_intervention_formula(
-            graph, bidirected, intervention={x: True}, y=y, given=(),
+            graph, bidirected, intervention={x: True},
+            outcome=(ValuedAtom(atom=y, value=None),), given=(),
             formula=derived.formula)
         assert not verdict.refuses, (sorted(graph.edges), bidirected, x, y, verdict)
         seen[verdict.status] = seen.get(verdict.status, 0) + 1
