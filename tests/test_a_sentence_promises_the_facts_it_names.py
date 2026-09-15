@@ -485,12 +485,45 @@ def test_a_token_from_a_set_another_layer_coins_is_passed_over():
     """And the case that reason was describing, on a set where it holds.
 
     ``assumption_claim`` is keyed on ids an estimator declares, so a token
-    outside the table is the door working and not a forgery. What holds
-    such a claim is the ledger's own second record of it — the ``id``, of
-    which the token is a prefix — and not this rule.
+    outside the table is the door working and not a forgery: this build
+    has no wording for it, which is a fact about this build. What it is
+    NOT is unheld — the record its coiner filed beside it says the id was
+    declared, and the token is its head.
+    """
+    result = {"extensions": {"assumption_ledger": {"assumptions": [
+        {"id": "an_id_an_estimator_coined_on_618",
+         "claim": [{"vocabulary": "assumption_claim",
+                    "token": "an_id_an_estimator_coined"}]}]}}}
+    verify_statements_carry_their_facts(result)
+
+
+def test_a_borrowed_token_with_no_record_beside_it_is_refused():
+    """And the same token where nothing coined it.
+
+    Passing this over was reading "the tokens are somebody else's" as
+    "nobody holds them". The set is open about WHO coins a word, not
+    about whether anything says it exists, and with no record beside it
+    the label is the only thing behind the word.
     """
     result = {"extensions": {"assumption_ledger": {"assumptions": [
         {"claim": [{"vocabulary": "assumption_claim",
+                    "token": "an_id_an_estimator_coined"}]}]}}}
+    with pytest.raises(VerificationError, match="record of one"):
+        verify_statements_carry_their_facts(result)
+
+
+def test_a_borrowed_token_is_not_asked_to_agree_with_that_record_here():
+    """Existence is this rule's question; agreement is not.
+
+    Whether the two copies are of one fact belongs to the rule that
+    audits the record they both sit in, which reads the id's remainder
+    for the values as well. Asked in both places, this one runs first
+    and the other stops being reachable — so what is pinned here is
+    that it is NOT asked.
+    """
+    result = {"extensions": {"assumption_ledger": {"assumptions": [
+        {"id": "another_assumption_entirely_on_618",
+         "claim": [{"vocabulary": "assumption_claim",
                     "token": "an_id_an_estimator_coined"}]}]}}}
     verify_statements_carry_their_facts(result)
 

@@ -29,18 +29,21 @@ string, leaving a reader sent to a table no surface holds. Both halves are
 asked here, by a walk that descends through everything rather than through
 a list of the sites somebody thought of.
 
-What this file does NOT claim: that membership is the whole question. A
-token bent to another MEMBER of its own set is a different forgery, and
-the instrument that measures coverage cannot yet see it — its domains are
-keyed by a leaf's path, so for all 61 token leaves on the corpus it has no
-domain and every lie it tells is "not a word at all". That is the next
-frontier and it is stated here so it is not read as closed.
+Membership is not the whole question, and the rest of it is asked in two
+other places. A token bent to another MEMBER of its own set is a forgery
+the coverage instrument could not see while its domains were keyed by a
+leaf's path; it asks the set beside the token now, and what it found is
+declared where it measures. And a set whose tokens are somebody else's
+is not a set nothing holds — the layer that coins them files its own
+record beside the statement, and the last section here is about reading
+it.
 """
 from __future__ import annotations
 
 import copy
 import json
 import pathlib
+from unittest import mock
 
 import pytest
 
@@ -49,7 +52,8 @@ from tests.answer_corpus import the_door_for, verify_honestly
 from themis import gaps, language
 from themis.verifier.errors import VerificationError
 from themis.verifier.statement_rules import (
-    _CARRIERS, _DECLARED_SILENT, verify_statements_carry_their_facts)
+    _CARRIERS, _DECLARED_SILENT, _RECORDED_BESIDE,
+    verify_statements_carry_their_facts)
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SCHEMAS = pathlib.Path(themis.__file__).parent / "schemas"
@@ -139,12 +143,17 @@ def test_the_one_set_of_somebody_elses_tokens_has_another_holder():
 
     ``assumption_claim`` is keyed on ids an estimator declares: the table
     is a glossary of the ones this build has words for, and an estimator
-    adding one is not a change to the envelope. Nothing is lost by leaving
-    it open, because the envelope carries a second record of every claim —
-    the ``id`` the estimator declared, which the token is a prefix of — and
-    ``assumption_ledger_rules`` holds the pair. Which is why that rule's
-    own docstring says it needs no table of legal tokens: it does not, and
-    this is the set it was talking about.
+    adding one is not a change to the envelope. What is not lost by
+    leaving it open is the second record — the ``id`` the estimator
+    declared, which the token is the head of.
+
+    That record was read by one rule, INSIDE the ledger, and this
+    docstring used to name that rule as the holder and stop. A label
+    travels with its statement and the rule did not, so relabelling any
+    statement on the envelope to this set held its token up against
+    nothing: 414 leaves on 140 answers. The record is read beside the
+    statement now, wherever that is, and the section at the end of this
+    file is where that is asked.
     """
     open_sets = {name for name, ours in language.TOKENS_ARE_OURS.items()
                  if not ours}
@@ -389,6 +398,119 @@ def test_a_kind_declared_to_have_no_sentence_is_a_member_and_not_a_stranger():
     assert not (set(silent) & set(gaps.IF_PROVIDED))
     verify_statements_carry_their_facts(
         {"data_gap_report": {"gaps": [{"kind": silent[0]}]}})
+
+
+# ------------------------------------------- and who holds a borrowed token
+
+
+def test_every_borrowed_set_says_where_its_coiner_recorded_a_token():
+    """The completeness that keeps this branch from going quiet again.
+
+    A set whose tokens are not ours and whose record nothing names is a
+    set every token of which is passed over — which is the state this
+    round found, and the state declaring a SECOND such set would return
+    to on its own. So the roster is what is gated, not the table.
+    """
+    open_sets = {name for name, ours in language.TOKENS_ARE_OURS.items()
+                 if not ours}
+    assert open_sets and open_sets <= set(_RECORDED_BESIDE)
+
+
+def test_a_borrowed_token_on_the_corpus_is_the_head_of_that_record():
+    """What the rule asks, measured on every honest answer first.
+
+    The producer mints the pair in one place — an assumption arrives as
+    its ``id`` and the sentence that reads it, in one record — so a
+    claim with no record beside it is not a shape this build produces.
+    Counted rather than argued from the producer, because the reason to
+    read the envelope is that the producer is the one being audited.
+    """
+    vocabulary, field = next(iter(_RECORDED_BESIDE.items()))
+    seen = 0
+    for name in sorted(SHAPES):
+        _program, result = _pair(name)
+        for path, statement in _word_slots(result):
+            if statement["vocabulary"] != vocabulary:
+                continue
+            seen += 1
+            record = _at(result, path[:-2])
+            assert str(record.get(field) or "").startswith(
+                statement["token"]), (name, path)
+    assert seen >= 500, seen
+
+
+def test_relabelling_any_statement_to_a_borrowed_set_is_refused():
+    """The one lie, told everywhere it could be told.
+
+    Membership is not asked of a borrowed set, by design, so the label
+    was the whole forgery: keep the token, change the set it says it is
+    from, and the word a reader is handed is a word this build has the
+    wording for and now says it does not. Swept rather than sampled,
+    since what made it worth a round is that it worked everywhere.
+    """
+    vocabulary = next(iter(_RECORDED_BESIDE))
+    escaped, asked = [], 0
+    for name in sorted(SHAPES):
+        _program, result = _pair(name)
+        for path, statement in _word_slots(result):
+            if statement["vocabulary"] == vocabulary:
+                continue
+            was, statement["vocabulary"] = statement["vocabulary"], vocabulary
+            asked += 1
+            try:
+                verify_statements_carry_their_facts(result)
+                escaped.append((name, path, was))
+            except VerificationError:
+                pass
+            finally:
+                statement["vocabulary"] = was
+    assert not escaped, escaped[:10]
+    assert asked >= 500, asked
+
+
+def test_a_borrowed_token_whose_record_was_taken_away_is_refused():
+    """The other direction, on the answers that carry one.
+
+    A claim whose id is gone is a sentence with nothing behind it, and
+    it is the shape a forger reaches for second: the label is honest
+    and the thing it pointed at is not there.
+    """
+    vocabulary, field = next(iter(_RECORDED_BESIDE.items()))
+    held = 0
+    for name in sorted(SHAPES):
+        _program, result = _pair(name)
+        for path, statement in _word_slots(result):
+            if statement["vocabulary"] != vocabulary:
+                continue
+            record = _at(result, path[:-2])
+            if field not in record:
+                continue
+            gone = record.pop(field)
+            with pytest.raises(VerificationError,
+                               match="record of one"):
+                verify_statements_carry_their_facts(result)
+            record[field] = gone
+            held += 1
+    assert held >= 500, held
+
+
+def test_a_borrowed_set_nobody_records_holds_nothing_and_says_so():
+    """And the state the roster above exists to prevent, made reachable.
+
+    A set declared open whose record nothing names cannot hold a token
+    at all. Saying so is the honest answer: the alternative is the
+    silence this round removed, and a silence that returns by way of a
+    new declaration is the one nobody would see.
+    """
+    vocabulary = next(iter(_RECORDED_BESIDE))
+    result = {"extensions": {"assumption_ledger": {"assumptions": [
+        {"id": "an_id_an_estimator_coined_on_618",
+         "claim": [{"vocabulary": vocabulary,
+                    "token": "an_id_an_estimator_coined"}]}]}}}
+    verify_statements_carry_their_facts(result)
+    with mock.patch.dict(_RECORDED_BESIDE, clear=True):
+        with pytest.raises(VerificationError, match="nothing behind it"):
+            verify_statements_carry_their_facts(result)
 
 
 # ------------------------------------------- and the price of asking at all

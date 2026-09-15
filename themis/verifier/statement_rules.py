@@ -47,12 +47,21 @@ occasion's facts beside them, and neither was asked anything, because the
 instrument that decides what is covered had its range fixed by what was
 already covered.
 
-A token this build does not carry is passed over where the set is somebody
-else's, and that is :func:`themis.language.spelt`'s design rather than a
-hole: the door exists so a producer can name an id another layer coined —
-an assumption an estimator declared — and a reader meets it as a stand-in
-they are told to look up. Where the set is OURS the same token is a word
-from nowhere, and this rule refuses it.
+A token this build does not carry is not a word from nowhere where the set
+is somebody else's, and that is :func:`themis.language.spelt`'s design
+rather than a hole: the door exists so a producer can name an id another
+layer coined — an assumption an estimator declared — and a reader meets it
+as a stand-in they are told to look up. Where the set is OURS the same
+token is a word from nowhere, and this rule refuses it.
+
+A borrowed set is not an unheld one, though, and passing its tokens over
+left the LABEL free. The layer that coins them files its own record of
+what it coined, beside the statement, and that record is what holds one
+(:data:`_RECORDED_BESIDE`). Until it was read here, relabelling any
+statement at all to the one borrowed set and keeping its token passed
+every door — 414 leaves on 140 answers, one lie told over and over — and
+a reader got the sentence replaced by the bare token, this build saying
+it has no wording for a word it holds the wording for.
 
 It passed over both, on the grounds that which member a token is, where
 the set is ours, is a schema enum asked by the census. The census asks a
@@ -85,6 +94,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from .. import language
+from ..assumption_glossary import CLAIM
 from ..gaps import DESCRIBED, NEEDED, NOTHING_FILLS, PROVIDED, ROUTED
 from ..refusals import REFUSED
 from .errors import VerificationError
@@ -148,6 +158,30 @@ _DECLARED_SILENT: dict[str, frozenset[str]] = {
 }
 
 
+#: Where the layer that coined a token filed its own record of it.
+#:
+#: A set whose tokens are not this build's own
+#: (:data:`themis.language.TOKENS_ARE_OURS`) is not a set nothing
+#: holds. The coiner writes what it coined down a second time, beside
+#: the statement, and that second record is the authority this build
+#: does not have: an estimator's assumption is assembled in one place
+#: as ``{"id": ..., "claim": [statement]}``, so the id and the
+#: sentence are minted together and never travel apart. The token is
+#: the HEAD of the id rather than equal to it, the id running this
+#: occasion's values together after the name.
+#:
+#: Keyed by vocabulary and naming a field on the record the statement
+#: BELONGS TO, which is the shape the fact has: which sets are
+#: borrowed is a fact about a set, and a borrowed token's record is
+#: beside the statement rather than at a path — the same reason the
+#: set itself travels beside the token. A gate holds every set that
+#: says its tokens are not ours to having a row here, so a second
+#: borrowed set cannot be declared into silence.
+_RECORDED_BESIDE: dict[str, str] = {
+    CLAIM: "id",
+}
+
+
 def _template(vocabulary: str, token: str) -> language.Words | None:
     """The sentence this token names, or None if this build has no such row.
 
@@ -167,6 +201,49 @@ def _template(vocabulary: str, token: str) -> language.Words | None:
     return words if isinstance(words, Mapping) and words else None
 
 
+def _held_by_its_coiner(where: str, vocabulary: str, token: str,
+                        record: Mapping | None) -> None:
+    """A borrowed token, against the record its coiner filed beside it.
+
+    Asked of every statement from such a set rather than only of the
+    ones this build has no wording for: whether a glossary here
+    happens to carry a row for an id is a fact about this build, and
+    whether anything coined that id is a fact about the answer.
+
+    EXISTENCE, and not agreement. Whether the two copies say the same
+    thing — the token being the head of the id, the values under
+    ``said`` appearing in what the id has left over — is a fact about
+    that record's format, and the rule that audits the record asks it
+    there. Asking it here as well would put one predicate in two
+    places and, running first, leave the other unreachable: a 92-case
+    end-to-end pin on that rule's wording stopped testing it. There is
+    no population for it here either — every record on the corpus that
+    carries such a field and holds a statement is one of those.
+    """
+    field = _RECORDED_BESIDE.get(vocabulary)
+    if field is None:
+        raise VerificationError(
+            f"{where} tells a reader to look {token!r} up in "
+            f"{vocabulary!r}, whose words this build declares to be "
+            f"another layer's, and names nothing on an envelope that "
+            f"records one; a word with no holder here and none there "
+            f"reaches a reader with nothing behind it at all",
+            rule=_RULE,
+        )
+    ident = record.get(field) if isinstance(record, Mapping) else None
+    if not isinstance(ident, str) or not ident:
+        raise VerificationError(
+            f"{where} tells a reader to look {token!r} up in "
+            f"{vocabulary!r}, whose words are ids another layer coins, "
+            f"and nothing beside it is that layer's record of one; "
+            f"such a token is held by the {field!r} its coiner "
+            f"declared, and with none here the only thing behind the "
+            f"word is the label on it, so the reader's surface finds "
+            f"no row and hands the token back as a word to go and "
+            f"learn",
+            rule=_RULE,
+        )
+
 def _facts(entry: Mapping) -> set[str]:
     """The slots this occasion filled, both halves together.
 
@@ -179,7 +256,8 @@ def _facts(entry: Mapping) -> set[str]:
             for k in (entry.get(half) or ())}
 
 
-def _hold(where: str, vocabulary: str, token: str, entry: Mapping) -> None:
+def _hold(where: str, vocabulary: str, token: str, entry: Mapping,
+          record: Mapping | None) -> None:
     """One statement against its template, and its pair against its set.
 
     Both halves the statement carries are asked, because both travel with
@@ -204,23 +282,26 @@ def _hold(where: str, vocabulary: str, token: str, entry: Mapping) -> None:
             f"token back with nowhere to look it up",
             rule=_RULE,
         )
+    ours = language.TOKENS_ARE_OURS.get(vocabulary, True)
+    if not ours:
+        _held_by_its_coiner(where, vocabulary, token, record)
     words = _template(vocabulary, token)
-    if words is None:
-        if token not in _DECLARED_SILENT.get(vocabulary, ()):
-            if language.TOKENS_ARE_OURS.get(vocabulary):
-                raise VerificationError(
-                    f"{where} tells a reader to look {token!r} up in "
-                    f"{vocabulary!r}, and that set has no such word; the "
-                    f"reader's surface hands a token it cannot find back "
-                    f"as a stand-in to go and look up, so a word from "
-                    f"nowhere arrives where the sentence was promised and "
-                    f"says it is one this reader has yet to learn",
-                    rule=_RULE,
-                )
-            return
-        declared: set[str] = set()
-    else:
+    if words is not None:
         declared = language.holes(words)
+    elif token in _DECLARED_SILENT.get(vocabulary, ()):
+        declared = set()
+    elif ours:
+        raise VerificationError(
+            f"{where} tells a reader to look {token!r} up in "
+            f"{vocabulary!r}, and that set has no such word; the "
+            f"reader's surface hands a token it cannot find back "
+            f"as a stand-in to go and look up, so a word from "
+            f"nowhere arrives where the sentence was promised and "
+            f"says it is one this reader has yet to learn",
+            rule=_RULE,
+        )
+    else:
+        return
     carried = _facts(entry)
     if extra := sorted(carried - declared):
         raise VerificationError(
@@ -243,31 +324,37 @@ def _hold(where: str, vocabulary: str, token: str, entry: Mapping) -> None:
         )
 
 
-def _walk(node, path: tuple[str, ...]) -> None:
+def _walk(node, path: tuple[str, ...],
+          record: Mapping | None = None) -> None:
     """Every statement under this node, wherever it is written.
 
     Descends through everything rather than through a list of blocks: a
     statement's facts may themselves be statements, so one arrives four
     levels inside another, and a walk that knew where to look would cover
     the places its author had thought of.
+
+    ``record`` is the record the statement belongs to, which a list is
+    transparent to: an assumption writes its claim as a LIST because
+    one occasion turns out to have however many sentences it has, and
+    every one of them is that assumption's.
     """
     if isinstance(node, Mapping):
         where = ".".join(path)
         vocabulary = node.get("vocabulary")
         if isinstance(vocabulary, str) and "token" in node:
             _hold(where or "the result", vocabulary,
-                  str(node.get("token") or ""), node)
+                  str(node.get("token") or ""), node, record)
         carrier = _CARRIERS.get(where)
         if carrier is not None:
             spelling, named = carrier
             token = node.get(spelling)
             if token:
-                _hold(where, named, str(token), node)
+                _hold(where, named, str(token), node, record)
         for key, value in node.items():
-            _walk(value, (*path, str(key)))
+            _walk(value, (*path, str(key)), node)
     elif isinstance(node, Sequence) and not isinstance(node, (str, bytes)):
         for item in node:
-            _walk(item, (*path, "[]"))
+            _walk(item, (*path, "[]"), record)
 
 
 def verify_statements_carry_their_facts(result: Mapping) -> None:

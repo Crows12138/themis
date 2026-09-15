@@ -1603,20 +1603,21 @@ def test_the_declared_remainder_is_what_it_is():
     the validator, in the one place it had said so.
 
     What the new lies found, in two families. 414 of them on 140 rows
-    are the SET half, and they are one hole told over and over: relabel
-    any statement to the single set whose ids another layer coins, keep
-    the token, and nothing objects — membership is not asked of an open
-    set, by design, and no site says which sets it may carry. The other
-    60, on 58 rows, are the MEMBER half, and they concentrate: the scale
-    a way past asks a column to be measured on (21) and the role a gap
-    gives a variable (19) — binary for continuous, exposure for outcome —
-    each stated a second time by the question or by another block. Both
-    are frontiers rather than this round's work: what landed here is the
-    instrument, and a remainder that goes up on the day the question
-    widens is it working.
+    were the SET half, one hole told over and over: relabel any
+    statement to the single set whose ids another layer coins, keep the
+    token, and nothing objected — membership is not asked of an open
+    set, by design. Those 414 then came off, because an open set is
+    open about WHO coins a word and not about whether anything says it
+    exists: the layer that coins one files its own record beside the
+    statement, and the rule that read that record ran only inside the
+    ledger while the label travelled anywhere. The other 60, on 58
+    rows, are the MEMBER half and are still open: the scale a way past
+    asks a column to be measured on (21) and the role a gap gives a
+    variable (19) — binary for continuous, exposure for outcome — each
+    stated a second time by the question or by another block.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 2364, total
+    assert total == 1950, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
