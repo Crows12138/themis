@@ -1611,15 +1611,17 @@ def test_the_declared_remainder_is_what_it_is():
     exists: the layer that coins one files its own record beside the
     statement, and the rule that read that record ran only inside the
     ledger while the label travelled anywhere. The other 60, on 58
-    rows, are the MEMBER half, and 21 of those came off next: the
-    scale a way past asks a column to be measured on is the scale that
-    column was declared at, which the answer's own reconciliation
-    records. What is left of that half is led by the role a gap gives
-    a variable (19) — exposure for outcome — which the question
-    states a second time and which nothing reads back.
+    rows, were the MEMBER half, and 40 of those came off next: what a
+    word says about the thing its own sentence names is said a second
+    time by the record filed under that name — the scale a column was
+    declared at (21), the side of the question a variable is on (19).
+    Both were unheld because the audit that asks whether a value has a
+    second record was only ever asked of the half a fact travels in
+    when it needs no translating. What is left of the member half is
+    its tail: twenty entries over eleven leaves, the largest eight.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1929, total
+    assert total == 1910, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -45,7 +45,7 @@ import pytest
 from tests.answer_corpus import the_door_for, verify_honestly
 from themis.kernel import _premises_of
 from themis.verifier import VerificationError
-from themis import language
+from themis import gaps, language
 from themis.verifier.gap_claim_rules import (
     _A_WORD_COPIES,
     _COPIED_FROM,
@@ -59,6 +59,10 @@ from themis.verifier.gap_claim_rules import (
     statements_and_the_slots_they_declare,
     verify_gap_quotes,
     verify_gap_subjects,
+)
+from themis.verifier.gap_claim_rules import (
+    _the_question_asked,
+    _the_role_the_question_gives,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -298,13 +302,29 @@ def _members_of(vocabulary: str) -> list[str]:
     return sorted(str(member) for member in language.VOCABULARIES[vocabulary])
 
 
+def _a_site(slot: str):
+    """One site of this slot, for the tests about a single one."""
+    return next(site for site in WORD_SITES if site[3] == slot)
+
+
 def test_the_words_this_rule_speaks_for():
-    """The denominator, per slot, so a narrowing shows as a number."""
+    """The denominator, per slot, so a narrowing shows as a number.
+
+    And the gate the roster has instead of an import-time one. A row was
+    held against the slots ``_bind`` knows, which keeps the vocabularies
+    whose words live in ``themis.gaps`` — where the WORDS are, not what
+    decides whether a report carries the statement. A gap report carries
+    seventeen vocabularies and that space sees four, so the check said
+    "no statement this build can write has that slot" of a slot nineteen
+    answers carry. Reached-or-not is asked of the answers, here.
+    """
     split: dict[str, int] = {}
     for _name, _where, _statement, key in WORD_SITES:
         split[key] = split.get(key, 0) + 1
-    assert split == {"scale": 36}, split
-    assert len({n for n, _, _, _ in WORD_SITES}) == 21
+    assert split == {"scale": 36, "role": 19}, split
+    assert len({n for n, _, _, _ in WORD_SITES}) == 40
+    assert {key for _s, key in _A_WORD_COPIES} == set(split), (
+        sorted(_A_WORD_COPIES), sorted(split))
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in WORD_SITES}))
@@ -333,7 +353,7 @@ def test_a_word_bent_to_another_member_of_its_own_set_is_refused():
             with pytest.raises(Exception):                      # noqa: B017
                 the_door_for(row["result"])(row["program"], forged)
             refused += 1
-    assert refused == 108, refused
+    assert refused == 165, refused
 
 
 def test_the_record_a_word_is_read_against_is_the_one_it_names():
@@ -344,7 +364,7 @@ def test_the_record_a_word_is_read_against_is_the_one_it_names():
     above and be refusing because of the corpus. Given a second column
     declared at another scale, the two rules part company.
     """
-    name, where, _statement, key = WORD_SITES[0]
+    name, where, _statement, key = _a_site("scale")
     row = SHAPES[name]
     forged = copy.deepcopy(row["result"])
     program = copy.deepcopy(row["program"])
@@ -370,7 +390,7 @@ def test_the_record_a_word_is_read_against_is_not_the_answers_own():
     carries a gap quoting it, so that reason had nothing left to speak
     for. The program is the copy no answer can edit.
     """
-    name, where, _statement, key = WORD_SITES[0]
+    name, where, _statement, key = _a_site("scale")
     row = SHAPES[name]
     forged = copy.deepcopy(row["result"])
     word = _said(forged, where)[key]
@@ -388,7 +408,7 @@ def test_the_silence_is_real_where_the_word_has_no_record():
     measurement type for, and inventing the roster out of the gap would be
     reading the authority off the thing being judged.
     """
-    name, where, _statement, key = WORD_SITES[0]
+    name, where, _statement, key = _a_site("scale")
     row = SHAPES[name]
     forged = copy.deepcopy(row["result"])
     program = copy.deepcopy(row["program"])
@@ -401,13 +421,82 @@ def test_the_silence_is_real_where_the_word_has_no_record():
     verify_gap_subjects(forged, program)
 
 
-def test_a_word_roster_names_a_slot_some_statement_declares():
-    """A row nothing reaches is a claim that reads as a check.
+def test_the_space_that_gate_used_to_ask_sees_four_of_seventeen():
+    """Why the gate above is a measurement, said as one.
 
-    Held at import by ``_bind``; asserted here so that what it holds is
-    visible where the roster is read rather than only where it is bound.
+    ``_bind``'s space keeps a vocabulary when its words live in
+    ``themis.gaps``. That is a fact about the layering: ``measurement_note``
+    and ``query_role`` are spoken by a gap report and their words live in
+    the output layer, which no verifier may import. The space is still the
+    right one for what ``_bind`` does — every slot this package can WRITE
+    is classified — and the wrong one for whether a roster row is reached.
+    Counted so the difference is a number and not a remark.
     """
     space = {slot for _statement, slot in
              statements_and_the_slots_they_declare()}
-    for statement, slot in _A_WORD_COPIES:
-        assert slot in space, (statement, slot)
+    carried = {statement["vocabulary"]
+               for name in SHAPES
+               for _w, statement in _statements_in(
+                   (SHAPES[name]["result"] or {}).get("data_gap_report") or {})}
+    inside = {name for name, owner in language.VOCABULARIES.items()
+              if any(owner is held for held in vars(gaps).values())}
+    assert len(carried) == 17, sorted(carried)
+    assert len(carried & inside) == 4, sorted(carried & inside)
+    assert "scale" in space and "role" not in space
+
+
+def _statements_in(node, path=()):
+    """Every statement under a node, for the counting above."""
+    if isinstance(node, dict):
+        if isinstance(node.get("vocabulary"), str) and "token" in node:
+            yield path, node
+        for key, value in node.items():
+            yield from _statements_in(value, (*path, str(key)))
+    elif isinstance(node, list):
+        for item in node:
+            yield from _statements_in(item, (*path, "[]"))
+
+
+def test_the_role_a_gap_gives_is_the_side_of_the_question_it_names():
+    """What the question decides, and what it does not.
+
+    The predicate intervened on IS the exposure and the one asked
+    about IS the outcome, so either of them called anything else
+    sends a reader to a variable that is missing nothing. The set's
+    other two words are properties of the GRAPH, so about any other
+    name what the question says is that it is neither of its own two
+    — which is a positive answer and not a silence.
+    """
+    name, _where, _statement, _key = _a_site("role")
+    program = SHAPES[name]["program"]
+    intervention, target = _the_question_asked(program)
+    assert intervention and target
+    assert _the_role_the_question_gives(program, intervention) == {
+        "exposure"}
+    assert _the_role_the_question_gives(program, target) == {"outcome"}
+    others = _the_role_the_question_gives(program, "a_third_column")
+    assert others == set(_members_of("query_role")) - {"exposure",
+                                                       "outcome"}
+    assert others
+
+
+def test_a_question_that_spells_only_half_of_itself_is_not_appealed_to():
+    """Both sides or neither, which is not a convenience.
+
+    Reading a question that names an intervention and no target would
+    make every variable that is not that intervention one the question
+    gives no role — a claim, and the wrong one, since what it actually
+    says about them is nothing.
+    """
+    name, where, _statement, key = next(
+        (site for site in WORD_SITES if site[3] == "role"))
+    row = SHAPES[name]
+    forged = copy.deepcopy(row["result"])
+    program = copy.deepcopy(row["program"])
+    word = _said(forged, where)[key]
+    word["token"] = next(m for m in _members_of(word["vocabulary"])
+                         if m != word["token"])
+    for statement in program["statements"]:
+        if isinstance(statement.get("query"), dict):
+            statement["query"].pop("target", None)
+    verify_gap_subjects(forged, program)

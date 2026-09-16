@@ -423,13 +423,6 @@ def _bind() -> None:
             f"what it holds there; entries "
             f"{sorted(set(_IN_ITS_SENTENCE) - owed)} name a statement that "
             f"does not declare it")
-    for statement, slot in _A_WORD_COPIES:
-        if (statement, slot) not in declared and (
-                statement is not None or slot not in space):
-            raise RuntimeError(
-                f"a word copy is declared for {(statement, slot)}, and "
-                f"no statement this build can write has that slot; a "
-                f"row nothing reaches is a claim that reads as a check")
     roles = {pair for pair in declared
              if pair[1] in _ROLES and holds_a_name(*pair)}
     copies = {(statement, slot)
@@ -755,8 +748,56 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
 }
 
 
+def _the_question_asked(program: Mapping) -> tuple[str | None,
+                                                   str | None]:
+    """The predicate intervened on and the predicate asked about.
+
+    Both or neither: a query shape that spells only one of the two is
+    a question this reader cannot answer from, and answering from
+    half of it would make every variable that is not the half it
+    found into one the question gives no role — which is a claim, and
+    the wrong one.
+    """
+    for statement in program.get("statements") or ():
+        query = statement.get("query") if isinstance(
+            statement, Mapping) else None
+        if not isinstance(query, Mapping):
+            continue
+        intervention = ((query.get("intervention") or {})
+                        .get("atom") or {}).get("predicate")
+        target = ((query.get("target") or {})
+                  .get("atom") or {}).get("predicate")
+        if intervention and target:
+            return str(intervention), str(target)
+    return None, None
+
+
+def _the_role_the_question_gives(program: Mapping,
+                                name: str) -> set[str] | None:
+    """Which side of the question that variable is on.
+
+    The question decides exactly two of this set's words and decides
+    them completely: the predicate it intervenes on IS the exposure
+    and the one it asks about IS the outcome, so a gap calling either
+    of them anything else is telling a reader about a variable that
+    is missing nothing. The other two words are properties of the
+    GRAPH rather than of the question, so for any other name what the
+    question says is that it is neither of its own two.
+    """
+    intervention, target = _the_question_asked(program)
+    if intervention is None or target is None:
+        return None
+    if name == intervention:
+        return {_EXPOSURE}
+    if name == target:
+        return {_OUTCOME}
+    return {str(member) for member
+            in language.VOCABULARIES[_QUERY_ROLE]} - {_EXPOSURE,
+                                                      _OUTCOME}
+
+
 def _the_scale_that_column_was_declared_at(
-        declaration: Mapping) -> set[str]:
+        program: Mapping, column: str) -> set[str] | None:
     """What the PROGRAM declares that column is measured on.
 
     The answer records the same fact, in the reconciliation check the
@@ -772,9 +813,12 @@ def _the_scale_that_column_was_declared_at(
     column. The resolution is the reconciliation rule's own, asked
     here of the same pair.
     """
+    declaration = _declarations(program).get(column)
+    if declaration is None:
+        return None
     scale = _declared_from_scale_domain(declaration.get("scale"),
                                        declaration.get("domain"))
-    return {scale} if scale else set()
+    return {scale} if scale else None
 
 
 #: What a WORD is a copy of, and which name of its own sentence says
@@ -797,11 +841,25 @@ def _the_scale_that_column_was_declared_at(
 #: every answer's reconciliation block declaring exactly one scale,
 #: and it would be passing because of the corpus rather than because
 #: of the record.
+_QUERY_ROLE = "query_role"
+_EXPOSURE = "exposure"
+_OUTCOME = "outcome"
+
+#: A row here was held at import against the slots :func:`_bind` knows,
+#: and that space answers a different question: it keeps the vocabularies
+#: whose words live in ``themis.gaps``, which is where the WORDS are and
+#: not what decides whether a report carries the statement. Measured, a
+#: gap report carries seventeen vocabularies and that space sees four of
+#: them — so "no statement this build can write has that slot" was said
+#: of a slot nineteen answers carry. Whether a row is reached is asked of
+#: the answers instead, by test, which is the question it was always.
 _A_WORD_COPIES: Mapping[tuple[str | None, str],
                         tuple[str, str, Any]] = {
     (None, "scale"): ("the scale that column was declared at",
                       "variable",
                       _the_scale_that_column_was_declared_at),
+    (None, "role"): ("the role the question gives it",
+                     "variable", _the_role_the_question_gives),
 }
 
 _bind()
@@ -1209,10 +1267,10 @@ def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
                 continue
             says, named_by, read = row
             about = said.get(named_by)
-            if not isinstance(about, str) or about not in declared:
+            if not isinstance(about, str) or not about:
                 continue
-            known = read(declared[about])
-            if not known:
+            known = read(program, about)
+            if known is None:
                 continue
             token = str(one.get("token") or "")
             if token in known:
