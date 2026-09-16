@@ -37,7 +37,7 @@ frontier.
 A HOLE IS ONE FACT WHICHEVER HALF IT TRAVELS IN. Where the record names
 nothing, a producer writes the hole as a word, the stand-in its sentence
 says instead, and a rule reading only ``said`` read every hole except
-those: any of the 965 names below could become a stand-in and pass. And a
+those: any of the 946 names below could become a stand-in and pass. And a
 population hole is its ROLE'S: read against every population the program
 names, a source written as the target was the answer carried backwards.
 """
@@ -57,7 +57,7 @@ from themis import gaps, language
 from themis.output import data_gap_report
 from themis.types import Atom, ConstTerm
 from themis.verifier.gap_claim_rules import (
-    _A_WORD_COPIES,
+    _ABOUT_WHAT_IT_NAMES,
     _COPIED_FROM,
     _STANDS_IN,
     _IN_ITS_SENTENCE,
@@ -93,11 +93,10 @@ def _entry(statement, key):
 
 #: (answer, path to the ``said``, statement, slot) for every fact this rule
 #: speaks for. Found by the rule's own walk rather than at the one depth
-#: this file used to look at: two of the slots below never sit under
+#: this file used to look at: one of the slots below never sits under
 #: ``describes`` at all — the methods already in hand hang off an
-#: alternative path, and the field a framing gap is short of hangs off a
-#: ``words`` entry — so a walk written to the old roster's shape would have
-#: reported the new ones as absent.
+#: alternative path — so a walk written to the old roster's shape would
+#: have reported it as absent.
 SITES = sorted(
     (name, where, statement or "", key)
     for name, pair in SHAPES.items()
@@ -124,12 +123,12 @@ def test_the_facts_this_rule_speaks_for():
     # interval on four refreshed answers, whose instrument needs something conditioned.
     assert split == {
         "assumptions": 36, "method": 63, "what": 87,
-        "methods": 73, "field": 19, "population": 16, "source": 10,
+        "methods": 73, "population": 16, "source": 10,
         "kind": 11, "target": 33,
         "intervention": 566, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3,
     }, split
-    assert len(SITES) == 965, len(SITES)
+    assert len(SITES) == 946, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -148,7 +147,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 965, refused
+    assert refused == 946, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -284,15 +283,16 @@ def test_a_rendered_number_is_deliberately_not_in_this_roster():
 # ------------------------------------------- and the half a fact travels in
 #
 # Same question as the rest of this file — a fact a gap quotes, against
-# the record it was read from — asked of the other half. The rule that
-# asks it is ``verify_gap_subjects``, because the record a word is held
-# to is the program's declaration and that door is where the program is.
+# the record it was read from — asked of a fact about what its sentence
+# names, in both halves. The rule that asks it is ``verify_gap_subjects``,
+# because the record such a fact is held to is the program's declaration
+# and that door is where the program is.
 
 
-def _word_entry(statement, key):
-    """The word roster for this slot IN THIS STATEMENT, or the general one."""
-    return (_A_WORD_COPIES.get((statement, key))
-            or _A_WORD_COPIES.get((None, key)))
+def _about_entry(statement, key):
+    """The record for this slot IN THIS STATEMENT, or the general one."""
+    return (_ABOUT_WHAT_IT_NAMES.get((statement, key))
+            or _ABOUT_WHAT_IT_NAMES.get((None, key)))
 
 
 #: (answer, path to the ``words``, statement, slot) for every WORD this rule
@@ -305,7 +305,17 @@ WORD_SITES = sorted(
     for where, statement, words, _said in every_word_mapping(
         (pair["result"] or {}).get("data_gap_report") or {})
     for key in words
-    if _word_entry(statement, key) is not None
+    if _about_entry(statement, key) is not None
+)
+
+#: And every ``said`` it speaks for, by the same walk over the other half.
+SAID_SITES = sorted(
+    (name, where, statement or "", key)
+    for name, pair in SHAPES.items()
+    for where, statement, said in every_said_mapping(
+        (pair["result"] or {}).get("data_gap_report") or {})
+    for key in said
+    if _about_entry(statement, key) is not None
 )
 
 
@@ -328,14 +338,22 @@ def test_the_words_this_rule_speaks_for():
     seventeen vocabularies and that space sees four, so the check said
     "no statement this build can write has that slot" of a slot nineteen
     answers carry. Reached-or-not is asked of the answers, here.
+
+    Counted in both halves, since the table is read in both: the known
+    noise a measurement field names, which field, and where a threshold
+    cuts travel as ``said``.
     """
     split: dict[str, int] = {}
     for _name, _where, _statement, key in WORD_SITES:
         split[key] = split.get(key, 0) + 1
     assert split == {"scale": 36, "role": 19}, split
     assert len({n for n, _, _, _ in WORD_SITES}) == 40
-    assert {key for _s, key in _A_WORD_COPIES} == set(split), (
-        sorted(_A_WORD_COPIES), sorted(split))
+    said: dict[str, int] = {}
+    for _name, _where, _statement, key in SAID_SITES:
+        said[key] = said.get(key, 0) + 1
+    assert said == {"field": 19, "phrase": 19, "cut": 2}, said
+    assert {key for _s, key in _ABOUT_WHAT_IT_NAMES} == set(split) | set(
+        said), (sorted(_ABOUT_WHAT_IT_NAMES), sorted(split), sorted(said))
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in WORD_SITES}))
@@ -598,7 +616,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 965 * 6, refused
+    assert refused == 946 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

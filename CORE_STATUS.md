@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-09-16
+> 更新时间：2026-09-17
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20794 passed / 518 skipped, warning-clean
+20806 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,44 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #683 缺口把变量声明里的话引回给读者，引文没人读，引的也不是原文（2026-09-17）
+
+**现象。** 声明余项里同族的两片叶子：`data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase`（19 行）和 `…said.cut`（2 行）。测量误差缺口按变量列出「声明的哪个字段写着已知噪声、写的是哪个」（`a_field_names_a_known_noise`：`variable`/`field`/`phrase`，`role` 在 words）；二分化缺口列出「声明在哪里切」（`a_threshold_cut_it_in_two`：`variable`/`cut`）。按读诚实答案的门集量：
+- `phrase` 换成声明没写的已知噪声、声明里另一段不是噪声的文字、同一噪声换成声明没用的大小写；`field` 换成另一个测量字段（它没写这个噪声时）或 `time_window`；`cut` 换成别的串或空串：142 处全部放行。
+- `phrase` 连同 provenance 里 `contains:` 位点一起换成声明里另一段文字，也放行。
+
+越过语料演练时量出反方向的问题。语料 20 行声明全是小写；声明写成「smoking via FFQ」「Self-Reported smoking」「PROXY」「24-Hour Recall」「Single Visit reading」时，造出的 12 个诚实答案里 7 个被 `verify_answer_claims` 按 T10-1 拒掉：provenance 引的 `contains:ffq` 在声明里找不到。
+
+**根因。**
+- 误拒：`_classify_measurement_error_concern` 在小写化的文本里找针，找到后把**针本身**（词表的小写拼法）写进 `said.phrase` 和 provenance。`Measurement` 的 docstring、语言登记表、句子里的引号都说这是用户原文引回；位点解析器按原文核对「包含」，读法和合同一致。出错的是生产端：「拿来匹配的形式」和「写出去的引用」被当成了同一个值。
+- 放行：这三个槽说的都是「句子点名的那个变量，它的声明里写了什么」。`gap_claim_rules` 已有一张按主语索引、读程序声明的表（原名 `_A_WORD_COPIES`，#674），但只在 words 半边走；`phrase`/`field`/`cut` 在 said 半边。`field` 只被 `_COPIED_FROM[(None,"field")]` 按槽名读成「声明类型里有的任何字段」，注释写的是「framing gap 缺的字段」，而实际上没有任何 framing 句带 `field` 槽，唯一带它的就是噪声句。`_NOT_NAMES` 把 `phrase` 记成 prose、`cut` 记成 expression，两个都不对。
+
+**为什么是根因不是表象。**
+- 误拒：把位点解析器改成忽略大小写，门就放行了，但读者看到的仍是「contains “ffq”」这句用户没写过的引文，provenance 引的串在声明里仍然不存在。
+- 放行：给 `phrase`、`cut` 各加一条规则也能堵住 142 处，但「关于被点名主语的事实，按主语读声明」就会按半边分成两套写法，#681 的教训（一个洞走哪一半，不决定它被不被读）会在按主语索引的表上重演。
+
+**结构。**
+- 生产端：仍不分大小写匹配（`re.search(re.escape(针), 文本, IGNORECASE)`），引用写匹配到的原文片段，said 与 provenance 取同一个值；测量字段命名为 `_HOW_IT_WAS_MEASURED`。位点解析器不动。**取舍**：原来的 `.lower()` 包含判断与 IGNORECASE 只在少数非 ASCII 大小写映射字符上有差别，词表只有 ASCII 和中文，实际没有差别；选 IGNORECASE，是因为它直接给出原文片段，验证器也能按同一个定义重算。
+- 验证器：`_A_WORD_COPIES` 泛化为 `_ABOUT_WHAT_IT_NAMES`，在 `verify_gap_subjects` 里用一个遍历同时读两半边（said 的值与 words 的 token 读法相同），`named_by` 改成 said 键的元组。新增三行，按语句键入：
+  - 噪声句 `field`：说明测量方式的字段中，写出了已知噪声的那些；
+  - 噪声句 `phrase`：由 `variable` 加 `field` 定位到的文本里，按原文写出的**每一个**已知噪声，不只是词表顺序里的第一个。展示哪一句真引文是生产者的选择，拒掉其余的就是拒真话（证伪者往接受一侧偏）；
+  - 阈值句 `cut`：声明的 `threshold`。
+
+  程序没有声明这个变量时沉默。已知噪声词表在验证器里重述一份（验证器不能 import 输出层），由测试钉住它与生产端的 `_MEASUREMENT_ERROR_PATTERNS`、`_HOW_IT_WAS_MEASURED` 相等。
+- 删掉 `_COPIED_FROM[(None,"field")]` 和它的构造函数：它读到的只有噪声句的 `field`，现在由按主语的那一行读，读得更准。`_NOT_NAMES` 里 `phrase`、`cut` 改记 `declared`，并写明这一类是什么。
+- `missing` 仍然手写，不并进这张表：它有「不是声明里的字段」和「已经给过」两种拒答，读者需要分开看到。
+
+**测量。**
+- 诚实：语料 20 行，加上造出的 12 个（大写缩写、首字母大写、全大写、协变量、只写在 observability、两个测量字段都写、中文、两种阈值写法），改后全部接受；改前其中 7 个被拒。
+- 伪造：改前 142 处放行（被误拒的 7 个程序上没法量）；改后连同那 7 个程序共 211 处，全部拒。换成另一句真话的 19 处（同一字段写着的另一个噪声 18、另一个测量字段也写着同一噪声 1）照常接受。
+- gate 在涉及的 20 行上用它自己的扫描核对：21 片声明叶子不再漏，没有新增。声明余项 **1885→1864**。架构图不变。
+
+**第一遍全量 1 失败，修后重跑。** `test_static_exhaustiveness`（mypy）在新遍历上报 2 个类型错：`said` 在同一函数里已经被前一个循环按 `Mapping` 绑定，新遍历又把 `Any | None` 直接赋给它；`about` 先原样取值、再用 `all(isinstance(...))` 整体判断，判断没有落到元素类型上，`'.'.join` 收到的是 `list[Any | None]`。运行时行为是对的。没有加 `cast` 或 `type: ignore`，改成取值时只留非空字符串、按「取到的个数等于 `named_by` 的长度」判断，并让 said 先取到另一个名字再收窄。
+
+**还开着。** 哪些变量被列进这两个缺口（是否在识别路径上、每个变量一条）仍没有从程序重推，只有 `variable` 被 provenance 押着。
+
+**账。** 新文件 `tests/test_a_quote_is_read_back_against_the_declaration_it_quotes.py` 13 个测试：分母 1、词表相等 1、按原文引用且诚实答案两道门都收 7、声明不支持的引文 98 处 1、连同位点一起改 19 处 1、生产者没选中的真引文 13 处 1、沉默 1。`test_a_gap_quotes_the_run_back_at_the_reader.py`：抄写表的分母去掉 `field`（965→946），按主语表的分母加上 said 半边（`field` 19、`phrase` 19、`cut` 2）。roster 测试去掉 `("field", 19)` 这个参数。余项计数 (2091, 187)→(2112, 166)。基线 20794→**20806**。
 
 ### #682 结构性拒答说「图里没有这个名字」，是一句关于程序的话，却被登记成数据的事（2026-09-16）
 

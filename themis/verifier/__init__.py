@@ -587,7 +587,8 @@ Public surface (re-exports from sub-modules):
   passes it. A gap's own provenance says which one it is about and
   T10-1 already holds that ref, so the two were verified separately
   and never joined; the fields it says are unset are asked of the
-  program, which is not the answer's to arrange)
+  program, which is not the answer's to arrange, and so is every other
+  fact a statement gives about the variable it names, in either half)
 - And whether the place a gap cites is a place the problem HAS:
   ``verify_gap_program_sites`` (T10-1 follows a gap's envelope refs and
   refuses one that lands on nothing; a ``program_site`` ref makes the same

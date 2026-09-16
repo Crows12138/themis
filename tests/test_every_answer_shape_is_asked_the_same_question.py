@@ -1679,9 +1679,17 @@ def test_the_declared_remainder_is_what_it_is():
     other and nothing else -- bent together, a part that writes no such
     name and a name the graph holds both passed. Both are asked of the
     program now, at every copy.
+
+    Then 21 where a gap quotes a variable's declaration back: the known
+    noise a measurement field names (19) and where a threshold cuts (2).
+    The rule that reads a fact against the declaration of what its sentence
+    names was walked over the words and not over ``said``, so both could be
+    anything. Rehearsed beyond the corpus, the quote turned out not to be
+    one: written in the list's spelling rather than the declaration's
+    letters, it was refused on every answer whose declaration says ``FFQ``.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1885, total
+    assert total == 1864, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -61,7 +61,6 @@
  ],
  "combined_measurement_error_correction": [
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.form"
@@ -274,7 +273,6 @@
  ],
  "differential_regression_calibration": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target"
@@ -297,7 +295,6 @@
  ],
  "exposure_measurement_error_correction": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.form"
@@ -598,7 +595,6 @@
  ],
  "needs_investigation:effect:none#045841": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -688,7 +684,6 @@
  ],
  "needs_investigation:effect:none#1be52a": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -706,7 +701,6 @@
  ],
  "needs_investigation:effect:none#249ba4": [
   "bounds_results.[].data_required.[].said.expression",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.cut",
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#28ee90": [
@@ -731,8 +725,6 @@
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#38993c": [
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.cut",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -760,7 +752,6 @@
  ],
  "needs_investigation:effect:none#4beb47": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -900,7 +891,6 @@
  ],
  "needs_investigation:effect:none#96f4c8": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -962,7 +952,6 @@
  ],
  "needs_investigation:effect:none#bb3eb5": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -987,7 +976,6 @@
  ],
  "needs_investigation:effect:none#cf69fc": [
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -1278,7 +1266,6 @@
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#958dab": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "estimator_failure.estimator",
@@ -1360,7 +1347,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y",
@@ -1368,7 +1354,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#15550d": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -1376,7 +1361,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#3d858a": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -1384,7 +1368,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#57ba98": [
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.form",
@@ -1392,7 +1375,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#7b2034": [
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.confusion_matrices.[].arm",
@@ -1408,7 +1390,6 @@
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#dae267": [
   "bounds_results.[].contrast.reference_value",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.confusion_matrices.[].outcome",
@@ -1900,7 +1881,6 @@
  ],
  "regression_calibration": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -1928,7 +1908,6 @@
  ],
  "simex": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "data_gap_report.gaps.[].describes.[].words.variables.[].said.phrase",
   "estimation_context.ci_bootstrap",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.simex.error_variance"

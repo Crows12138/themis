@@ -461,6 +461,11 @@ def test_the_remainder_is_counted_rather_than_described():
     the paragraph above still rules out, but against the part of the
     program the gap says writes it: the confounder a declared strategy
     names and the graph lacks.
+
+    And 21 more when a DECLARED fragment was read back against the
+    declaration it quotes: the known noise a measurement field names (19)
+    and where a threshold cuts (2). They were filed as prose and as an
+    expression, and neither kind was ever the reason nothing held them.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -475,7 +480,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2091, 187), (refused, accepted)
+    assert (refused, accepted) == (2112, 166), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

@@ -200,7 +200,7 @@ def test_a_population_this_program_does_not_declare_is_refused():
 
 
 @pytest.mark.parametrize("key,count", [
-    ("methods", 73), ("field", 19), ("population", 16), ("source", 10),
+    ("methods", 73), ("population", 16), ("source", 10),
     ("kind", 11), ("target", 33),
 ])
 def test_each_new_roster_speaks_for_the_sites_it_claims(key, count):

@@ -181,6 +181,7 @@ kind is is stated once in ``themis.types.QUALIFIES_THE_ANSWER`` /
 """
 from __future__ import annotations
 
+import re
 from typing import Iterable, NamedTuple, Protocol
 
 from .. import blocks, gaps, language, questions, refusals
@@ -1469,9 +1470,9 @@ def _classify_unmeasured_confounder_risk(
 
 # Patterns that, when they appear in a variable's ``measurement`` or
 # ``observability`` field, structurally signal a documented
-# noisy-measurement modality. These are exact substrings (lowercased
-# match) of the *measurement metadata*, not free-form description text —
-# the variable schema's ``measurement`` field is the contract anchor.
+# noisy-measurement modality. Each is matched, without regard to case,
+# against the *measurement metadata* rather than free-form description
+# text — the variable schema's ``measurement`` field is the contract anchor.
 # Adding a pattern here is the single point where the classifier learns
 # a new modality.
 #
@@ -1498,6 +1499,13 @@ def _classify_unmeasured_confounder_risk(
 # the user's declaration, so what settles its language is the program's
 # and not the reader's — splitting the pool by reader would stop it
 # recognizing a declaration written in the other one.
+#
+# What a gap quotes is the text a needle matched, as the declaration writes
+# it, and not the needle. The two differ only in case, and the difference is
+# a quotation of something the user never wrote: a declaration saying
+# ``FFQ`` came back as ``ffq``, in the sentence and in the site the gap
+# cites, and the site, looked for as written, was not there — so the answer
+# was refused for a quote its producer had spelt.
 _MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
     "self-report",
     "self report",
@@ -1529,6 +1537,10 @@ _MEASUREMENT_ERROR_PATTERNS: tuple[str, ...] = (
     "单次测量",
     "代理",
 )
+
+# The fields of a declaration that say how its variable was measured, in the
+# order they are read.
+_HOW_IT_WAS_MEASURED: tuple[str, ...] = ("measurement", "observability")
 
 
 class Measurement(language.Word, vocabulary="measurement_note",
@@ -1669,14 +1681,16 @@ def _classify_measurement_error_concern(
             continue
         if st.predicate not in on_path:
             continue
-        for field_name in ("measurement", "observability"):
+        for field_name in _HOW_IT_WAS_MEASURED:
             field_value = getattr(st, field_name, None)
             if not field_value:
                 continue
-            haystack = field_value.lower()
             for needle in _MEASUREMENT_ERROR_PATTERNS:
-                if needle in haystack:
-                    flagged.append((st.predicate, field_name, needle))
+                found = re.search(re.escape(needle), field_value,
+                                  re.IGNORECASE)
+                if found:
+                    flagged.append(
+                        (st.predicate, field_name, found.group(0)))
                     break
             else:
                 continue
@@ -1700,8 +1714,8 @@ def _classify_measurement_error_concern(
     noted = [
         language.state(Measurement.A_FIELD_NAMES_A_KNOWN_NOISE,
                        variable=pred, role=_role(pred), field=field,
-                       phrase=needle)
-        for pred, field, needle in flagged
+                       phrase=quoted)
+        for pred, field, quoted in flagged
     ]
     yield DataGap(
         kind=GapKind.MEASUREMENT_ERROR_CONCERN,
@@ -1714,8 +1728,8 @@ def _classify_measurement_error_concern(
         ),
         provenance=cites(
             GapKind.MEASUREMENT_ERROR_CONCERN,
-            *(f"program:variable:{pred}:{field}:contains:{needle}"
-              for pred, field, needle in flagged),
+            *(f"program:variable:{pred}:{field}:contains:{quoted}"
+              for pred, field, quoted in flagged),
         ),
     )
 

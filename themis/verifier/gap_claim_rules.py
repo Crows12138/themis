@@ -111,7 +111,6 @@ a word the problem uses needed no change to accept them.
 """
 from __future__ import annotations
 
-import dataclasses
 import re
 from typing import Any, Iterator, Mapping
 
@@ -263,6 +262,10 @@ _NAMES: frozenset[str] = frozenset({
 #: exactly the gap whose whole subject is that the word is not theirs —
 #: the membership test would be run against the claim it is reporting.
 #:
+#: And a DECLARED fragment is a piece of the program's own declaration of
+#: the variable its sentence names, read back as it is written there: the
+#: known noise a measurement field names, and where a threshold cuts.
+#:
 #: Both rosters are keyed on the LEAF NAME alone, which is a limit worth
 #: stating: ``d`` is Cohen's d under a precision target and would be a
 #: variable anywhere a problem declares one, and this table can only hold
@@ -276,7 +279,7 @@ _NOT_NAMES: Mapping[str, str] = {
     "kind": "vocabulary",
     "algorithm": "vocabulary",
     "fallback": "vocabulary",
-    "phrase": "prose", "rationale": "prose",
+    "phrase": "declared", "rationale": "prose",
     "note": "prose", "test": "prose",
     "count": "number", "total": "number", "outside": "number",
     "share": "number", "high": "number", "low": "number",
@@ -297,7 +300,7 @@ _NOT_NAMES: Mapping[str, str] = {
     "drop": "vocabulary", "lost": "vocabulary", "skipped": "vocabulary",
     "wanted": "vocabulary", "winner": "vocabulary", "won": "vocabulary",
     "reason": "prose",
-    "cut": "expression", "expression": "expression",
+    "cut": "declared", "expression": "expression",
     "quantity": "expression",
     "detail": "domain",
     "arm": "value", "value": "value", "values": "value",
@@ -494,16 +497,6 @@ def _assumptions_the_answer_records(result: Mapping,
         if isinstance(row, Mapping) and row.get("id"):
             found.add(str(row["id"]))
     return found
-
-
-def _fields_a_declaration_has(_result: Mapping, _context) -> set[str]:
-    """Every operationalisation field a variable declaration can carry.
-
-    Read off the type rather than listed, so a field added to a
-    declaration is one a gap may name from that day and not from the day
-    somebody remembered to add it here.
-    """
-    return {field.name for field in dataclasses.fields(VariableDeclaration)}
 
 
 def _the_target_population_the_question_names(_result: Mapping,
@@ -749,11 +742,6 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     # and its producer builds it out of ``bounds_results[].method`` — the
     # same list the singular is read against, joined with commas.
     (None, "methods"): ("the methods it ran", _methods_the_answer_ran, True),
-    # What a framing gap says a declaration is short of. Not a copy of
-    # anything on the envelope: the roster is the declaration's own field
-    # names, which are a closed set this package can read off the type.
-    (None, "field"): ("the fields a declaration has",
-                      _fields_a_declaration_has, False),
     # Two names out of the other register. A population is not a variable,
     # which is why the name rule cannot ask about them — and the program
     # declares every domain there is, as the query's target and as each
@@ -897,8 +885,99 @@ def _the_scale_that_column_was_declared_at(
     return {scale} if scale else None
 
 
-#: What a WORD is a copy of, and which name of its own sentence says
-#: which record to read.
+#: The fields of a declaration that say how its variable was measured, and
+#: the noises a measurement is known to carry. Restated from the producer,
+#: which no verifier may import, and held equal to it by test: what a gap
+#: may call a known noise is the producer's list, and a list of this
+#: module's own would be judging a claim the gap does not make.
+_HOW_IT_WAS_MEASURED: tuple[str, ...] = ("measurement", "observability")
+_KNOWN_NOISES: tuple[str, ...] = (
+    "self-report",
+    "self report",
+    "self-reported",
+    "self reported",
+    "questionnaire",
+    "ffq",
+    "food-frequency",
+    "food frequency",
+    "24h recall",
+    "24-h recall",
+    "24 hour recall",
+    "24-hour recall",
+    "dietary recall",
+    "single-occasion",
+    "single occasion",
+    "single visit",
+    "single measurement",
+    "single reading",
+    "office reading",
+    "proxy",
+    "surrogate",
+    "自报告",
+    "自我报告",
+    "自报",
+    "回忆",
+    "问卷",
+    "单次",
+    "单次测量",
+    "代理",
+)
+
+
+def _known_noises_written_in(text: object) -> set[str]:
+    """Every known noise a declared text names, spelt as the text spells it.
+
+    Matched without regard to case, as the producer matches, and read back
+    in the text's own letters: a quotation is what the user wrote, and
+    ``FFQ`` is not ``ffq``. Every one the text names, rather than the first
+    the list happens to reach — which of several true quotations a gap
+    shows is its producer's choice, and refusing the others would refuse a
+    true sentence.
+    """
+    if not isinstance(text, str):
+        return set()
+    return {found.group(0) for noise in _KNOWN_NOISES
+            for found in re.finditer(re.escape(noise), text, re.IGNORECASE)}
+
+
+def _the_fields_that_name_a_known_noise(program: Mapping,
+                                        column: str) -> set[str] | None:
+    """Which of the fields saying how that column was measured name a
+    known noise."""
+    declaration = _declarations(program).get(column)
+    if declaration is None:
+        return None
+    return {field for field in _HOW_IT_WAS_MEASURED
+            if _known_noises_written_in(declaration.get(field))}
+
+
+def _the_noises_that_field_names(program: Mapping, column: str,
+                                 field: str) -> set[str] | None:
+    """The known noises that field of that column's declaration names.
+
+    Empty for a field that does not say how the column was measured: a
+    ``proxy`` in its time window is not a noisy measurement.
+    """
+    declaration = _declarations(program).get(column)
+    if declaration is None:
+        return None
+    if field not in _HOW_IT_WAS_MEASURED:
+        return set()
+    return _known_noises_written_in(declaration.get(field))
+
+
+def _the_cut_that_column_was_declared_with(program: Mapping,
+                                          column: str) -> set[str] | None:
+    """Where that column's declaration cuts it, as the declaration says."""
+    declaration = _declarations(program).get(column)
+    if declaration is None:
+        return None
+    cut = declaration.get("threshold")
+    return {str(cut)} if cut else set()
+
+
+#: What a fact about the thing its own sentence NAMES is read against: the
+#: program's record filed under that name.
 #:
 #: The table above asks whether a second record of a value exists. It
 #: was only ever asked of ``said``, and which half a fact travels in
@@ -910,13 +989,21 @@ def _the_scale_that_column_was_declared_at(
 #: on and every one of them could say a different one.
 #:
 #: Indexed rather than global, which is the difference between this
-#: table and the one above. A word here is about the thing its own
+#: table and the one above. A fact here is about the thing its own
 #: sentence already NAMES, so the record to read it against is the
 #: one filed under that name — the second element says which ``said``
-#: key carries it. The unindexed version would pass on this corpus,
-#: every answer's reconciliation block declaring exactly one scale,
-#: and it would be passing because of the corpus rather than because
-#: of the record.
+#: keys carry it, in the order the reader takes them. The unindexed
+#: version would pass on this corpus, every answer's reconciliation
+#: block declaring exactly one scale, and it would be passing because
+#: of the corpus rather than because of the record.
+#:
+#: And read in both halves, which this table was not either. Written for
+#: the words, it was walked over the words, and the same kind of fact
+#: travelling as a ``said`` was read by nothing that knew which variable it
+#: was about: the known noise a measurement field names and where a
+#: threshold cuts could each be anything, and the field naming the noise
+#: was held only to being a field some declaration can have. The half a
+#: fact travels in decides nothing here, from either side.
 _QUERY_ROLE = "query_role"
 _EXPOSURE = "exposure"
 _OUTCOME = "outcome"
@@ -929,13 +1016,25 @@ _OUTCOME = "outcome"
 #: them — so "no statement this build can write has that slot" was said
 #: of a slot nineteen answers carry. Whether a row is reached is asked of
 #: the answers instead, by test, which is the question it was always.
-_A_WORD_COPIES: Mapping[tuple[str | None, str],
-                        tuple[str, str, Any]] = {
+_ABOUT_WHAT_IT_NAMES: Mapping[tuple[str | None, str],
+                              tuple[str, tuple[str, ...], Any]] = {
     (None, "scale"): ("the scale that column was declared at",
-                      "variable",
+                      ("variable",),
                       _the_scale_that_column_was_declared_at),
     (None, "role"): ("the role the question gives it",
-                     "variable", _the_role_the_question_gives),
+                     ("variable",), _the_role_the_question_gives),
+    # A noisy-measurement gap lists one of these per variable: which field
+    # of its declaration names a known noise, and the noise, quoted.
+    ("a_field_names_a_known_noise", "field"): (
+        "the fields saying how it was measured that name a known noise",
+        ("variable",), _the_fields_that_name_a_known_noise),
+    ("a_field_names_a_known_noise", "phrase"): (
+        "the known noises that field names, as it writes them",
+        ("variable", "field"), _the_noises_that_field_names),
+    # And a dichotomised measure, where its declaration cuts it.
+    ("a_threshold_cut_it_in_two", "cut"): (
+        "the threshold it was declared with",
+        ("variable",), _the_cut_that_column_was_declared_with),
 }
 
 _bind()
@@ -1308,6 +1407,13 @@ def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
     costs nothing on the honest side — all hundred and two hold either
     way — and refuses every one of them.
 
+    And every other fact a statement gives about the variable it names —
+    the scale to measure it on, the side of the question it is on, which
+    field of its declaration names a known noise and the noise, where a
+    threshold cuts it — against the program's declaration of that
+    variable, in whichever half the fact travels. See
+    :data:`_ABOUT_WHAT_IT_NAMES`.
+
     Returns ``None`` on accept, including when there is no report.
     """
     report = result.get("data_gap_report")
@@ -1373,27 +1479,37 @@ def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
                         step_index=None, rule=_SUBJECT,
                     )
 
-    for where, statement, words, said in every_word_mapping(report):
-        for key, one in words.items():
-            row = (_A_WORD_COPIES.get((statement, str(key)))
-                   or _A_WORD_COPIES.get((None, str(key))))
-            if row is None or not isinstance(one, Mapping):
+    for where, statement, carried in _every_statement(report):
+        held = carried.get("said")
+        said = held if isinstance(held, Mapping) else {}
+        words = carried.get("words")
+        facts = [("said", key, value) for key, value in said.items()]
+        if isinstance(words, Mapping):
+            facts += [("words", key, one.get("token"))
+                      for key, one in words.items()
+                      if isinstance(one, Mapping)]
+        for half, key, value in facts:
+            row = (_ABOUT_WHAT_IT_NAMES.get((statement, str(key)))
+                   or _ABOUT_WHAT_IT_NAMES.get((None, str(key))))
+            if row is None:
                 continue
             says, named_by, read = row
-            about = said.get(named_by)
-            if not isinstance(about, str) or not about:
+            about = [name for name in (said.get(k) for k in named_by)
+                     if isinstance(name, str) and name]
+            if len(about) != len(named_by):
                 continue
-            known = read(program, about)
+            known = read(program, *about)
             if known is None:
                 continue
-            token = str(one.get("token") or "")
-            if token in known:
+            spelt = "" if value is None else str(value)
+            if spelt in known:
                 continue
+            at = f"{where}.{half}.{key}" if where else f"{half}.{key}"
             raise VerificationError(
-                f"a gap tells a reader {token!r} about {about!r}, and "
-                f"{says} is {sorted(known)} (at {where}.{key}). The word is "
-                f"not a label beside the sentence — it is assembled into it — "
-                f"so a reader is told something about that column the program "
-                f"never declared",
+                f"a gap tells a reader {spelt!r} about "
+                f"{'.'.join(about)!r}; {says}: {sorted(known)} (at {at}). "
+                f"It is not a label beside the sentence — it is assembled "
+                f"into it — so a reader is told something about that column "
+                f"the program never declared",
                 step_index=None, rule=_SUBJECT,
             )
