@@ -202,11 +202,11 @@ def test_every_stored_block_is_accepted_and_both_verdicts_are_stored():
 #: Each passed the strongest door on the answer named before the fields
 #: were held.
 CORPUS_LIES = [
-    ("needs_investigation:effect:none#24d486", "query_kind", "conditional"),
-    ("needs_investigation:effect:none#24d486", "complete_criterion", True),
-    ("needs_investigation:effect:none#24d486", "criterion",
+    ("needs_investigation:effect:none#44412c", "query_kind", "conditional"),
+    ("needs_investigation:effect:none#44412c", "complete_criterion", True),
+    ("needs_investigation:effect:none#44412c", "criterion",
      "selection_backdoor"),
-    ("needs_investigation:effect:none#24d486", "recovery_formula",
+    ("needs_investigation:effect:none#44412c", "recovery_formula",
      "P(y | do(x)) = P(y | x, S)"),
     ("needs_investigation:effect:none#4c2552", "adjustment_set", []),
     ("needs_investigation:effect:none#4c2552", "complete_criterion", True),

@@ -643,7 +643,7 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
         else:
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
-    assert asked == 2192, asked
+    assert asked == 2186, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -1655,9 +1655,16 @@ def test_the_declared_remainder_is_what_it_is():
     a number, so on a block with none its only check was two absences
     agreeing: the reason, the rate in it, the baseline that decided it and
     the path that says which input was read were all unread.
+
+    Then 3 by removal rather than by closing. Two refusals copied the
+    reason the identification layer files on its own block into
+    ``recorded``, which is for what the estimator measured. Nothing read
+    the copy, the only check it met was the shape of its sentence, and
+    the verdict it copied is re-derived where it was filed. What is left
+    of the member half is two entries over two leaves.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1891, total
+    assert total == 1888, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1774,6 +1781,10 @@ def test_the_sweep_asks_about_the_whole_envelope():
     the one of the five no door read and no reader saw. A leaf leaves
     this gate by being closed or by being gone, and the second way is
     why this count is asserted rather than derived.
+
+    Then 32577, the second way again: two refusals stopped carrying a
+    copy of the reason the identification layer files on its own block.
+    Seven leaves were the copy, and nothing read them.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1783,7 +1794,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32584, asked_total
+    assert asked_total == 32577, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

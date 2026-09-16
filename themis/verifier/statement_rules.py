@@ -78,9 +78,11 @@ the sentence. For those gaps it IS the sentence.
 
 The SET is carried for the same reason and asked here for it. The
 contract enumerates the declared sets wherever the shared statement def
-reaches, and two sites on the envelope are typed as open objects, where
-the set name could be rewritten to any string and a reader sent to a
-table no surface holds.
+reaches. A statement written where it does not reach, inside a field typed
+as an open object, could name any string as its set and send a reader to
+a table no surface holds. The only two such sites were copies of a verdict
+another layer files on its own block, and they are gone; the question
+stays, because the walk does not depend on which sites exist.
 
 A LIST of statements makes a claim of its own, and being total over
 the envelope is what lets this rule ask it: these are the sentences a
@@ -293,11 +295,9 @@ def _hold(where: str, vocabulary: str, token: str, entry: Mapping,
 
     Both halves the statement carries are asked, because both travel with
     it and neither is fixed by where it sits. The contract refuses an
-    undeclared SET wherever the shared statement def reaches, and two
-    sites are typed loosely enough that it does not reach them — a
-    refusal's recorded reason and the factors under it, where the set
-    name could be rewritten to any string at all. A rule that walks the
-    whole envelope does not have to know which sites those are.
+    undeclared SET wherever the shared statement def reaches, and a field
+    typed as an open object is somewhere it does not. A rule that walks
+    the whole envelope does not have to know which sites those are.
 
     Then the token, against that set. One lookup answers it and the holes
     both: a token with no row in the set it names has no holes to be held

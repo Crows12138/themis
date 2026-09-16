@@ -86,8 +86,10 @@ SHAPES = json.loads(
 #: refresh of the joint general-ID answer, from what its producer had grown
 #: since the row was stored: a gap about the second treatment's definition
 #: (what it describes, what it asks for, what it says) and the bootstrap
-#: line on its ledger.
-REACHED = 5089
+#: line on its ledger. Three left when two refusals stopped carrying a copy
+#: of the reason the identification layer files on its own block: the two
+#: reasons, and the one factor under the missing-data one.
+REACHED = 5086
 PER_CARRIER = {
     "gap_routes": 1193,
     # These three and the ledger below moved together, by eight and eight

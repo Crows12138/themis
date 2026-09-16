@@ -3328,6 +3328,13 @@ def block(*, estimator: str, failure_type, details=None,
     names; the short version is that one bag with two audiences cannot be
     checked, because a keyword the sentence has no hole for is dropped in
     silence whether that was the intention or not.
+
+    A verdict another layer reached is neither half. Why an estimand is
+    not recoverable is the identification layer's finding, filed on its
+    own block, where every reader looks for it and the verifier re-derives
+    it. Copied in here it was a second record nobody read, held only to
+    the shape of its sentence, and the one place on the envelope where
+    the contract did not ask which set a word came from.
     """
     species = _registered(failure_type)
     if str(species) not in SAYS:

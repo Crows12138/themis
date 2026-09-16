@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20751 passed / 518 skipped, warning-clean
+20750 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,25 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #680 另一层的结论抄进拒答块，是一份没人读、也没人押的第二份记录（2026-09-16）
+
+**现象。** 两个「不可恢复」的拒答——选择偏倚（`selection_backdoor_recovery`）和缺失数据（`missing_data_recovery`）——在 `estimator_failure.recorded.identification_reason` 里带着一份「为什么不可恢复」。按闸门自己的门集量：把它换成同一词表里形状相同的另一个成员，选择那行 1/3 放行、缺失那行 2/7 放行（含因子的 `said.target`）；整份拷贝删掉或把 `recorded` 清空，也放行。同一个原因在识别块里的原件（`extensions.selection_recovery.failure_reason`、`extensions.missing_data_recovery.estimand.failure_reason`）0/10 放行。语料里拷贝和原件处处相等。
+
+**根因。** `themis/estimation/dispatch.py` 在两处把识别层写在自己块上的结论原样抄进了拒答块的 `recorded`。`recorded` 在 schema 和 `refusals` 里的定义是「估计器测到了、没放进句子的事实」；识别原因不是估计器测的，是另一层的结论。它也没有读者：分析报告、网页（`verdict.ts`）、渲染提示词都从识别块读原因。拒答块核对规则的 docstring 写「`recorded` 没有第二份渲染可比」，这句对句子成立，于是这份拷贝只剩句子形状（statement 的洞）被押。另外 `recorded` 在契约里是开放对象，这两处是整个信封上仅有的「契约不校验词表名」的 statement 位置，`test_a_word_slot_is_held_to_the_set_beside_it.py` 专门为它们留了一组测试。
+
+**为什么是根因不是表象。** 表象修法是加一条规则，把拷贝押成与原件相等。那样得到的是一份没人读的第二份记录，要永远押着；契约不校验词表名的两个开放位置也还在。删掉拷贝后，原因只在识别层自己的块上有一份，那份验证器重推，读者也在读；开放位置跟着消失。
+
+**结构。**
+- 删掉 `dispatch.py` 两处 `recorded=`。这两个拒答不再带 `recorded`：空的部分按 `_envelope` 的规则不出现。
+- **改清描述，不加约束**：`recorded` 的 schema 描述、`refusals.block` docstring、`estimator_failure_rules` docstring 都写明「另一层的结论不属于 `recorded`，留在那一层自己的块上，在那里被读、被押」。`statement_rules` 模块和 `_hold` 的 docstring 里「两个开放位置」改成「开放对象里的 statement 仍会被问，walk 不依赖哪些位置存在」。
+- `test_a_set_this_build_does_not_declare` 原本从语料里找这两处位置去伪造词表名；现在语料里已经没有能触发它的地方，改成直接问规则（`verify_statements_carry_their_facts`，开放对象里放一个不存在的词表名）。规则本身保留。
+
+**语料。** 两行按生产者现在的输出改写：去掉 `recorded`，按采集脚本的命名规则（叶子形状的 sha256）改名：`#24d486 → #44412c`、`#cf36e4 → #77c113`。**证明是真实输出而不是手编**：给 `run` / `estimate` / `apply_patch_and_run` 套上采集脚本同样的最外层抓取，改前跑产出这两行的 3 个测试（`test_selection_numeric.py::test_wired_hernan_not_recoverable_refuses`、`test_missing_recovery_estimator.py` 的两个），抓到的结果与存档逐字节相同；改后再跑，与改写后的两行逐字节相同。缺失数据那行改写后不再带任何独有叶子形状，但它是语料里唯一一个缺失数据不可恢复的拒答，采集脚本的刷新模式也只替换、不重新决定成员，所以保留。
+
+**测量。** 声明余项 **1891→1888**（3 条随拷贝一起消失：`recorded.identification_reason.token`、`…words.factors.[].token`、`…words.factors.[].said.target`，0 新增），声明文件两行迁到新键。成员半边剩 2 条、2 片叶子：`describes.[].words.why.words.part.token`、`describes.[].words.source.token`。随删掉的叶子挪动的计数，每一个都等于删掉的量：闸门总询问 32584→32577（7 片）、statement 叶子 2192→2186（3 条×2 半）、statement 遍历 5089→5086（3 条）、拒答块叶子 331→324、拒答规则自己的 (held, free) (220,111)→(220,104)（7 片原来都在放行一边）、`recorded` 事实 18→16。
+
+**账。** 一组 2 个参数化用例换成 1 个单元测试，其余是计数和叙述，基线 20751→**20750**。
 
 ### #679 算不出数的那一支，和算得出数的那一支是同一串条件（2026-09-16）
 

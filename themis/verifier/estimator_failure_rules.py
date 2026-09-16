@@ -70,7 +70,9 @@ verifier must not become — and the honest frontier there is the one
 ``failure_type`` already had, a name declared once rather than spelled at
 each site. ``recorded`` stays open for a reason its own producer states:
 it is the occasion's half that was measured and NOT said, so there is no
-second rendering of it to compare with.
+second rendering of it to compare with. Nor a second record: what it
+holds is what the estimator measured, and a verdict another layer reached
+stays on that layer's block, where it is held.
 
 WHICH route a refusal offers is open for the same reason, and the reason
 is the route's whole point. A species is raised at several sites and the

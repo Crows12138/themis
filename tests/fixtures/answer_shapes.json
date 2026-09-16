@@ -57413,560 +57413,6 @@ false
 "status": "needs_investigation"
 }
 },
-"needs_investigation:effect:none#24d486": {
-"program": {
-"domain": {
-"objects": [
-{
-"kind": "object",
-"name": "p"
-}
-]
-},
-"statements": [
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "x"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "y"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "w"
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-}
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "w"
-}
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "w"
-}
-},
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "w"
-},
-"kind": "observation",
-"value": true
-},
-{
-"id": "q",
-"kind": "query",
-"query": {
-"given": [],
-"intervention": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-"kind": "effect",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-}
-}
-}
-],
-"version": "0.1"
-},
-"result": {
-"bounds_results": [
-{
-"bootstrap": {
-"kind": "iid",
-"requested": 500,
-"used": 500
-},
-"ci_level": 0.95,
-"ci_lower": 0.560467362924282,
-"ci_upper": 0.8307049608355092,
-"contrast": {
-"kind": "ace",
-"lower_value": -0.29973890339425585,
-"reference_value": false,
-"tightness": "sharp",
-"upper_value": 0.7002610966057441
-},
-"data_required": [
-{
-"said": {
-"expression": "P(y, x)"
-},
-"token": "a_joint_distribution",
-"vocabulary": "observable_required"
-}
-],
-"estimand": "arm_probability",
-"lower_expression": "P(y=true | x=true) · P(x=true)",
-"lower_value": 0.5696083550913839,
-"method": "manski_natural",
-"notes": [
-{
-"said": {
-"mass": "P(x=false)"
-},
-"token": "width_is_the_off_arm_mass",
-"vocabulary": "bounds_note"
-}
-],
-"numeric_data_columns": [
-"x",
-"y"
-],
-"numeric_data_hash": "04d083cd7a83bebf2c94eb87a885999debe0ece59d8846dcaae23c1128f3ba96",
-"numeric_uninformative": false,
-"sample_size": 9575,
-"sufficient_statistics": {
-"n": 9575,
-"n_joint_other_arm": 1181,
-"n_joint_target_arm": 5454,
-"n_other_arm": 2432
-},
-"tightness": "sharp",
-"upper_expression": "P(y=true | x=true) · P(x=true) + P(x=false)",
-"upper_value": 0.823603133159269,
-"width": 0.2539947780678852
-}
-],
-"data_gap_report": {
-"answer_tier": "point",
-"gaps": [
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "y"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "y",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "x"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "x",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"alternative_paths": [
-{
-"route": "declare_the_intervention_an_event",
-"said": {
-"intervention": "x"
-}
-},
-{
-"route": "split_the_intervention_in_two",
-"said": {
-"intervention": "x"
-}
-},
-{
-"route": "use_experimental_data_for_the_versions"
-},
-{
-"route": "accept_the_mixed_estimand"
-}
-],
-"blocks": "identification",
-"describes": [
-{
-"said": {
-"intervention": "x"
-},
-"sentence": "the_intervention_says_neither_state_nor_event"
-}
-],
-"kind": "ill_defined_intervention_versions",
-"provenance": [
-{
-"ref_id": "intervention_state_inferred:x",
-"ref_kind": "verifier_check"
-}
-],
-"said": {
-"intervention": "x"
-},
-"severity": "important"
-},
-{
-"alternative_paths": [
-{
-"route": "reweight_for_selection",
-"said": {
-"collider": "w",
-"value": "True"
-}
-},
-{
-"route": "maybe_it_is_not_a_common_effect",
-"said": {
-"collider": "w",
-"intervention": "x",
-"target": "y"
-}
-},
-{
-"route": "declare_it_a_selection_node",
-"said": {
-"collider": "w"
-}
-}
-],
-"blocks": "identification",
-"describes": [
-{
-"said": {
-"collider": "w",
-"intervention": "x",
-"target": "y",
-"value": "True"
-},
-"sentence": "the_sample_is_restricted_on_a_collider"
-}
-],
-"kind": "selection_on_collider_opens_path",
-"provenance": [
-{
-"ref_id": "selection_observation:w|x->y",
-"ref_kind": "verifier_check"
-}
-],
-"said": {
-"collider": "w",
-"value": "True"
-},
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"sentence": "the_answer_is_an_interval_not_a_point"
-},
-{
-"said": {
-"method": "manski_natural"
-},
-"sentence": "one_interval_that_rests_on_nothing"
-}
-],
-"kind": "answer_is_bounds_not_point_estimate",
-"provenance": [
-{
-"ref_id": "bounds_results",
-"ref_kind": "envelope_path"
-}
-],
-"severity": "informational"
-}
-]
-},
-"estimation_context": {
-"ci_bootstrap": 500,
-"ci_level": 0.95,
-"data_columns": [
-"w",
-"x",
-"y"
-],
-"data_contract_warnings": [],
-"data_hash": "40c5f1e1027d8c98face89e6bd59f77ad94e79136ffd7d56ebfe7b488fedb197",
-"model_preference": "auto",
-"random_state": 42,
-"sample_size": 9575
-},
-"estimator_failure": {
-"details": {
-"estimand": "P(y|do(x))",
-"mechanism": "from_selection"
-},
-"estimator": "selection_backdoor_recovery",
-"failure_type": "not_recoverable",
-"kind": "graph",
-"recorded": {
-"identification_reason": {
-"token": "no_admissible_selection_backdoor_set",
-"vocabulary": "selection_recovery_shortfall"
-}
-},
-"said": {
-"estimand": "P(y|do(x))"
-},
-"words": {
-"mechanism": {
-"token": "from_selection",
-"vocabulary": "recovery_mechanism"
-}
-}
-},
-"extensions": {
-"identification": {
-"adjustment_set": [],
-"pattern": "backdoor"
-},
-"selection_recovery": {
-"adjustment_set": [],
-"complete_criterion": false,
-"criterion": null,
-"external_data_needed": [],
-"failure_reason": {
-"token": "no_admissible_selection_backdoor_set",
-"vocabulary": "selection_recovery_shortfall"
-},
-"kind": "selection_recovery",
-"outcome": "y",
-"query_kind": "effect",
-"recoverable": false,
-"recovery_formula": "",
-"reference": "Bareinboim & Pearl 2012 (selection backdoor criterion); Bareinboim, Tian & Pearl 2014 (recoverability)",
-"search_budget": 4,
-"selection_nodes": [
-"w"
-],
-"treatment": "x",
-"z_minus": [],
-"z_plus": []
-}
-},
-"formula": {
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-}
-],
-"kind": "probability_ref",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-}
-},
-"framing_notes": [
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "y"
-},
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "x"
-}
-],
-"investigation_requests": [
-{
-"action": "define_variable",
-"group": "framing",
-"items": [
-{
-"gap": "ambiguous_variable_definition",
-"need": "framing_fields_unfilled",
-"said": {
-"count": "6",
-"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"predicate": "y"
-},
-"skeleton": {
-"existing": {
-"domain": [
-true,
-false
-]
-},
-"fields": {
-"baseline": null,
-"direction": null,
-"measurement": null,
-"observability": null,
-"state_vs_event": null,
-"time_window": null
-},
-"kind": "variable_patch",
-"predicate": "y"
-},
-"target": "y"
-},
-{
-"gap": "ambiguous_variable_definition",
-"need": "framing_fields_unfilled",
-"said": {
-"count": "6",
-"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"predicate": "x"
-},
-"skeleton": {
-"existing": {
-"domain": [
-true,
-false
-]
-},
-"fields": {
-"baseline": null,
-"direction": null,
-"measurement": null,
-"observability": null,
-"state_vs_event": null,
-"time_window": null
-},
-"kind": "variable_patch",
-"predicate": "x"
-},
-"target": "x"
-}
-],
-"priority": "medium",
-"target": "define_variable:2_items"
-}
-],
-"query_id": "q",
-"query_kind": "effect",
-"status": "needs_investigation"
-}
-},
 "needs_investigation:effect:none#28ee90": {
 "program": {
 "domain": {
@@ -61325,6 +60771,554 @@ false
 "said": {
 "key": "P(dietary_self_discipline=False)"
 }
+}
+],
+"query_id": "q",
+"query_kind": "effect",
+"status": "needs_investigation"
+}
+},
+"needs_investigation:effect:none#44412c": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "p"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "w"
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "w"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "w"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "w"
+},
+"kind": "observation",
+"value": true
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "effect",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"bounds_results": [
+{
+"bootstrap": {
+"kind": "iid",
+"requested": 500,
+"used": 500
+},
+"ci_level": 0.95,
+"ci_lower": 0.560467362924282,
+"ci_upper": 0.8307049608355092,
+"contrast": {
+"kind": "ace",
+"lower_value": -0.29973890339425585,
+"reference_value": false,
+"tightness": "sharp",
+"upper_value": 0.7002610966057441
+},
+"data_required": [
+{
+"said": {
+"expression": "P(y, x)"
+},
+"token": "a_joint_distribution",
+"vocabulary": "observable_required"
+}
+],
+"estimand": "arm_probability",
+"lower_expression": "P(y=true | x=true) · P(x=true)",
+"lower_value": 0.5696083550913839,
+"method": "manski_natural",
+"notes": [
+{
+"said": {
+"mass": "P(x=false)"
+},
+"token": "width_is_the_off_arm_mass",
+"vocabulary": "bounds_note"
+}
+],
+"numeric_data_columns": [
+"x",
+"y"
+],
+"numeric_data_hash": "04d083cd7a83bebf2c94eb87a885999debe0ece59d8846dcaae23c1128f3ba96",
+"numeric_uninformative": false,
+"sample_size": 9575,
+"sufficient_statistics": {
+"n": 9575,
+"n_joint_other_arm": 1181,
+"n_joint_target_arm": 5454,
+"n_other_arm": 2432
+},
+"tightness": "sharp",
+"upper_expression": "P(y=true | x=true) · P(x=true) + P(x=false)",
+"upper_value": 0.823603133159269,
+"width": 0.2539947780678852
+}
+],
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "declare_the_intervention_an_event",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "split_the_intervention_in_two",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "use_experimental_data_for_the_versions"
+},
+{
+"route": "accept_the_mixed_estimand"
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"intervention": "x"
+},
+"sentence": "the_intervention_says_neither_state_nor_event"
+}
+],
+"kind": "ill_defined_intervention_versions",
+"provenance": [
+{
+"ref_id": "intervention_state_inferred:x",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"intervention": "x"
+},
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "reweight_for_selection",
+"said": {
+"collider": "w",
+"value": "True"
+}
+},
+{
+"route": "maybe_it_is_not_a_common_effect",
+"said": {
+"collider": "w",
+"intervention": "x",
+"target": "y"
+}
+},
+{
+"route": "declare_it_a_selection_node",
+"said": {
+"collider": "w"
+}
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"collider": "w",
+"intervention": "x",
+"target": "y",
+"value": "True"
+},
+"sentence": "the_sample_is_restricted_on_a_collider"
+}
+],
+"kind": "selection_on_collider_opens_path",
+"provenance": [
+{
+"ref_id": "selection_observation:w|x->y",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"collider": "w",
+"value": "True"
+},
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"sentence": "the_answer_is_an_interval_not_a_point"
+},
+{
+"said": {
+"method": "manski_natural"
+},
+"sentence": "one_interval_that_rests_on_nothing"
+}
+],
+"kind": "answer_is_bounds_not_point_estimate",
+"provenance": [
+{
+"ref_id": "bounds_results",
+"ref_kind": "envelope_path"
+}
+],
+"severity": "informational"
+}
+]
+},
+"estimation_context": {
+"ci_bootstrap": 500,
+"ci_level": 0.95,
+"data_columns": [
+"w",
+"x",
+"y"
+],
+"data_contract_warnings": [],
+"data_hash": "40c5f1e1027d8c98face89e6bd59f77ad94e79136ffd7d56ebfe7b488fedb197",
+"model_preference": "auto",
+"random_state": 42,
+"sample_size": 9575
+},
+"estimator_failure": {
+"details": {
+"estimand": "P(y|do(x))",
+"mechanism": "from_selection"
+},
+"estimator": "selection_backdoor_recovery",
+"failure_type": "not_recoverable",
+"kind": "graph",
+"said": {
+"estimand": "P(y|do(x))"
+},
+"words": {
+"mechanism": {
+"token": "from_selection",
+"vocabulary": "recovery_mechanism"
+}
+}
+},
+"extensions": {
+"identification": {
+"adjustment_set": [],
+"pattern": "backdoor"
+},
+"selection_recovery": {
+"adjustment_set": [],
+"complete_criterion": false,
+"criterion": null,
+"external_data_needed": [],
+"failure_reason": {
+"token": "no_admissible_selection_backdoor_set",
+"vocabulary": "selection_recovery_shortfall"
+},
+"kind": "selection_recovery",
+"outcome": "y",
+"query_kind": "effect",
+"recoverable": false,
+"recovery_formula": "",
+"reference": "Bareinboim & Pearl 2012 (selection backdoor criterion); Bareinboim, Tian & Pearl 2014 (recoverability)",
+"search_budget": 4,
+"selection_nodes": [
+"w"
+],
+"treatment": "x",
+"z_minus": [],
+"z_plus": []
+}
+},
+"formula": {
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+}
+],
+"investigation_requests": [
+{
+"action": "define_variable",
+"group": "framing",
+"items": [
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "y"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "y"
+},
+"target": "y"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "x"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "x"
+},
+"target": "x"
+}
+],
+"priority": "medium",
+"target": "define_variable:2_items"
 }
 ],
 "query_id": "q",
@@ -71841,6 +71835,1003 @@ false
 "status": "needs_investigation"
 }
 },
+"needs_investigation:effect:none#77c113": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "p"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "z"
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"caused_by": [
+{
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+}
+],
+"id": "R_z",
+"kind": "missingness_indicator",
+"missing_var": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "effect",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"bounds_results": [
+{
+"data_required": [
+{
+"said": {
+"expression": "P(y, x)"
+},
+"token": "a_joint_distribution",
+"vocabulary": "observable_required"
+}
+],
+"estimand": "arm_probability",
+"lower_expression": "P(y=true | x=true) · P(x=true)",
+"method": "manski_natural",
+"notes": [
+{
+"said": {
+"mass": "P(x=false)"
+},
+"token": "width_is_the_off_arm_mass",
+"vocabulary": "bounds_note"
+}
+],
+"tightness": "sharp",
+"upper_expression": "P(y=true | x=true) · P(x=true) + P(x=false)"
+}
+],
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"alternative_paths": [
+{
+"route": "bounds_already_computed",
+"said": {
+"methods": "manski_natural"
+}
+}
+],
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=True|x=True,z=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=True|x=True,z=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"alternative_paths": [
+{
+"route": "bounds_already_computed",
+"said": {
+"methods": "manski_natural"
+}
+}
+],
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(z=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(z=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"alternative_paths": [
+{
+"route": "bounds_already_computed",
+"said": {
+"methods": "manski_natural"
+}
+}
+],
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=True|x=True,z=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=True|x=True,z=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"alternative_paths": [
+{
+"route": "bounds_already_computed",
+"said": {
+"methods": "manski_natural"
+}
+}
+],
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(z=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(z=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "declare_the_intervention_an_event",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "split_the_intervention_in_two",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "use_experimental_data_for_the_versions"
+},
+{
+"route": "accept_the_mixed_estimand"
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"intervention": "x"
+},
+"sentence": "the_intervention_says_neither_state_nor_event"
+}
+],
+"kind": "ill_defined_intervention_versions",
+"provenance": [
+{
+"ref_id": "intervention_state_inferred:x",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"intervention": "x"
+},
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"sentence": "the_answer_is_an_interval_not_a_point"
+},
+{
+"said": {
+"method": "manski_natural"
+},
+"sentence": "one_interval_that_rests_on_nothing"
+}
+],
+"kind": "answer_is_bounds_not_point_estimate",
+"provenance": [
+{
+"ref_id": "bounds_results",
+"ref_kind": "envelope_path"
+}
+],
+"severity": "informational"
+},
+{
+"alternative_paths": [
+{
+"route": "run_an_e_value"
+},
+{
+"route": "cross_check_an_experiment"
+},
+{
+"route": "emulate_a_target_trial"
+}
+],
+"blocks": "interpretation",
+"describes": [
+{
+"sentence": "the_dag_declares_no_latent_common_cause"
+}
+],
+"kind": "unmeasured_confounder_risk",
+"provenance": [
+{
+"ref_id": "program:confounder_pattern:no_bidirected",
+"ref_kind": "program_site"
+}
+],
+"severity": "informational"
+}
+]
+},
+"estimation_context": {
+"ci_bootstrap": 500,
+"ci_level": 0.95,
+"model_preference": "auto",
+"random_state": 42
+},
+"estimator_failure": {
+"details": {
+"estimand": "P(y|do(x))",
+"mechanism": "from_missingness"
+},
+"estimator": "missing_data_recovery",
+"failure_type": "not_recoverable",
+"kind": "graph",
+"said": {
+"estimand": "P(y|do(x))"
+},
+"words": {
+"mechanism": {
+"token": "from_missingness",
+"vocabulary": "recovery_mechanism"
+}
+}
+},
+"extensions": {
+"identification": {
+"adjustment_set": [
+"z(p)"
+],
+"pattern": "backdoor"
+},
+"missing_data_recovery": {
+"adjustment_set": [
+"z"
+],
+"complete_criterion": false,
+"covariate_recovery": {
+"factorization": [],
+"failure_reason": {
+"token": "no_recoverable_ordered_factorization",
+"vocabulary": "missing_data_shortfall"
+},
+"recoverable": false,
+"recovery_formula": "",
+"target": "P(z)"
+},
+"estimand": {
+"failure_reason": {
+"token": "a_product_is_blocked_by_its_factors",
+"vocabulary": "missing_data_shortfall",
+"words": {
+"factors": [
+{
+"said": {
+"target": "P(z)"
+},
+"token": "the_covariate_marginal",
+"vocabulary": "missing_data_shortfall"
+}
+]
+}
+},
+"recoverable": false,
+"recovery_formula": "",
+"requires": [
+{
+"said": {
+"target": "P(y | x, z)"
+},
+"token": "adjusted_conditional",
+"vocabulary": "recovery_factor"
+},
+{
+"said": {
+"target": "P(z)"
+},
+"token": "covariate_marginal",
+"vocabulary": "recovery_factor"
+}
+],
+"target": "P(y | do(x))"
+},
+"factorization": [
+{
+"conditioned_on": [
+"x",
+"z"
+],
+"factor": "y"
+}
+],
+"failure_reason": null,
+"kind": "missing_data_recovery",
+"mechanism": "MNAR",
+"partially_observed": [
+"z"
+],
+"recoverable": true,
+"recovery_formula": "P(y | x, z) = P(y | x, z, R_z=0)",
+"reference": "Mohan, Pearl & Tian 2013 (m-graphs; MCAR/MAR/MNAR; ordered-factorization recoverability)",
+"search_budget": 4,
+"target": "P(y | x, z)"
+}
+},
+"formula": {
+"bind": {
+"name": "z_z_p"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": {
+"kind": "var_ref",
+"name": "z_z_p"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": {
+"kind": "var_ref",
+"name": "z_z_p"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+}
+],
+"investigation_requests": [
+{
+"action": "validate_parameter",
+"group": "parameter",
+"items": [
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=True|x=True,z=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(y=True|x=True,z=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(z=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(z=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=True|x=True,z=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(y=True|x=True,z=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(z=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "p",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(z=False)"
+}
+],
+"priority": "high",
+"target": "parameter:4_items"
+},
+{
+"action": "define_variable",
+"group": "framing",
+"items": [
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "y"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "y"
+},
+"target": "y"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "x"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "x"
+},
+"target": "x"
+}
+],
+"priority": "medium",
+"target": "define_variable:2_items"
+}
+],
+"missing_information": [
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=True|x=True,z=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"x",
+"y",
+"z"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=True|x=True,z=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(z=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"z"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(z=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=True|x=True,z=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"x",
+"y",
+"z"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=True|x=True,z=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(z=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"z"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(z=False)"
+}
+}
+],
+"query_id": "q",
+"query_kind": "effect",
+"status": "needs_investigation"
+}
+},
 "needs_investigation:effect:none#7a43ba": {
 "program": {
 "domain": {
@@ -80796,1020 +81787,6 @@ false
 "priority": "high",
 "said": {
 "drop": "`mediator`"
-}
-}
-],
-"query_id": "q",
-"query_kind": "effect",
-"status": "needs_investigation"
-}
-},
-"needs_investigation:effect:none#cf36e4": {
-"program": {
-"domain": {
-"objects": [
-{
-"kind": "object",
-"name": "p"
-}
-]
-},
-"statements": [
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "x"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "y"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "z"
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-}
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-}
-},
-{
-"from": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-}
-},
-{
-"caused_by": [
-{
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-}
-],
-"id": "R_z",
-"kind": "missingness_indicator",
-"missing_var": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-}
-},
-{
-"id": "q",
-"kind": "query",
-"query": {
-"given": [],
-"intervention": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-"kind": "effect",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-}
-}
-}
-],
-"version": "0.1"
-},
-"result": {
-"bounds_results": [
-{
-"data_required": [
-{
-"said": {
-"expression": "P(y, x)"
-},
-"token": "a_joint_distribution",
-"vocabulary": "observable_required"
-}
-],
-"estimand": "arm_probability",
-"lower_expression": "P(y=true | x=true) · P(x=true)",
-"method": "manski_natural",
-"notes": [
-{
-"said": {
-"mass": "P(x=false)"
-},
-"token": "width_is_the_off_arm_mass",
-"vocabulary": "bounds_note"
-}
-],
-"tightness": "sharp",
-"upper_expression": "P(y=true | x=true) · P(x=true) + P(x=false)"
-}
-],
-"data_gap_report": {
-"answer_tier": "point",
-"gaps": [
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=True|x=True,z=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=True|x=True,z=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional"
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal"
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=True|x=True,z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=True|x=True,z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional"
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "y"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "y",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "x"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "x",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"alternative_paths": [
-{
-"route": "declare_the_intervention_an_event",
-"said": {
-"intervention": "x"
-}
-},
-{
-"route": "split_the_intervention_in_two",
-"said": {
-"intervention": "x"
-}
-},
-{
-"route": "use_experimental_data_for_the_versions"
-},
-{
-"route": "accept_the_mixed_estimand"
-}
-],
-"blocks": "identification",
-"describes": [
-{
-"said": {
-"intervention": "x"
-},
-"sentence": "the_intervention_says_neither_state_nor_event"
-}
-],
-"kind": "ill_defined_intervention_versions",
-"provenance": [
-{
-"ref_id": "intervention_state_inferred:x",
-"ref_kind": "verifier_check"
-}
-],
-"said": {
-"intervention": "x"
-},
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"sentence": "the_answer_is_an_interval_not_a_point"
-},
-{
-"said": {
-"method": "manski_natural"
-},
-"sentence": "one_interval_that_rests_on_nothing"
-}
-],
-"kind": "answer_is_bounds_not_point_estimate",
-"provenance": [
-{
-"ref_id": "bounds_results",
-"ref_kind": "envelope_path"
-}
-],
-"severity": "informational"
-},
-{
-"alternative_paths": [
-{
-"route": "run_an_e_value"
-},
-{
-"route": "cross_check_an_experiment"
-},
-{
-"route": "emulate_a_target_trial"
-}
-],
-"blocks": "interpretation",
-"describes": [
-{
-"sentence": "the_dag_declares_no_latent_common_cause"
-}
-],
-"kind": "unmeasured_confounder_risk",
-"provenance": [
-{
-"ref_id": "program:confounder_pattern:no_bidirected",
-"ref_kind": "program_site"
-}
-],
-"severity": "informational"
-}
-]
-},
-"estimation_context": {
-"ci_bootstrap": 500,
-"ci_level": 0.95,
-"model_preference": "auto",
-"random_state": 42
-},
-"estimator_failure": {
-"details": {
-"estimand": "P(y|do(x))",
-"mechanism": "from_missingness"
-},
-"estimator": "missing_data_recovery",
-"failure_type": "not_recoverable",
-"kind": "graph",
-"recorded": {
-"identification_reason": {
-"token": "a_product_is_blocked_by_its_factors",
-"vocabulary": "missing_data_shortfall",
-"words": {
-"factors": [
-{
-"said": {
-"target": "P(z)"
-},
-"token": "the_covariate_marginal",
-"vocabulary": "missing_data_shortfall"
-}
-]
-}
-}
-},
-"said": {
-"estimand": "P(y|do(x))"
-},
-"words": {
-"mechanism": {
-"token": "from_missingness",
-"vocabulary": "recovery_mechanism"
-}
-}
-},
-"extensions": {
-"identification": {
-"adjustment_set": [
-"z(p)"
-],
-"pattern": "backdoor"
-},
-"missing_data_recovery": {
-"adjustment_set": [
-"z"
-],
-"complete_criterion": false,
-"covariate_recovery": {
-"factorization": [],
-"failure_reason": {
-"token": "no_recoverable_ordered_factorization",
-"vocabulary": "missing_data_shortfall"
-},
-"recoverable": false,
-"recovery_formula": "",
-"target": "P(z)"
-},
-"estimand": {
-"failure_reason": {
-"token": "a_product_is_blocked_by_its_factors",
-"vocabulary": "missing_data_shortfall",
-"words": {
-"factors": [
-{
-"said": {
-"target": "P(z)"
-},
-"token": "the_covariate_marginal",
-"vocabulary": "missing_data_shortfall"
-}
-]
-}
-},
-"recoverable": false,
-"recovery_formula": "",
-"requires": [
-{
-"said": {
-"target": "P(y | x, z)"
-},
-"token": "adjusted_conditional",
-"vocabulary": "recovery_factor"
-},
-{
-"said": {
-"target": "P(z)"
-},
-"token": "covariate_marginal",
-"vocabulary": "recovery_factor"
-}
-],
-"target": "P(y | do(x))"
-},
-"factorization": [
-{
-"conditioned_on": [
-"x",
-"z"
-],
-"factor": "y"
-}
-],
-"failure_reason": null,
-"kind": "missing_data_recovery",
-"mechanism": "MNAR",
-"partially_observed": [
-"z"
-],
-"recoverable": true,
-"recovery_formula": "P(y | x, z) = P(y | x, z, R_z=0)",
-"reference": "Mohan, Pearl & Tian 2013 (m-graphs; MCAR/MAR/MNAR; ordered-factorization recoverability)",
-"search_budget": 4,
-"target": "P(y | x, z)"
-}
-},
-"formula": {
-"bind": {
-"name": "z_z_p"
-},
-"body": {
-"kind": "product",
-"terms": [
-{
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": {
-"kind": "var_ref",
-"name": "z_z_p"
-}
-}
-],
-"kind": "probability_ref",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-}
-},
-{
-"given": [],
-"kind": "probability_ref",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": {
-"kind": "var_ref",
-"name": "z_z_p"
-}
-}
-}
-]
-},
-"kind": "sum",
-"over": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-}
-},
-"framing_notes": [
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "y"
-},
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "x"
-}
-],
-"investigation_requests": [
-{
-"action": "validate_parameter",
-"group": "parameter",
-"items": [
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=True|x=True,z=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-},
-"value": null
-},
-"target": "parameter:P(y=True|x=True,z=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": true
-},
-"value": null
-},
-"target": "parameter:P(z=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=True|x=True,z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-},
-"value": null
-},
-"target": "parameter:P(y=True|x=True,z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
-}
-],
-"priority": "high",
-"target": "parameter:4_items"
-},
-{
-"action": "define_variable",
-"group": "framing",
-"items": [
-{
-"gap": "ambiguous_variable_definition",
-"need": "framing_fields_unfilled",
-"said": {
-"count": "6",
-"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"predicate": "y"
-},
-"skeleton": {
-"existing": {
-"domain": [
-true,
-false
-]
-},
-"fields": {
-"baseline": null,
-"direction": null,
-"measurement": null,
-"observability": null,
-"state_vs_event": null,
-"time_window": null
-},
-"kind": "variable_patch",
-"predicate": "y"
-},
-"target": "y"
-},
-{
-"gap": "ambiguous_variable_definition",
-"need": "framing_fields_unfilled",
-"said": {
-"count": "6",
-"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"predicate": "x"
-},
-"skeleton": {
-"existing": {
-"domain": [
-true,
-false
-]
-},
-"fields": {
-"baseline": null,
-"direction": null,
-"measurement": null,
-"observability": null,
-"state_vs_event": null,
-"time_window": null
-},
-"kind": "variable_patch",
-"predicate": "x"
-},
-"target": "x"
-}
-],
-"priority": "medium",
-"target": "define_variable:2_items"
-}
-],
-"missing_information": [
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=True|x=True,z=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"x",
-"y",
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=True|x=True,z=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=True|x=True,z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"x",
-"y",
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=True|x=True,z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
 }
 }
 ],

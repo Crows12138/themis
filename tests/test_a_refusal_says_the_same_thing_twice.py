@@ -117,9 +117,13 @@ def _bend(value):
 
 
 def test_the_corpus_carries_refusals_to_ask_about():
-    """Stated so a narrowing shows up as a failure, not as a quiet pass."""
+    """Stated so a narrowing shows up as a failure, not as a quiet pass.
+
+    Seven fewer than there were, and not by a narrowing: two refusals
+    carried a copy of the identification layer's reason in ``recorded``,
+    two leaves on one and five on the other, and the copy is gone."""
     assert len(REFUSALS) == 36, len(REFUSALS)
-    assert sum(1 for name in REFUSALS for _ in _leaves(_block(name))) == 331
+    assert sum(1 for name in REFUSALS for _ in _leaves(_block(name))) == 324
 
 
 def test_the_recorded_facts_and_the_sentences_facts_are_one_mapping():
@@ -206,7 +210,8 @@ def test_a_bent_leaf_is_refused():
 
     The number is what the rule catches on its own rather than what the
     door does, so a leaf another rule already holds counts as free here and
-    is named below instead of inflating this.
+    is named below instead of inflating this. The seven leaves of the copied
+    identification reason were all on the free side, and left with it.
     """
     held = free = 0
     for name in REFUSALS:
@@ -220,7 +225,7 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (220, 111), (held, free)
+    assert (held, free) == (220, 104), (held, free)
 
 
 def test_a_dropped_fact_is_refused():
@@ -517,4 +522,4 @@ def test_what_was_measured_and_not_said_has_no_second_rendering():
         recorded = block.get("recorded") or {}
         assert not (set(recorded) & set(block.get("said") or {})), name
         carried += len(recorded)
-    assert carried == 18, carried
+    assert carried == 16, carried

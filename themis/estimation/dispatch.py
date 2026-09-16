@@ -787,9 +787,6 @@ def _maybe_estimate_missing_recovery(
                              else estimand.get("target")),
                 "mechanism": refusals.Recovery.FROM_MISSINGNESS,
             },
-            # The identification layer's own note, which is prose written
-            # one layer down and has a reader of its own on the block.
-            recorded={"identification_reason": estimand.get("failure_reason")},
         )
         return
 
@@ -5089,7 +5086,6 @@ def _try_selection_recovery_estimate(
             failure_type=Refusal.NOT_RECOVERABLE,
             details={"estimand": f"P({y}|do({x}){conditioned})",
                      "mechanism": refusals.Recovery.FROM_SELECTION},
-            recorded={"identification_reason": block.get("failure_reason")},
         )
         return blocked('not_identified')
 

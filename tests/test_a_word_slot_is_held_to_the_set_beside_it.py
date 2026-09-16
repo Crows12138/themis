@@ -23,11 +23,12 @@ back as a word they are told to go and look up. That is not a label beside
 the sentence. For those gaps it IS the sentence.
 
 The SET half is carried for the same reason and was free in the same way,
-at the two sites the shared statement def is not applied to: a refusal's
-recorded reason names its set, and that name could be rewritten to any
-string, leaving a reader sent to a table no surface holds. Both halves are
-asked here, by a walk that descends through everything rather than through
-a list of the sites somebody thought of.
+at the two sites the shared statement def was not applied to: a refusal's
+recorded reason named its set, and that name could be rewritten to any
+string, leaving a reader sent to a table no surface holds. Those two were
+copies of a verdict another layer files on its own block, and are gone.
+Both halves are still asked here, by a walk that descends through
+everything rather than through a list of the sites somebody thought of.
 
 Membership is not the whole question, and the rest of it is asked in two
 other places. A token bent to another MEMBER of its own set is a forgery
@@ -337,43 +338,21 @@ def test_a_word_borrowed_from_another_real_set(vocabulary):
 # ------------------------------------------- and the set half of the pair
 
 
-#: Where the contract's ``declaredVocabulary`` enum does not reach, read off
-#: the corpus rather than listed: a statement whose set name could be
-#: rewritten to any string at all is one the shared statement def is not
-#: applied to, and which sites those are is the envelope's schema's business
-#: and not this rule's. Both of these are inside a refusal's ``recorded``
-#: block, which is typed as an open object.
-SETS_NAMED_WHERE_THE_CONTRACT_DOES_NOT_ASK = (
-    ("estimator_failure", "recorded", "identification_reason"),
-    ("estimator_failure", "recorded", "identification_reason",
-     "words", "factors", 0),
-)
-
-
-@pytest.mark.parametrize("path", SETS_NAMED_WHERE_THE_CONTRACT_DOES_NOT_ASK,
-                         ids=lambda p: ".".join(str(s) for s in p))
-def test_a_set_this_build_does_not_declare(path):
+def test_a_set_this_build_does_not_declare():
     """The other carried half. A statement names its set beside its token
-    because a token alone does not say which set it came from — so the set
-    name is a claim too, and at these two sites nothing had read it."""
-    found = next(
-        ((name, *_pair(name)) for name in sorted(SHAPES)
-         if _has(SHAPES[name]["result"], path)), None)
-    assert found is not None, f"no row carries a statement at {path}"
-    name, program, result = found
-    verify_honestly(program, result)
-    _at(result, path)["vocabulary"] = "a_set_no_build_declares"
+    because a token alone does not say which set it came from, so the set
+    name is a claim too.
+
+    The contract asks it wherever the shared statement def reaches, and the
+    two sites on the corpus it did not reach were a refusal's copy of a
+    verdict another layer had filed, which is gone. So no stored answer
+    reaches this any more, and it is asked of the rule directly: a field
+    typed as an open object is still one, and the walk does not depend on
+    which sites exist."""
+    forged = {"estimator_failure": {"recorded": {"reason": {
+        "vocabulary": "a_set_no_build_declares", "token": "anything"}}}}
     with pytest.raises(VerificationError, match="declares no such set"):
-        the_door_for(result)(program, result)
-
-
-def _has(node, path) -> bool:
-    try:
-        for step in path:
-            node = node[step]
-    except (KeyError, IndexError, TypeError):
-        return False
-    return isinstance(node, dict) and "vocabulary" in node
+        verify_statements_carry_their_facts(forged)
 
 
 # ------------------------------------------- and what stays passed over

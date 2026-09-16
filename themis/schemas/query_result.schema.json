@@ -2744,7 +2744,7 @@
         },
         "recorded": {
           "type": "object",
-          "description": "The same occasion's facts the sentence does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked."
+          "description": "The same occasion's facts the sentence does NOT say — what the estimator measured and did not put in the sentence. The exception's own text when the species is `unknown` (a maintainer's words, deliberately not shown to a reader who has just been told nothing more specific can be said); the threshold a comparison actually used where the sentence gives the human-readable quantity; the sizes a shared sentence cannot name because each producer measures a different one. Separate from `details` because they are addressed to different people, and one bag with two audiences cannot be checked. A verdict another layer reached is not recorded here: it stays on that layer's own block, where it is read and held."
         },
         "remedies": {
           "type": "array",
