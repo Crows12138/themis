@@ -152,7 +152,7 @@ def _asks_what_the_search_can_answer(facts: RefusalFacts) -> bool:
     q = facts.query
     if not isinstance(q, EffectQuery):
         return False
-    if facts.selection_nodes:
+    if facts.selection_nodes or _no_loop_claims_it(facts):
         return False
     if _stands_in_for_a_strategy(facts):
         return False
@@ -362,6 +362,35 @@ def _names(atoms) -> str:
     return "{" + ", ".join(sorted(a.predicate for a in atoms)) + "}"
 
 
+def _loops_named(loops) -> str:
+    return "; ".join(sorted(
+        " <-> ".join(sorted(_atom_label_verifier(a) for a in loop))
+        for loop in loops)) or "none"
+
+
+def _no_loop_claims_it(facts: RefusalFacts) -> str | None:
+    """No declared loop reaches the effect question's estimand, or what
+    one that does says instead.
+
+    The loop's route outranks every other route to an effect question and
+    answers every question it claims, with an instrument or with a verdict
+    of its own, so where a loop reaches the estimand no other route's
+    verdict is this question's and no search for the DAG's estimand
+    expresses it. Asked of effect questions, the kind whose routes read the
+    loops.
+    """
+    q = facts.query
+    if not isinstance(q, EffectQuery):
+        return None
+    reaching = declared_loops_reaching(
+        facts.graph, facts.feedback, q.intervention.atom, q.target.atom)
+    if not reaching:
+        return None
+    return (f"the program declares a loop that reaches it "
+            f"({_loops_named(reaching)}), and a loop's route answers an "
+            f"effect question before any other")
+
+
 def _refute_unidentifiable(gap: dict, facts: RefusalFacts) -> str | None:
     """"No admissible set exists" — refuted by producing one.
 
@@ -525,8 +554,10 @@ _bind()
 # itself, so what reaches the effect cascade's last resort is one treatment's
 # plain effect, or the plain effect a causation or counterfactual question
 # derives with nothing conditioned; and the last resort picks among its four
-# by the graph. A falsifier needs only what must hold wherever a species can
-# be raised, and that is what each row below states.
+# by the graph. A loop outranks every one of those routes, so each row
+# reached from an effect question asks first that no declared loop reaches
+# it. A falsifier needs only what must hold wherever a species can be
+# raised, and that is what each row below states.
 
 #: A question the rows below cannot hold a species to, and why, or ``None``.
 _Condition = Callable[[RefusalFacts], "str | None"]
@@ -692,19 +723,23 @@ _ANSWERS: dict[Need, tuple[_Condition, ...]] = {
         _is(CounterfactualConjunctionQuery, "a counterfactual conjunction"),),
     Need.PROXIMAL_NOT_IDENTIFIABLE: (
         _is(ProximalEffectQuery, "a proximal effect"),),
-    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: (_names_the_declared_strategy,),
-    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: (_names_a_treatment_set,),
-    Need.TRANSPORT_NOT_IDENTIFIABLE: (_names_a_target_population,),
+    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: (
+        _no_loop_claims_it, _names_the_declared_strategy),
+    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: (
+        _no_loop_claims_it, _names_a_treatment_set),
+    Need.TRANSPORT_NOT_IDENTIFIABLE: (
+        _no_loop_claims_it, _names_a_target_population),
     Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE: (
-        _asks_one_plain_effect, _conditioned, _latent_confounding),
+        _no_loop_claims_it, _asks_one_plain_effect, _conditioned,
+        _latent_confounding),
     Need.ADMG_EFFECT_NOT_IDENTIFIABLE: (
-        _asks_one_plain_effect, _unconditioned, _latent_confounding,
-        _no_instrument),
+        _no_loop_claims_it, _asks_one_plain_effect, _unconditioned,
+        _latent_confounding, _no_instrument),
     Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT: (
-        _asks_one_plain_effect, _unconditioned, _latent_confounding,
-        _an_instrument),
+        _no_loop_claims_it, _asks_one_plain_effect, _unconditioned,
+        _latent_confounding, _an_instrument),
     Need.NO_BACKDOOR_OR_FRONTDOOR: (
-        _asks_one_plain_effect, _no_latent_confounding),
+        _no_loop_claims_it, _asks_one_plain_effect, _no_latent_confounding),
 }
 
 
@@ -816,13 +851,28 @@ def _the_name_and_its_nodes(
     return part, name, written.get(name)
 
 
+def _a_route_reads_the_part(part: str, facts: RefusalFacts) -> str | None:
+    """Whether the route that reads this part is reached, or why not.
+
+    A declared strategy is read by the strategy's route alone, which a loop
+    outranks; the question is read wherever the question is asked.
+    """
+    if part == str(QueryPart.LONGITUDINAL_SPEC):
+        return _no_loop_claims_it(facts)
+    return None
+
+
 def _no_node_is_it(statement: Mapping, facts: RefusalFacts) -> str | None:
     """"The graph has no node of this name" -- refuted by the part not
-    writing the name, or by a node that is it."""
+    writing the name, by no route reading that part, or by a node that is
+    it."""
     found = _the_name_and_its_nodes(statement, facts)
     if found is None:
         return None
     part, name, nodes = found
+    unread = _a_route_reads_the_part(part, facts)
+    if unread is not None:
+        return unread
     if nodes is None:
         return f"the {part} writes no {name!r}"
     if nodes:
@@ -834,12 +884,15 @@ def _no_node_is_it(statement: Mapping, facts: RefusalFacts) -> str | None:
 def _several_nodes_are_it(statement: Mapping,
                           facts: RefusalFacts) -> str | None:
     """"The graph holds this name at several nodes" -- refuted by the part
-    not writing the name, by one node or none, or by nodes other than the
-    ones the statement lists."""
+    not writing the name, by no route reading that part, by one node or
+    none, or by nodes other than the ones the statement lists."""
     found = _the_name_and_its_nodes(statement, facts)
     if found is None:
         return None
     part, name, nodes = found
+    unread = _a_route_reads_the_part(part, facts)
+    if unread is not None:
+        return unread
     if nodes is None:
         return f"the {part} writes no {name!r}"
     if len(nodes) < 2:
@@ -885,10 +938,13 @@ def _the_mediator_is_off_the_paths(statement: Mapping,
                                    facts: RefusalFacts) -> str | None:
     """"The declared mediator lies on no directed path from X to Y" --
     refuted by a question declaring no mediator, or by one that lies on
-    one."""
+    one, or by a loop that claims the question first."""
     q = facts.query
     if not isinstance(q, EffectQuery) or q.mediator is None:
         return "the question declares no mediator"
+    claimed = _no_loop_claims_it(facts)
+    if claimed is not None:
+        return claimed
     x, y = q.intervention.atom, q.target.atom
     if _mediates(facts.graph, x, y, q.mediator):
         return (f"{_atom_label_verifier(q.mediator)} lies on a directed path "
@@ -901,10 +957,14 @@ def _a_mediator_of_the_block_is_off_the_paths(
 ) -> str | None:
     """"One of the declared mediators lies off the directed paths, or the
     set is empty or holds X or Y" -- refuted by a question declaring no
-    block, or by a block every member of which lies on one."""
+    block, by a block every member of which lies on one, or by a loop that
+    claims the question first."""
     q = facts.query
     if not isinstance(q, EffectQuery) or not q.mediators:
         return "the question declares no mediator block"
+    claimed = _no_loop_claims_it(facts)
+    if claimed is not None:
+        return claimed
     x, y = q.intervention.atom, q.target.atom
     if all(_mediates(facts.graph, x, y, m) for m in q.mediators):
         return (f"every mediator in it lies on a directed path from "
@@ -1034,10 +1094,14 @@ def _a_joint_question_asks_another_layer(statement: Mapping,
                                          facts: RefusalFacts) -> str | None:
     """"A joint intervention combined with mediation or transport" --
     refuted by a question with one treatment, by one asking for neither,
-    or by sending the reader to drop a declaration it does not make."""
+    by sending the reader to drop a declaration it does not make, or by a
+    loop that claims the question first."""
     q = facts.query
     if not isinstance(q, EffectQuery) or not q.extra_interventions:
         return "the question intervenes on one treatment, so it is not joint"
+    claimed = _no_loop_claims_it(facts)
+    if claimed is not None:
+        return claimed
     asked = sorted(field for field, declares
                    in _ASKED_BESIDE_A_JOINT_EFFECT.items() if declares(q))
     if not asked:
@@ -1052,10 +1116,14 @@ def _a_joint_question_asks_another_layer(statement: Mapping,
 def _the_treatments_repeat(statement: Mapping,
                            facts: RefusalFacts) -> str | None:
     """"The joint treatment vector repeats an atom" -- refuted by a
-    question with one treatment, or by treatments that are all different."""
+    question with one treatment, by treatments that are all different, or
+    by a loop that claims the question first."""
     q = facts.query
     if not isinstance(q, EffectQuery) or not q.extra_interventions:
         return "the question intervenes on one treatment"
+    claimed = _no_loop_claims_it(facts)
+    if claimed is not None:
+        return claimed
     treatments = [q.intervention.atom,
                   *(iv.atom for iv in q.extra_interventions)]
     if len(set(treatments)) == len(treatments):
@@ -1063,12 +1131,6 @@ def _the_treatments_repeat(statement: Mapping,
                 f"{', '.join(_atom_label_verifier(a) for a in treatments)} "
                 f"are all different")
     return None
-
-
-def _loops_named(loops) -> str:
-    return "; ".join(sorted(
-        " <-> ".join(sorted(_atom_label_verifier(a) for a in loop))
-        for loop in loops)) or "none"
 
 
 def _the_loop_is_misnamed(statement: Mapping, x: Atom, y: Atom,

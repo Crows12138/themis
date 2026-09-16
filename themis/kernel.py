@@ -154,6 +154,7 @@ from .verifier import (
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
     verify_collider_caveats_are_owed,
+    verify_loop_withdrawal_is_owed,
     verify_recovery_verdicts_are_owed,
     verify_gap_quotes,
     verify_refusal_block,
@@ -1743,6 +1744,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # run where the blocks are; removed, each passed, and a selection
     # verdict on a restriction that is no common effect passed too.
     verify_recovery_verdicts_are_owed(result, prog, ctx)
+
+    # And whether it withdraws what a declared loop takes away. The block
+    # saying so is audited where it is; removed, or never written, every
+    # effect answer computed from the DAG passed beside a program whose loop
+    # reaches it. Which answers owe it is the program's; a block where none
+    # is owed names a loop that reaches nothing, which its audit refuses.
+    verify_loop_withdrawal_is_owed(result, prog, ctx)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

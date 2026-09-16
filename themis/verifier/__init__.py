@@ -83,7 +83,12 @@ Public surface (re-exports from sub-modules):
   DAG did not compute — the loop is re-derived from the PROGRAM, since a
   block citing one nobody declared would license the swap of a correct
   adjustment answer for an instrument resting on linearity; the query's
-  two ends and the Haavelmo reduction are re-derived beside it) /
+  two ends, the loop reaching them, and the Haavelmo reduction are
+  re-derived beside it) /
+  ``verify_loop_withdrawal_is_owed`` (whether that block is there at all.
+  An effect answer computed from the DAG, beside a program declaring a loop
+  its estimand reaches, passed every door; which answers owe the block is
+  read off the program, the question and the ground graph) /
   ``verify_joint_identification`` (the same sentence for a do() over a
   treatment SET, in a block whose pattern vocabulary the contract declares
   disjoint from the scalar one — which is why one verifier dispatching on
@@ -836,6 +841,7 @@ from .verify import (
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
+    verify_loop_withdrawal_is_owed,
     verify_recovery_verdicts_are_owed,
     verify_selection_recovery,
     verify_transport_sources,
@@ -1005,6 +1011,7 @@ __all__ = [
     "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",
     "verify_scm_counterfactual_numeric",
+    "verify_loop_withdrawal_is_owed",
     "verify_recovery_verdicts_are_owed",
     "verify_selection_recovery",
     "verify_selection_recovery_numeric",

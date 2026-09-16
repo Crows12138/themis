@@ -5892,11 +5892,14 @@ def verify_feedback_loop(
 
     Three of its facts can be settled and one cannot.
 
-    ``left`` / ``right`` name a pair the program declares, or nothing
-    withdrew anything. ``treatment`` / ``outcome`` are the query's own two
-    ends, recorded here because whether a loop reaches an estimand is a
-    fact about the pair and not about the loop alone — so a block naming
-    somebody else's query is naming a fact it did not establish.
+    ``left`` / ``right`` name a pair the program declares whose loop
+    reaches the query's two ends, or nothing withdrew anything: a loop
+    takes away the routes to an estimand it reaches and no others, so a
+    loop declared elsewhere in the graph is a reason for nothing here.
+    ``treatment`` / ``outcome`` are the query's own two ends, recorded here
+    because whether a loop reaches an estimand is a fact about the pair and
+    not about the loop alone — so a block naming somebody else's query is
+    naming a fact it did not establish.
 
     ``reduction`` says the two-equation system applies, and both of its
     faces are checked. Present, the loop must be exactly between the two
@@ -5939,25 +5942,83 @@ def verify_feedback_loop(
             _err(f"records {field}={block.get(field)!r} beside a query whose "
                  f"{field} is {_label(atom)!r}")
 
+    reaching: "list[list[str]] | None" = None
+    if x is not None and y is not None:
+        reaching = sorted(
+            sorted(_label(a) for a in loop)
+            for loop in declared_loops_reaching(
+                graph, feedback or frozenset(), x, y))
+        if frozenset({left, right}) not in {frozenset(p) for p in reaching}:
+            _err(f"names the loop between {left!r} and {right!r}, which "
+                 f"reaches neither {_label(x)!r} nor {_label(y)!r}; the "
+                 f"declared loops that reach them are {reaching}")
+
     if block.get("reduction") is not None:
         if frozenset({left, right}) != frozenset(
                 {block.get("treatment"), block.get("outcome")}):
             _err(f"claims the two-equation reduction while the loop it names "
                  f"runs between {left!r} and {right!r} rather than between "
                  f"the treatment and the outcome")
-        if x is not None and y is not None:
-            reaching = sorted(
-                sorted(_label(a) for a in loop)
-                for loop in declared_loops_reaching(
-                    graph, feedback or frozenset(), x, y))
-            if len(reaching) > 1:
-                _err(f"claims the two-equation reduction while the estimand "
-                     f"reaches {len(reaching)} declared loops, {reaching}; "
-                     f"a second loop puts a third equation under the ratio")
+        if reaching is not None and len(reaching) > 1:
+            _err(f"claims the two-equation reduction while the estimand "
+                 f"reaches {len(reaching)} declared loops, {reaching}; "
+                 f"a second loop puts a third equation under the ratio")
     elif isinstance(iv_identification, dict):
         _err("names no reduction beside an answer that reached an "
              "instrument; under a loop an instrument identifies a "
              "coefficient of the two-equation system or nothing at all")
+
+
+def verify_loop_withdrawal_is_owed(result: object, program: object,
+                                   context: VerificationContext) -> None:
+    """A loop the estimand reaches is withdrawn on the answer that owes it.
+
+    The block saying which routes a declared loop took away is audited for
+    what it says where it is, the loop it names reaching the question among
+    it, and so is every verdict that names the loop. Where there was none,
+    nothing asked: beside a program declaring a loop
+    between an effect question's treatment and outcome, 138 answers the
+    corpus computes from the DAG -- numbers, decompositions, refusals naming
+    distributions to collect -- passed every door, and the kernel's own
+    answer to each of those programs is the loop's.
+
+    Which answers owe one is a fact about the program, the question and the
+    ground graph: an effect question some declared loop reaches, in the
+    graph carrying every declared loop's two edges. The one answer that
+    owes none although a loop reaches is one the program's strict framing
+    gate stopped before any route ran, which carries that verdict and no
+    other. A block where none is owed names a loop that reaches nothing of
+    the question, and is its own audit's to refuse.
+    """
+    from collections.abc import Mapping
+
+    from ..gaps import Need
+    from .rules import declared_loops_reaching
+
+    if not isinstance(result, Mapping) or not isinstance(
+            context.query, EffectQuery):
+        return
+    query = context.query
+    reaching = declared_loops_reaching(
+        context.graph, context.feedback, query.intervention.atom,
+        query.target.atom)
+    extensions = result.get("extensions")
+    if not reaching or (isinstance(extensions, Mapping)
+                        and "feedback_loop" in extensions):
+        return
+    needs = [item.get("need") for item in result.get("missing_information") or ()
+             if isinstance(item, Mapping)]
+    if ((getattr(program, "options", None) or {}).get("strict_framing")
+            and needs
+            and all(need == str(Need.FRAMING_FIELDS_UNFILLED) for need in needs)):
+        return
+    loops = sorted(sorted(str(a.predicate) for a in loop) for loop in reaching)
+    raise VerificationError(
+        f"feedback_loop: the program declares loops that reach this "
+        f"question's estimand, {loops}, and the answer withdraws nothing; "
+        f"what it says was computed from a DAG the program says the model "
+        f"is not",
+        step_index=None, rule="feedback_loop")
 
 
 def verify_recovery_verdicts_are_owed(result: object, program: object,

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20899 passed / 518 skipped, warning-clean
+21192 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,51 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #688 声明的环够到估计量，答案就欠一次撤回；没有人问它欠不欠（2026-09-17）
+
+**现象。** `FeedbackLoop` 的定义是：声明的环撤掉它够到的 DAG 估计量。effect 问题上 kernel 照做——环够到处理或结局，答案带 `extensions.feedback_loop` 块写明撤掉了哪些路线，然后以两方程约化下的工具变量作答，或以环的两个拒答之一结束。verifier 在块出现的地方审块（#686），在判决出现的地方审判决（#687），没有地方问一个答案该不该带块。量：
+- 语料 138 个 effect 答案（77 个数值、13 个分解、48 个列出要收集什么的拒答）放到同一程序、在问题两端之间多声明一个环的程序旁边，读它的全部门放行。kernel 自己对这些程序的答案 137 个带块（117 个「需要工具变量」、20 个 structurally_solved），1 个是 strict framing 闸门在任何路线之前拦下的。
+- 在只判程序主张的 `verify_refusal` 上，其中带程序可判 species 的 12 个拒答也放行（`admg_effect_reachable_only_by_instrument` 7 个，`atom_not_in_graph`、`joint_effect_not_identifiable`、`joint_with_mediation_or_transport`、`sequential_exchangeability_fails`、`transport_not_identifiable` 各 1）。这些判决别的路线够得到，而环的路线排在它们前面。
+- 反方向（演练时量到）：块审计只要求块点名的环是程序声明过的，不要求它够到本问题。程序同时声明 x↔y（够到）和 p↔q（够不到）时，把「需要工具变量」答案块里的环改成 p↔q，正写反写都在全部门放行。
+
+**根因。** 块和判决都是「在场才审」。「哪些答案欠一次撤回」是程序、问题、图三者决定的事实，没有规则读它；`refusal_rules` 的 effect 行只问各自路线的条件，不问排在所有路线之前的环。块审计那一处读的是「声明的环」，同一事实的另三份拷贝（#686 的步骤规则、#687 的两个证人、块审计自己的 reduction 分支）读的已是「够到的环」。
+
+**为什么是根因不是表象。** 放行的 138 个答案来自不同路线（数值、分解、拒答），原因相同：块缺席时没有东西发问，所以不是某条路线的漏洞。我起初在新规则里写了一个「带块但没有环够到」的分支，它只接住整个程序一个环都够不到的特例，p↔q 那个伪造照样放行——事实是逐个环成立的。那个分支已删掉，改由块审计按够到的环去读。
+
+**结构。**
+- `verify.py` 新增 `verify_loop_withdrawal_is_owed`，由 kernel `_hold_what_the_answer_says` 在 `verify_recovery_verdicts_are_owed` 之后调用，`verify_answer_claims` 与 `verify` 都走到。拒的条件：effect 问题、`declared_loops_reaching` 非空、答案不带块，且不是 strict framing 闸门那种只含 `framing_fields_unfilled` 的拒答。只管这一个方向。
+- `verify_feedback_loop`：`left/right` 必须是够到本问题两端的声明环之一（任何一个都算，反写也算）；reduction 分支复用同一份 reaching。docstring 写明别处声明的环在这里不构成任何撤回的理由。
+- `refusal_rules`：
+  - 新条件 `_no_loop_claims_it`（effect 问题有声明的环够到估计量时给出反驳理由），作为 7 个 effect 行的第一个条件。
+  - `_asks_what_the_search_can_answer` 在环够到时返回 False。
+  - 名字规则 `_no_node_is_it`、`_several_nodes_are_it` 经 `_a_route_reads_the_part` 只在 `longitudinal_spec` 上让环先说话：声明的策略只由策略路线读，问题本身在任何路线之前就被读。
+  - `_the_mediator_is_off_the_paths`、`_a_mediator_of_the_block_is_off_the_paths`、`_a_joint_question_asks_another_layer`、`_the_treatments_repeat` 在自己的 kind 检查之后问环。
+  - `_ANSWERS` 前的注释补一句环的优先级；`_loops_named` 挪到 `_names` 旁。
+- `verifier/__init__.py`：docstring、import、`__all__`。
+
+**测量。**
+- 改后，语料上：
+  - 138 个无环答案放到加环程序旁，`verify_answer_claims` 拒 137、收 1（strict framing 闸门那个，真话）。
+  - kernel 对加环程序的 138 个答案，`verify_honestly` 与 `verify_refusal` 全收。
+  - 12 个带程序可判 species 的拒答在 `verify_refusal` 上全拒。
+- 语料外：随机 400 个 6 变量 DAG，各带 1–3 个随机环、一个随机 effect 问题；kernel 答案被收的有 376 个。在这 376 个上：
+  - 有环够到时，无环答案全拒（348）；没有环够到时全收（28）。
+  - 块改成点名够不到的声明环，全拒（72，其中 8 个带 reduction）；改成点名够到的环（正写反写），全收（1392）。
+- 新测试在同进程里逐部分摘掉：
+  - 关「欠撤回」规则：137 个失败，只剩闸门那 1 个；
+  - 块审计把所有声明的环当作够到：「点名够不到的环」2 个失败；
+  - 关拒答行里的环条件：12 个失败。
+  - 诚实的 138 个与原本就被拒的 2 个伪造，在每种摘法下都通过。
+- `verify_refusal` 只判程序主张：没有程序可判 species 的 36 个拒答放到加环程序旁，在那里仍放行，在 `verify_answer_claims`、`verify` 上被拒。范围声明于此。
+- gate 扫带环的 3 行：0 gone、0 new，声明余项 1858 不变。架构图：verify.py 7859→7920 行，verify_* 入口 108→109。
+
+**还开着。**
+- identify 问题不读环：X↔Y 环的程序问 identify 仍答「可识别」，语料 4 个 identify 答案放到加环程序旁照收，这是下一条。causation / counterfactual 派生的风险、counterfactual_conjunction、proximal_effect、scm_counterfactual 同样不读环（语料 31 行加环后答案不变）。
+- 演练里量到一个与环无关的问题：结局在 DAG 里没有任何边时，kernel 附 Balke-Pearl 工具变量界，`verify_honestly` 以「this graph does not offer」拒。随机 400 个里有 24 个，去掉环照样拒。先量清楚是哪一边错。
+- 环够到估计量时 kernel 仍附 Balke-Pearl 界，块的 `withdrew` 不含它。这些界该不该一并撤回没量，我不确定。
+
+**账。** 新文件 `tests/test_a_loop_the_estimand_reaches_is_owed_its_withdrawal.py` 共 293 个测试（行数钉子 1、欠撤回 138、kernel 自己的答案 138、别的路线的判决 12、块点名的环 4）。基线 20899→**21192**。
 
 ### #687 反馈环的两个判决说的是程序声明的环，却没有人拿声明的环去问它（2026-09-17）
 
