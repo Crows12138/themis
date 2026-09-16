@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20761 passed / 518 skipped, warning-clean
+20794 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,40 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #682 结构性拒答说「图里没有这个名字」，是一句关于程序的话，却被登记成数据的事（2026-09-16）
+
+**现象。** 声明余项成员半边的最后一条：`needs_investigation:effect:none#2beaf3` 的 `data_gap_report.gaps.[].describes.[].words.why.words.part.token`（`query_part` `longitudinal_spec`），同一行还声明了 `why.said.atom`。这条拒答说「纵向 spec 点名了 `NOPE`，而图里没有它」。这句话在信封上有四份：`missing_information`、`investigation_requests` 的 item 与 note、报告里的句子。按读诚实答案的门集量：
+- report 那份 part 单独换成另外 5 个词，5/5 放行；
+- 四份一起换 part，5/5 放行；report 那份不动、外面三份一起换，也放行；
+- 四份一起把 atom 换成图里有的 `L0`、`Y`，或者谁都没写过的名字，全部放行，连带 `missing_information.name` 一起改也放行。
+
+gate 只声明了 report 那一份，因为外面的拷贝单独改会被「拷贝互相一致」挡住。
+
+**根因。** `refusal_rules.SETTLED_BY` 按 GapKind 登记每类缺口的主张由谁判定，只有记成「程序判定」的 kind 才会进入「欠一个证人」的清单（`UNWITNESSED`，由测试钉住）。`MISSING_STRUCTURAL_INPUT` 被记成「数据或运行判定」，可它的 9 个 species 说的全是图、查询或声明：名字图里没有或有多个节点、given 违反后门、中介不在有向路径上、路径系数没声明、条件事件在任何模型里概率为零、联合干预配中介或迁移、处理向量重复原子。于是这一整类主张既不在已有证人里，也不在钉住的待证清单里，信封上剩下的只有拷贝之间互押相等（教训 76）。
+
+**为什么是根因不是表象。** 表象修法是在 report 那份词上加一条「part 必须等于 `missing_information` 那份」。那只是多一份互押的拷贝：四份一起改照样放行，atom 改成图里有的名字也照样放行，其余 7 个 species 也仍然隐形。登记错了，这笔债就看不见；登记对了，它才出现在钉住的清单上，才能逐个还。
+
+**结构。**
+- `SETTLED_BY[MISSING_STRUCTURAL_INPUT]` 改为 `THE_PROGRAM`。
+- **按 species 证**：`_WITNESSES` 表给两个 species 各配一个证人。它们的事实本身就装着整个主张：一个名字、写它的那一部分程序、图里有几个节点是它。
+  - `atom_not_in_graph`：那一部分没写这个名字，或者图里有它，都拒。
+  - `name_holds_several_nodes`：那一部分没写，或者图里只有一个节点、没有节点，或者 `atoms` 列的不是它全部的节点，都拒。
+  - `_what_a_part_writes` 按各部分自己的写法读：纵向 spec 写的是列名，名字就是谓词，对应它的每个节点；查询写的是原子，名字就是原子标签，对应那个原子或者什么也不对应。`query` 这个词对任何问题都成立（每个问题都是查询）；`causation_query` 等只对那一种问题成立，别的问题下这部分什么也没写。
+  - 按证伪者的原则往接受一侧偏：查询里任何字段出现过的原子都算写过。
+- 证人挂在 `verify_species_claims` 已有的「走遍每一份拷贝」遍历上，每份拷贝单独对程序押，不经过别的拷贝。`verify_answer_claims`、`verify`、`verify_refusal` 三道门都会问到。
+- **账目下到 species**：`UNWITNESSED` 里的 kind，只要还有 species 没有证人（或者根本没有 species）就留在清单上；新增 `UNWITNESSED_SPECIES` 列出这些 kind 下还没人读的 species（11 个，其中本 kind 7 个）。两者都由测试钉住。`_bind_witnesses` 在 import 时要求：证人只能给程序判定的 kind，并且 `QueryPart` 的每个词都有读法。
+
+**测量。**
+- **诚实一侧**：语料里唯一带这两个 species 的行；一个 mediator 不在图里的效应查询（part 为 `query`，经 `themis.run` 可达，其余查询部分在输入层就被 `_check_query_atoms_in_V` 拒了）；`test_a_name_a_strategy_declares_is_one_node.py` 的 4 个时间展开程序（`name_holds_several_nodes`）。在三道门上全部接受。
+- **伪造一侧**（每份拷贝一起改）：part 30、atom 24、atoms 4，共 58 处，改前全部放行，改后全部拒。另外，每份拷贝单独改后，在只问程序判定主张的 `verify_refusal` 上逐份被拒。
+- 声明余项 **1887→1885**，**成员半边清零**；#2beaf3 只剩 `missing_information.[].name`，它属于约 30 行的 name 家族，是另一条前沿。架构图不变（先 diff 过）。
+
+**第一遍全量 1 失败 + 1 个文件收集报错，修后重跑。**
+- `test_an_unidentifiable_verdict_is_the_one_its_question_reaches.py` 直接读 `_species_written`，把它当作「这份答案写了哪些不可识别 species」。这个遍历现在要为两张表服务，每份拷贝产出三元组，范围也变成了两张表判定的全部 species；那个测试原本依赖的是「遍历的范围恰好等于一个 kind」，这件事从没写明过。只改解包会悄悄改掉测试的含义（#2beaf3 会被算进不可识别拒答行）；拆回两个遍历，又会让同一个问题（species 写在哪儿）走两遍。所以仍然只保留一个遍历，测试按它自己声明的 `KIND` 过滤。
+- `test_the_remainder_is_counted_rather_than_described`：`said` 叶子逐片加 `_forged` 后过门，拒 2090→2091、放 188→187。多出来的那一片经探针核实，正是 #2beaf3 的 `why.said.atom`（`NOPE_forged`），由新证人拒掉。计数和叙事一起更新：引号里的词不作为名字押，而是押到「gap 说写了它的那部分程序」上。
+
+**账。** 新增 33 个测试（新文件 32：诚实 6、part 6、图里有的名字 6、谁都没写的名字 6、每份拷贝单独 6、`atoms` 少一个 1、登记与每个 part 都有读法 1；`test_a_refusal_is_a_claim_about_the_program.py` 加 species 清单 1）。`UNWITNESSED` 钉子加入 `missing_structural_input`。基线 20761→**20794**。
 
 ### #681 一个洞走哪一半都是同一个事实，人群洞读的是它自己那个角色（2026-09-16）
 

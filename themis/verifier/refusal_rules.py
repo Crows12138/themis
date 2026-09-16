@@ -38,7 +38,10 @@ the bottom of this module is total over the vocabulary — a kind added
 without a classification does not import. Of the program-settled kinds,
 those that already have a witness search live in ``_REFUTERS``; the rest
 are named by a test rather than by a comment, so they leave that list only
-by being closed.
+by being closed. A kind whose species claim different things is witnessed
+species by species, in ``_WITNESSES``, and stays on that list while any
+species of it has no witness; which species those are is named the same
+way.
 
 **Independence pin:** this module MUST NOT import from ``themis.output``
 or ``themis.runtime``. It re-derives identification from the graph using
@@ -55,13 +58,15 @@ from dataclasses import dataclass
 
 import networkx as nx
 
-from ..gaps import NEEDED, GapKind, Need
+from ..gaps import NEEDED, GapKind, Need, QueryPart
 from ..types import (
     Atom, CausationQuery, CounterfactualConjunctionQuery, CounterfactualQuery,
     EffectQuery, IdentifyQuery, ProximalEffectQuery, Query,
+    SCMCounterfactualQuery,
 )
 from .errors import VerificationError
 from .rules import (
+    _atom_label_verifier,
     _check_d_separation,
     _graph_minus_x_outgoing,
     _verifier_backdoor_holds,
@@ -439,12 +444,17 @@ SETTLED_BY: dict[GapKind, Settles] = {
     GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: _P,
     GapKind.DICHOTOMIZED_CONTINUOUS_MEASURE: _P,
     GapKind.GRAPH_THETA_INDEPENDENCE_MISMATCH: _P,
+    # Every species of this one says a question or a declaration cannot be
+    # run as written: a name the graph lacks or holds twice, a mediator off
+    # the directed paths, a coefficient nobody declared, an event no model
+    # the graph admits can have. Filed with the data, it was on no list of
+    # claims owed a witness.
+    GapKind.MISSING_STRUCTURAL_INPUT: _P,
     # --- claims the frame or the run settles ---------------------------------
     GapKind.MISSING_DISTRIBUTION: _D,
     GapKind.MISSING_POPULATION_DISTRIBUTION: _D,
     GapKind.MISSING_ASSUMPTION: _D,
     GapKind.MISSING_UNIT_OBSERVATION: _D,
-    GapKind.MISSING_STRUCTURAL_INPUT: _D,
     GapKind.MISSING_MEDIATOR_DATA: _D,
     GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN: _D,
     GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN: _D,
@@ -498,14 +508,6 @@ def _bind() -> None:
 
 
 _bind()
-
-
-#: Program-settled kinds this door cannot yet exhibit a witness against.
-#: Computed rather than listed, so the day one is closed the set changes on
-#: its own and the test that pins it says which.
-UNWITNESSED: frozenset[GapKind] = frozenset(
-    k for k, s in SETTLED_BY.items()
-    if s is THE_PROGRAM and k not in _REFUTERS)
 
 
 # ===================================================== which verdict a species is
@@ -703,7 +705,6 @@ _ANSWERS: dict[Need, tuple[_Condition, ...]] = {
     Need.NO_BACKDOOR_OR_FRONTDOOR: (
         _asks_one_plain_effect, _no_latent_confounding),
 }
-_SPECIES = {str(member): member for member in _ANSWERS}
 
 
 def _bind_species() -> None:
@@ -721,16 +722,186 @@ def _bind_species() -> None:
 _bind_species()
 
 
-def _species_written(node: object, where: str = "") -> Iterator[tuple[str, Need]]:
-    """Every copy of a species these rows answer for, and where it sits: a
-    ``need`` field, or a statement in the species' own vocabulary."""
+# ===================================================== what a structural species names
+#
+# The other kind the program settles, and it settles it species by species:
+# each says a question or a declaration cannot be run as written, and each
+# for a different reason. Two carry the whole of their claim in their own
+# facts -- a name, the part of the program that writes it, and whether the
+# graph has no node of it or several -- so they are asked of the graph and
+# of that part at every copy, which is where each reader of one reads it:
+# the ask a caller fills, the note summing the asks up, the sentence in the
+# report. Held to each other and to nothing else, the copies agreed on a
+# part that writes no such name and on a name the graph holds.
+
+
+def _atoms_in(node: object) -> Iterator[Atom]:
+    """Every atom a question writes, in whichever field it writes it."""
+    if isinstance(node, Atom):
+        yield node
+    elif dataclasses.is_dataclass(node) and not isinstance(node, type):
+        for field in dataclasses.fields(node):
+            yield from _atoms_in(getattr(node, field.name))
+    elif isinstance(node, (tuple, list, frozenset, set)):
+        for item in node:
+            yield from _atoms_in(item)
+
+
+#: The question a part of the program is, where the part is the query. The
+#: plain word is true of every question, each being a query; the others name
+#: a kind of question and are true of that kind alone.
+_THE_QUESTION_A_PART_IS: dict[str, tuple[type, ...] | None] = {
+    str(QueryPart.QUERY): None,
+    str(QueryPart.CAUSATION_QUERY): (CausationQuery,),
+    str(QueryPart.SCM_COUNTERFACTUAL_QUERY): (SCMCounterfactualQuery,),
+    str(QueryPart.COUNTERFACTUAL_EVENT): (CounterfactualConjunctionQuery,
+                                          CounterfactualQuery),
+    str(QueryPart.PROXIMAL_ROLE): (ProximalEffectQuery,),
+}
+
+
+def _what_a_part_writes(part: str,
+                        facts: RefusalFacts) -> dict[str, list[Atom]] | None:
+    """Every name a part of the program writes, and the nodes each one is.
+
+    Spelt as that part spells it. A declared strategy names columns, so its
+    name is a predicate and is every node of it; a question writes atoms,
+    so its name is an atom's label and is that atom or nothing. A part the
+    program does not have writes nothing. ``None`` for a word that is no
+    part at all, which is the sentence rule's to refuse.
+    """
+    graph = facts.graph
+    if part == str(QueryPart.LONGITUDINAL_SPEC):
+        spec = facts.longitudinal
+        if not isinstance(spec, Mapping):
+            return {}
+        names = (*(spec.get("treatments") or ()), spec.get("outcome"),
+                 *(name for block in spec.get("confounders_by_time") or ()
+                   for name in block))
+        return {name: [node for node in graph.nodes if node.predicate == name]
+                for name in names if isinstance(name, str)}
+    if part not in _THE_QUESTION_A_PART_IS:
+        return None
+    kinds = _THE_QUESTION_A_PART_IS[part]
+    if kinds is not None and not isinstance(facts.query, kinds):
+        return {}
+    return {_atom_label_verifier(atom): [atom] if atom in graph else []
+            for atom in _atoms_in(facts.query)}
+
+
+def _the_name_and_its_nodes(
+    statement: Mapping, facts: RefusalFacts,
+) -> tuple[str, str, list[Atom] | None] | None:
+    """The part a statement says writes a name, the name, and the nodes of
+    the graph that name is -- ``None`` for the nodes where that part writes
+    no such name. ``None`` altogether where the statement does not say both.
+    """
+    part = ((statement.get("words") or {}).get("part") or {}).get("token")
+    name = (statement.get("said") or {}).get("atom")
+    if not isinstance(part, str) or not isinstance(name, str):
+        return None
+    written = _what_a_part_writes(part, facts)
+    if written is None:
+        return None
+    return part, name, written.get(name)
+
+
+def _no_node_is_it(statement: Mapping, facts: RefusalFacts) -> str | None:
+    """"The graph has no node of this name" -- refuted by the part not
+    writing the name, or by a node that is it."""
+    found = _the_name_and_its_nodes(statement, facts)
+    if found is None:
+        return None
+    part, name, nodes = found
+    if nodes is None:
+        return f"the {part} writes no {name!r}"
+    if nodes:
+        labels = ", ".join(sorted(_atom_label_verifier(n) for n in nodes))
+        return f"the graph holds {name!r}, as {labels}"
+    return None
+
+
+def _several_nodes_are_it(statement: Mapping,
+                          facts: RefusalFacts) -> str | None:
+    """"The graph holds this name at several nodes" -- refuted by the part
+    not writing the name, by one node or none, or by nodes other than the
+    ones the statement lists."""
+    found = _the_name_and_its_nodes(statement, facts)
+    if found is None:
+        return None
+    part, name, nodes = found
+    if nodes is None:
+        return f"the {part} writes no {name!r}"
+    if len(nodes) < 2:
+        return (f"the graph holds {name!r} at {len(nodes)} "
+                f"node{'' if len(nodes) == 1 else 's'}")
+    labels = ", ".join(sorted(_atom_label_verifier(n) for n in nodes))
+    if (statement.get("said") or {}).get("atoms") != labels:
+        return f"the nodes {name!r} is are {labels}"
+    return None
+
+
+#: The species whose claim their own facts carry, and what exhibits each
+#: one false.
+_WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
+    Need.ATOM_NOT_IN_GRAPH: _no_node_is_it,
+    Need.NAME_HOLDS_SEVERAL_NODES: _several_nodes_are_it,
+}
+
+
+def _bind_witnesses() -> None:
+    """A witness is for a claim about the program, and reads every part."""
+    misfiled = sorted(str(m) for m in _WITNESSES
+                      if SETTLED_BY.get(m.gap) is not THE_PROGRAM)
+    unread = sorted({str(m) for m in QueryPart}
+                    - set(_THE_QUESTION_A_PART_IS)
+                    - {str(QueryPart.LONGITUDINAL_SPEC)})
+    if misfiled or unread:
+        raise RuntimeError(
+            f"witnesses bound for {misfiled}, whose kind is not the "
+            f"program's to settle; parts {unread} that no witness reads, so "
+            f"a name said to be written there is taken on its word")
+
+
+_bind_witnesses()
+
+
+def _witnessed_species_by_species(kind: GapKind) -> bool:
+    species = {member for member in Need if member.gap is kind}
+    return bool(species) and species <= set(_WITNESSES)
+
+
+#: Program-settled kinds this door cannot yet exhibit a witness against.
+#: Computed rather than listed, so the day one is closed the set changes on
+#: its own and the test that pins it says which. A kind witnessed species by
+#: species leaves it when every species of it has a witness.
+UNWITNESSED: frozenset[GapKind] = frozenset(
+    k for k, s in SETTLED_BY.items()
+    if s is THE_PROGRAM and k not in _REFUTERS
+    and not _witnessed_species_by_species(k))
+
+#: The species of those kinds that no witness reads, named for the same
+#: reason.
+UNWITNESSED_SPECIES: frozenset[Need] = frozenset(
+    member for member in Need
+    if member.gap in UNWITNESSED and member not in _WITNESSES)
+
+_SPECIES = {str(member): member for member in (*_ANSWERS, *_WITNESSES)}
+
+
+def _species_written(
+    node: object, where: str = "",
+) -> Iterator[tuple[str, Need, Mapping]]:
+    """Every copy of a species these rows answer for, where it sits, and
+    what spells it: a ``need`` field beside the facts it has, or a
+    statement in the species' own vocabulary."""
     if isinstance(node, Mapping):
         for key, value in node.items():
             here = f"{where}.{key}" if where else str(key)
             spelled = (key == "need" or (
                 key == "token" and node.get("vocabulary") == NEEDED))
             if spelled and isinstance(value, str) and value in _SPECIES:
-                yield here, _SPECIES[value]
+                yield here, _SPECIES[value], node
             else:
                 yield from _species_written(value, here)
     elif isinstance(node, list):
@@ -777,19 +948,34 @@ def verify_species_claims(result: Mapping, facts: RefusalFacts) -> None:
     what some reader acts on: the ask a caller fills, the report's sentence
     and the routes it offers. Raises :class:`VerificationError` naming the
     copy and what the program says instead; silent on every other species.
+
+    And a species whose claim its own facts carry is held to the program at
+    each copy the same way, on its own rather than through the others: the
+    name it says, the part it says writes that name, and the nodes of the
+    graph the name is.
     """
     if not isinstance(result, Mapping):
         return
     judged: dict[Need, str | None] = {}
-    for where, species in _species_written(result):
-        if species not in judged:
-            judged[species] = next(
-                (said for said in (holds(facts) for holds in _ANSWERS[species])
-                 if said is not None), None)
-        said = judged[species]
-        if said is not None:
+    for where, species, holder in _species_written(result):
+        if species in _ANSWERS:
+            if species not in judged:
+                judged[species] = next(
+                    (said for said in (holds(facts)
+                                       for holds in _ANSWERS[species])
+                     if said is not None), None)
+            said = judged[species]
+            if said is not None:
+                raise VerificationError(
+                    f"{where} says the verdict is {str(species)!r}, and "
+                    f"{said}. A species is which verdict an answer reached, "
+                    f"and this one is not reached from this question -- a "
+                    f"reader sent after its remedy is sent after another "
+                    f"problem's")
+        witness = _WITNESSES.get(species)
+        refuted = witness(holder, facts) if witness is not None else None
+        if refuted is not None:
             raise VerificationError(
-                f"{where} says the verdict is {str(species)!r}, and {said}. A "
-                f"species is which verdict an answer reached, and this one is "
-                f"not reached from this question -- a reader sent after its "
-                f"remedy is sent after another problem's")
+                f"{where} says {str(species)!r}, and {refuted}. It tells a "
+                f"reader which declaration to change, and this one sends "
+                f"them to change a program other than the one they wrote")

@@ -456,6 +456,11 @@ def test_the_remainder_is_counted_rather_than_described():
     And 2 more when the joint general-ID answer was refreshed: the gap its
     producer had grown about the second treatment's definition names the
     variable and the fields it is missing.
+
+    And 1 more when a QUOTED word was held after all -- not as a name, which
+    the paragraph above still rules out, but against the part of the
+    program the gap says writes it: the confounder a declared strategy
+    names and the graph lacks.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -470,7 +475,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2090, 188), (refused, accepted)
+    assert (refused, accepted) == (2091, 187), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

@@ -48,7 +48,10 @@ SPECIES = sorted(str(m) for m in gaps.Need if m.gap is KIND)
 
 
 def _written(result):
-    return sorted({str(s) for _, s in refusal_rules._species_written(result)})
+    """The species of this kind an answer writes. The walk yields every
+    species a table in that module judges, so which kind is asked here."""
+    return sorted({str(s) for _, s, _ in refusal_rules._species_written(result)
+                   if s.gap is KIND})
 
 
 CARRIERS = {name: _written(pair["result"]) for name, pair in SHAPES.items()

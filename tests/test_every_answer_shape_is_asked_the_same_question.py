@@ -1671,9 +1671,17 @@ def test_the_declared_remainder_is_what_it_is():
     rule read a population hole against every population the program
     names, so a source written as the target was one of them too. What
     is left of the member half is one entry over one leaf.
+
+    Then 2, and the member half with them: which part of the program a
+    structural refusal says writes a name the graph lacks, and the name.
+    The kind was filed with the claims the data settles, so no list said
+    it owed a witness, and its four copies on an answer were held to each
+    other and nothing else -- bent together, a part that writes no such
+    name and a name the graph holds both passed. Both are asked of the
+    program now, at every copy.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1887, total
+    assert total == 1885, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
