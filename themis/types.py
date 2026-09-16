@@ -1052,6 +1052,33 @@ def atoms_held_by(query: Query) -> tuple[Atom, ...]:
     return tuple(seen)
 
 
+def atoms_the_graph_is_asked_about(query: Query) -> tuple[Atom, ...]:
+    """Every atom a question needs the working graph to hold as a node.
+
+    Every atom it holds, whichever field holds it, except where the
+    question is a probability: that is a lookup in the declared
+    distribution, asks the graph nothing, and may name atoms no cause
+    statement mentions.
+
+    One reading for the three places that ask it. The projection admits a
+    declared atom with no edge as a node when a question names it, the
+    validator refuses a program whose question names an atom that is no
+    node, and each dispatcher refuses the same before it tries a route.
+    Each had written its own list of which fields hold one. None listed
+    the mediator block, the projection and the validator left out the
+    mediator as well, and the projection left out the causation kind. The
+    framing check reads the walk, so a declared mediator in no edge was a
+    variable an answer told its reader to define and a node the graph did
+    not have: the verifier, reading this problem's names off the graph,
+    refused the honest answer. And an undeclared one got past the
+    validator that refuses an undeclared treatment, to be refused further
+    on as a different fault.
+    """
+    if isinstance(query, ProbabilityQuery):
+        return ()
+    return atoms_held_by(query)
+
+
 @dataclass(frozen=True)
 class QueryStatement:
     id: str

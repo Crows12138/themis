@@ -10,6 +10,13 @@ others and to nothing else. Measured with every copy bent together: the part
 rewritten to any other part, the name to one the graph holds or to one no
 part writes, the nodes to fewer, and every door that reads the answer took
 all of them.
+
+A question naming an atom the graph lacks is not among the programs below,
+though the witness reads that part too. The one such answer ``run`` gave was
+reached through a mediator nobody declared, the field the validator's own
+list of a question's atoms had left out; that list is gone, and the program
+is refused at the input the way an undeclared treatment always was (see
+``test_the_graph_is_asked_about_every_variable_a_question_names.py``).
 """
 from __future__ import annotations
 
@@ -36,22 +43,10 @@ _STORED = json.loads((FIXTURES / "answer_shapes.json").read_text(
     encoding="utf-8"))["needs_investigation:effect:none#2beaf3"]["program"]
 
 
-def _a_mediator_the_graph_lacks():
-    program = copy.deepcopy(_STORED)
-    program["options"].pop("longitudinal")
-    query = next(s for s in program["statements"]
-                 if s.get("kind") == "query")["query"]
-    query["mediator"] = {"predicate": "NOPE",
-                         "args": [{"type": "const", "name": "subj"}]}
-    return program
-
-
-#: A confounder a declared strategy names and the graph lacks; a mediator a
-#: question names and the graph lacks; and names a strategy declares that the
-#: unrolled graph holds at more than one step.
+#: A confounder a declared strategy names and the graph lacks, and names a
+#: strategy declares that the unrolled graph holds at more than one step.
 PROGRAMS = {
     "a_strategy_names_a_confounder_the_graph_lacks": _STORED,
-    "a_question_names_a_mediator_the_graph_lacks": _a_mediator_the_graph_lacks(),
     **{f"a_strategy_unrolled_{name}": program
        for name, program in UNROLLED.items()},
 }
@@ -59,7 +54,6 @@ PROGRAMS = {
 #: For each, a name its part writes that the graph holds at one node.
 _HELD_ONCE = {
     "a_strategy_names_a_confounder_the_graph_lacks": "L0",
-    "a_question_names_a_mediator_the_graph_lacks": "Y(subj)",
     **{f"a_strategy_unrolled_{name}": "Y" for name in UNROLLED},
 }
 

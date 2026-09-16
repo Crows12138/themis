@@ -28,18 +28,14 @@ from __future__ import annotations
 import networkx as nx
 
 from ..types import (
-    AssocQuery,
     Atom,
     BidirectedStatement,
     FeedbackLoop,
-    CauseQuery,
     CauseStatement,
-    CounterfactualQuery,
-    EffectQuery,
-    IdentifyQuery,
     QueryStatement,
     Statement,
     VariableDeclaration,
+    atoms_the_graph_is_asked_about,
 )
 
 
@@ -77,48 +73,6 @@ def atom_label(atom: Atom) -> str:
     return f"{base}@t" if t == 0 else f"{base}@t{t:+d}"
 
 
-def _query_atoms(q) -> tuple[Atom, ...]:
-    """Pull structural atoms from a query (mirrors semantic_validator)."""
-    if isinstance(q, CauseQuery):
-        return (q.from_atom, q.to_atom)
-    if isinstance(q, AssocQuery):
-        return (q.left, q.right, *q.given)
-    if isinstance(q, IdentifyQuery):
-        return (q.target, q.intervention.atom, *q.given)
-    if isinstance(q, EffectQuery):
-        return (
-            q.target.atom,
-            q.intervention.atom,
-            *(iv.atom for iv in q.extra_interventions),
-            *(g.atom for g in q.given),
-        )
-    if isinstance(q, CounterfactualQuery):
-        return (
-            q.observed.atom,
-            q.counterfactual_intervention.atom,
-            q.counterfactual_target.atom,
-        )
-    from ..types import (
-        CounterfactualConjunctionQuery,
-        ProximalEffectQuery,
-        SCMCounterfactualQuery,
-    )
-    if isinstance(q, SCMCounterfactualQuery):
-        return (q.intervention.atom, q.target)
-    if isinstance(q, CounterfactualConjunctionQuery):
-        return tuple(
-            a
-            for e in (*q.events, *q.condition)
-            for a in (e.variable, *(s.atom for s in e.subscript))
-        )
-    if isinstance(q, ProximalEffectQuery):
-        return (
-            q.treatment, q.outcome, q.latent,
-            *q.treatment_proxy, *q.outcome_proxy, *q.covariates,
-        )
-    return ()
-
-
 def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
     """Build a networkx.DiGraph from a ground statement list.
 
@@ -126,8 +80,9 @@ def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
     Edge attribute ``source`` points to the CauseStatement that
     produced it.
 
-    Phase 4 relaxation (2026-04-25): atoms that appear in query
-    statements OR bidirected statements but are not touched by any
+    Phase 4 relaxation (2026-04-25): atoms a question asks the graph
+    about (:func:`themis.types.atoms_the_graph_is_asked_about`) OR that
+    appear in bidirected statements but are not touched by any
     cause edge are added as **isolated nodes** in the graph, IF
     their predicate has a ``VariableDeclaration``. This makes
     refusal-only narratives (e.g. selection-bias case where A2
@@ -166,7 +121,8 @@ def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
             referenced_atoms.append(stmt.left)
             referenced_atoms.append(stmt.right)
         elif isinstance(stmt, QueryStatement):
-            referenced_atoms.extend(_query_atoms(stmt.query))
+            referenced_atoms.extend(
+                atoms_the_graph_is_asked_about(stmt.query))
 
     for atom in referenced_atoms:
         if atom in graph:

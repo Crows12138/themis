@@ -90,6 +90,7 @@ from ..types import (
     StepRef,
     StructuralResult,
     ValuedAtom,
+    atoms_the_graph_is_asked_about,
 )
 from . import (
     confidence_calc,
@@ -316,7 +317,8 @@ def _dispatch_identify(
     y = q.target
 
     missing_atoms = [
-        atom for atom in (x, y, *q.given) if atom not in graph
+        atom for atom in atoms_the_graph_is_asked_about(q)
+        if atom not in graph
     ]
     if missing_atoms:
         return QueryResult(
@@ -3036,7 +3038,8 @@ def _dispatch_causation(
     y_atom = q.effect
 
     # 1. Both atoms must be in G(M).
-    missing_atoms = [a for a in (x_atom, y_atom) if a not in graph]
+    missing_atoms = [a for a in atoms_the_graph_is_asked_about(q)
+                     if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -3286,7 +3289,8 @@ def _dispatch_scm_counterfactual(
     x_atom = q.intervention.atom
     y_atom = q.target
 
-    missing_atoms = [a for a in (x_atom, y_atom) if a not in graph]
+    missing_atoms = [a for a in atoms_the_graph_is_asked_about(q)
+                     if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -3459,12 +3463,8 @@ def _dispatch_counterfactual_conjunction(
 
     q: CounterfactualConjunctionQuery = stmt.query  # type: ignore[assignment]
 
-    referenced = [
-        a
-        for e in (*q.events, *q.condition)
-        for a in (e.variable, *(s.atom for s in e.subscript))
-    ]
-    missing_atoms = [a for a in referenced if a not in graph]
+    missing_atoms = [a for a in atoms_the_graph_is_asked_about(q)
+                     if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -3583,11 +3583,8 @@ def _dispatch_proximal_effect(
 
     q: ProximalEffectQuery = stmt.query  # type: ignore[assignment]
 
-    referenced = [
-        q.treatment, q.outcome, q.latent,
-        *q.treatment_proxy, *q.outcome_proxy, *q.covariates,
-    ]
-    missing_atoms = [a for a in referenced if a not in graph]
+    missing_atoms = [a for a in atoms_the_graph_is_asked_about(q)
+                     if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -5490,14 +5487,8 @@ def _dispatch_effect(
     # Not a strategy: a query naming an atom outside V has no estimand for
     # anyone to compete over, so this is a precondition on the query rather
     # than a row that could lose to another.
-    missing_atoms = [
-        a for a in (
-            facts.x_atom, facts.y_atom, *facts.extra_atoms, *facts.given_atoms,
-        )
-        if a not in graph
-    ]
-    if q.mediator is not None and q.mediator not in graph:
-        missing_atoms.append(q.mediator)
+    missing_atoms = [a for a in atoms_the_graph_is_asked_about(q)
+                     if a not in graph]
     if missing_atoms:
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,

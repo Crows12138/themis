@@ -94,6 +94,7 @@ from ..types import (
     Censoring,
     VariableDeclaration,
     VarTerm,
+    atoms_the_graph_is_asked_about,
 )
 
 SLICE_1_CHECKS: frozenset[str] = frozenset(
@@ -1659,53 +1660,9 @@ def _check_probability_parents(
                                 parents=parent_names)
 
 
-def _query_structural_atoms(q) -> tuple[Atom, ...]:
-    """Return the atoms a structural query references.
-
-    Probability queries are intentionally excluded: they are
-    distributional lookups that may reference atoms living only in
-    Theta, not in the causal DAG.
-    """
-    if isinstance(q, CauseQuery):
-        return (q.from_atom, q.to_atom)
-    if isinstance(q, AssocQuery):
-        return (q.left, q.right, *q.given)
-    if isinstance(q, IdentifyQuery):
-        return (q.target, q.intervention.atom, *q.given)
-    if isinstance(q, EffectQuery):
-        return (
-            q.target.atom,
-            q.intervention.atom,
-            *(iv.atom for iv in q.extra_interventions),
-            *(g.atom for g in q.given),
-        )
-    if isinstance(q, CounterfactualQuery):
-        return (
-            q.observed.atom,
-            q.counterfactual_intervention.atom,
-            q.counterfactual_target.atom,
-        )
-    if isinstance(q, CausationQuery):
-        return (q.cause, q.effect)
-    if isinstance(q, SCMCounterfactualQuery):
-        return (q.intervention.atom, q.target)
-    if isinstance(q, CounterfactualConjunctionQuery):
-        return tuple(
-            a
-            for e in (*q.events, *q.condition)
-            for a in (e.variable, *(s.atom for s in e.subscript))
-        )
-    if isinstance(q, ProximalEffectQuery):
-        return (
-            q.treatment, q.outcome, q.latent,
-            *q.treatment_proxy, *q.outcome_proxy, *q.covariates,
-        )
-    return ()
-
-
 def _check_query_atoms_in_V(ground_statements, graph) -> None:
-    """Every atom referenced by a cause / assoc / identify / effect
-    query must be a node in the instantiated working graph G(M).
+    """Every atom a question asks the graph about must be a node in the
+    instantiated working graph G(M).
 
     Silent False for undeclared query atoms is the same class of bug
     as patterned-query-answered-False caught by ``ground_queries`` in
@@ -1715,7 +1672,7 @@ def _check_query_atoms_in_V(ground_statements, graph) -> None:
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, QueryStatement):
             continue
-        atoms = _query_structural_atoms(stmt.query)
+        atoms = atoms_the_graph_is_asked_about(stmt.query)
         if not atoms:
             continue
         missing = [a for a in atoms if a not in graph]

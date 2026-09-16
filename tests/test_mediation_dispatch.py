@@ -6,7 +6,10 @@ STRUCTURALLY_SOLVED with ``extensions.mediation_decomposition``.
 """
 from __future__ import annotations
 
+import pytest
+
 import themis
+from themis.input.semantic_validator import Malformed, SemanticError
 
 
 def _atom(pred):
@@ -185,7 +188,14 @@ def test_invalid_mediator_returns_needs_investigation():
 
 
 def test_missing_mediator_atom_reports_structure_error():
-    """Mediator references an undeclared atom."""
+    """Mediator references an undeclared atom.
+
+    Refused at the input, naming the atom, which is where an undeclared
+    treatment or conditioning atom is refused. It used to come back as an
+    answer asking for the atom, and only because the validator's own list
+    of a question's atoms left the mediator out, so the dispatcher asked
+    instead.
+    """
     ast = _program([
         {"kind": "variable", "predicate": "x", "domain": [True, False]},
         {"kind": "variable", "predicate": "y", "domain": [True, False]},
@@ -193,11 +203,10 @@ def test_missing_mediator_atom_reports_structure_error():
         _effect_query_with_mediator("x", "y", "undeclared_mediator"),
     ])
 
-    out = themis.run(ast)
-    result = out["results"][0]
-    assert result["status"] == "needs_investigation"
-    missing_names = [m["name"] for m in result["missing_information"]]
-    assert any("undeclared_mediator" in n for n in missing_names)
+    with pytest.raises(SemanticError) as raised:
+        themis.run(ast)
+    assert raised.value.species is Malformed.QUERY_ATOM_NOT_IN_GRAPH
+    assert raised.value.details["atoms"] == ["undeclared_mediator"]
 
 
 # ================================================= observed M-Y confounder

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20806 passed / 518 skipped, warning-clean
+20824 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,39 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #684 问题点了哪些变量，三处各写一张清单：声明过却不在边上的中介，被验证器当成这个问题没有的名字（2026-09-17）
+
+**现象。** 给 `missing_structural_input` 剩下的 7 个 species 配证人之前，先越过语料演练诚实答案，量出一处误拒：效应查询的 `mediator` 或 `mediators` 里写了一个已声明、但不在任何边上的变量，诚实答案会被 `verify_answer_claims` 拒掉，理由是「a gap says it is about 'm', which this problem does not name」。造了 4 个程序（单个中介；不给 domain 的单个中介；中介块里一个不在边上；中介块整个不在边上），改前全被拒。同时量到两处相关的不一致：
+- 中介**未声明**、也不在边上时：单个中介越过输入层，由 dispatcher 答 `atom_not_in_graph`；中介块成员答 `mediator_set_off_the_directed_paths`，这个诚实答案又被验证器的 mediation 规则以「names 'm2(me)', which is not a node」拒掉。同样未声明、不在边上的处理变量，在输入层就被 `_check_query_atoms_in_V` 拒。
+- causation 问题的 cause 或 effect 已声明、不在边上时，输入层报 `query_atom_not_in_graph`；其他问题遇到同样情形，投影会把它补成孤立节点，正常作答。
+
+语料里没有一行碰到这些情形。
+
+**根因。** 「一个问题点了哪些原子、这些原子必须是 G(M) 的节点」这一问有三处在问，每处各写一张「哪类问题的哪些字段装着原子」的清单：
+- `graph_projection._query_atoms`（注释写着 mirrors semantic_validator）：问题点到、已声明、不在边上的原子补成孤立节点；
+- `semantic_validator._query_structural_atoms`：点到的原子不是节点就拒；
+- 各 dispatcher 的前置检查（identify、causation、scm、conjunction、proximal、effect 各一份）。
+
+三处都没列 `mediators`；投影和校验还漏了 `mediator`（effect dispatcher 自己补了一行）；投影的清单整个没有 causation。另一边，framing 检查早已改读 `types.atoms_held_by` 的遍历（那次的 docstring 就写着手写清单漏了 mediator），所以它会为 `m` 写一条 `ambiguous_variable_definition`，而图里没有 `m`；验证器的名字规则按图节点、θ、双向边认这个问题有哪些名字，于是拒了诚实答案。
+
+**为什么是根因不是表象。** 只给名字规则的名字表加上「声明过的变量」，第一个误拒能消掉，运行时却照旧：单个中介和中介块在同一处境下给两种拒答，未声明的中介照样越过输入层，中介块那条误拒还在，causation 照样和其他问题不一致。上一次只把 framing 这一个读者换成遍历，其余清单继续各自漂移，这次的毛病就是那时留下的。
+
+**结构。**
+- `themis/types.py` 在 `atoms_held_by` 旁定义唯一读法 `atoms_the_graph_is_asked_about(query)`：概率问题查的是声明的分布，不问图，返回空；其余返回 `atoms_held_by`。
+- 投影、输入校验删掉各自的清单，改读它；6 个 dispatcher 的前置检查也改读它。effect 因此把 `mediators` 算进去；另外 5 个原先与遍历一致，现在不再各写一份。
+- 行为变化：已声明、不在边上的中介、中介块成员、causation 的 cause 或 effect 成为孤立节点。单个中介答 `mediator_off_the_directed_paths`，和中介块的 `mediator_set_off_the_directed_paths` 一致；causation 正常进入作答（缺分布）。未声明且不在边上的中介、中介块成员，在输入层按 `query_atom_not_in_graph` 拒，和处理变量一样。
+- #682 的测试里有一个诚实程序「问题点了图里没有的 mediator」，它能以 part `query` 走到 `atom_not_in_graph`，只是因为校验的清单漏了 mediator。修后它在输入层被拒，已从那个测试移出并写明原因。经 `run` 已没有程序能以 part `query` 走到这个 species；证人照样读这一部分，其余行把 part 改成 `query` 的伪造照样被拒。
+
+**测量。**
+- 三张清单与遍历在语料上的差别：投影漏 causation 8、effect 14（中介字段）、probability 3（本就豁免）；校验漏 effect 14。语料 243 个程序经 `run`，换成遍历前后输出逐字节相同，0 个变化。
+- 诚实（语料外）：上面 4 个中介程序改前全拒、改后全收；已声明、不在边上的 causation 改前在输入层报错，改后作答并被接受。
+- 伪造：这些诚实答案里每个装名字的叶子，分别换成问题没有的词，全部被拒。
+- 架构图不变。声明余项不变。
+
+**账。** 新文件 `tests/test_the_graph_is_asked_about_every_variable_a_question_names.py` 23 个测试：6 个字段（中介、中介块成员、causation 的 cause、第二处理、effect 的 given、identify 的 given）上，已声明时是孤立节点并过校验 6、未声明时在输入层按同一 species 拒 6；dispatcher 越过校验时把缺席的中介块成员算作图里没有的原子 1；语料上这个读法等于遍历、概率问题为空 1；4 个诚实程序在两道门和 `verify_refusal` 上都收 4、每个名字叶子换成问题没有的词都拒 4；未声明的中介、中介块成员、第二处理在 `run` 上同样被拒 1。`test_a_name_a_structural_refusal_says_is_the_programs.py` 去掉那一行（5 个参数化测试）。基线 20806→**20824**。
+
+**第一遍全量 1 失败，修后重跑。** `test_mediation_dispatch.py::test_missing_mediator_atom_reports_structure_error` 断言未声明的中介经 `run` 返回 `needs_investigation`、缺失项点名它。它钉住的是校验清单漏掉 mediator 的后果：未声明的处理变量、给定变量一直在输入层拒，只有中介因为不在清单上才走到 dispatcher。为它在唯一读法里给中介开例外，就是把刚删掉的漂移写回去。这个测试要保护的是「读者被告知是哪个中介、名字说对」，输入层的拒答带着 `atoms=['undeclared_mediator']`，照样成立。改为断言输入层按 `query_atom_not_in_graph` 拒并点名它，docstring 写明原因。
 
 ### #683 缺口把变量声明里的话引回给读者，引文没人读，引的也不是原文（2026-09-17）
 
