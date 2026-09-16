@@ -258,8 +258,8 @@ def _audit_feedback_loop(facts: "_RouteFacts") -> None:
     block = facts.carries("feedback_loop")
     if block is not None:
         verify_feedback_loop(
-            block, facts.carries("iv_identification"), facts.feedback,
-            facts.query)
+            block, facts.carries("iv_identification"), facts.graph,
+            facts.feedback, facts.query)
 
 
 def _audit_longitudinal_identification(facts: "_RouteFacts") -> None:

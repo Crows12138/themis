@@ -5878,7 +5878,7 @@ def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
 
 
 def verify_feedback_loop(
-    block: dict, iv_identification: "dict | None", feedback, query,
+    block: dict, iv_identification: "dict | None", graph, feedback, query,
 ) -> None:
     """The reason a reader is given for an answer the DAG did not compute.
 
@@ -5900,8 +5900,10 @@ def verify_feedback_loop(
 
     ``reduction`` says the two-equation system applies, and both of its
     faces are checked. Present, the loop must be exactly between the two
-    ends, since Haavelmo's reduction is what being between them buys.
-    Absent, no instrument may stand beside it — under a loop there is no
+    ends, since Haavelmo's reduction is what being between them buys, and
+    it must be the only declared loop the estimand reaches: a second one
+    puts a third equation under the ratio, and the number is then not the
+    coefficient the answer names. Absent, no instrument may stand beside it — under a loop there is no
     coefficient for an instrument to identify until the pair is read as two
     equations, so an IV answer here without the reduction is an answer
     whose reader was not told the quantity changed.
@@ -5913,6 +5915,7 @@ def verify_feedback_loop(
     """
 
     from .rules import _atom_label_verifier as _label
+    from .rules import declared_loops_reaching
 
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
@@ -5942,6 +5945,15 @@ def verify_feedback_loop(
             _err(f"claims the two-equation reduction while the loop it names "
                  f"runs between {left!r} and {right!r} rather than between "
                  f"the treatment and the outcome")
+        if x is not None and y is not None:
+            reaching = sorted(
+                sorted(_label(a) for a in loop)
+                for loop in declared_loops_reaching(
+                    graph, feedback or frozenset(), x, y))
+            if len(reaching) > 1:
+                _err(f"claims the two-equation reduction while the estimand "
+                     f"reaches {len(reaching)} declared loops, {reaching}; "
+                     f"a second loop puts a third equation under the ratio")
     elif isinstance(iv_identification, dict):
         _err("names no reduction beside an answer that reached an "
              "instrument; under a loop an instrument identifies a "

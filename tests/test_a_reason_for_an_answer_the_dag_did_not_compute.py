@@ -38,10 +38,8 @@ import pandas as pd
 import pytest
 
 import themis
-from themis.input.semantic_validator import validate_program
-from themis.input.syntactic_validator import validate_ast
+from themis.kernel import _refusal_facts
 from themis.runtime.iv_words import Premise
-from themis.types import Atom, ConstTerm, QueryStatement
 from themis.verifier.errors import VerificationError
 from themis.verifier.verify import verify_feedback_loop
 
@@ -50,10 +48,6 @@ BETA, GAMMA, DELTA = 1.5, 0.4, 0.8
 
 def _atom(p):
     return {"predicate": p, "args": [{"type": "const", "name": "u"}]}
-
-
-def _typed(p) -> Atom:
-    return Atom(predicate=p, args=(ConstTerm(name="u"),))
 
 
 def _program(*statements, treatment="x", outcome="y"):
@@ -232,9 +226,6 @@ def test_a_loop_that_reached_no_instrument_carries_no_reduction():
     with pytest.raises(ValueError, match="requires a result with a "):
         themis.verify(program, result)
 
-    parsed = validate_program(validate_ast(copy.deepcopy(program)))
-    query = next(s for s in parsed.statements
-                 if isinstance(s, QueryStatement)).query
+    facts = _refusal_facts(program, "q")
     verify_feedback_loop(
-        block, None,
-        frozenset({frozenset({_typed("x"), _typed("y")})}), query)
+        block, None, facts.graph, facts.feedback, facts.query)

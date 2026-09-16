@@ -1304,6 +1304,25 @@ def _rule_iv_criterion_check(
         )
 
 
+def declared_loops_reaching(graph, declared, x, y) -> frozenset:
+    """The declared loops that can influence ``x`` or ``y``.
+
+    Plain reachability in the graph carrying every declared loop's two
+    edges, and one transcription of it for every claim that rests on which
+    loops an estimand reaches: that a loop withdrew the adjustment routes,
+    and that the one it reaches is the two-equation system.
+    """
+    augmented = graph.copy()
+    for loop in declared:
+        a, b = tuple(loop)
+        augmented.add_edge(a, b)
+        augmented.add_edge(b, a)
+    return frozenset(
+        loop for loop in declared
+        if any(end in (x, y) or {x, y} & nx.descendants(augmented, end)
+               for end in loop))
+
+
 def _rule_feedback_loop_withdraws_adjustment(
     ctx: VerificationContext,
     inputs: dict,
@@ -1355,24 +1374,13 @@ def _rule_feedback_loop_withdraws_adjustment(
             step_index=step_index, rule=rule,
         )
 
-    augmented = graph.copy()
-    for loop in declared:
-        a, b = tuple(loop)
-        for node in (a, b):
-            if node not in augmented:
-                augmented.add_node(node)
-        augmented.add_edge(a, b)
-        augmented.add_edge(b, a)
-    if x not in augmented or y not in augmented:
+    if x not in graph or y not in graph:
         raise RuleCheckFailed(
             f"{rule}: x or y is not in the graph",
             step_index=step_index, rule=rule,
         )
-    reaches = any(
-        end in (x, y) or bool({x, y} & nx.descendants(augmented, end))
-        for end in (left, right) if end in augmented
-    )
-    if not reaches:
+    if frozenset({left, right}) not in declared_loops_reaching(
+            graph, declared, x, y):
         raise RuleCheckFailed(
             f"{rule}: the declared loop between {left.predicate!r} and "
             f"{right.predicate!r} can influence neither {x.predicate!r} "

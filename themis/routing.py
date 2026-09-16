@@ -177,7 +177,8 @@ class StructuralFacts:
 
     @cached_property
     def loop_is_between_treatment_and_outcome(self) -> bool:
-        """Whether the reached loop is exactly the two-equation system.
+        """Whether what the estimand reaches is exactly the two-equation
+        system.
 
         The shape that has a remedy. ``Y = βX + u`` beside ``X = γY + δZ +
         v`` reduces to ``Cov(Z,Y)/Cov(Z,X) = β`` (Haavelmo 1943), so an
@@ -185,11 +186,19 @@ class StructuralFacts:
         equation. That algebra is about TWO equations; a loop elsewhere on
         the causal path is a different system and borrowing the result for
         it would be inventing one.
+
+        So the loop between X and Y is the only loop the estimand reaches,
+        not one of several. With ``C = κY + w`` feeding ``Y = βX + λC + u``
+        the same ratio is ``β/(1-λκ)``, which is not the coefficient the
+        answer names. A second loop on X's side alone can leave the ratio at
+        β; telling those shapes apart is the per-shape algebra that
+        ``loops_reaching_the_estimand`` declines, for the reason it gives.
+        And every reader of "the loop" -- the words, the derivation, the
+        verifier -- reads ``loops_reaching[0]``, which is this loop only
+        when it is the one there is.
         """
-        return any(
-            loop == frozenset({self.x_atom, self.y_atom})
-            for loop in self.loops_reaching
-        )
+        return self.loops_reaching == (
+            frozenset({self.x_atom, self.y_atom}),)
 
     @cached_property
     def adjustment_sets(self) -> tuple:

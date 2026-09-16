@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20858 passed / 518 skipped, warning-clean
+20870 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,33 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #686 两个方程是一个环，不是几个环里的一个：第二个够到估计量的环在时，诚实的 IV 答案被自家验证器拒（2026-09-17）
+
+**现象。** 程序声明 X↔Y 的反馈环，再声明第二个够到估计量的环（b↔x，或 y↔c）。
+- 有工具变量 z 时：内核给出 IV 答案，`feedback_loop` 块写着 `reduction: simultaneous_equations`，点名的环却是 b↔x / c↔y；`verify_answer_claims` 拒它（"claims the two-equation reduction while the loop it names runs between 'b(me)' and 'x(me)'"）。两个诚实答案被拒。
+- 没有工具变量时：拒答的 species 是 `feedback_loop_needs_an_instrument`（「处理和结局被声明互为因果」），每份拷贝点名的却是另一个环。
+- 反过来：只声明 X↔Y 的答案（带约化）放到多声明一个 y↔c 或 b↔x 的程序旁边（图不变），12 道读它的门全放行，结构答案和数值答案都一样。
+
+**根因。** 「估计量够到的那个环」有三种读法。路线用 `any(loop == {x,y} for loop in loops_reaching)` 判两方程形状；文字、推导步骤、估计层推导读 `loops_reaching[0]`（排序第一个）；验证器只看块点名的那个环。事实 `loop_is_between_treatment_and_outcome` 的 docstring 写的是单数（the reached loop is exactly the two-equation system），实现是「有一个够到的环是」。只有一个环够到时三种读法重合，有几个时分开。
+
+**为什么是根因不是表象。** 只把文字改成点名 X↔Y 环，验证器就收了，数却是错的：y↔c 在时，`Y = βX + λC + u`、`C = κY + w`，Wald 比值是 `β/(1-λκ)`，不是答案说的 Y 方程系数 β（新测试第一条用模拟数据算出来）。Haavelmo 约化是两个方程的代数，第三个方程进了比值就是另一个量。错在形状这个事实本身。
+
+**结构。**
+- `routing.loop_is_between_treatment_and_outcome`：估计量够到的环恰好只有 X↔Y 这一个（`loops_reaching == ({x, y},)`）。读 `loops_reaching[0]` 的各处因此点名同一个环；其余情况走 `feedback_loop_outside_the_simultaneous_case`。
+- 验证器：「声明的环里哪些够到 x 或 y」写成一份 `rules.declared_loops_reaching`（加上每个环两条边之后的可达性），步骤规则 `feedback_loop_withdraws_adjustment` 和 `verify_feedback_loop` 共用，原来步骤规则里内联的那份删掉。`verify_feedback_loop` 在块写着约化时，除了原来的「点名的环在两端之间」，还要求估计量够到的声明环只有一个；为此签名加 `graph`（`block, iv_identification, graph, feedback, query`），kernel 传图。
+
+**取舍（选了什么、放弃了什么、代价）。** 选的是保守读法：够到估计量的环多于一个，就不认约化。放弃的是逐形状的代数：第二个环只在 X 那一侧（`X = γY + δZ + λB + v`、`B = κX + w`、`Y = βX + u`）时 Wald 比值仍是 β，这种程序现在被拒而不是作答（新测试第二条把这一点钉成事实）。代价是这类程序拿到的是拒答加两条路（按时间展开 / 撤回声明的环），而不是数。区分形状要的代数与 `loops_reaching_the_estimand` 已声明不做的是同一件事，方向也一样：错了是拒答，不是一个悄悄错的数。
+
+**测量。**
+- 改后：两个环（x 侧 / y 侧）× 有无工具变量 4 个程序，诚实拒答在 `verify_answer_claims`、`verify`（应得的「缺推导链」）、`verify_refusal` 全收，每份拷贝点名的都是声明且够到的环；只有单个 X↔Y 环（含一个够不到的第二环、X↔Y 反向重复声明）的答案不变，照收。
+- 伪造：单环答案放到第二个环是 y↔c、w↔y、b↔x、z↔x（工具本身）、q↔w（经 w 够到 y）的同图程序旁边，全拒，信息是「reaches 2 declared loops」；第二个环够不到（c↔p）时照收。同进程把可达性换回旧读法，12 道门全放行；改后 `verify_answer_claims` 与 `verify` 拒。
+- 单环的反馈环探针前后逐字节相同。gate 自己的扫描只跑带环的 3 行：0 gone、0 new，声明余项不变。
+- 架构图重建（`rules.py`/`verify.py` 行数）。
+
+**还开着。** 两个反馈环 species 仍没有证人（`UNWITNESSED_SPECIES` 里）：量过，放到主张为假的程序旁边在 `verify_refusal` 上 70 处放行、单份换 species 24 处放行、在读它的门上「需要工具变量」放到有工具变量的程序旁边 5 处放行——下一条。另外，只有 effect 问题读声明的环：同一个 X↔Y 环的程序问 identify，答「可识别」，和 effect 的拒答互相矛盾，待量。
+
+**账。** 新文件 `tests/test_two_equations_are_one_loop_not_one_among_several.py` 12 个测试（模拟数据的两条比值、两种第二环×有无工具的拒答 4、每份拷贝点名声明的环 2、够不到的第二环不动 1、有数据时不出数 1、结构/数值两扇门上的约化伪造 2）。`test_a_reason_for_an_answer_the_dag_did_not_compute.py` 里直接调 `verify_feedback_loop` 的那一处改为从 `_refusal_facts` 取图、环与问题。基线 20858→**20870**。
 
 ### #685 结构性拒答说「这个问题跑不了」，却没有人拿问题去问它（2026-09-17）
 
