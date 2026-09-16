@@ -1267,10 +1267,19 @@ def verify_e_value(estimate: dict) -> None:
     the sensitivity block alone (e.g. inflating a fragile finding's E-value to
     look robust, or hiding a fragile one) cannot pass.
 
+    Where no E-value comes out, why is the same closed form's other branch.
+    Each condition a conversion needs either holds and gives the risk
+    ratio, or fails and names which of
+    :class:`themis.estimation.sensitivity.Undefined` stopped it and the
+    value that did. Both branches are re-derived, and so is which
+    conversion input the recorded path says was read.
+
     ``estimate`` is the full ``numeric_estimate`` dict; a missing
     ``sensitivity_analysis`` sub-block is a no-op.
     """
     import math
+
+    from .. import language
 
     block = estimate.get("sensitivity_analysis")
     if block is None:
@@ -1347,36 +1356,80 @@ def verify_e_value(estimate: dict) -> None:
     else:
         ate = estimate.get("point")
         lo, hi = estimate.get("ci_lower"), estimate.get("ci_upper")
+    if ate is None:
+        raise VerificationError(
+            "e_value: the block converts an ATE this estimate does not "
+            "report", step_index=None, rule="e_value",
+        )
     ci_bound = _closer_to_null(lo, hi)
 
+    # A path is which conversion ran, so it fixes which input the block
+    # holds: the one that conversion reads, as a number, and nothing where
+    # the other route's would be. Read as "absent, so nothing to convert",
+    # a missing input let a forged path agree with a block that has no
+    # numbers.
+    reads = {"binary": "baseline_rate", "continuous": "outcome_sd"}
     path = block.get("path")
-    rr = None
-    e_ci = None
-
-    if path == "binary":
-        baseline = block.get("baseline_rate")
-        if baseline is not None and 0.0 < baseline < 1.0 and ate is not None:
-            treated = baseline + ate
-            if 0.0 < treated < 1.0:
-                rr = treated / baseline
-                # Producer computes the CI-bound E-value only once the point
-                # RR is defined — mirror that nesting exactly.
-                if ci_bound is not None:
-                    ci_treated = baseline + ci_bound
-                    if 0.0 < ci_treated < 1.0:
-                        e_ci = _evalue(ci_treated / baseline)
-    elif path == "continuous":
-        sd = block.get("outcome_sd")
-        if (sd is not None and sd > 0.0 and math.isfinite(sd)
-                and ate is not None and math.isfinite(ate)):
-            rr = math.exp(0.91 * (ate / sd))   # Chinn 2000 SMD→log-RR = 0.91
-            if ci_bound is not None and math.isfinite(ci_bound):
-                e_ci = _evalue(math.exp(0.91 * (ci_bound / sd)))
-    else:
+    if path not in reads:
         raise VerificationError(
             f"e_value.path: unknown conversion path {path!r}",
             step_index=None, rule="e_value",
         )
+    for route, name in reads.items():
+        value = block.get(name)
+        if route != path and value is not None:
+            raise VerificationError(
+                f"e_value.{name}: the {path} conversion reads no {name}, "
+                f"and the block records {value!r}",
+                step_index=None, rule="e_value",
+            )
+        if route == path and (isinstance(value, bool)
+                              or not isinstance(value, (int, float))):
+            raise VerificationError(
+                f"e_value.{name}: the {path} conversion reads it, and the "
+                f"block records {value!r}",
+                step_index=None, rule="e_value",
+            )
+
+    # Each condition a conversion needs has two outcomes, and both are
+    # re-derived: the risk ratio where it holds, and where it fails, which
+    # condition failed and the value that failed it. Only the first was, so
+    # a block with no number was checked by two absences agreeing, and its
+    # reason — with the inputs that decided it — was never read.
+    def _undefined(token, **value):
+        return language.spelt("e_value_undefined", token, **value)
+
+    rr = None
+    e_ci = None
+    because = None
+
+    if path == "binary":
+        baseline = block["baseline_rate"]
+        treated = baseline + ate
+        if not 0.0 < baseline < 1.0:
+            because = _undefined("baseline_on_boundary",
+                                 rate=f"{baseline:.3f}")
+        elif not 0.0 < treated < 1.0:
+            because = _undefined("treated_rate_out_of_range",
+                                 rate=f"{treated:.3f}")
+        else:
+            rr = treated / baseline
+            # Producer computes the CI-bound E-value only once the point
+            # RR is defined — mirror that nesting exactly.
+            if ci_bound is not None:
+                ci_treated = baseline + ci_bound
+                if 0.0 < ci_treated < 1.0:
+                    e_ci = _evalue(ci_treated / baseline)
+    else:
+        sd = block["outcome_sd"]
+        if not math.isfinite(ate):
+            because = _undefined("ate_not_finite", ate=ate)
+        elif sd <= 0.0 or not math.isfinite(sd):
+            because = _undefined("outcome_sd_not_usable", sd=sd)
+        else:
+            rr = math.exp(0.91 * (ate / sd))   # Chinn 2000 SMD→log-RR = 0.91
+            if ci_bound is not None and math.isfinite(ci_bound):
+                e_ci = _evalue(math.exp(0.91 * (ci_bound / sd)))
 
     _close(rr, block.get("risk_ratio"), "risk_ratio")
     _close(_evalue(rr), block.get("e_value"), "e_value")
@@ -1385,10 +1438,14 @@ def verify_e_value(estimate: dict) -> None:
     # The reading a person acts on, audited like the numbers under it. It was
     # prose until it became a field, and prose is the one part of this block
     # nothing could re-derive — which is how the reading came to be taken off
-    # the point estimate for years without a check noticing.
-    for name, recomputed in zip(
-            ("interpretation_band", "band_basis"),
-            _band(block.get("e_value"), block.get("e_value_ci_bound"))):
+    # the point estimate for years without a check noticing. Where there is
+    # no number, the reading is why, and it is held the same way.
+    readings = (
+        *zip(("interpretation_band", "band_basis"),
+             _band(block.get("e_value"), block.get("e_value_ci_bound"))),
+        ("undefined_because", because),
+    )
+    for name, recomputed in readings:
         if recomputed != block.get(name):
             raise VerificationError(
                 f"e_value.{name}: recomputed {recomputed!r}, "

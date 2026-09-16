@@ -11,17 +11,26 @@ The oracle is threefold:
   VanderWeele-Ding value E = RR + √(RR·(RR−1)) for RR=2 (= 2+√2) proves the
   verifier matches the formula, not merely the producer's own code;
 - **producer round-trip** — a genuine block from ``themis.estimate`` passes;
-- **tamper rejection** — mutating any reported number raises.
+- **tamper rejection** — mutating any reported number raises, and where
+  there is no number, so does mutating why, the value in it, or the inputs
+  that decided it.
 """
 from __future__ import annotations
 
+import copy
+import json
 import math
+import pathlib
 
 import numpy as np
 import pandas as pd
 import pytest
 
 import themis
+from themis import language
+from themis.estimation.sensitivity import (
+    e_value_from_ate_binary, e_value_from_ate_continuous,
+)
 from themis.verifier.verify import VerificationError, verify_e_value
 
 
@@ -187,24 +196,153 @@ def test_rejects_tampered_baseline_rate():
 # --- undefined consistency ---------------------------------------------------
 
 
-def test_accepts_genuinely_undefined():
-    """treated = baseline + ATE escapes (0,1) ⇒ producer emits all-None; the
-    verifier must agree the E-value is undefined, not invent one."""
-    est = {
-        "point": 0.5, "ci_lower": 0.2, "ci_upper": 0.8,
-        "sensitivity_analysis": {
-            "path": "binary",
-            "baseline_rate": 0.9,   # treated = 1.4 ∉ (0,1)
-            "outcome_sd": None,
-            "risk_ratio": None,
-            "e_value": None,
-            "e_value_ci_bound": None,
-            "interpretation_band": None,
-            "band_basis": None,
-            "note": "undefined — linear extrapolation escapes [0,1]",
-        },
+def _no_number(path, *, because, baseline=None, sd=None):
+    """A block that converted nothing, saying why."""
+    return {
+        "path": path, "baseline_rate": baseline, "outcome_sd": sd,
+        "risk_ratio": None, "e_value": None, "e_value_ci_bound": None,
+        "interpretation_band": None, "band_basis": None,
+        "undefined_because": because,
     }
-    verify_e_value(est)  # no raise
+
+
+def _why(token, **said):
+    return {"vocabulary": "e_value_undefined", "token": token, "said": said}
+
+
+#: Each reason there is no E-value, written out by hand: the estimate, the
+#: block that says why, and the producer's own function asked about the same
+#: inputs. The literal is the oracle and the producer is asked to agree with
+#: it, so the verifier is not only matching the producer's code.
+_NO_NUMBER = {
+    "baseline_on_boundary": (
+        {"point": 0.1, "ci_lower": 0.05, "ci_upper": 0.15},
+        _no_number("binary", baseline=0.0,
+                   because=_why("baseline_on_boundary", rate="0.000")),
+        lambda: e_value_from_ate_binary(0.1, baseline_rate=0.0,
+                                        ci_bound=0.05),
+    ),
+    "treated_rate_out_of_range": (
+        {"point": 0.5, "ci_lower": 0.2, "ci_upper": 0.8},
+        _no_number("binary", baseline=0.9,          # treated = 1.4
+                   because=_why("treated_rate_out_of_range", rate="1.400")),
+        lambda: e_value_from_ate_binary(0.5, baseline_rate=0.9,
+                                        ci_bound=0.2),
+    ),
+    "ate_not_finite": (
+        {"point": math.inf, "ci_lower": None, "ci_upper": None},
+        _no_number("continuous", sd=2.0,
+                   because=_why("ate_not_finite", ate="inf")),
+        lambda: e_value_from_ate_continuous(math.inf, outcome_sd=2.0),
+    ),
+    "outcome_sd_not_usable": (
+        {"point": 0.5, "ci_lower": 0.2, "ci_upper": 0.8},
+        _no_number("continuous", sd=0.0,
+                   because=_why("outcome_sd_not_usable", sd="0")),
+        lambda: e_value_from_ate_continuous(0.5, outcome_sd=0.0,
+                                            ci_bound=0.2),
+    ),
+}
+
+#: Which conversion input each path reads.
+_READS = {"binary": "baseline_rate", "continuous": "outcome_sd"}
+
+
+def test_every_reason_there_is_has_a_block_written_out():
+    assert set(_NO_NUMBER) == {
+        str(member) for member in language.VOCABULARIES["e_value_undefined"]}
+
+
+@pytest.mark.parametrize("reason", sorted(_NO_NUMBER))
+def test_a_block_with_no_number_that_says_why_is_accepted(reason):
+    """The producer says this reason for these inputs, and the verifier
+    agrees rather than inventing a number or taking any reason at all."""
+    estimate, block, produced = _NO_NUMBER[reason]
+    assert produced().undefined_because == block["undefined_because"]
+    verify_e_value({**estimate, "sensitivity_analysis": block})
+
+
+def _told_otherwise(block):
+    """Every other thing the block could say about why it has no number."""
+    why = block["undefined_because"]
+    for token in sorted(_NO_NUMBER):
+        if token != why["token"]:
+            yield f"reason {token}", {
+                **block, "undefined_because": {**why, "token": token}}
+    (hole,) = why["said"]
+    yield f"{hole} 0.500", {
+        **block, "undefined_because": {**why, "said": {hole: "0.500"}}}
+    yield "no reason", {
+        key: value for key, value in block.items()
+        if key != "undefined_because"}
+
+
+@pytest.mark.parametrize("reason", sorted(_NO_NUMBER))
+def test_a_block_with_no_number_is_held_to_why(reason):
+    """Why is the other branch of the conditions the numbers are computed
+    under, from the same inputs. Only the branch that yields a number was
+    re-derived, so a block with none was checked by two absences agreeing,
+    and every one of these was accepted."""
+    estimate, block, _ = _NO_NUMBER[reason]
+    taken = []
+    for lie, forged in _told_otherwise(block):
+        try:
+            verify_e_value({**estimate, "sensitivity_analysis": forged})
+        except VerificationError as exc:
+            assert "undefined_because" in str(exc), (lie, str(exc))
+        else:
+            taken.append(lie)
+    assert taken == []
+
+
+def test_the_input_that_decided_a_reason_is_held_by_it():
+    """A baseline moved from one boundary to the other still converts to no
+    number, and so does one moved inside (0,1) far enough that the treated
+    rate leaves it. Each is a different sentence about why."""
+    estimate, block, _ = _NO_NUMBER["baseline_on_boundary"]
+    for baseline in (1.0, 0.95):
+        forged = {**block, "baseline_rate": baseline}
+        with pytest.raises(VerificationError, match="undefined_because"):
+            verify_e_value({**estimate, "sensitivity_analysis": forged})
+
+
+@pytest.mark.parametrize("reason", ["baseline_on_boundary",
+                                    "outcome_sd_not_usable"])
+def test_the_path_says_which_input_the_block_holds(reason):
+    """A path is which conversion ran. Read as "no input, so nothing to
+    convert", a block whose path was rewritten agreed with its own missing
+    numbers."""
+    estimate, block, _ = _NO_NUMBER[reason]
+    other = next(path for path in _READS if path != block["path"])
+    forgeries = {
+        "the other path": {**block, "path": other},
+        "no input": {**block, _READS[block["path"]]: None},
+        "the other path's input beside it": {**block, _READS[other]: 0.3},
+    }
+    taken = []
+    for lie, forged in forgeries.items():
+        try:
+            verify_e_value({**estimate, "sensitivity_analysis": forged})
+        except VerificationError:
+            continue
+        taken.append(lie)
+    assert taken == []
+
+
+def test_a_block_converts_an_ate_the_estimate_reports():
+    _, block, _ = _NO_NUMBER["baseline_on_boundary"]
+    with pytest.raises(VerificationError, match="does not report"):
+        verify_e_value({"sensitivity_analysis": block})
+
+
+def test_a_block_with_a_number_gives_no_reason_for_having_none():
+    _, r = _binary_result()
+    est = copy.deepcopy(r["numeric_estimate"])
+    assert est["sensitivity_analysis"]["e_value"] is not None
+    est["sensitivity_analysis"]["undefined_because"] = _why(
+        "baseline_on_boundary", rate="0.000")
+    with pytest.raises(VerificationError, match="undefined_because"):
+        verify_e_value(est)
 
 
 def test_rejects_value_claimed_when_undefined():
@@ -288,3 +426,41 @@ def test_e2e_verify_rejects_tampered_e_value():
     r["numeric_estimate"]["sensitivity_analysis"]["e_value"] = 9.99
     with pytest.raises((VerificationError, Exception)):
         themis.verify(ast, r)
+
+
+_SHAPES = pathlib.Path(__file__).parent / "fixtures" / "answer_shapes.json"
+_NO_E_VALUE = "numerically_solved:effect:numeric_backdoor_estimate#292d9a"
+
+
+def test_e2e_the_answer_with_no_e_value_is_held_to_why():
+    """The one answer in the corpus whose estimate has no E-value: its
+    untreated arm never has the outcome. What it said about why, and the
+    baseline and path that decide it, passed every door however they were
+    rewritten."""
+    pair = json.loads(_SHAPES.read_text(encoding="utf-8"))[_NO_E_VALUE]
+    block = pair["result"]["numeric_estimate"]["sensitivity_analysis"]
+    assert block["e_value"] is None
+    assert block["undefined_because"]["token"] == "baseline_on_boundary"
+    themis.verify(pair["program"], pair["result"])
+
+    def bent(change):
+        result = copy.deepcopy(pair["result"])
+        change(result["numeric_estimate"]["sensitivity_analysis"])
+        return result
+
+    lies = {
+        "reason": lambda b: b["undefined_because"].update(
+            token="treated_rate_out_of_range"),
+        "rate": lambda b: b["undefined_because"]["said"].update(rate="1.000"),
+        "baseline": lambda b: b.update(baseline_rate=1.0),
+        "path": lambda b: b.update(path="continuous"),
+    }
+    taken = []
+    for lie, change in lies.items():
+        try:
+            themis.verify(pair["program"], bent(change))
+        except VerificationError as exc:
+            assert "e_value" in str(exc), (lie, str(exc))
+        else:
+            taken.append(lie)
+    assert taken == []

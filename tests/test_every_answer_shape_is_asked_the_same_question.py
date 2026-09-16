@@ -1647,9 +1647,17 @@ def test_the_declared_remainder_is_what_it_is():
     was one consistent sentence, and the gap a reader reads was not among
     the copies at all. What is left of the member half is five entries
     over five leaves, each the only one of its kind.
+
+    Then 4 off an E-value block with no number. Which of four conditions
+    stopped the conversion, and the value that decided it, is the other
+    branch of the conditions the numbers are computed under, from the same
+    recorded inputs. The one audit re-derived only the branch that yields
+    a number, so on a block with none its only check was two absences
+    agreeing: the reason, the rate in it, the baseline that decided it and
+    the path that says which input was read were all unread.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1895, total
+    assert total == 1891, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

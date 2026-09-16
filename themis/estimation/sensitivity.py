@@ -87,8 +87,12 @@ class EValueResult:
     Where an E-value existed it restated the four numbers above it: the
     conversion, both E-values, and — on the continuous route — a caveat
     that follows from ``path``. Where none existed it was the ONLY
-    record of which of four things went wrong. So the half that could
-    be re-derived is gone and the half that could not is a word.
+    record of which of four things went wrong. So the half that restated
+    the numbers beside it is gone, and the half that was the only record
+    of something is a word. Only record is not underivable: which of the
+    four happened is the other branch of the conditions the numbers are
+    computed under, and :func:`themis.verifier.verify.verify_e_value`
+    re-derives it from the same inputs.
     """
 
     e_value: float | None

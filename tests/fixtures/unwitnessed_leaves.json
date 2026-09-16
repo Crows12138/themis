@@ -1234,11 +1234,7 @@
   "numeric_estimate.ovb_sensitivity.estimate",
   "numeric_estimate.ovb_sensitivity.q",
   "numeric_estimate.ovb_sensitivity.se",
-  "numeric_estimate.ovb_sensitivity.t_statistic",
-  "numeric_estimate.sensitivity_analysis.baseline_rate",
-  "numeric_estimate.sensitivity_analysis.path",
-  "numeric_estimate.sensitivity_analysis.undefined_because.said.rate",
-  "numeric_estimate.sensitivity_analysis.undefined_because.token"
+  "numeric_estimate.ovb_sensitivity.t_statistic"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#2ec0e3": [
   "bounds_results.[].bootstrap.kind",

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20737 passed / 518 skipped, warning-clean
+20751 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,30 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #679 算不出数的那一支，和算得出数的那一支是同一串条件（2026-09-16）
+
+**现象。** E 值块（`numeric_estimate.sensitivity_analysis`）算不出数时，用 `undefined_because` 说为什么：四选一（基线发生率落在边界上 / 推出来的处理组发生率出了 [0,1] / ATE 不是有限数 / 结局标准差不可用），外加决定它的那个值。语料 32 个 E 值块里只有 1 个算不出数（`numerically_solved:effect:numeric_backdoor_estimate#292d9a`，未处理组里结局从没发生，基线 0.000）。对它做单点篡改，整扇门 11 种放行 8 种：原因换成同样带 `rate` 洞的另一个、`said.rate` 改成任何东西、`baseline_rate` 改成 0.9 / 0.01 / 1.0；`path` 改成 `continuous` 也放行。用生产者自己的函数给四种原因各造一份诚实块：`verify_e_value` 单独问，换原因 **12/12 放行**，删掉原因 **4/4 放行**；块里多记一份另一条路径的换算输入，**2/2 放行**。
+
+**根因。** `verify_e_value` 的第二份抄写只抄了「算得出数」那一支。每条路径上决定风险比存不存在的条件（基线在 (0,1) 内、处理组率在 (0,1) 内、ATE 有限、SD 为正且有限）写成了 `if 条件全成立: 算 rr`，条件不成立时什么都不产出，于是「重算得 None、记录是 None」被 `_close` 当成一致——一个没有数的块，唯一的核对是两个「没有」相等。而原因正是这些条件的另一支，输入全在块上。生产者那边的说明也写反了：`EValueResult` 的 docstring 和 schema 描述都说「能重推的那一半删了，**不能重推的那一半**成了 `undefined_because`」。它是那件事的唯一记录，但唯一记录不等于不能重推。
+
+**为什么是根因不是表象。** 表象修法是在末尾加一句「`undefined_because` 等于重算的原因」。那样原因和 `said.rate` 押住了，但 `path` 改成 `continuous` 仍然放行：连续路径读 `outcome_sd`，块上是 None，现有的 `sd is not None and …` 守卫会把「这块没有连续路径要读的输入」读成「没东西可换算」，照样得 None。漏洞不在少比较了一个字段，而在于抄写把「条件不成立」和「输入缺席」都折叠成了「没有数」。
+
+**结构。**
+- **path 决定块里有哪个输入**：`binary` 读 `baseline_rate`、`continuous` 读 `outcome_sd`。读的那个必须是数，另一条路径的必须是 None，否则直接拒，报错说出是哪条路径、读了什么、块里记的是什么。ATE 缺席也直接拒：生产者不会给没有 ATE 的估计写这块。
+- **同一串条件的两支都重推**：条件成立给 rr（后面的 E 值、CI 界、读数照旧），不成立就按生产者的顺序给出是哪个 `Undefined`、带哪个值——用 `language.spelt("e_value_undefined", …)` 按词表名拼，不 import `themis.estimation`（验证器的独立性约束）。`said` 的格式（比率保留三位小数，ATE / SD 原样）同公式一样是第二份抄写。
+- 原因和读数一起押：`interpretation_band`、`band_basis`、`undefined_because` 共用一个循环。算得出数的块带着原因，也照样被拒。
+- `EValueResult` docstring 和 schema 里「不能重推的那一半」改成「唯一记录，不等于不能重推」，并写明验证器从同一批输入重推它。
+
+**演练。** 语料 32 个 E 值块的原因按新抄写重推 **32/32** 一致；诚实 **243/243** 过门。那一行的 8 种单点弯折和 `path` 弯折**全部被拒**；四种原因各一份的手写块（字面值作 oracle，并要求生产者函数给出同一句）全部接受，换原因 **12/12**、改值 **4/4**、删原因 **4/4** 全拒；换路径 / 缺输入 / 带另一条路径的输入 **6/6** 全拒；算得出数的块带原因被拒。
+
+**测量。** 声明余项 **1895→1891**（关 4：`undefined_because.token`、`undefined_because.said.rate`、`baseline_rate`、`path`，0 新增）。成员半边剩 4 条、4 片叶子。
+
+**声明的边界。** `baseline_rate` 和 `path` 本身是数据事实（未处理组的结局均值、结局列的 dtype），块只是记录它们，验证器不拿 DataFrame。所以「基线改成 1.0、原因里的比率同步改成 1.000」这种整块一致的篡改仍然放行——和 OVB 块信任记录下来的 t 值、自由度是同一条边界。`extensions.type_reconciliation` 只在声明尺度和观测尺度不一致时才出现，不能当作 `path` 的普遍权威。
+
+**全量量出的自我描述。** 第一遍全量 1 个失败：`tests/test_a_picture_of_this_repo_counts_what_it_prints.py` 说架构图过期。逐叶 diff 只有一处，`verify.py 7790 行 → 7847 行`：图上印着这个文件的行数，本轮在 `verify_e_value` 里加了 57 行。按测试给的命令重建 `docs/架构图/全景图.json` 并渲染 `.html`，没有手改。
+
+**账。** 新增 15 个测试，删掉被新表完全覆盖的 `test_accepts_genuinely_undefined`（同样的输入，现在带着原因），基线 20737→**20751**。
 
 ### #678 两份拷贝互相押相等，不等于它们说的是跑过的那一个（2026-09-16）
 
