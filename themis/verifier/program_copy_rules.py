@@ -45,7 +45,7 @@ annotation would be invisible to a check written over the same objects.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from .errors import VerificationError
@@ -302,17 +302,18 @@ _QUESTION_READS: dict[str, dict[str, Callable[[dict], Any]]] = {
 }
 
 
-def query_of(program: dict, query_id) -> dict | None:
+def query_of(program: Mapping, query_id) -> dict | None:
     """The query a result answers, as the caller wrote it.
 
     Public within the package because more than one rule needs the question
     itself rather than a reading of it: this module holds the answer's
-    variable NAMES to it, and ``frame_rules`` holds a
-    correction's target VALUE to the same statement. Two copies of a lookup
-    are two places for it to go stale.
+    variable NAMES to it, ``frame_rules`` holds a
+    correction's target VALUE to the same statement, and ``statement_rules``
+    holds every sentence that repeats a word the question spelt. Two copies
+    of a lookup are two places for it to go stale.
     """
     for stmt in program.get("statements") or ():
-        if not isinstance(stmt, dict):
+        if not isinstance(stmt, Mapping):
             continue
         if stmt.get("kind") == "query" and stmt.get("id") == query_id:
             q = stmt.get("query")

@@ -1110,7 +1110,6 @@
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#365c81": [
   "derivation.steps.[].step_id",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].words.direction.token",
   "extensions.counterfactual_cell.adjustment.[]",
   "extensions.counterfactual_cell.ci_width_is",
   "extensions.counterfactual_cell.counterfactual_x",
@@ -1124,7 +1123,6 @@
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#b627d2": [
   "derivation.steps.[].step_id",
   "estimation_context.random_state",
-  "extensions.assumption_ledger.assumptions.[].claim.[].words.direction.token",
   "extensions.counterfactual_cell.ci_width_is",
   "extensions.counterfactual_cell.counterfactual_x",
   "extensions.counterfactual_cell.factual_y",
@@ -1542,14 +1540,12 @@
  ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
   "data_gap_report.gaps.[].describes.[].said.instrument",
-  "data_gap_report.gaps.[].describes.[].words.assumption.words.direction.token",
   "derivation.steps.[].inputs.instrument_control.atom.predicate",
   "derivation.steps.[].inputs.monotonicity",
   "extensions.iv_identification.alternatives_count",
   "extensions.iv_identification.late_caveat.[].said.variables",
   "extensions.iv_identification.numeric.conditioning_order.[]",
   "extensions.iv_identification.numeric.strata.[].values.[]",
-  "extensions.iv_identification.required_assumption.words.direction.token",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#7173f0": [

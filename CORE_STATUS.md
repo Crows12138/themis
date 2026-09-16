@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20726 passed / 518 skipped, warning-clean
+20732 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,30 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #677 一个词是提问的人说了算，而读它的那条规则只认它第一次被写下的位置（2026-09-16）
+
+**现象。** 四条记录带着同一个词——「单调性假设往哪个方向走」：`extensions.assumption_ledger.assumptions.[].claim.[].words.direction`（2 行）、`extensions.iv_identification.required_assumption.words.direction`（1 行）、`data_gap_report.gaps.[].describes.[].words.assumption.words.direction`（1 行）。把 `non_decreasing` 改成 `non_increasing`，**4/4 所有门放行**。方向决定界往哪一侧收紧，读者据此读到的是相反的那个结论。而问题自己就写着方向：`statements[].query.assumptions.monotonicity`——13 行答案 **13/13** 都写了、且都写在该行答案所回答的那条 statement 上、只写一次；信封上 10 条 `monotonicity` 语句 **10/10** 与它一致，**0 行**带着这个词而它的问题没写。
+
+**根因。** 这个词有唯一的权威——提问的人——而**读它的只有一条规则，并且那条规则是位置性的**：`bounds_rules.verify_manski_tamer_bounds_result` 从问题取出方向、算出它收紧哪一侧，然后把方向**当参数交给** `bounds_account_rules.verify_the_words_a_tightened_side_uses`，后者只看 `bounds_results` 那一行的 `notes`（语料 6 条，6/6 确实被拒）。同一个词走到另外三个块时，没有一处在问它。
+
+**为什么是根因不是表象。** 按契约量（不是记得）：程序能拼出本 build 词表里的词**只有两处**——`statements.[].query.assumptions.monotonicity` 和 `statements.[].scale`。后者正是 #674 押住的那个 scale，而押它的机器（`_A_WORD_COPIES`）是按「**这个词是关于哪个被点名的东西的**」去查第二份记录的（`said[named_by]` 给出列名，再读该列的声明）。方向不关于任何被点名的东西，**它是关于整个问题的**，所以那台机器天生够不着它。表象的修法是给这三片叶子各挂一条、或给那三个块的审计各加一句——那正是造成现在这局面的病。判据：把这句话念出来——「单调性往哪边走，是提问的人说了算」——这句话里没有任何一个位置。
+
+**结构。**
+- `statement_rules` 新增第二条公开规则 `verify_statements_repeat_the_question(result, program)`：用包内已有的 `program_copy_rules.query_of` 取**这份答案自己那条问题**，把 `assumptions` 里「键名是本 build 声明的词表、值是该词表成员」的每一条读成 `{词表: 词}`，然后遍历整个信封，凡是来自这些词表的语句都必须携带那个词。
+- **推导而不列表**：键名与词表名的对应写在契约里，一条测试按 schema 量这个分母（两处，一处是问题的、一处是声明的），第三处出现时会变成数字而不是静默。
+- **两处沉默都是声明过的**：问题不写 `assumptions` 时整条沉默（这条规则不能发明它本该读的那份声明）；`query_id` 指不到任何 statement 时也沉默（「答案指认了哪条问题」是另一条规则的断言，在这儿猜等于拿一个认不出来的问题去押人）。
+- `query_of` 的形参从 `dict` 放宽到 `Mapping`——它只问 program 要 `statements` 并逐条读，窄的那个标注是它当初唯一那个调用者的形状。
+- **规则通用到哪儿为止，写在规则自己身上**：问题拼的是一组「方向」而不是一组「假设」，它声明的是**这份答案所依据的那一个**；将来若有生产者要用同样的词说另一条假设的方向，那是第二个事实、问题不是它的记录，那样的句子要有自己的集合或自己的第二份记录。写下来而不是加豁免——豁免就是一张「这条规则能在哪些位置说话」的清单，正是它要治的病。
+- 仓库的自我描述跟着改：`themis/verifier/__init__.py` 的清单写上新入口；架构图 spec 用 `scripts/build_arch_spec.py` 重建、页面用 archify 渲染（**只变了修订号与「107→108 个 verify_* 入口」**）。
+
+**演练。** 诚实 **243/243** 过；10 条语句各弯向本集合另一个成员 **10/10 在门上被拒、0 逃逸、10 条都由本规则拒**；问题不写 `assumptions` 时 9 行**全部沉默**、`query_id` 指不到时 9 行**全部沉默**；本规则单独跑诚实语料 243/243 接受。
+
+**测量。** 声明余项 **1902→1898**（关 4，0 新增）。#672 暴露的成员半边至此关掉 52，剩 8 条散在 7 片叶子上。
+
+**声明的重叠。** 内核里语句这一趟（`_hold_what_the_answer_says`）在界那一趟（`_hold_what_the_estimate_calls_for`）之前，所以新规则在那 6 条 bounds note 上**先开口**，`verify_the_words_a_tightened_side_uses` 的 `direction` 那半在语料上因此从端到端方向不可达。它**仍有自己的 population**：①它自己的公开门 `verify_bounds_results`；②用 `program.extensions.monotonicity` 老侧信道声明方向的程序（语料 0 行，契约允许，那条路的 (target, treatment) 匹配是 `bounds_rules` 的事，在第二处重算它正是那个文件自己写下的危险）。按 #673 的先例，钉它措辞的那条端到端测试挪到**它自己的门**上去钉，端到端那条改钉读者实际会拿到的那句——不靠调用顺序来分工。
+
+**账。** 新增 6 个测试、改写 1 个，基线 20726→**20732**。第一次全量 **2 failed / 20730 passed**，两条都是我漏改的自我描述闸门（包清单没写新入口、架构图还数着 107 个入口），修完第二次全量得到上面的数。
 
 ### #676 一张列表是一句自己的断言，没有任何一处问过它（2026-09-16）
 

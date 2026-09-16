@@ -54,10 +54,12 @@ from themis.input.syntactic_validator import SyntacticError
 from themis.refusals import REFUSED
 from themis.types import GapKind
 from themis.verifier import VerificationError
+from themis.verifier.program_copy_rules import query_of
 from themis.verifier.statement_rules import (
     _CARRIERS,
     _DECLARED_SILENT,
     verify_statements_carry_their_facts,
+    verify_statements_repeat_the_question,
 )
 
 from . import schema_walk
@@ -648,6 +650,211 @@ def test_a_borrowed_token_is_not_asked_to_agree_with_that_record_here():
          "claim": [{"vocabulary": "assumption_claim",
                     "token": "an_id_an_estimator_coined"}]}]}}}
     verify_statements_carry_their_facts(result)
+
+
+# --- and the word the question spelt ------------------------------------------
+
+
+def _spelt_by_a_question() -> dict[str, str]:
+    """Every place the PROGRAM spells a word from one of this build's sets.
+
+    :func:`_sites_the_contract_declares` asked this of the answer; this
+    asks it of the other document. Two of them, and they are two different
+    facts: a word about a NAMED THING, which is the scale a column is
+    declared at, and a word about the QUESTION, which is the direction a
+    monotonicity assumption runs in. The first is keyed on the name and the
+    audit that holds it is keyed on the name too; the second is one word
+    for the whole answer, so no name-keyed audit can reach it.
+    """
+    by_members = _domains()
+    document = schema_walk.named("kernel_ast.schema.json")
+    found: dict[str, str] = {}
+    for path, sub, _container in document.walk():
+        members = document.resolve(sub).get("enum")
+        if not isinstance(members, list):
+            continue
+        named = by_members.get(frozenset(str(m) for m in members))
+        if named is not None:
+            found[".".join(path)] = named
+    return found
+
+
+def _sets_a_question_spells() -> set[str]:
+    """Of those, the ones a QUESTION spells rather than a declaration."""
+    return {named for where, named in _spelt_by_a_question().items()
+            if ".query.assumptions." in where}
+
+
+def _repeats(result, sets) -> list[tuple]:
+    """Every statement on this envelope from a set a question may spell."""
+    out: list[tuple] = []
+
+    def walk(node, path: list) -> None:
+        if isinstance(node, dict):
+            if node.get("vocabulary") in sets and "token" in node:
+                out.append(tuple(path))
+            for key, value in node.items():
+                walk(value, [*path, key])
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, [*path, "[]", index])
+
+    walk(result, [])
+    return out
+
+
+def test_the_contract_says_where_a_program_spells_one_of_our_words():
+    """What a question can put in a reader's sentence, and what it cannot.
+
+    Measured against the schema rather than remembered, for the reason the
+    carrier table is: a third place would otherwise arrive unasked. The
+    assumption is named after its own SET, which is what lets the rule read
+    the pairing instead of keeping a copy of it.
+    """
+    found = _spelt_by_a_question()
+    assert found == {
+        "statements.[].query.assumptions.monotonicity": "monotonicity",
+        "statements.[].scale": "measurement_scale",
+    }
+    key = "statements.[].query.assumptions.monotonicity".rsplit(".", 1)[1]
+    assert key == found["statements.[].query.assumptions.monotonicity"]
+
+
+def test_no_carrier_site_spells_a_word_a_question_may_declare():
+    """Why the second walk may look for statements that carry their set.
+
+    A carrier site writes its token under a field of its own and its
+    vocabulary is fixed by the table, so a word there could never be found
+    by ``vocabulary``. Nothing is lost by that while this holds, and when
+    it stops holding it stops here rather than in silence. The scale is
+    the other program-spelt word and it IS a carrier — which is why the
+    set this asks about is the question's half rather than both.
+    """
+    carried = {named for _spelling, named in _CARRIERS.values()}
+    assert not _sets_a_question_spells() & carried
+    assert _spelt_by_a_question()["statements.[].scale"] in carried
+
+
+def test_every_sentence_that_repeats_the_question_repeats_it():
+    """The standing statement, and the population it is about.
+
+    Thirteen answers are for a question that spells the direction; ten
+    sentences on those envelopes repeat it, in four blocks that are not a
+    list anyone chose — a ledger claim, what an IV answer says it rests
+    on, the gap that tells a reader so, and the note beside the bound the
+    assumption tightened. Every one of the ten says what the question
+    said.
+    """
+    sets = _sets_a_question_spells()
+    asking = sites = agreeing = 0
+    where = set()
+    for shape in sorted(SHAPES):
+        row = SHAPES[shape]
+        query = query_of(row["program"], row["result"].get("query_id")) or {}
+        spelt = query.get("assumptions") or {}
+        found = _repeats(row["result"], sets)
+        if spelt:
+            asking += 1
+        else:
+            assert not found, (shape, found)
+        for path in found:
+            sites += 1
+            statement = _at(row["result"], path)
+            where.add(".".join(k for k in path if not isinstance(k, int)))
+            agreeing += str(statement["token"]) == spelt[
+                statement["vocabulary"]]
+    assert (asking, sites, agreeing) == (13, 10, 10)
+    assert where == {
+        "bounds_results.[].notes.[].words.direction",
+        "data_gap_report.gaps.[].describes.[].words.assumption.words.direction",
+        "extensions.assumption_ledger.assumptions.[].claim.[].words.direction",
+        "extensions.iv_identification.required_assumption.words.direction",
+    }
+
+
+def test_a_sentence_naming_a_direction_the_question_did_not_is_refused():
+    """The forgery, at every one of the ten.
+
+    Which way the assumption runs decides which side of the interval
+    tightens, so the other word hands a reader the opposite conclusion in
+    words that are all real. Its second record is not on the envelope at
+    all: the question spelt it, and the question is not the answer's to
+    write.
+    """
+    sets = _sets_a_question_spells()
+    planted = refused = survived = mine = 0
+    for shape in sorted(SHAPES):
+        row = SHAPES[shape]
+        for path in _repeats(row["result"], sets):
+            was = str(_at(row["result"], path)["token"])
+            for other in _members(_at(row["result"], path)["vocabulary"]):
+                if other == was:
+                    continue
+                planted += 1
+                forged = copy.deepcopy(row["result"])
+                _at(forged, path)["token"] = other
+                try:
+                    the_door_for(row["result"])(row["program"], forged)
+                except Exception:                       # noqa: BLE001
+                    refused += 1
+                else:
+                    survived += 1
+                try:
+                    verify_statements_repeat_the_question(
+                        forged, row["program"])
+                except VerificationError:
+                    mine += 1
+    assert survived == 0
+    assert mine == refused == planted == 10
+
+
+def test_a_question_that_spells_nothing_leaves_the_sentence_alone():
+    """Silence where there is nothing to appeal to.
+
+    An assumption block is optional, and an answer for a question without
+    one carries no second record of the word anywhere. Refusing there
+    would be this rule inventing the declaration it is supposed to be
+    reading.
+    """
+    sets = _sets_a_question_spells()
+    shape = next(s for s in sorted(SHAPES)
+                 if _repeats(SHAPES[s]["result"], sets))
+    row = SHAPES[shape]
+    program = copy.deepcopy(row["program"])
+    for statement in program["statements"]:
+        (statement.get("query") or {}).pop("assumptions", None)
+    path = _repeats(row["result"], sets)[0]
+    forged = copy.deepcopy(row["result"])
+    was = str(_at(forged, path)["token"])
+    _at(forged, path)["token"] = next(
+        m for m in _members(_at(forged, path)["vocabulary"]) if m != was)
+    verify_statements_repeat_the_question(forged, program)
+
+    # And with the question back, the same forgery is refused — so the
+    # silence above is the missing declaration and not the missing walk.
+    with pytest.raises(VerificationError, match="the question it answers"):
+        verify_statements_repeat_the_question(forged, row["program"])
+
+
+def test_a_query_id_that_names_no_statement_is_not_guessed_at():
+    """Which question an answer is for is another rule's claim.
+
+    A program carries as many statements as the caller wrote. Reading the
+    word off one this answer is not for would hold its sentences to a
+    declaration nobody made about them, so where the id lands on nothing
+    this says nothing at all.
+    """
+    sets = _sets_a_question_spells()
+    shape = next(s for s in sorted(SHAPES)
+                 if _repeats(SHAPES[s]["result"], sets))
+    row = SHAPES[shape]
+    path = _repeats(row["result"], sets)[0]
+    forged = copy.deepcopy(row["result"])
+    was = str(_at(forged, path)["token"])
+    _at(forged, path)["token"] = next(
+        m for m in _members(_at(forged, path)["vocabulary"]) if m != was)
+    forged["query_id"] = "a_question_this_program_does_not_carry"
+    verify_statements_repeat_the_question(forged, row["program"])
 
 
 # --- the producer's half ------------------------------------------------------

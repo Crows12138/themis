@@ -1626,12 +1626,21 @@ def test_the_declared_remainder_is_what_it_is():
     own, these are the sentences a reader gets here and they are
     different sentences, and the statement walk asks it now. Whole
     statements are compared and not tokens, because four honest lists
-    say one token twice with different facts beside it. What is left of
-    the member half is its tail: twelve entries over ten leaves, four of
-    them the direction a monotonicity assumption runs in.
+    say one token twice with different facts beside it.
+
+    Then those four: which way a monotonicity assumption runs, in a
+    ledger claim, in what an IV answer says it rests on, and in the gap
+    that tells a reader so. That word is the QUESTION's — thirteen
+    answers are for a question spelling it, ten sentences repeat it, all
+    ten as spelt — and one rule ever read the declaration. The bounds
+    verifier takes it to work out which side tightens and hands the word
+    to that row's own account, so it was held at the position it was
+    first written at and nowhere else, which is the shape this file
+    keeps finding. What is left of the member half is eight entries over
+    seven leaves.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1902, total
+    assert total == 1898, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

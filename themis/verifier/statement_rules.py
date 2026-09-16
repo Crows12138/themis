@@ -104,6 +104,16 @@ are the member list. The exception is a table that is partial ON PURPOSE,
 whose other half this build writes down (:data:`_DECLARED_SILENT`): a
 token there is a member with no sentence by declaration, so its holes are
 none rather than unknown, and it is not a stranger.
+
+One word on the envelope is not the answer's at all. A QUESTION spells
+an assumption from one of these sets — which way a monotonicity
+assumption runs — and every sentence repeating it is repeating that
+one word. It is held here rather than in the block audits for the
+reason the walk is total: the four blocks that carry it are not a list
+anyone chose, and the one rule that did read the declaration read it
+for the row it was verifying and handed the word to that row's own
+account. A second record that reaches one of the places its fact is
+written is not a second record of the others.
 """
 from __future__ import annotations
 
@@ -114,8 +124,10 @@ from ..assumption_glossary import CLAIM
 from ..gaps import DESCRIBED, NEEDED, NOTHING_FILLS, PROVIDED, ROUTED
 from ..refusals import REFUSED
 from .errors import VerificationError
+from .program_copy_rules import query_of
 
 _RULE = "statement_facts_check"
+_SPELT = "statement_repeats_the_question"
 
 #: The sites that spell a statement's token under a field of their own.
 #:
@@ -413,3 +425,109 @@ def verify_statements_carry_their_facts(result: Mapping) -> None:
     and the pairing is wrong or right on its own terms.
     """
     _walk(result, ())
+
+
+def _the_question_spells(result: Mapping,
+                        program: Mapping) -> dict[str, str]:
+    """Every word this answer's own question spells, by the set it is from.
+
+    A program spells words from this build's sets in two shapes, and the
+    contract says which: a word about a NAMED THING — the scale a column
+    is declared at — and a word about the QUESTION, which is what
+    ``query.assumptions`` holds. The first is keyed on the name and the
+    audit that reads it is keyed on the name too; the second has no name
+    to key on, being one word for the whole answer.
+
+    Read rather than tabulated: an assumption a question declares is
+    named after the SET its value comes from, so the pairing is the
+    contract's and a table here would be a second copy of it going
+    stale. A key naming no set this build declares, or a value that is
+    not one of its members, is passed over — an assumption is free to be
+    a number or a flag, and this rule has nothing to say about those.
+
+    The answer's OWN question, not the program's first: a program
+    carries as many statements as the caller wrote, and a word read off
+    one this answer is not for would hold its sentences to a
+    declaration nobody made about them. Where ``query_id`` names no
+    statement this says nothing — that an answer names its question is
+    another rule's claim, and guessing here would be answering a
+    question this cannot identify.
+    """
+    query = query_of(program, result.get("query_id"))
+    assumptions = query.get("assumptions") if isinstance(
+        query, Mapping) else None
+    if not isinstance(assumptions, Mapping):
+        return {}
+    spelt: dict[str, str] = {}
+    for name, value in assumptions.items():
+        owner = language.VOCABULARIES.get(str(name))
+        if owner is None or not isinstance(value, str):
+            continue
+        if any(str(member) == value for member in owner):
+            spelt[str(name)] = value
+    return spelt
+
+
+def _repeat(node, path: tuple[str, ...],
+            spelt: Mapping[str, str]) -> None:
+    """Every statement under this node, against the word it must repeat.
+
+    Its own descent rather than :func:`_walk`'s: what that walk carries
+    down is the record a statement belongs to, which this question has
+    no use for, and what this one needs is the statements that carry
+    their set beside them. A word a question spells can reach no other
+    shape — a carrier site spells its token under a field of its own
+    and its set is fixed by :data:`_CARRIERS`, none of which is a set a
+    question may declare, which a gate holds rather than this asserts.
+    """
+    if isinstance(node, Mapping):
+        vocabulary = node.get("vocabulary")
+        declared = (spelt.get(vocabulary)
+                    if isinstance(vocabulary, str) else None)
+        if declared is not None and "token" in node:
+            token = str(node.get("token") or "")
+            if token != declared:
+                raise VerificationError(
+                    f"{'.'.join(path) or 'the result'} tells a reader "
+                    f"the {vocabulary} this answer rests on is "
+                    f"{token!r}; the question it answers declares "
+                    f"{declared!r}, and a reader weighing the "
+                    f"assumption is weighing one nobody made",
+                    rule=_SPELT,
+                )
+        for key, value in node.items():
+            _repeat(value, (*path, str(key)), spelt)
+    elif isinstance(node, Sequence) and not isinstance(node, (str, bytes)):
+        for item in node:
+            _repeat(item, (*path, "[]"), spelt)
+
+
+def verify_statements_repeat_the_question(result: Mapping,
+                                         program: Mapping) -> None:
+    """Hold every sentence that repeats the question to what it said.
+
+    The rule above asks whether a statement's facts fit the sentence it
+    names, which is a question the envelope answers on its own. This one
+    is a copy check against the other document, and the copy is the
+    sharper of the two: the direction a monotonicity assumption runs in
+    decides which side of an interval tightens, so a sentence naming the
+    other one hands a reader the opposite conclusion in words that are
+    all real.
+
+    What this is general about, and where that generality ends: a set a
+    question spells is a set of DIRECTIONS or of kinds, not of
+    assumptions, and what the question declares is the one this answer
+    rests on. Should a producer ever need to say some other assumption's
+    direction in the same words, it would be spelling a second fact, and
+    the question is not a record of that one — such a sentence needs its
+    own set or its own second record, and would be refused here until it
+    has one. Said rather than guarded against: a guard would be a list of
+    the positions this rule may speak at, which is the thing it exists to
+    do without.
+
+    Returns ``None`` on accept, including when the question spells
+    nothing this build has words for.
+    """
+    spelt = _the_question_spells(result, program)
+    if spelt:
+        _repeat(result, (), spelt)

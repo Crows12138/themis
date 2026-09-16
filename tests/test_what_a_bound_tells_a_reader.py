@@ -263,8 +263,21 @@ def test_a_monotonicity_note_that_names_the_other_side():
     def redirect(row):
         row["notes"][0]["words"]["direction"]["token"] = "non_increasing"
 
-    with pytest.raises(VerificationError, match="row was verified as"):
+    # Two doors, and each is asked what it is the one to say. Which way
+    # the assumption runs is the QUESTION's word, and a reader meets it
+    # in four blocks, so through the whole envelope the rule that holds
+    # it is the one that walks all four. This row's own door is where
+    # the account still speaks: there the word is held to the direction
+    # THIS row was verified at, which is the only authority a program
+    # declaring it through the older extensions channel has.
+    with pytest.raises(VerificationError,
+                       match="the question it answers"):
         _verify_with(name, redirect, "manski_tamer_monotonicity")
+
+    program, result = _pair(name)
+    redirect(_row(result, "manski_tamer_monotonicity"))
+    with pytest.raises(VerificationError, match="row was verified as"):
+        themis.verify_bounds_results(program, result)
 
     def elsewhere(row):
         row["notes"][0]["said"]["to"] = "P(x=true)"

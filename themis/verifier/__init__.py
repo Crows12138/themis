@@ -414,6 +414,17 @@ Public surface (re-exports from sub-modules):
   about something else. The word tables are read rather than restated —
   what a second author is worth restating is a producer's decision, and a
   sentence's holes are the sentence)
+- And the one word on the envelope the answer did not choose:
+  ``verify_statements_repeat_the_question`` (a question spells which way a
+  monotonicity assumption runs, and that direction decides which side of an
+  interval tightens. Ten sentences repeat it across four blocks and one rule
+  ever read the declaration — the bounds verifier, which handed the word to
+  its own row's account — so the same word in a ledger claim, in what an IV
+  answer says it rests on and in the gap telling a reader so could name the
+  opposite direction. The program spells a word from one of this build's
+  sets in exactly two places, and the other is about a named column; this
+  one is about the whole question, so it is read off the answer's own query
+  and held wherever it is said)
 - The question an answer says it answers: ``verify_answer_names_its_question``
   (the treatment, outcome, mediator and proxies ``numeric_estimate`` opens
   with, read again off the query. No derivation step records any of them, so
@@ -861,7 +872,10 @@ from .data_gap_rules import (
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
 )
-from .statement_rules import verify_statements_carry_their_facts
+from .statement_rules import (
+    verify_statements_carry_their_facts,
+    verify_statements_repeat_the_question,
+)
 from .status_rules import (
     verify_answer_status,
     verify_answer_status_fits_its_question,
@@ -913,6 +927,7 @@ __all__ = [
     "verify_answer_status",
     "verify_answer_status_fits_its_question",
     "verify_statements_carry_their_facts",
+    "verify_statements_repeat_the_question",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",
