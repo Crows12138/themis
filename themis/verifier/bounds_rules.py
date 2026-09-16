@@ -779,8 +779,13 @@ def _graph_instrument_candidates(
 ) -> set[str]:
     """Predicates this graph could offer as an instrument for X → Y.
 
-    Read off the programme's ``cause`` and ``bidirected`` statements and
-    held to :func:`themis.verifier.rules.unconditional_instrument_holds`: an
+    Read off the programme's ``cause`` and ``bidirected`` statements, with
+    the question's two ends as nodes whether or not a statement mentions
+    them: a variable the question names is a node of the graph it asks
+    about (:func:`themis.types.atoms_the_graph_is_asked_about`), and an
+    outcome in no edge is the one an instrument most plainly has no path
+    to. It is held to
+    :func:`themis.verifier.rules.unconditional_instrument_holds`: an
     edge into the treatment, and no open path to the outcome once the
     treatment's outgoing edges are cut, with nothing conditioned. Balke-Pearl
     is built on such an instrument. An edge in and none into the outcome is
@@ -806,6 +811,7 @@ def _graph_instrument_candidates(
 
     ends = {"cause": ("from", "to"), "bidirected": ("left", "right")}
     graph = nx.DiGraph()
+    graph.add_nodes_from((treatment, outcome))
     bidirected: set[frozenset[str]] = set()
     for stmt in program.get("statements") or []:
         if not isinstance(stmt, dict) or stmt.get("kind") not in ends:
@@ -820,8 +826,6 @@ def _graph_instrument_candidates(
         else:
             graph.add_nodes_from((a, b))
             bidirected.add(frozenset({a, b}))
-    if treatment not in graph or outcome not in graph:
-        return set()
     return {
         z for z in graph.predecessors(treatment)
         if unconditional_instrument_holds(

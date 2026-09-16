@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21192 passed / 518 skipped, warning-clean
+21212 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,30 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #689 问题点名的两端是它所问的图的节点，没有边也是；工具变量审计自己建的图漏了这一条（2026-09-17）
+
+**现象。** effect 问题的结局声明了但没有任何边时，kernel 附上 Balke-Pearl 工具变量界（最小例子：只有 z→x，工具变量 z），`verify_honestly` 以「this graph does not offer … the predicates with both are []」拒掉这个诚实答案。量：
+- 随机 400 个 6 变量无环程序里，19 个 kernel 答案被拒，全部是这一种。结局无边、不带这张界的 47 个全收，结局有边、带界的 82 个全收。
+- 语料里把问题结局的 cause/bidirected 语句全去掉后重跑：effect 答案被拒 30 个，全部是这一种；causation、counterfactual、identify 全收。
+- #688 的多环随机演练里，被拒的 24 个 kernel 答案也全是这一种，去掉环照样拒。
+
+**根因。** `bounds_rules._graph_instrument_candidates` 自己用程序的 cause/bidirected 语句建谓词图，只有出现在语句端点上的才是节点，随后 `if treatment not in graph or outcome not in graph: return set()`。问题点名、但没有边的结局不是节点，候选集就被当成空集。「问题点名的原子是它所问的图的节点」这一读法，1afe26c 已经统一给了投影、输入校验和六个调度前置条件（`types.atoms_the_graph_is_asked_about`）；这里是没跟上的第四份读法。
+
+**为什么是根因不是表象。** 工具变量判据 `unconditional_instrument_holds` 本身没错：把 y 当成节点，z 到 y 没有开放路径，判据成立。拒绝完全来自节点资格，那个守卫把「不是这张图的节点」和「图给不出工具变量」当成了一件事。生产端给出的 z 是合法工具变量，所以不是生产端的错。
+
+**结构。** `_graph_instrument_candidates` 在读语句之前先把问题的两端加为节点，删掉守卫；docstring 写明两端无论有没有边都是节点，并指向 `atoms_the_graph_is_asked_about`。未声明的端点在输入校验阶段就被拒。审计仍在 verifier 这一侧独立转写，不从生产端导入。
+
+**测量。**
+- 改后：随机 400 个无环程序被拒的 19 个 → 0；语料去边后被拒的 30 个 → 0（effect 116 个全收）。
+- 另一组随机 400 个程序（一半结局无边，其中 224 个），kernel 答案全收。
+- 伪造一侧：把 Balke-Pearl 行的工具变量改名成每个别的变量，按我探针自己的读法（治疗的父节点、切掉治疗出边后到结局无有向路径）判为不合格的 507 个全拒。另有 3 个探针判为合格却被拒，核过是探针漏读：候选与结局有共同原因（b ← c → f），后门路径开放，verifier 拒得对。
+- 新测试改前挂 7 个（图给出候选 1、kernel 的界被收 1、随机结局无边程序中带界的 5），伪造一侧照过。
+- 架构图不变（只统计 rules.py / verify.py）。
+
+**还开着。** 同一次测量里量到另一件：scm_counterfactual 问题的干预变量不是目标的祖先时（语料 3 行把结局的边去掉后出现），kernel 答 counterfactual_solved，verifier 的 `_rule_scm_abduction_action_prediction` 读 `world.values[world.intervened]` 抛 KeyError，诚实答案因崩溃被拒。下一条先量它是否不依赖结局无边。
+
+**账。** 新文件 `tests/test_an_outcome_in_no_edge_is_a_node_an_instrument_misses.py` 共 20 个测试（候选集 3：一个、两个、结局有边照旧；kernel 的界 1；点名不合格变量 3；与结局共因的候选 1；随机结局无边程序 12）。基线 21192→**21212**。
 
 ### #688 声明的环够到估计量，答案就欠一次撤回；没有人问它欠不欠（2026-09-17）
 
