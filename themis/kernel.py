@@ -146,7 +146,7 @@ from .verifier import (
     verify_answer_status_fits_its_question,
     verify_answer_tier,
     verify_statements_carry_their_facts,
-    verify_statements_repeat_the_question,
+    verify_statements_repeat_what_decided_them,
     verify_confidence_level,
     verify_envelope_arithmetic,
     verify_gap_names,
@@ -1645,17 +1645,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # wrong on its own terms.
     verify_statements_carry_their_facts(result)
 
-    # And the one word on that envelope the answer did not choose. A
-    # question spells an assumption from a set of this build's words —
-    # which way a monotonicity assumption runs — and the sentences
-    # repeating it are scattered through four blocks. One rule read the
-    # declaration: the bounds verifier, which works out which side that
-    # direction tightens and hands the word to that row's own account.
-    # So the same word in a ledger claim, in what an IV answer says it
-    # rests on, and in the gap telling a reader so stood on the
-    # producer's word, and a reader weighing the assumption could be
-    # weighing its opposite.
-    verify_statements_repeat_the_question(result, ast)
+    # And the words on that envelope a record other than the sentence
+    # decides. A question spells which way a monotonicity assumption
+    # runs, and the derivation says which estimator ran and so which
+    # premise an instrument's answer rests on. Each is repeated through
+    # several blocks and each was held at most where it was first
+    # computed — the direction by the bounds verifier for its own row,
+    # the premise by a check holding two of its copies to each other —
+    # so the gap telling a reader so stood on the producer's word, and a
+    # reader weighing the assumption could be weighing its opposite.
+    verify_statements_repeat_what_decided_them(result, ast)
 
     # The estimand a reader is shown, against the graph and the question it
     # claims to be for. Outside the query-kind dispatch for the reason the

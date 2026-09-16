@@ -44,7 +44,9 @@ import copy
 import pytest
 
 import themis
+from themis.kernel import _premises_of
 from themis.verifier.errors import VerificationError
+from themis.verifier.verify import verify_iv_surfaces
 
 
 def _atom(p):
@@ -205,9 +207,17 @@ def test_the_same_swap_made_in_both_blocks_is_a_different_honest_answer():
 
 
 def test_a_premise_swapped_on_one_surface_only_is_refused():
-    """``required_assumption`` is the one field of the three no graph can
-    settle — which premise a route owes is a fact about the route. What
-    can be settled is that the two copies of it are one statement.
+    """``required_assumption`` is the one field of the three no GRAPH can
+    settle. Which premise a route owes is a fact about which estimator it
+    ran, and the derivation records that — so through the whole door the
+    swapped copy is refused as naming a premise the chain did not settle,
+    which is the sentence a reader gets, and every other copy on the
+    envelope is held the same way.
+
+    What this module adds is that the two copies are one statement, and
+    that is asked of it on its own: the chain answers first through the
+    door, and the copy check is what still holds the two together where a
+    chain settles nothing about an instrument.
 
     The swap is to another PREMISE, not to an invented word. Since #544 the
     contract enumerates this set, so an invented one is refused a rule
@@ -222,7 +232,14 @@ def test_a_premise_swapped_on_one_surface_only_is_refused():
                  if p != surface["token"])
     result["extensions"]["identification"]["required_assumption"] = dict(
         surface, token=other)
-    _refuses(ONE_INSTRUMENT, result, "required_assumption=")
+    _refuses(ONE_INSTRUMENT, result, "the derivation it ran settles")
+
+    _ast, _prog, _query, context = _premises_of(ONE_INSTRUMENT, result)
+    with pytest.raises(VerificationError, match="required_assumption="):
+        verify_iv_surfaces(
+            result["extensions"]["identification"],
+            result["extensions"]["iv_identification"],
+            context.graph, context.bidirected, context.query)
 
 
 def test_deleting_the_block_the_surface_copies_is_refused():

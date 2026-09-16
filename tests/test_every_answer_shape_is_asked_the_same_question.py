@@ -1636,11 +1636,20 @@ def test_the_declared_remainder_is_what_it_is():
     verifier takes it to work out which side tightens and hands the word
     to that row's own account, so it was held at the position it was
     first written at and nowhere else, which is the shape this file
-    keeps finding. What is left of the member half is eight entries over
-    seven leaves.
+    keeps finding.
+
+    Then 3 more of that shape with a different authority: which premise
+    an instrument's answer rests on, which decides whether its number is
+    a LATE or one equation's coefficient. The derivation records which
+    estimator ran, nine sentences across three blocks name the premise
+    that estimator needs, and the one check reading the word held two of
+    its copies to each other — so every copy agreeing on the wrong premise
+    was one consistent sentence, and the gap a reader reads was not among
+    the copies at all. What is left of the member half is five entries
+    over five leaves, each the only one of its kind.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1898, total
+    assert total == 1895, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

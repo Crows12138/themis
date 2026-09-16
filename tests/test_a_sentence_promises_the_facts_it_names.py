@@ -52,14 +52,19 @@ import themis
 from themis import gaps, language
 from themis.input.syntactic_validator import SyntacticError
 from themis.refusals import REFUSED
+from themis.runtime.iv_words import Premise
 from themis.types import GapKind
 from themis.verifier import VerificationError
 from themis.verifier.program_copy_rules import query_of
+from themis.verifier.rules import _SIMPLE_RULES, _STEP_REF_RULES
 from themis.verifier.statement_rules import (
     _CARRIERS,
     _DECLARED_SILENT,
+    _PREMISE_SETTLED_BY,
+    _THROUGH_AN_INSTRUMENT,
+    _the_premise_the_derivation_ran,
     verify_statements_carry_their_facts,
-    verify_statements_repeat_the_question,
+    verify_statements_repeat_what_decided_them,
 )
 
 from . import schema_walk
@@ -720,7 +725,7 @@ def test_the_contract_says_where_a_program_spells_one_of_our_words():
     assert key == found["statements.[].query.assumptions.monotonicity"]
 
 
-def test_no_carrier_site_spells_a_word_a_question_may_declare():
+def test_no_carrier_site_spells_a_word_a_record_decides():
     """Why the second walk may look for statements that carry their set.
 
     A carrier site writes its token under a field of its own and its
@@ -728,10 +733,11 @@ def test_no_carrier_site_spells_a_word_a_question_may_declare():
     by ``vocabulary``. Nothing is lost by that while this holds, and when
     it stops holding it stops here rather than in silence. The scale is
     the other program-spelt word and it IS a carrier — which is why the
-    set this asks about is the question's half rather than both.
+    set this asks about is the question's half rather than both, beside
+    the set the derivation decides.
     """
     carried = {named for _spelling, named in _CARRIERS.values()}
-    assert not _sets_a_question_spells() & carried
+    assert not (_sets_a_question_spells() | {Premise.vocabulary}) & carried
     assert _spelt_by_a_question()["statements.[].scale"] in carried
 
 
@@ -800,7 +806,7 @@ def test_a_sentence_naming_a_direction_the_question_did_not_is_refused():
                 else:
                     survived += 1
                 try:
-                    verify_statements_repeat_the_question(
+                    verify_statements_repeat_what_decided_them(
                         forged, row["program"])
                 except VerificationError:
                     mine += 1
@@ -828,12 +834,12 @@ def test_a_question_that_spells_nothing_leaves_the_sentence_alone():
     was = str(_at(forged, path)["token"])
     _at(forged, path)["token"] = next(
         m for m in _members(_at(forged, path)["vocabulary"]) if m != was)
-    verify_statements_repeat_the_question(forged, program)
+    verify_statements_repeat_what_decided_them(forged, program)
 
     # And with the question back, the same forgery is refused — so the
     # silence above is the missing declaration and not the missing walk.
     with pytest.raises(VerificationError, match="the question it answers"):
-        verify_statements_repeat_the_question(forged, row["program"])
+        verify_statements_repeat_what_decided_them(forged, row["program"])
 
 
 def test_a_query_id_that_names_no_statement_is_not_guessed_at():
@@ -854,7 +860,190 @@ def test_a_query_id_that_names_no_statement_is_not_guessed_at():
     _at(forged, path)["token"] = next(
         m for m in _members(_at(forged, path)["vocabulary"]) if m != was)
     forged["query_id"] = "a_question_this_program_does_not_carry"
-    verify_statements_repeat_the_question(forged, row["program"])
+    verify_statements_repeat_what_decided_them(forged, row["program"])
+
+
+# --- and the premise the derivation ran ---------------------------------------
+
+
+def _premises(result) -> list[tuple]:
+    """Every statement naming which premise an instrument's answer rests on."""
+    return _repeats(result, {Premise.vocabulary})
+
+
+def _owed_by_the_route(result) -> str:
+    """The same fact read off the blocks each route leaves, not off the chain.
+
+    Written here so the standing test is not the rule agreeing with
+    itself: a loop reduced to simultaneous equations, a Wald table under
+    the instrument's block, or neither. Two records agreeing on every
+    honest answer is what makes the chain the right one to read rather
+    than merely a convenient one.
+    """
+    extensions = result.get("extensions") or {}
+    loop = extensions.get("feedback_loop") or {}
+    if loop.get("reduction") == "simultaneous_equations":
+        return str(Premise.LINEAR_SIMULTANEOUS_SYSTEM)
+    if (extensions.get("iv_identification") or {}).get("numeric"):
+        return str(Premise.MONOTONICITY_AS_DECLARED)
+    return str(Premise.MONOTONICITY_OR_LINEARITY)
+
+
+def _bent(statement, other):
+    """The statement naming ``other`` instead, with the holes its sentence has.
+
+    The premises' sentences do not share holes — only the one quoting the
+    declared direction has a place for it — so a bend keeping the old
+    facts would be refused by the rule holding a sentence to its holes,
+    and would say nothing about this one.
+    """
+    wanted = _holes(statement["vocabulary"], other)
+    assert wanted <= {"direction"}, wanted
+    bent = {"vocabulary": statement["vocabulary"], "token": other}
+    if wanted:
+        bent["words"] = {"direction": {"vocabulary": "monotonicity",
+                                       "token": "non_decreasing"}}
+    return bent
+
+
+def test_the_records_that_decide_a_word_decide_different_sets():
+    """Two records, no set both of them speak for, and no row asking nothing.
+
+    Were one set decided twice, which record a sentence answered to would
+    be a fact about the order the table lists them in. Each step the chain
+    is read by is one the verifier really replays, so a misspelt row
+    cannot sit in the table unread; and the steps and the chain's default
+    between them name every member of the set, so no premise is one the
+    reading can never owe.
+    """
+    assert Premise.vocabulary not in _sets_a_question_spells()
+    for rule in (*_PREMISE_SETTLED_BY, _THROUGH_AN_INSTRUMENT):
+        assert rule in _SIMPLE_RULES or rule in _STEP_REF_RULES, rule
+    reachable = {*_PREMISE_SETTLED_BY.values(),
+                 str(Premise.MONOTONICITY_OR_LINEARITY)}
+    assert reachable == set(_members(Premise.vocabulary))
+
+
+def test_every_premise_an_instrument_names_is_the_one_its_derivation_ran():
+    """The standing statement, and the population it is about.
+
+    Four answers name a premise, in nine sentences across three blocks —
+    the two identification blocks, and the gap that tells a reader — and
+    every member of the set is said by one of them, so each branch of the
+    reading is answered for by an honest answer rather than by a fixture.
+    """
+    rows = sites = by_the_chain = by_the_route = 0
+    where, said = set(), set()
+    for shape in sorted(SHAPES):
+        row = SHAPES[shape]
+        found = _premises(row["result"])
+        if not found:
+            continue
+        rows += 1
+        chain = _the_premise_the_derivation_ran(row["result"], row["program"])
+        for path in found:
+            sites += 1
+            token = str(_at(row["result"], path)["token"])
+            said.add(token)
+            where.add(".".join(k for k in path if not isinstance(k, int)))
+            by_the_chain += token == chain.get(Premise.vocabulary)
+            by_the_route += token == _owed_by_the_route(row["result"])
+    assert (rows, sites, by_the_chain, by_the_route) == (4, 9, 9, 9)
+    assert said == set(_members(Premise.vocabulary))
+    assert where == {
+        "data_gap_report.gaps.[].describes.[].words.assumption",
+        "extensions.identification.required_assumption",
+        "extensions.iv_identification.required_assumption",
+    }
+
+
+def test_a_premise_naming_an_estimator_that_did_not_run_is_refused():
+    """The forgery, at every one of the nine and to every other member.
+
+    Which premise it is decides what the number IS — a LATE among
+    compliers, or one equation's coefficient rather than a total effect —
+    so the other word hands a reader a different estimand in words that
+    are all real.
+    """
+    planted = refused = survived = mine = 0
+    for shape in sorted(SHAPES):
+        row = SHAPES[shape]
+        for path in _premises(row["result"]):
+            statement = _at(row["result"], path)
+            for other in _members(Premise.vocabulary):
+                if other == statement["token"]:
+                    continue
+                planted += 1
+                forged = copy.deepcopy(row["result"])
+                target = _at(forged, path)
+                target.clear()
+                target.update(_bent(statement, other))
+                try:
+                    the_door_for(row["result"])(row["program"], forged)
+                except Exception:                       # noqa: BLE001
+                    refused += 1
+                else:
+                    survived += 1
+                try:
+                    verify_statements_repeat_what_decided_them(
+                        forged, row["program"])
+                except VerificationError:
+                    mine += 1
+    assert survived == 0
+    assert mine == refused == planted == 18
+
+
+def test_every_copy_agreeing_on_the_wrong_premise_is_still_refused():
+    """The case holding copies to each other cannot see.
+
+    The two identification blocks were already held equal, so a premise
+    swapped in one of them was refused — and the same swap made in every
+    copy on the envelope was one consistent sentence, and taken. Copies
+    agreeing is not the copies agreeing with what ran.
+    """
+    planted = 0
+    for shape in sorted(SHAPES):
+        row = SHAPES[shape]
+        paths = _premises(row["result"])
+        if not paths:
+            continue
+        was = _at(row["result"], paths[0])
+        for other in _members(Premise.vocabulary):
+            if other == was["token"]:
+                continue
+            planted += 1
+            forged = copy.deepcopy(row["result"])
+            for path in paths:
+                target = _at(forged, path)
+                target.clear()
+                target.update(_bent(was, other))
+            with pytest.raises(VerificationError,
+                               match="the derivation it ran settles"):
+                the_door_for(row["result"])(row["program"], forged)
+    assert planted == 8
+
+
+def test_a_chain_that_settles_nothing_about_an_instrument_is_not_read_into():
+    """Silence where the derivation does not say, and a word where it does.
+
+    A chain with no step touching an instrument owes no premise; a chain
+    naming two estimators does not say which of them this answer's
+    premise belongs to, and picking one would be refusing on a guess. A
+    chain that identified through an instrument and ran neither estimator
+    owes the member saying it has not chosen one.
+    """
+    def chain(*rules):
+        return {"derivation": {"steps": [{"rule": r} for r in rules]}}
+
+    read = _the_premise_the_derivation_ran
+    assert read({}, {}) == {}
+    assert read(chain("iv_criterion_check", "numeric_iv_estimate"), {}) == {}
+    assert read(chain(*_PREMISE_SETTLED_BY, _THROUGH_AN_INSTRUMENT), {}) == {}
+    assert read(chain(_THROUGH_AN_INSTRUMENT), {}) == {
+        Premise.vocabulary: str(Premise.MONOTONICITY_OR_LINEARITY)}
+    for step, premise in _PREMISE_SETTLED_BY.items():
+        assert read(chain(step, _THROUGH_AN_INSTRUMENT), {}) == {
+            Premise.vocabulary: premise}
 
 
 # --- the producer's half ------------------------------------------------------

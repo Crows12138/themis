@@ -40,6 +40,7 @@ import pytest
 import themis
 from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import validate_ast
+from themis.runtime.iv_words import Premise
 from themis.types import Atom, ConstTerm, QueryStatement
 from themis.verifier.errors import VerificationError
 from themis.verifier.verify import verify_feedback_loop
@@ -138,12 +139,22 @@ def test_the_two_doors_carry_the_same_block(frame):
 def test_an_instrument_with_no_withdrawal_behind_it_is_refused():
     """The terminal is admitted by its premise. Strip the licence and the
     same derivation is an ordinary IV escalation on a graph where a
-    back-door answer was there to be had."""
+    back-door answer was there to be had.
+
+    Stripping the step alone leaves the answer saying it rests on a linear
+    simultaneous system, which only that step settles, so the door refuses
+    that sentence first. The escalation is pinned on the forgery that also
+    rewrites the premise to what the stripped chain settles: that one says
+    nothing the premise rule can refuse."""
     result = _structural()
     steps = result["derivation"]["steps"]
     result["derivation"]["steps"] = [
         s for s in steps if s["rule"] != "feedback_loop_withdraws_adjustment"]
     assert len(result["derivation"]["steps"]) == len(steps) - 1
+    _refuses(result, "the derivation it ran settles")
+
+    premise = result["extensions"]["iv_identification"]["required_assumption"]
+    premise["token"] = str(Premise.MONOTONICITY_OR_LINEARITY)
     _refuses(result, "an instrument is the escalation, not the first answer")
 
 

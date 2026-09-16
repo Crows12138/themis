@@ -363,8 +363,7 @@
   "estimation_context.random_state",
   "extensions.feedback_loop.withdrew.[]",
   "extensions.identification.pattern",
-  "extensions.iv_identification.alternatives_count",
-  "extensions.iv_identification.required_assumption.token"
+  "extensions.iv_identification.alternatives_count"
  ],
  "iv_2sls_overid": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
@@ -2218,13 +2217,11 @@
  ],
  "structurally_solved:identify:identify_via_iv": [
   "data_gap_report.gaps.[].describes.[].said.instrument",
-  "data_gap_report.gaps.[].describes.[].words.assumption.token",
   "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count"
  ],
  "structurally_solved:identify:identify_via_iv#2b4cbe": [
   "data_gap_report.gaps.[].describes.[].said.instrument",
-  "data_gap_report.gaps.[].describes.[].words.assumption.token",
   "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count"
  ],

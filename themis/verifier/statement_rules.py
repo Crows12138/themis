@@ -105,29 +105,32 @@ whose other half this build writes down (:data:`_DECLARED_SILENT`): a
 token there is a member with no sentence by declaration, so its holes are
 none rather than unknown, and it is not a stranger.
 
-One word on the envelope is not the answer's at all. A QUESTION spells
-an assumption from one of these sets — which way a monotonicity
-assumption runs — and every sentence repeating it is repeating that
-one word. It is held here rather than in the block audits for the
-reason the walk is total: the four blocks that carry it are not a list
-anyone chose, and the one rule that did read the declaration read it
+Some words on the envelope are decided by a record the sentence does
+not carry. A QUESTION spells which way a monotonicity assumption runs;
+the DERIVATION says which estimator ran, and so which premise an
+instrument's answer rests on. Every sentence repeating such a word is
+repeating that one word, and it is held here rather than in the block
+audits for the reason the walk is total: the blocks that carry it are
+not a list anyone chose. The one rule that read the question read it
 for the row it was verifying and handed the word to that row's own
-account. A second record that reaches one of the places its fact is
-written is not a second record of the others.
+account, and the one that read the premise held two of its copies to
+each other and to nothing else. A second record that reaches one of
+the places its fact is written is not a second record of the others.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from .. import language
 from ..assumption_glossary import CLAIM
 from ..gaps import DESCRIBED, NEEDED, NOTHING_FILLS, PROVIDED, ROUTED
 from ..refusals import REFUSED
+from ..runtime.iv_words import Premise
 from .errors import VerificationError
 from .program_copy_rules import query_of
 
 _RULE = "statement_facts_check"
-_SPELT = "statement_repeats_the_question"
+_DECIDED = "statement_repeats_its_record"
 
 #: The sites that spell a statement's token under a field of their own.
 #:
@@ -468,66 +471,133 @@ def _the_question_spells(result: Mapping,
     return spelt
 
 
+#: Which premise an instrument's answer rests on, by the step that settled it.
+#:
+#: The set's own words name the estimator along with the premise — a reader
+#: told "monotonicity" without being told it buys a LATE has been told half
+#: of it — so which member is true is a question about which estimator ran,
+#: and the derivation is the record of that the kernel replays step by step.
+#: A feedback loop reduced to simultaneous equations makes the number one
+#: equation's coefficient; the Wald evaluation makes it a LATE under the
+#: declared direction. Restated here rather than read off the producers for
+#: the reason every verifier table is, and held by a gate to naming steps
+#: the verifier really replays, so a misspelt row cannot sit here unread.
+_PREMISE_SETTLED_BY: dict[str, str] = {
+    "feedback_loop_withdraws_adjustment":
+        str(Premise.LINEAR_SIMULTANEOUS_SYSTEM),
+    "iv_wald_numeric_evaluate": str(Premise.MONOTONICITY_AS_DECLARED),
+}
+
+#: The step that identified through an instrument at all. A chain with it and
+#: with neither settling step has chosen no estimator yet, and the member
+#: saying so is a claim about THAT answer — so it is owed only where this
+#: step ran, not assumed of every answer that happens to carry the word.
+_THROUGH_AN_INSTRUMENT = "identify_via_iv"
+
+
+def _the_premise_the_derivation_ran(result: Mapping,
+                                    program: Mapping) -> dict[str, str]:
+    """Which premise the estimator this answer ran rests on, by its set.
+
+    Silent where the chain settles nothing about an instrument, and silent
+    where it names two estimators: which of them this answer's premise
+    belongs to is not something the chain says, and picking one would be
+    refusing an answer on a guess.
+    """
+    derivation = result.get("derivation")
+    steps = derivation.get("steps") if isinstance(
+        derivation, Mapping) else None
+    ran = {str(step.get("rule")) for step in steps or ()
+           if isinstance(step, Mapping)}
+    settled = {_PREMISE_SETTLED_BY[rule] for rule in ran
+               if rule in _PREMISE_SETTLED_BY}
+    if not settled and _THROUGH_AN_INSTRUMENT in ran:
+        settled = {str(Premise.MONOTONICITY_OR_LINEARITY)}
+    if len(settled) != 1:
+        return {}
+    return {Premise.vocabulary: next(iter(settled))}
+
+
+#: Every record that decides a word on the envelope, and how a reader is told
+#: whose word it was.
+#:
+#: Each reader answers for one envelope with the word its record decides for
+#: each set it speaks for, and nothing for a set its record is silent about.
+#: The sets they speak for do not overlap, which a gate holds: two records
+#: deciding one set would make which of them a sentence answers to a fact
+#: about the order of this tuple.
+_DECIDERS: tuple[tuple[Callable[[Mapping, Mapping], dict[str, str]], str],
+                 ...] = (
+    (_the_question_spells, "the question it answers declares"),
+    (_the_premise_the_derivation_ran, "the derivation it ran settles"),
+)
+
+
 def _repeat(node, path: tuple[str, ...],
-            spelt: Mapping[str, str]) -> None:
+            decided: Mapping[str, tuple[str, str]]) -> None:
     """Every statement under this node, against the word it must repeat.
 
     Its own descent rather than :func:`_walk`'s: what that walk carries
     down is the record a statement belongs to, which this question has
     no use for, and what this one needs is the statements that carry
-    their set beside them. A word a question spells can reach no other
-    shape — a carrier site spells its token under a field of its own
-    and its set is fixed by :data:`_CARRIERS`, none of which is a set a
-    question may declare, which a gate holds rather than this asserts.
+    their set beside them. A decided word can reach no other shape — a
+    carrier site spells its token under a field of its own and its set
+    is fixed by :data:`_CARRIERS`, none of which is a set a record here
+    decides, which a gate holds rather than this asserts.
     """
     if isinstance(node, Mapping):
         vocabulary = node.get("vocabulary")
-        declared = (spelt.get(vocabulary)
-                    if isinstance(vocabulary, str) else None)
-        if declared is not None and "token" in node:
+        entry = (decided.get(vocabulary)
+                 if isinstance(vocabulary, str) else None)
+        if entry is not None and "token" in node:
             token = str(node.get("token") or "")
-            if token != declared:
+            word, whose = entry
+            if token != word:
                 raise VerificationError(
                     f"{'.'.join(path) or 'the result'} tells a reader "
                     f"the {vocabulary} this answer rests on is "
-                    f"{token!r}; the question it answers declares "
-                    f"{declared!r}, and a reader weighing the "
-                    f"assumption is weighing one nobody made",
-                    rule=_SPELT,
+                    f"{token!r}; {whose} {word!r}, and a reader "
+                    f"weighing the assumption is weighing one this "
+                    f"answer does not rest on",
+                    rule=_DECIDED,
                 )
         for key, value in node.items():
-            _repeat(value, (*path, str(key)), spelt)
+            _repeat(value, (*path, str(key)), decided)
     elif isinstance(node, Sequence) and not isinstance(node, (str, bytes)):
         for item in node:
-            _repeat(item, (*path, "[]"), spelt)
+            _repeat(item, (*path, "[]"), decided)
 
 
-def verify_statements_repeat_the_question(result: Mapping,
-                                         program: Mapping) -> None:
-    """Hold every sentence that repeats the question to what it said.
+def verify_statements_repeat_what_decided_them(result: Mapping,
+                                               program: Mapping) -> None:
+    """Hold every sentence repeating a decided word to what decided it.
 
     The rule above asks whether a statement's facts fit the sentence it
     names, which is a question the envelope answers on its own. This one
-    is a copy check against the other document, and the copy is the
-    sharper of the two: the direction a monotonicity assumption runs in
-    decides which side of an interval tightens, so a sentence naming the
-    other one hands a reader the opposite conclusion in words that are
-    all real.
+    is a copy check against a record the sentence does not carry, and it
+    is the sharper of the two: which way a monotonicity assumption runs
+    decides which side of an interval tightens, and which premise an
+    instrument rests on decides whether the number is a LATE or one
+    equation's coefficient — so a sentence naming the other word hands a
+    reader the opposite conclusion in words that are all real. Each such
+    word is written in several blocks, and a rule holding it at the block
+    it was first computed in held none of the others.
 
-    What this is general about, and where that generality ends: a set a
-    question spells is a set of DIRECTIONS or of kinds, not of
-    assumptions, and what the question declares is the one this answer
-    rests on. Should a producer ever need to say some other assumption's
-    direction in the same words, it would be spelling a second fact, and
-    the question is not a record of that one — such a sentence needs its
-    own set or its own second record, and would be refused here until it
-    has one. Said rather than guarded against: a guard would be a list of
-    the positions this rule may speak at, which is the thing it exists to
-    do without.
+    What this is general about, and where that generality ends: what a
+    record decides is the word THIS answer rests on. Should a producer
+    ever need to say some other assumption's direction or premise in the
+    same words, it would be spelling a second fact, and the record is not
+    one of that — such a sentence needs its own set or its own second
+    record, and would be refused here until it has one. Said rather than
+    guarded against: a guard would be a list of the positions this rule
+    may speak at, which is the thing it exists to do without.
 
-    Returns ``None`` on accept, including when the question spells
-    nothing this build has words for.
+    Returns ``None`` on accept, including when no record decides a word
+    this envelope carries.
     """
-    spelt = _the_question_spells(result, program)
-    if spelt:
-        _repeat(result, (), spelt)
+    decided: dict[str, tuple[str, str]] = {}
+    for read, whose in _DECIDERS:
+        for vocabulary, word in read(result, program).items():
+            decided[vocabulary] = (word, whose)
+    if decided:
+        _repeat(result, (), decided)

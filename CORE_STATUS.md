@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20732 passed / 518 skipped, warning-clean
+20737 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,29 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #678 两份拷贝互相押相等，不等于它们说的是跑过的那一个（2026-09-16）
+
+**现象。** `iv_required_assumption` 说「工具变量的答案依据哪条前提」——`monotonicity_as_declared`（Wald LATE）、`linear_simultaneous_system`（反馈环：报出的是一条方程的系数，不是总效应）、`monotonicity_or_linearity`（还没选估计量）。语料 4 行、9 条语句、3 个位置。换成另一个成员（按目标句子的洞补齐 `direction`）：读者真正读到的那份——缺口里那句——**6/6 所有门放行**；`iv_identification` 块里那份 4 条逃逸；两个块的拷贝**一起弯 4/4 逃逸**。读者被告知这个数是 LATE，而它是一条方程的系数。
+
+**根因。** 这个词有一份精确的第二份记录，而没有一处在读它。词表自己的 docstring 写着「依据哪条前提取决于**由哪个估计量作答**」，而哪个估计量跑了记在推导链上、由内核逐步回放：有 `feedback_loop_withdraws_adjustment` 的是反馈环、有 `iv_wald_numeric_evaluate` 的是 Wald、经 `identify_via_iv` 而两者都没跑的是尚未选估计量。语料 **9/9** 一致。现有的 `verify_iv_surfaces` 问的是**两份块拷贝互相是否相等**——那是拷贝核对，不是「这个词该是什么」；读者读到的第三份（缺口那句）连拷贝核对都不在里面。
+
+**为什么是根因不是表象。** 表象修法是把缺口那句也加进相等比较——那样三份一起弯仍然全部放行，而且又是把一个词押在「它被抄到的那几个位置」上。这正是 #677 刚落地的形状：**一个由别处记录决定的词，要在它出现的每一处都按那份记录押**，只是权威不同。选推导链而不选各路线留下的块（反馈环块 / Wald 表），按教训 72：读答案改不动的那份——删掉 Wald 步，数值回放就过不去；两份记录在语料上也 9/9 互相一致，测试里两份都比。
+
+**结构。**
+- **不新增第二条几乎一样的规则，而是把 #677 那条推广成它本来的形状**：`statement_rules` 里一张「谁决定哪个词表」的表 `_DECIDERS`——问题（它拼出的每个词表）和推导链（IV 前提）——各返回 `{词表: 词}`，共用同一道遍历，报错说出是谁决定的（「the question it answers declares」/「the derivation it ran settles」）。规则改名 `verify_statements_repeat_what_decided_them`：第二个决定者进来之后，「repeat the question」就不再是真的。
+- 推导链那一行：两步的表 `_PREMISE_SETTLED_BY` 加「经 `identify_via_iv` 且两者都没跑」的默认。**两处沉默**：链上根本没有碰工具变量的步骤（例如不带块的数据型 IV 估计）时沉默；链上同时出现两个定估计量的步骤时沉默——哪一个是这份答案的前提，链没有说，挑一个就是拿猜测去拒答案。
+- 测试押住：两个决定者管的词表**不相交**（否则一句话听谁的取决于表里的顺序）；表里的步骤名都是验证器真的会回放的规则（`_SIMPLE_RULES` / `_STEP_REF_RULES`），拼错的一行不能静默坐在表里；表加默认正好覆盖该词表的全部成员。
+
+**演练。** 诚实 **243/243** 过门、本规则单独 243/243；IV 前提单份弯折 **18/18 被拒、全部由本规则拒**；两份块拷贝一起弯 **4/4 被拒**（之前 4/4 逃逸）；信封上每一份一起弯 **8/8 被拒**；#677 的 10 条单调性弯折仍 **10/10**；读取器在「没有 IV 步 / 反馈环与 Wald 同时出现 / 没有推导」时沉默。
+
+**测量。** 声明余项 **1898→1895**（关 3，0 新增）。#672 暴露的成员半边 60 条至此关掉 55，剩 5 条、5 片叶子，**每片都是独一份**。
+
+**声明的重叠。** 内核里语句这一趟在路线审计（`_ROUTE_AUDITS`）之前，所以块拷贝的单份弯折原来由 `verify_iv_surfaces` 开口，现在新规则先开口。拷贝核对**仍有自己的 population**：推导链对工具变量什么都没说、而信封上两份拷贝不一致的答案（语料 0 行，契约允许），而且它同时押着 `instrument` 与 `conditioning`。`tests/test_the_instrument_a_reader_is_shown_is_the_one_that_was_audited.py` 里钉它措辞的那条按 #673/#677 的先例拆开：整扇门钉读者拿到的那句，拷贝核对用内核自己的 `_premises_of` 取上下文直接问 `verify_iv_surfaces`；那条测试 docstring 里「依据哪条前提是没有图能判定的……能判定的只是两份拷贝是同一句话」一并改写——前一半仍真（图判不了），后一半本轮之后不再是全部（推导链判得了）。
+
+**全量量出的第二处重叠。** 第一遍全量 2 个失败，都是本轮带出来的。`tests/test_a_reason_for_an_answer_the_dag_did_not_compute.py::test_an_instrument_with_no_withdrawal_behind_it_is_refused` 从链上删掉 `feedback_loop_withdraws_adjustment`，前提却还写着 `linear_simultaneous_system`，于是新规则先开口，它钉的「an instrument is the escalation, not the first answer」没机会出现。升级规则**自己的 population** 是「删步骤、同时把前提一致改成链判出的 `monotonicity_or_linearity`」这种伪造：实测新规则对它沉默，拒绝它的正是升级规则原来那句。所以同一条测试里分两步钉：只删步骤，钉读者拿到的新句子；再把前提改成一致，钉升级规则的句子。另一个失败是 `tests/test_the_verifier_asks_its_own_graph_questions.py` 的运行时 import 声明表：`statement_rules.py` 从 `runtime.iv_words` 取 `Premise`，没登记。这张表的约定是「依赖要声明，不是禁止」，`iv_words` 只有封闭的词表成员、没有计算，而以成员为键能让成员改名时表跟着变。所以登记进去并写明理由，没有改成按字符串拼 token。
+
+**账。** 新增 5 个测试、改写 3 个，基线 20732→**20737**。
 
 ### #677 一个词是提问的人说了算，而读它的那条规则只认它第一次被写下的位置（2026-09-16）
 
