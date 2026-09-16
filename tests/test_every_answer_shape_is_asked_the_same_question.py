@@ -1696,9 +1696,18 @@ def test_the_declared_remainder_is_what_it_is():
     their own facts; their copies were held to each other and nothing else.
     Each species is asked of the question and the graph now, and the
     detail with it.
+
+    Then 3 by a row that had become a fossil. A question naming a population
+    no selection node separates was answered with the transport formula's
+    source factor, which asserts that nothing confounds the treatment; it
+    is answered in its one population now, and the row that kept the old
+    answer still verified, so it was measuring an envelope nobody writes.
+    Refreshed from the test that produces it, the leaves of the transport
+    chain and its number are gone with the chain, and the answer it gives
+    leaves three in families other rows already declare.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1858, total
+    assert total == 1855, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 
@@ -1819,6 +1828,12 @@ def test_the_sweep_asks_about_the_whole_envelope():
     Then 32577, the second way again: two refusals stopped carrying a
     copy of the reason the identification layer files on its own block.
     Seven leaves were the copy, and nothing read them.
+
+    Then 32575, by a refresh: a question naming a population nothing
+    separates is answered in its one population, so its row carries the
+    back-door chain and the identification pattern (17 questions) where it
+    carried the transport chain, the transport block's number and a
+    structural value (19).
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1828,7 +1843,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32577, asked_total
+    assert asked_total == 32575, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

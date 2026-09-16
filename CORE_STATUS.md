@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21236 passed / 518 skipped, warning-clean
+21256 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,52 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #691 没有边界隔开的人群，问的是一个人群的问题（2026-09-17）
+
+**现象。** 效应问题点名了目标人群（`target_population`），程序却没声明任何选择节点。迁移路线认领这个问题，写出的公式是 `P(y | x)`，也就是迁移公式里的源因子，只是没有来源。verifier 自己的模型拒掉其中很大一部分，同一个问题去掉人群就放行。量：
+- 随机 300 个 5 变量图（probe691f）：带人群时拒 118 个。结局在处理上游的 78 个全拒，处理够到结局的拒 10 个，两者不相关的拒 30 个。去掉人群的同一批问题 300 个全收。
+- 语料行 `numerically_solved:effect:numeric_result#bdfa59` 把处理和结局对调，就是其中一个（probe691a）。
+
+**根因。** 迁移公式的源因子 `P(y | x, z, source)` 表示「源域里处理是随机分配的」前提下的 `P(y | do(x), z)`，源域的数据缺口也按随机试验来要数据。没有选择节点就没有源域，调度器却照样按迁移公式写这个因子。在仅有的一个人群里读它，等于断言处理没有混杂。`formula_builder.transport_formula` 的 docstring 还说调用方会另外用源域的后门准则约束 Z，实际上没有任何调用方这样做。拒答规则那一侧犯的是同一个错：
+- 只要点名了人群，就认为问题跨了边界。`transport_not_identifiable` 在无边界时也被当成可能成立的拒答。
+- 点名人群本身就让估计量越出见证搜索的范围，所以「不可识别」这类拒答在这种问题上没人检查。
+
+**为什么是根因不是表象。** 不是 verifier 太严：同一个问题去掉人群，它就放行。也不是公式渲染问题：拒的是公式本身。表象修法是在无源情形给迁移公式补一次后门调整，但那等于在迁移层重做单人群识别，潜变量、前门、一般 ID、工具变量各自都得重做一遍。没有声明任何差异时，效应原样带到那个人群，问题本身就是一个人群的总效应问题，路线表本来就会答。
+
+**结构。**
+- `scheduler._dispatch_transport` 改为接收 `_EffectFacts`。没有源域时交给新函数 `_carried_as_it_stands`：去掉 `target_population`，以及迁移路线本来就压下的 `mediator`/`mediators`，再走 `_dispatch_effect` 的路线表。答案上仍然挂迁移块（`s_nodes` 为空，唯一路线是 `P*(y | do(x)) = P(y | do(x))`），用来告诉读者：问题点名了人群，但没有声明差异。
+- `refusal_rules` 新增 `_the_question_the_routes_answer`，`_asks_what_the_search_can_answer` 和 `_asks_one_plain_effect` 都读它；`_names_a_target_population`（`transport_not_identifiable` 的成立条件）现在要求程序声明了选择节点。
+- `formula_builder.transport_formula` 的 docstring 改成实话：Z 只要求 S-可容许，源因子代表随机化源域里的条件。
+- 语料里 #bdfa59 存的是内核已不再给出的答案。它仍能通过验证，但已经是化石。从产出它的测试（`test_which_population_a_factor_is_read_from.py`）重新采集，新行名为 `numerically_solved:effect:numeric_result#acfd4b`：换成新答案后，仍有 2 个叶形只有这一行带（数据缺口里的 `source` 词），所以这一行留着。
+- 已有测试 `test_anything_that_moves_the_estimand_puts_it_out_of_reach` 在没有选择节点的事实上钉住了旧读法。人群那个参数移到新测试 `test_a_population_moves_the_estimand_across_a_boundary_only`：只点名人群时估计量仍在搜索范围内，加上选择节点才越出。
+
+**测量。**
+- 改后同 300 个问题（probe691f_after）全收，公式与去掉人群的同题逐个相同。
+- 其他随机形状也全收：带参数或中介的 240 个（probe691h_real），带潜变量的 240 个（probe691i_real，含 admg 不可识别的拒答 24 个、只能靠工具变量的 2 个）。
+- 伪造一侧：
+  - 旧公式 `P(y | x)` 放在 y→x 上被拒。
+  - 无边界时伪造的 `transport_not_identifiable` 被拒。
+  - 潜变量图上的「不可识别」拒答搬到单人群可识别的图上，有无人群都被后门见证拒。
+  - probe691q（种子 6917，400 个潜变量程序）：带人群与不带人群逐项一致，诚实答案 399 收；「不可识别」拒答搬到同一对 x、y 的其他程序上 418 次，拒 364、收 54。两组数字完全相同，那 54 个另记，见「还开着」。
+- 新测试文件在 HEAD 代码上 21 个挂 19 个。
+- gate：刷新行存活 3 个叶子，都在已声明的族里（`step_id` 80 行、`formula_repr` 10 行、迁移块 `target_population` 11 行）。声明余项 1858→1855，被问的问题 32577→32575。其余 10 个点名人群的语料行，HEAD 与改后内核输出逐字段相同。架构图不变。
+
+**还开着。**
+- probe691q 量出的 54 个是真伪造被放行：目标程序本身只缺参数（`theta_entry_missing`），把「效应不可识别」的拒答搬过去，`verify_refusal` 却收了。有无人群都一样，是下一轮的前沿。
+- 同一次量里还有 1 个诚实答案被拒：工具变量候选的描述 `d(me) given {e(me)}` 里，`given` 被当成程序没有的名字。
+- 有边界时（声明了选择节点），源因子按随机化源域读。这个前提有没有在答案上向读者说明，我没有核实。
+- `themis.estimate` 的无边界情形仍由 `_try_transport_estimate` 以空调整集认领并阻断，没有从数据出数，没量它该不该让出。
+- 迁移路线压下的中介问题：无边界时答总效应，与有边界时一致，但中介路线本来会怎么答，没有见证。
+- #688 留下的反馈环一族仍开着。
+
+**账。**
+- 新文件 `tests/test_a_population_nothing_separates_is_asked_of_one_population.py` 共 21 个测试：语料里有这类问题 1、语料问题对调 1、随机形状与一个人群同答 16、旧公式被拒 1、无边界不能迁移失败 1、搬移的拒答被拒 1。
+- `test_a_refusal_is_a_claim_about_the_program.py` 去掉 1 个参数、加 1 个测试。
+- 刷新的语料行改变了两个文件在语料上钉的规模（第一次全量挂的 5 个就是它们）：
+  - `test_a_step_cannot_name_a_variable_that_is_not_there.py`：原子输入 478→476。迁移链的 4 个原子原本都由新门拒，换来的后门链 2 个原子由更早的查询绑定规则先拒，拆分从 382/96 变为 378/98。
+  - `test_an_admissibility_check_knows_its_own_subject.py`：S-可容许步骤 11→10，参数化少 1 个。
+- 基线 21236→**21256**。
 
 ### #690 do() 施加的值是动作的事实，不是它改变了什么的一项（2026-09-17）
 

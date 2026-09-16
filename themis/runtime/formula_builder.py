@@ -380,11 +380,14 @@ def transport_formula(
     where:
 
     - ``adjustment_set`` Z satisfies Bareinboim Theorem 1
-      S-admissibility AND the source-population back-door criterion
-      (the standard joint condition where the inner factor reduces
-      from ``P(Y | do(X), Z)`` to ``P(Y | X, Z)`` without further
-      adjustment). Caller (``scheduler._dispatch_transport``)
-      enforces this via ``transport.identify_via_transport``.
+      S-admissibility, and nothing else is asked of it. The source factor
+      ``P(Y | X, Z, source)`` stands for ``P(Y | do(X), Z)`` read in a
+      source domain where the treatment was randomised, which is what the
+      source's data gap asks a reader for. This said the caller also held
+      Z to the source's back-door criterion; no caller does, and the one
+      case that reached here with no source domain to have randomised
+      anything is now identified in its one population instead
+      (``scheduler._carried_as_it_stands``).
     - Source factor ``P(Y | X, Z, source)`` is tagged
       ``population=source_population`` so the evaluator routes it to
       source theta entries (declared by user / supplied by literature).
@@ -392,9 +395,9 @@ def transport_formula(
       ``population=target_population`` so they route to target theta
       entries — typically LLM-proposed priors under Fix 3 in real
       deployment.
-    - Empty ``adjustment_set`` reduces to ``P(Y | X, source)`` flat —
-      the trivial-transportability case where source and target
-      effects coincide.
+    - Empty ``adjustment_set`` reduces to ``P(Y | X, source)`` flat:
+      nothing the selection nodes shift is to be marginalised over, and
+      the source's randomised conditional carries as it is.
 
     Both populations are named by the caller and neither has a default.
     They had one — the literal strings ``"source"`` and ``"target"`` —
@@ -413,11 +416,8 @@ def transport_formula(
     ``backdoor_formula``.
     """
     if len(adjustment_set) == 0:
-        # Trivial: transport reduces to direct source observational
-        # conditional (no Z to marginalise over, no target-marginal
-        # needed). Bareinboim Theorem 1 still requires the diagram
-        # check that S doesn't open a back-door from X to Y, but that
-        # check is structural-layer (transport.identify_via_transport).
+        # No Z to marginalise over and no target marginal needed: the
+        # source's randomised conditional carries as it is.
         return ProbabilityRefExpr(
             target=target,
             given=(intervention,) + observed,

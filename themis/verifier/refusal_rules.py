@@ -141,14 +141,34 @@ def _stands_in_for_a_strategy(facts: RefusalFacts) -> bool:
             and q.intervention.atom.predicate in (spec.get("treatments") or ()))
 
 
+def _the_question_the_routes_answer(facts: RefusalFacts) -> RefusalFacts:
+    """The question the effect routes answer for this one.
+
+    A target population no selection node separates from the data's is no
+    boundary to cross: nothing is declared to differ, the effect carries to
+    it as it stands, and what the routes identify is the one population's
+    total effect of the treatment, with the mediator transport displaces
+    still displaced. Every other question is its own.
+    """
+    q = facts.query
+    if (isinstance(q, EffectQuery) and q.target_population is not None
+            and not facts.selection_nodes):
+        return dataclasses.replace(facts, query=dataclasses.replace(
+            q, target_population=None, mediator=None, mediators=()))
+    return facts
+
+
 def _asks_what_the_search_can_answer(facts: RefusalFacts) -> bool:
     """True when the estimand is the one the witness searches express.
 
     A selection node disqualifies for the same reason a target population
-    does: what the data are a sample OF is no longer the distribution the
-    searches identify from. A declared strategy the query stands in for
-    disqualifies for the reason :func:`_stands_in_for_a_strategy` gives.
+    it separates does: what the data are a sample OF is no longer the
+    distribution the searches identify from. A target population nothing
+    separates asks what :func:`_the_question_the_routes_answer` says. A
+    declared strategy the query stands in for disqualifies for the reason
+    :func:`_stands_in_for_a_strategy` gives.
     """
+    facts = _the_question_the_routes_answer(facts)
     q = facts.query
     if not isinstance(q, EffectQuery):
         return False
@@ -642,16 +662,18 @@ def _names_a_treatment_set(facts: RefusalFacts) -> str | None:
 
 
 def _names_a_target_population(facts: RefusalFacts) -> str | None:
-    """A target population, with no treatment set: that route outranks it."""
+    """A target population the program declares a boundary to, with no
+    treatment set: that route outranks it. With no boundary the effect
+    carries as it stands, which cannot fail to carry."""
     q = facts.query
     if (isinstance(q, EffectQuery) and q.target_population is not None
-            and not q.extra_interventions):
+            and facts.selection_nodes and not q.extra_interventions):
         return None
-    return "the question carries the effect to no other population"
+    return "the question carries the effect across no declared boundary"
 
 
 def _asks_one_plain_effect(facts: RefusalFacts) -> str | None:
-    q = facts.query
+    q = _the_question_the_routes_answer(facts).query
     if isinstance(q, (CausationQuery, CounterfactualQuery)):
         return None
     if (isinstance(q, EffectQuery) and not q.extra_interventions

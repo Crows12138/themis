@@ -1573,13 +1573,10 @@
  "numerically_solved:effect:numeric_result#a80d58": [
   "derivation.steps.[].step_id"
  ],
- "numerically_solved:effect:numeric_result#bdfa59": [
-  "derivation.steps.[].inputs.source_population",
-  "derivation.steps.[].inputs.target_population",
-  "extensions.transport_identification.numeric.target_population",
+ "numerically_solved:effect:numeric_result#acfd4b": [
+  "derivation.steps.[].step_id",
   "extensions.transport_identification.sources.[].formula_repr",
-  "extensions.transport_identification.target_population",
-  "structural_result.value"
+  "extensions.transport_identification.target_population"
  ],
  "numerically_solved:effect:numeric_result#cf5c6a": [
   "derivation.steps.[].inputs.formula.body.terms.[].denominator.body.body.terms.[].given.[].atom.args.[].name",

@@ -63,7 +63,10 @@ STEPS = sorted(
 
 
 def test_the_steps_that_claim_admissibility():
-    assert len(STEPS) == 11, len(STEPS)
+    """10 since a question naming a population nothing separates stopped
+    carrying a transport chain: there is no source domain for a selection
+    node to be admissible from, and it is answered in its one population."""
+    assert len(STEPS) == 10, len(STEPS)
 
 
 @pytest.mark.parametrize("name,i", STEPS)
@@ -83,7 +86,7 @@ def test_an_outcome_no_node_has_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 11, refused
+    assert refused == 10, refused
 
 
 def test_an_outcome_that_is_a_real_node_but_the_wrong_one_is_refused():
@@ -107,7 +110,7 @@ def test_an_outcome_that_is_a_real_node_but_the_wrong_one_is_refused():
         with pytest.raises(Exception, match="question asks about"):  # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 11, refused
+    assert refused == 10, refused
 
 
 def _atom(predicate: str):

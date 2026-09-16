@@ -3777,13 +3777,7 @@ def _try_numeric(
     )
 
 
-def _dispatch_transport(
-    stmt: QueryStatement,
-    graph: nx.DiGraph,
-    q: EffectQuery,
-    theta: Theta,
-    selection_nodes: "tuple[SelectionNode, ...]",
-) -> QueryResult:
+def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
     """Phase 9 §T9.1.3 + Fix 3+4 §T9.2 (v0.1.5): Bareinboim-Pearl
     transport identification + numeric evaluation, once per source domain.
 
@@ -3812,9 +3806,16 @@ def _dispatch_transport(
 
     Unidentifiable case (structural) → ``needs_investigation`` with a
     structure-group missing item, and each domain's own blocking species.
+
+    No source domain → :func:`_carried_as_it_stands`. The formula above
+    reads its source factor from a domain where the treatment was
+    randomised, and with no selection node there is no such domain to read
+    it from.
     """
     from . import transport as _transport
 
+    stmt, graph, q = facts.stmt, facts.graph, facts.query
+    theta, selection_nodes = facts.theta, facts.selection_nodes
     sources = _transport.build_selection_diagrams(selection_nodes, graph)
     routes = _transport.identify_across_sources(
         sources,
@@ -3838,6 +3839,8 @@ def _dispatch_transport(
         ],
         "sources": route_entries,
     }
+    if not sources:
+        return _carried_as_it_stands(facts, transport_block)
 
     working = tuple(r for r in routes if r.identifiable)
     if not working:
@@ -4051,6 +4054,44 @@ def _dispatch_transport(
         derivation=derivation_steps,
         extensions={blocks.Block.TRANSPORT_IDENTIFICATION: transport_block},
     )
+
+
+def _carried_as_it_stands(
+    facts: "_EffectFacts", transport_block: dict,
+) -> QueryResult:
+    """A target population no selection node separates from the data's.
+
+    Nothing is declared to differ, so the effect carries to that population
+    as it stands, ``P*(y | do(x)) = P(y | do(x))``, and what it carries is
+    still an effect: the one population's total effect of the treatment,
+    identified by the rows that identify that question. The mediator
+    transport displaces stays displaced, as it is where there is a boundary.
+
+    This used to write ``P(y | x)`` for it, the transport formula's source
+    factor with no source. That factor stands for the effect in a domain
+    where the treatment was randomised; read in the one population there
+    is, it asserts that nothing confounds the treatment. On 300 random
+    five-variable graphs the verifier's own model refused 118 of those
+    answers, every one where the outcome is upstream of the treatment, and
+    the same questions without the population passed.
+
+    The block stays on the answer: it is where a reader is told the
+    question named a population and no difference from it was declared.
+    """
+    from dataclasses import replace as _replace
+
+    q = facts.query
+    one_population = _replace(facts.stmt, query=_replace(
+        q, target_population=None, mediator=None, mediators=()))
+    answer = _dispatch_effect(
+        one_population, facts.graph, facts.theta,
+        bidirected=facts.bidirected, feedback=facts.feedback,
+        longitudinal_spec=facts.longitudinal_spec,
+    )
+    return _replace(answer, extensions={
+        **(answer.extensions or {}),
+        blocks.Block.TRANSPORT_IDENTIFICATION: transport_block,
+    })
 
 
 #: Two domains transporting the same effect are two estimands of one
@@ -5361,9 +5402,7 @@ _EFFECT_IDENTIFICATION = routing.bind(routing.End.IDENTIFICATION, {
         f.stmt, f.graph, f.query, f.x_atom, f.y_atom, f.extra_atoms,
         f.given_atoms, bidirected=f.bidirected,
     )),
-    "transport": lambda f: _Attempt(_dispatch_transport(
-        f.stmt, f.graph, f.query, f.theta, f.selection_nodes,
-    )),
+    "transport": lambda f: _Attempt(_dispatch_transport(f)),
     "mediation_joint": lambda f: _Attempt(_dispatch_mediation_joint(
         f.stmt, f.graph, f.query, f.theta, bidirected=f.bidirected,
     )),

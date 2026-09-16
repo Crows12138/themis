@@ -213,7 +213,6 @@ def test_an_effect_asked_of_another_population_is_a_different_estimand():
 
 
 @pytest.mark.parametrize("field,value", [
-    ("target_population", "elsewhere"),
     ("mediator", object()),
     ("extra_interventions", ("another treatment",)),
 ])
@@ -226,6 +225,23 @@ def test_anything_that_moves_the_estimand_puts_it_out_of_reach(field, value):
     assert _asks_what_the_search_can_answer(
         dataclasses.replace(facts, query=moved)) is False
     assert _asks_what_the_search_can_answer(facts) is True
+
+
+def test_a_population_moves_the_estimand_across_a_boundary_only():
+    """A target population no selection node separates from the data's
+    declares no difference: the effect carries to it as it stands, and the
+    question the routes answer is the one population's. This test named it
+    among the fields that move the estimand on their own, on facts with no
+    selection node, while the producer answered that question with a
+    conditional the verifier's own model refused wherever the treatment
+    was confounded. The selection node is what moves it."""
+    facts = _facts(OPEN, "q")
+    named = dataclasses.replace(facts, query=dataclasses.replace(
+        facts.query, target_population="elsewhere"))
+    assert _asks_what_the_search_can_answer(named) is True
+    separated = dataclasses.replace(
+        named, selection_nodes=_facts(TRANSPORT, "q").selection_nodes)
+    assert _asks_what_the_search_can_answer(separated) is False
 
 
 def test_the_fields_the_search_reads_are_declared():

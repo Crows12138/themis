@@ -92,8 +92,13 @@ def test_the_corpus_carries_atom_inputs_to_be_asked_about():
     keys the steps actually carry gets 478: criterion steps name their
     atoms ``x``, ``y``, ``z``. Counting the fields one remembers is the
     same mistake as reading the corpus for a roster.
+
+    Then 476: a question naming a population nothing separates is answered
+    in its one population, and its row carries the back-door chain, whose
+    criterion step names two atoms, where the transport chain's admissibility
+    and formula steps named four.
     """
-    assert len(ATOM_INPUTS) == 478, len(ATOM_INPUTS)
+    assert len(ATOM_INPUTS) == 476, len(ATOM_INPUTS)
 
 
 @pytest.mark.parametrize(
@@ -122,6 +127,10 @@ def test_every_moved_argument_is_refused_and_by_which_rule():
     is the other 382, which is what "104 argument edits passed" grew into
     once every atom-valued key was asked rather than the six field names
     I happened to have in mind.
+
+    Then 378 and 98, by the row the population question refreshed: the four
+    atoms of its transport chain were this gate's, and the two of the
+    back-door criterion step that replaced it are held to the query first.
     """
     by_who: dict[str, int] = {"new gate": 0, "an older rule": 0}
     for name, i, field in ATOM_INPUTS:
@@ -135,8 +144,8 @@ def test_every_moved_argument_is_refused_and_by_which_rule():
                else "an older rule")
         by_who[key] += 1
 
-    assert sum(by_who.values()) == 478, by_who
-    assert by_who == {"new gate": 382, "an older rule": 96}, by_who
+    assert sum(by_who.values()) == 476, by_who
+    assert by_who == {"new gate": 378, "an older rule": 98}, by_who
 
 
 def test_the_message_names_the_whole_atom_not_just_the_predicate():
