@@ -15,12 +15,11 @@ certificate, and the tests below are arranged so that the honest refusals
 pass first, because a door that refused them would be worse than the hole
 it closes — it would call an honest "I cannot answer this" a lie.
 
-WHAT IS STILL TRUSTED. Eleven of the twelve claims a gap can make about a
-program have no witness search yet, or none for every species of the claim;
-they are named in ``UNWITNESSED``, the species in ``UNWITNESSED_SPECIES``,
-and both are pinned below, so one leaves only by being closed. Claims the
-data settles are not this door's, and it says so rather than passing over
-them.
+WHAT IS STILL TRUSTED. The claims a gap can make about a program that have
+no witness search yet, or none for every species of the claim, are named in
+``UNWITNESSED``, the species in ``UNWITNESSED_SPECIES``, and both are pinned
+below, so one leaves only by being closed. Claims the data settles are not
+this door's, and it says so rather than passing over them.
 """
 from __future__ import annotations
 
@@ -411,10 +410,8 @@ def test_what_the_program_settles_and_has_no_witness_yet():
         "ambiguous_variable_definition",
         "collider_conditioning_opens_backdoor",
         "dichotomized_continuous_measure",
-        "feedback_loop_reaches_the_estimand",
         "graph_theta_independence_mismatch",
         "ill_defined_intervention_versions",
-        "missing_iv_candidate",
         "selection_on_collider_opens_path",
         "unmeasured_confounder_risk",
         "unverified_proposal_edge_on_query_path",
@@ -426,10 +423,9 @@ def test_the_species_of_those_kinds_no_witness_reads():
     """The same list one level down. A structural input the program lacks
     left it when every species of it had a witness: the two whose facts
     carry the whole claim first, then the seven whose claim is about the
-    question and the graph."""
+    question and the graph. A declared loop's two verdicts left together,
+    each the only species of its kind."""
     assert {str(m) for m in UNWITNESSED_SPECIES} == {
-        "feedback_loop_needs_an_instrument",
-        "feedback_loop_outside_the_simultaneous_case",
         "framing_fields_unfilled",
         "graph_contradicts_supplied_marginal",
     }

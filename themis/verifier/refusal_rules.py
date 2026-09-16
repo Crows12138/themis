@@ -71,6 +71,7 @@ from .rules import (
     _graph_minus_x_outgoing,
     _verifier_backdoor_holds,
     _verifier_is_admg_backdoor_connected,
+    declared_loops_reaching,
     iv_criterion_holds,
 )
 
@@ -737,8 +738,9 @@ _bind_species()
 # their claim in their own facts: a name, the part of the program that
 # writes it, and whether the graph has no node of it or several. The rest
 # say something about the question and the graph -- a mediator off the
-# paths, a condition no model meets -- and carry at most a detail of it, the
-# atoms that break the back door or the edge whose coefficient is missing.
+# paths, a condition no model meets, a loop the estimand reaches -- and
+# carry at most a detail of it: the atoms that break the back door, the
+# edge whose coefficient is missing, the loop and the question's two ends.
 # Those are asked of the question and the graph, and the detail, where
 # there is one, of the same.
 
@@ -1063,6 +1065,87 @@ def _the_treatments_repeat(statement: Mapping,
     return None
 
 
+def _loops_named(loops) -> str:
+    return "; ".join(sorted(
+        " <-> ".join(sorted(_atom_label_verifier(a) for a in loop))
+        for loop in loops)) or "none"
+
+
+def _the_loop_is_misnamed(statement: Mapping, x: Atom, y: Atom,
+                          reaching: frozenset) -> str | None:
+    """What a copy of a loop's verdict names beside it: the question's two
+    ends, and a declared loop the estimand reaches."""
+    said = statement.get("said") or {}
+    for slot, end in (("treatment", x), ("outcome", y)):
+        if slot in said and said[slot] != _atom_label_verifier(end):
+            return f"the question's {slot} is {_atom_label_verifier(end)}"
+    if "left" in said or "right" in said:
+        named = frozenset({said.get("left"), said.get("right")})
+        if named not in {frozenset(_atom_label_verifier(a) for a in loop)
+                         for loop in reaching}:
+            return (f"the loops the estimand reaches are "
+                    f"{_loops_named(reaching)}")
+    return None
+
+
+def _the_loop_leaves_no_instrument(statement: Mapping,
+                                   facts: RefusalFacts) -> str | None:
+    """"The treatment and the outcome were declared to cause each other,
+    and no instrument survives the loop" -- refuted by a question that is
+    no effect, by any loop the estimand reaches other than that one alone,
+    by an instrument that survives the loop where the question conditions
+    on nothing, or by a copy naming another loop or another question's
+    ends.
+
+    Under the loop the search is the one the verdict claims: the loop
+    enters as a latent pair between the two ends, and what is conditioned
+    on is at most :data:`_CONDITIONING_SEARCHED` nodes the treatment does
+    not cause. A conditioned question has no instrument route to offer.
+    """
+    q = facts.query
+    if not isinstance(q, EffectQuery):
+        return "the question is not an effect"
+    x, y = q.intervention.atom, q.target.atom
+    pair = frozenset({x, y})
+    reaching = declared_loops_reaching(facts.graph, facts.feedback, x, y)
+    if reaching != {pair}:
+        return (f"the loops the program declares that reach it are "
+                f"{_loops_named(reaching)}, not the one between "
+                f"{_atom_label_verifier(x)} and {_atom_label_verifier(y)} "
+                f"alone")
+    if not q.given:
+        found = _an_instrument_found(dataclasses.replace(
+            facts, bidirected=frozenset(facts.bidirected) | {pair}))
+        if found is not None:
+            z, w = found
+            given = ", ".join(a.predicate for a in w) or "nothing"
+            return (f"{z.predicate} is an instrument for it under the loop "
+                    f"with {given} conditioned")
+    return _the_loop_is_misnamed(statement, x, y, reaching)
+
+
+def _the_loop_is_off_the_two_equations(statement: Mapping,
+                                       facts: RefusalFacts) -> str | None:
+    """"A declared loop reaches the estimand, and it is not the
+    two-equation system" -- refuted by a question that is no effect, by no
+    declared loop reaching it, by the loop between the treatment and the
+    outcome being the one loop that does, or by a copy naming a loop that
+    does not reach it or another question's ends."""
+    q = facts.query
+    if not isinstance(q, EffectQuery):
+        return "the question is not an effect"
+    x, y = q.intervention.atom, q.target.atom
+    reaching = declared_loops_reaching(facts.graph, facts.feedback, x, y)
+    if not reaching:
+        return (f"no loop the program declares reaches "
+                f"{_atom_label_verifier(x)} or {_atom_label_verifier(y)}")
+    if reaching == {frozenset({x, y})}:
+        return (f"the one loop that reaches it runs between "
+                f"{_atom_label_verifier(x)} and {_atom_label_verifier(y)}, "
+                f"which is the two-equation system")
+    return _the_loop_is_misnamed(statement, x, y, reaching)
+
+
 #: Each structural species, and what exhibits it false.
 _WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
     Need.ATOM_NOT_IN_GRAPH: _no_node_is_it,
@@ -1076,6 +1159,9 @@ _WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
     Need.JOINT_WITH_MEDIATION_OR_TRANSPORT:
         _a_joint_question_asks_another_layer,
     Need.DUPLICATE_TREATMENT_ATOM: _the_treatments_repeat,
+    Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT: _the_loop_leaves_no_instrument,
+    Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE:
+        _the_loop_is_off_the_two_equations,
 }
 
 

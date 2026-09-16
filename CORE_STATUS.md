@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20870 passed / 518 skipped, warning-clean
+20899 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,35 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #687 反馈环的两个判决说的是程序声明的环，却没有人拿声明的环去问它（2026-09-17）
+
+**现象。** 声明的环够到估计量时，effect 问题以两种拒答之一结束。`feedback_loop_needs_an_instrument`：环在处理与结局之间且是唯一够到的环，没有工具变量能在环下存活。`feedback_loop_outside_the_simultaneous_case`：环在别处，或旁边还有第二个环。两者都由程序判定（声明了哪些环、够到哪一端、工具变量是否存活），却都没有证人，带 `need` 的三份拷贝只互相押。在 8 个诚实答案（5 个「需要工具变量」、3 个「环在别处」，都是造出的单环程序）上量：
+- 放到主张为假的程序旁边（没声明环、环够不到、环在别处、其实有工具变量存活），在只判程序主张的 `verify_refusal` 上 70 处放行；在读它的全部门上 5 处放行，全是「需要工具变量」放到有工具变量存活的程序旁边，没有规则重推这件事；
+- 只把一份拷贝的 species 换成另一个，`verify_refusal` 上 24 处放行；
+- 每份拷贝一起改点名的环（换成没声明的、够不到的）或问题两端，所有门放行。
+
+**根因。** `_WITNESSES` 没有这两个 species，它们留在 `UNWITNESSED_SPECIES` 上。主张全部关于程序，`RefusalFacts` 带着图、声明的环、潜在对和问题，缺的只是证人。
+
+**为什么是根因不是表象。** 读它的门上其余伪造被拒，靠的是 `feedback_loop` 块审计（点名的环须是声明的）和名字规则——那是另一份拷贝；把块也一起改或块本身对，species 那几份照样没人问。「工具变量是否在环下存活」没有任何地方重推。
+
+**结构。**
+- `refusal_rules` 加两个证人，都读 #686 抽出的 `rules.declared_loops_reaching`：
+  - `_the_loop_leaves_no_instrument`：问题不是 effect、够到估计量的环不恰好是 X↔Y 这一个、问题不带 given 而工具变量在环下存活（`_an_instrument_found`，环作为两端之间的潜在对进入；搜索范围与 `iv_sets` 同为 |W|≤3，已有测试钉住）、或拷贝点名别的环/别的两端，反驳。
+  - `_the_loop_is_off_the_two_equations`：问题不是 effect、没有声明的环够到估计量、够到的只有 X↔Y 这一个、或拷贝点名够不到的环/别的两端，反驳。
+  - 细节的读法往接受侧偏：环反着写、点名几个够到的环里的任何一个，都算同一句真话。
+- 所在一节的注释补上「环」这一类细节。两个 gap kind 各只有这一个 species，于是 `missing_iv_candidate`、`feedback_loop_reaches_the_estimand` 离开 `UNWITNESSED`（10→8），`UNWITNESSED_SPECIES` 4→2。
+- `test_a_refusal_is_a_claim_about_the_program.py` 模块 docstring 里「Eleven of the twelve」自 #685 起就不对了，改成不带数字的说法。
+
+**测量。**
+- 改后：#686 的探针全部重跑，诚实 8 个两道门全收；放到主张为假的程序旁、单份换 species、每份一起换 species 全拒（原来放行的 99 处 → 0）；细节一起改、逐份改全拒，唯一放行的是环反着写（真话）。species 为真但两端或点名的环与那个程序不符的 14 处在 `verify_refusal` 上也拒，每一处都核过是细节不符。
+- 新测试在同进程里把两个证人摘掉：29 个里 18 个失败，余下 11 个正是诚实 9 与真话 2。
+- 同一搜索范围的两边：只有 4 个节点都条件化才能放出来的工具变量，诚实「需要工具变量」照收；3 个节点就放出来的程序旁边，拒。
+- gate 自己的扫描只跑带环的 3 行：0 gone、0 new，声明余项不变（1858；那几片是报告句子的 `said`，不是 species 拷贝）。架构图不变。
+
+**还开着。** `UNWITNESSED_SPECIES` 剩 `framing_fields_unfilled`、`graph_contradicts_supplied_marginal`。`FeedbackLoop` 的定义说一个声明的环撤掉它够到的一切 DAG 估计量，但只有 effect 路线读它：同一个 X↔Y 环的程序问 identify 答「可识别」——下一条去量 identify、causation、counterfactual 等问题各自怎么答。
+
+**账。** 新文件 `tests/test_a_loops_verdict_is_asked_of_the_loops_the_program_declares.py` 29 个测试（诚实 9、放到主张为假的程序旁 11、细节 7〔5 假每份一起与逐份都拒、2 真照收〕、单份换 species 2）。`test_a_refusal_is_a_claim_about_the_program.py` 两个清单钉子与 docstring 更新。基线 20870→**20899**。
 
 ### #686 两个方程是一个环，不是几个环里的一个：第二个够到估计量的环在时，诚实的 IV 答案被自家验证器拒（2026-09-17）
 
