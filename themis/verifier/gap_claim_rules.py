@@ -119,6 +119,7 @@ from .. import gaps as _gaps
 from .. import language
 from ..types import Atom, VariableDeclaration
 from .errors import VerificationError
+from .type_reconciliation_rules import _declared_from_scale_domain
 from .rules import _atom_label_verifier
 from .statement_rules import _CARRIERS
 
@@ -422,6 +423,13 @@ def _bind() -> None:
             f"what it holds there; entries "
             f"{sorted(set(_IN_ITS_SENTENCE) - owed)} name a statement that "
             f"does not declare it")
+    for statement, slot in _A_WORD_COPIES:
+        if (statement, slot) not in declared and (
+                statement is not None or slot not in space):
+            raise RuntimeError(
+                f"a word copy is declared for {(statement, slot)}, and "
+                f"no statement this build can write has that slot; a "
+                f"row nothing reaches is a claim that reads as a check")
     roles = {pair for pair in declared
              if pair[1] in _ROLES and holds_a_name(*pair)}
     copies = {(statement, slot)
@@ -746,6 +754,56 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
        for slot in slots},
 }
 
+
+def _the_scale_that_column_was_declared_at(
+        declaration: Mapping) -> set[str]:
+    """What the PROGRAM declares that column is measured on.
+
+    The answer records the same fact, in the reconciliation check the
+    way past was written from, and reading it there would have made
+    this rule speak whenever the RECORD was the forgery — pointing at
+    the gap, which is honest in that case, and standing in front of
+    the stronger reason, which is that the record is not what the
+    program declared. The program is the copy no answer can edit, and
+    the block is held equal to it elsewhere.
+
+    Resolved rather than read: a declaration says a scale or says a
+    domain, and which of the two it said is not a fact about the
+    column. The resolution is the reconciliation rule's own, asked
+    here of the same pair.
+    """
+    scale = _declared_from_scale_domain(declaration.get("scale"),
+                                       declaration.get("domain"))
+    return {scale} if scale else set()
+
+
+#: What a WORD is a copy of, and which name of its own sentence says
+#: which record to read.
+#:
+#: The table above asks whether a second record of a value exists. It
+#: was only ever asked of ``said``, and which half a fact travels in
+#: is decided by the fact's own type — a value rendered the same in
+#: every language goes in one, a value that is itself a token in the
+#: other — which says nothing at all about whether anything records
+#: it. So a fact that happened to need translating fell out of every
+#: audit here: 21 answers say which scale a column should be measured
+#: on and every one of them could say a different one.
+#:
+#: Indexed rather than global, which is the difference between this
+#: table and the one above. A word here is about the thing its own
+#: sentence already NAMES, so the record to read it against is the
+#: one filed under that name — the second element says which ``said``
+#: key carries it. The unindexed version would pass on this corpus,
+#: every answer's reconciliation block declaring exactly one scale,
+#: and it would be passing because of the corpus rather than because
+#: of the record.
+_A_WORD_COPIES: Mapping[tuple[str | None, str],
+                        tuple[str, str, Any]] = {
+    (None, "scale"): ("the scale that column was declared at",
+                      "variable",
+                      _the_scale_that_column_was_declared_at),
+}
+
 _bind()
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -759,6 +817,31 @@ _NAMED_BY: tuple[str, ...] = ("token",) + tuple(sorted(
     {spelling for path, (spelling, _vocabulary) in _CARRIERS.items()
      if path.startswith("data_gap_report.")},
     key=lambda spelling: (spelling == "kind", spelling)))
+
+
+def _every_statement(
+    node: Any, path: tuple = (),
+) -> Iterator[tuple[str, str | None, Mapping]]:
+    """Every statement under a report, its name, and where it sits.
+
+    The walk the questions below share. A statement is recognised by
+    carrying either half — a fact that needs translating travels as a
+    word and one that does not travels as a said, and a statement is
+    no less a statement for having only one kind of fact this time.
+    """
+    if isinstance(node, Mapping):
+        if any(isinstance(node.get(half), Mapping)
+               for half in ("said", "words")):
+            spoken = next((node.get(spelling) for spelling in _NAMED_BY
+                           if node.get(spelling)), None)
+            yield (".".join(path),
+                   str(spoken) if spoken else None, node)
+        for key, value in node.items():
+            if key != "said":
+                yield from _every_statement(value, path + (str(key),))
+    elif isinstance(node, (list, tuple)):
+        for i, value in enumerate(node):
+            yield from _every_statement(value, path + (str(i),))
 
 
 def every_said_mapping(
@@ -801,19 +884,28 @@ def every_said_mapping(
     spellings are read off the carriers. A ``said`` beside none of them
     yields ``None``.
     """
-    if isinstance(node, Mapping):
-        for key, value in node.items():
-            here = path + (str(key),)
-            if key == "said" and isinstance(value, Mapping):
-                spoken = next((node.get(spelling) for spelling in _NAMED_BY
-                               if node.get(spelling)), None)
-                yield (".".join(here),
-                       str(spoken) if spoken else None, value)
-            else:
-                yield from every_said_mapping(value, here)
-    elif isinstance(node, (list, tuple)):
-        for i, value in enumerate(node):
-            yield from every_said_mapping(value, path + (str(i),))
+    for where, spoken, statement in _every_statement(node, path):
+        said = statement.get("said")
+        if isinstance(said, Mapping):
+            yield f"{where}.said" if where else "said", spoken, said
+
+
+def every_word_mapping(
+    node: Any, path: tuple = (),
+) -> Iterator[tuple[str, str | None, Mapping, Mapping]]:
+    """The same walk, for the half a fact travels in when it is a word.
+
+    Hands over the ``said`` beside it as well, because a word here is
+    about the thing the same sentence names and the name is in the
+    other half. The two are one claim, and a walk that yielded either
+    alone could not put them together.
+    """
+    for where, spoken, statement in _every_statement(node, path):
+        words = statement.get("words")
+        if isinstance(words, Mapping):
+            said = statement.get("said")
+            yield (f"{where}.words" if where else "words", spoken,
+                   words, said if isinstance(said, Mapping) else {})
 
 
 def every_said(node: Any, path: tuple = ()) -> Iterator[tuple[str, str, Any]]:
@@ -1108,3 +1200,28 @@ def verify_gap_subjects(result: Mapping, program: Mapping) -> None:
                         f"asked for something they already gave",
                         step_index=None, rule=_SUBJECT,
                     )
+
+    for where, statement, words, said in every_word_mapping(report):
+        for key, one in words.items():
+            row = (_A_WORD_COPIES.get((statement, str(key)))
+                   or _A_WORD_COPIES.get((None, str(key))))
+            if row is None or not isinstance(one, Mapping):
+                continue
+            says, named_by, read = row
+            about = said.get(named_by)
+            if not isinstance(about, str) or about not in declared:
+                continue
+            known = read(declared[about])
+            if not known:
+                continue
+            token = str(one.get("token") or "")
+            if token in known:
+                continue
+            raise VerificationError(
+                f"a gap tells a reader {token!r} about {about!r}, and "
+                f"{says} is {sorted(known)} (at {where}.{key}). The word is "
+                f"not a label beside the sentence — it is assembled into it — "
+                f"so a reader is told something about that column the program "
+                f"never declared",
+                step_index=None, rule=_SUBJECT,
+            )

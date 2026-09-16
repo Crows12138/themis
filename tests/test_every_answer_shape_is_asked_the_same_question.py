@@ -1611,13 +1611,15 @@ def test_the_declared_remainder_is_what_it_is():
     exists: the layer that coins one files its own record beside the
     statement, and the rule that read that record ran only inside the
     ledger while the label travelled anywhere. The other 60, on 58
-    rows, are the MEMBER half and are still open: the scale a way past
-    asks a column to be measured on (21) and the role a gap gives a
-    variable (19) — binary for continuous, exposure for outcome — each
-    stated a second time by the question or by another block.
+    rows, are the MEMBER half, and 21 of those came off next: the
+    scale a way past asks a column to be measured on is the scale that
+    column was declared at, which the answer's own reconciliation
+    records. What is left of that half is led by the role a gap gives
+    a variable (19) — exposure for outcome — which the question
+    states a second time and which nothing reads back.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1950, total
+    assert total == 1929, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -45,15 +45,20 @@ import pytest
 from tests.answer_corpus import the_door_for, verify_honestly
 from themis.kernel import _premises_of
 from themis.verifier import VerificationError
+from themis import language
 from themis.verifier.gap_claim_rules import (
+    _A_WORD_COPIES,
     _COPIED_FROM,
     _IN_ITS_SENTENCE,
     _NOT_NAMES,
     _ROLES,
     every_said,
     every_said_mapping,
+    every_word_mapping,
     holds_a_name,
+    statements_and_the_slots_they_declare,
     verify_gap_quotes,
+    verify_gap_subjects,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -259,3 +264,150 @@ def test_a_rendered_number_is_deliberately_not_in_this_roster():
     rest = json.dumps({k: v for k, v in SHAPES[name]["result"].items()
                        if k != "data_gap_report"}, ensure_ascii=False)
     assert str(value) not in rest, (name, value)
+
+
+# ------------------------------------------- and the half a fact travels in
+#
+# Same question as the rest of this file — a fact a gap quotes, against
+# the record it was read from — asked of the other half. The rule that
+# asks it is ``verify_gap_subjects``, because the record a word is held
+# to is the program's declaration and that door is where the program is.
+
+
+def _word_entry(statement, key):
+    """The word roster for this slot IN THIS STATEMENT, or the general one."""
+    return (_A_WORD_COPIES.get((statement, key))
+            or _A_WORD_COPIES.get((None, key)))
+
+
+#: (answer, path to the ``words``, statement, slot) for every WORD this rule
+#: speaks for. Found by the same walk, which is the point: which half a fact
+#: travels in is decided by whether the value needs translating, and this
+#: rule's question — is there a second record of it — does not turn on that.
+WORD_SITES = sorted(
+    (name, where, statement or "", key)
+    for name, pair in SHAPES.items()
+    for where, statement, words, _said in every_word_mapping(
+        (pair["result"] or {}).get("data_gap_report") or {})
+    for key in words
+    if _word_entry(statement, key) is not None
+)
+
+
+def _members_of(vocabulary: str) -> list[str]:
+    return sorted(str(member) for member in language.VOCABULARIES[vocabulary])
+
+
+def test_the_words_this_rule_speaks_for():
+    """The denominator, per slot, so a narrowing shows as a number."""
+    split: dict[str, int] = {}
+    for _name, _where, _statement, key in WORD_SITES:
+        split[key] = split.get(key, 0) + 1
+    assert split == {"scale": 36}, split
+    assert len({n for n, _, _, _ in WORD_SITES}) == 21
+
+
+@pytest.mark.parametrize("name", sorted({n for n, _, _, _ in WORD_SITES}))
+def test_an_honest_word_is_accepted(name):
+    """The half a rule of this kind gets wrong by being too strict."""
+    verify_honestly(SHAPES[name]["program"], SHAPES[name]["result"])
+
+
+def test_a_word_bent_to_another_member_of_its_own_set_is_refused():
+    """The teeth, and the forgery the membership rule cannot see.
+
+    A token bent to a word the set does not have is refused before any rule
+    runs. Bent to another real member it is a sentence a reader is handed
+    assembled — "measure that column as continuous" where the answer's own
+    reconciliation says it was declared binary — and nothing was asking.
+    """
+    refused = 0
+    for name, where, _statement, key in WORD_SITES:
+        row = SHAPES[name]
+        was = _said(row["result"], where)[key]
+        for member in _members_of(was["vocabulary"]):
+            if member == was["token"]:
+                continue
+            forged = copy.deepcopy(row["result"])
+            _said(forged, where)[key]["token"] = member
+            with pytest.raises(Exception):                      # noqa: B017
+                the_door_for(row["result"])(row["program"], forged)
+            refused += 1
+    assert refused == 108, refused
+
+
+def test_the_record_a_word_is_read_against_is_the_one_it_names():
+    """Indexed by the name its own sentence gives.
+
+    Every program here declares its columns at a single scale, so a rule
+    reading "any scale this problem declares" would refuse all of the
+    above and be refusing because of the corpus. Given a second column
+    declared at another scale, the two rules part company.
+    """
+    name, where, _statement, key = WORD_SITES[0]
+    row = SHAPES[name]
+    forged = copy.deepcopy(row["result"])
+    program = copy.deepcopy(row["program"])
+    word = _said(forged, where)[key]
+    other = next(m for m in _members_of(word["vocabulary"])
+                 if m != word["token"])
+    program["statements"].append(
+        {"kind": "variable", "predicate": "a_column_this_gap_is_not_about",
+         "scale": other})
+    word["token"] = other
+    with pytest.raises(VerificationError):
+        verify_gap_subjects(forged, program)
+
+
+def test_the_record_a_word_is_read_against_is_not_the_answers_own():
+    """The block records the same fact, and is not what is read.
+
+    A way past is written FROM the reconciliation check, so the check is
+    where the copy came from — and reading it there made this rule speak
+    whenever the CHECK was the forgery: pointing at a gap that is honest,
+    and standing in front of the reason a reader needs, which is that the
+    record is not what the program declared. Every answer carrying a check
+    carries a gap quoting it, so that reason had nothing left to speak
+    for. The program is the copy no answer can edit.
+    """
+    name, where, _statement, key = WORD_SITES[0]
+    row = SHAPES[name]
+    forged = copy.deepcopy(row["result"])
+    word = _said(forged, where)[key]
+    other = next(m for m in _members_of(word["vocabulary"])
+                 if m != word["token"])
+    for check in forged["extensions"]["type_reconciliation"]["checks"]:
+        check["declared_scale"] = other
+    verify_gap_subjects(forged, row["program"])
+
+
+def test_the_silence_is_real_where_the_word_has_no_record():
+    """Silent where there is nothing to appeal to, as the said half is.
+
+    A report can name a scale for a column the program declares no
+    measurement type for, and inventing the roster out of the gap would be
+    reading the authority off the thing being judged.
+    """
+    name, where, _statement, key = WORD_SITES[0]
+    row = SHAPES[name]
+    forged = copy.deepcopy(row["result"])
+    program = copy.deepcopy(row["program"])
+    word = _said(forged, where)[key]
+    word["token"] = next(m for m in _members_of(word["vocabulary"])
+                         if m != word["token"])
+    for statement in program["statements"]:
+        statement.pop("scale", None)
+        statement.pop("domain", None)
+    verify_gap_subjects(forged, program)
+
+
+def test_a_word_roster_names_a_slot_some_statement_declares():
+    """A row nothing reaches is a claim that reads as a check.
+
+    Held at import by ``_bind``; asserted here so that what it holds is
+    visible where the roster is read rather than only where it is bound.
+    """
+    space = {slot for _statement, slot in
+             statements_and_the_slots_they_declare()}
+    for statement, slot in _A_WORD_COPIES:
+        assert slot in space, (statement, slot)

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20432 passed / 518 skipped, warning-clean
+20459 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,33 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #674 一个事实走「说」还是走「词」，被当成了它要不要被核对（2026-09-16）
+
+**现象。** 一片词槽里的 token 换成同一词表里**另一个真成员**，所有门放行。最重的一片是 `data_gap_report.gaps.[].alternative_paths.[].words.scale.token`（21 行）：某条「绕过去的办法」说某一列该按什么尺度测，把 `binary` 改成 `continuous` 没人拒——而这句话不是句子旁边的标签，它被**装配进句子本身**，读者读到的就是「把这一列当连续量测」。它有精确的第二份记录：**36/36** 等于同一个 `predicate` 下的 `extensions.type_reconciliation.checks[].declared_scale`。
+
+**根因。** `gap_claim_rules` 里已经有一台专问「这个值有没有第二份记录、抄对了没有」的机器（`_COPIED_FROM`），**但它只被喂了 `said` 那一半**——喂它的遍历 `every_said_mapping` 只在 `key == "said"` 时产出。而一个事实走哪一半，由**它自己要不要翻译**决定（值在每种语言里写法相同的走 `said`，值本身是个 token 的走 `words`；`_facts` 的注释明说同一个事实这次在这半、下次在那半，不是句子的属性）。于是审计侧把「这个事实用哪一半承载」当成了「这个事实要不要被核对」。
+
+**为什么是根因不是表象。** 三条：①这不是「少写两行表」——`scale` 早已被 `_NOT_NAMES` 分类为 `vocabulary`，也就是这个模块**看过它**并按「它是哪一类东西」判了它押不住，而 `_COPIED_FROM` 的注释正是推翻这条判据写下的：「Whether a value can be held is not a fact about its kind. It is a fact about whether a second record of it exists, which has to be asked of each key rather than inferred from what sort of word it is」——当初按这句话改了三个槽，改的全是 `said` 那一半；②`_bind()` 在 import 时闸住「每个槽恰好分类一次」，靠的是句子模板里的 `{洞名}`，而**模板不区分这个洞由哪一半填**，所以分类空间早就覆盖了 `scale`，只有喂进去的值没覆盖；③两片最重的叶子第二份记录一个在块上、一个在问题上，形状不同却同样够不着，说明缺的不是某一条查表规则，而是那一半根本没进这台机器。
+
+**结构。**
+- 遍历拆成**一处**：`_every_statement` 认「带着任意一半」的节点为语句，`every_said_mapping`（签名不变，八个测试文件在消费）与新的 `every_word_mapping` 都建在它上面。后者**连同旁边的 `said` 一起交出来**——一个词说的是关于本句已点名的那个东西的事实，名字在另一半，分开走的遍历没法把两者对上。
+- 新表 `_A_WORD_COPIES`：`(语句, 槽) → (说法, 由哪个 `said` 键索引, 读那份记录的函数)`。与 `_COPIED_FROM` 的区别就是**带索引**：`scale` 按 `said.variable` 找到那一列，读**程序**对它的声明。
+- 读的是**程序**而不是答案自己那份类型核对块。两者本来相等（核对规则押着 `declared_scale == 程序声明`），但**程序是答案改不动的那一份**——这个模块自己就是这么处理「抄问题」那几个槽的（「That record is on the program rather than the envelope, and it is the one no answer can edit」）。声明是 `scale` 还是 `domain` 由核对规则自己的解析器 `_declared_from_scale_domain` 化解，同一对参数问同一个函数。
+- 规则因此落在 `verify_gap_subjects(result, program)` 上——那道门本来就拿着程序，而它的 docstring 写的正是这一轮的根因换个寄存器：「holding a value to "is a real name" is not holding it to "is THIS one"」。
+- `_bind()` 加一条：表里每一行的槽必须是某条本 build 能写的语句声明过的槽，**够不到的一行是一句读起来像检查的空话**。
+
+**⚠️ 踩到并改掉：又一次「一条规则遮住另一条」（与 #673 同形）。** 第一版读的是答案自己那份核对块。全量红两条，其中一条是 `test_a_tampered_reconciliation_no_longer_passes_the_full_door[declared_scale]`：改掉 `declared_scale` 时新规则**先开口**，把「the program's declaration resolves to」这句更强的话遮住了，而且**指错了对象**——缺口是诚实的，被改的是记录。按教训 71 量：语料上「有核对块」的 21 行与「有 scale 词」的 21 行**完全重合**，所以被遮那一句在全门方向上没有自己的 population。改法不是调用顺序，是换权威：读程序之后，改 `declared_scale` 时这条规则 **21/21 不开口**，那句话回到它自己的门。（另一条红是 mypy：`entry` 这个名字在上一层循环里已经绑到 `_COPIED_FROM` 的行上，第三个元素是个 flag 不是函数，改名即可。）
+
+**演练。** 诚实 **243/243** 过；36 条 scale 各弯向本集合另外 3 个成员，**108/108 被拒、0 逃逸**；程序不声明该列的测量类型时同一个伪造**被放行**（记录不在就不问，与 `said` 那一半同一条纪律）；程序里另加一列声明为另一种尺度、再把词弯成那一种——**仍然被拒**，这条钉住的正是「按名字索引」而不是「该问题声明过的任一尺度」；把核对块里的 `declared_scale` 全改掉——**这条规则不开口**。消费那道遍历的七个测试文件 1070 过，说明遍历重写没有改变它原有的产出。
+
+**测量。** 声明余项 **1950→1929**（关 21，0 新增）。闸门 21 failed → 重建声明文件后全绿。
+
+**取舍（声明）。**
+- **`role` 那 19 条本轮不关。** 它的第二份记录同样精确（`exposure` 13/13 就是问题的干预谓词，`outcome` 6/6 就是目标谓词），但**它的槽不在 `_bind()` 的空间里**——句子来自 `measurement_note`，词住在输出层，验证器不能 import。要么先把闸门的空间扩到那里，要么另立一处，两者都不是顺手能做对的事。这是下一条前沿，量已经量好。
+- **不加索引的写法在这份语料上同样能全拒**（每个程序恰好只在一种尺度上声明它的列），没有采用：那样是**因为语料而通过**，不是因为记录；这个模块自己的纪律就是「一份对着语料建的名册，量的是作者当时站在哪」。
+
+**账。** 新增 7 个测试，基线 20432→**20459**。
 
 ### #673 「这个词不是我们铸的」被当成了「没人押它」（2026-09-16）
 
