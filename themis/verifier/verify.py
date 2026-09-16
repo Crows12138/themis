@@ -7475,7 +7475,7 @@ def verify_scm_counterfactual_display(block, world) -> None:
               f"the question intervened on "
               f"{_atom_spellings(world.intervened)[0]!r}")
     shown_value = intervention.get("value")
-    want_value = float(world.values[world.intervened])
+    want_value = world.set_to
     if not isinstance(shown_value, (int, float)) or \
             abs(float(shown_value) - want_value) > _SCM_FIT_TOL:
         _fail(f"says it set that variable to {shown_value!r} and the "
@@ -7695,7 +7695,7 @@ def _recheck_scm_counterfactual_fit(
             step_index=None, rule="numeric_scm_counterfactual_estimate",
         )
     return Counterfactual(noise=noise, values=cf,
-                          intervened=x_atom, target=y_atom)
+                          intervened=x_atom, set_to=iv_val, target=y_atom)
 
 
 def _assert_ctf_query_binding(

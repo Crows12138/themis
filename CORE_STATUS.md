@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21212 passed / 518 skipped, warning-clean
+21236 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,28 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #690 do() 施加的值是动作的事实，不是它改变了什么的一项（2026-09-17）
+
+**现象。** 线性 SCM 反事实问题里，干预变量 X 够不到目标 Y 时（X 在 Y 下游或旁边），反事实值就是这个单位观测到的 y。kernel 这样答了，verifier 的重算也得到同一个数，却在读干预值时抛 KeyError，诚实答案因崩溃被拒。量：
+- 声明系数的路径：随机 300 个 5 变量线性 SCM 里，X 够不到 Y 的 231 个全崩，崩在 `_rule_scm_abduction_action_prediction` 的 `world.values[world.intervened]`；X 够到 Y 的 69 个全收。
+- 数据拟合路径（`themis.estimate`）：同样的问题崩在 `verify_scm_counterfactual_display` 的同一种读法。
+- 语料里把问题结局的边去掉后出现 3 个（#689 的测量里记下的那条）。
+
+**根因。** verifier 的反事实世界 `Counterfactual` 没有地方记 do() 给 X 设的常数，两处读者都从 `values` 里取 X 那一项。`values` 按定义只覆盖切断 X 入边后 Y 的祖先加 Y 本身——两个生产端和两个 verifier 重算都是这个集合——所以只有 X 够到 Y 时才有 X 那一项。
+
+**为什么是根因不是表象。** 算术和相关集合都对：答案等于观测的 y，展示块的反事实值与 verifier 重算的集合双向一致，崩的只是取干预值那一行。把 X 加进 `values` 不是修法：生产端的展示块不含 X，双向比对会以「漏了 x」拒掉诚实答案。错的是干预值记在哪里。
+
+**结构。** `Counterfactual` 加字段 `set_to`（do() 放在干预变量上的常数，无论目标读不读它），`values` 的 docstring 写明它只含目标读到的变量。两个构造处（`rules.abduct_act_predict`、`verify._recheck_scm_counterfactual_fit`）用各自施加的值填它；规则里核步骤的 `intervention_value`、展示块审计里核块的 `intervention.value`，都改读 `world.set_to`。规则里「干预值就是 X 在 values 里那一项」的注释改掉。
+
+**测量。**
+- 改后：随机 300 个（另一个种子，X 够不到 Y 的 218 个）诚实答案全收；每个诚实答案上的 6 种伪造——改步骤里的干预值、改块里的干预值、改块里的答案、改声称的数值、给块的反事实值添一个目标不读的变量、删一个变量——共 1729 个全拒，没有崩溃。语料去边后的 3 个现在全收。
+- 新测试改前 24 个挂 23 个（唯一过的是 X 够到 Y 的诚实用例）。
+- gate 扫 46 个 scm_counterfactual 行：0 gone、0 new，声明余项 1858 不变。架构图：rules.py 12911→12918 行。
+
+**还开着。** 反馈环那一族（#688 留下）：identify 不读环；causation / counterfactual 派生风险、counterfactual_conjunction、proximal_effect、scm_counterfactual 不读环；环够到时 Balke-Pearl 界该不该撤回没量。
+
+**账。** 新文件 `tests/test_the_value_do_acts_with_is_a_fact_of_the_action.py` 共 24 个测试（三种形状的诚实答案 3、X 够不到 Y 时的 4 种伪造 × 2 种形状 8、数据拟合路径 1、随机 X 够不到 Y 的反事实 12）。基线 21212→**21236**。
 
 ### #689 问题点名的两端是它所问的图的节点，没有边也是；工具变量审计自己建的图漏了这一条（2026-09-17）
 

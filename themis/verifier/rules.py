@@ -11101,9 +11101,15 @@ class Counterfactual:
     """The exogenous term abduction recovers, per relevant variable. The
     intervened variable has none — its equation is replaced, not solved."""
     values: dict
-    """What each relevant variable is in the counterfactual world."""
+    """What each relevant variable is in the counterfactual world. The
+    relevant variables are the target and what it reads once ``do(...)`` has
+    cut the intervened variable's in-edges, so the intervened variable is
+    among them only when the target reads it."""
     intervened: Atom
     """The atom ``do(...)`` was applied to."""
+    set_to: float
+    """The constant ``do(...)`` put on it, whether or not the target reads
+    it: a fact of the action, not an entry of what the action changed."""
     target: Atom
     """The atom the question asked about."""
 
@@ -11189,7 +11195,7 @@ def abduct_act_predict(
         else:
             cf[v] = noise[v] + sum(coef * cf[p] for p, coef in equations[v])
     return Counterfactual(noise=noise, values=cf,
-                          intervened=x_atom, target=y_atom)
+                          intervened=x_atom, set_to=iv_val, target=y_atom)
 
 
 def _rule_scm_abduction_action_prediction(
@@ -11230,9 +11236,10 @@ def _rule_scm_abduction_action_prediction(
     # could say anything and the check would still agree with itself.
     #
     # Nothing is recomputed to hold them. The world above already carries
-    # both atoms, and the value it was computed at is the intervened
-    # variable's own entry -- do(X=v) puts v there, which is how the
-    # display copy beside this is already read.
+    # both atoms and the value do(X=v) acted with. Not X's entry among the
+    # values: those are what the target reads, and a target that does not
+    # read X has no entry for it, which made this line a KeyError on every
+    # honest counterfactual whose target X does not reach.
     recorded_target = _require_atom(inputs, "target", step_index, rule)
     if recorded_target != world.target:
         raise RuleCheckFailed(
@@ -11252,7 +11259,7 @@ def _rule_scm_abduction_action_prediction(
             step_index=step_index, rule=rule,
         )
     recorded_value = _require(inputs, "intervention_value", step_index, rule)
-    was_set_to = float(world.values[world.intervened])
+    was_set_to = world.set_to
     if not isinstance(recorded_value, (int, float)) or \
             abs(float(recorded_value) - was_set_to) > _NUMERIC_TOL:
         raise RuleCheckFailed(
