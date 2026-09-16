@@ -1662,9 +1662,18 @@ def test_the_declared_remainder_is_what_it_is():
     the copy, the only check it met was the shape of its sentence, and
     the verdict it copied is re-derived where it was filed. What is left
     of the member half is two entries over two leaves.
+
+    Then 1: the word a gap puts in a hole whose record names nothing. A
+    hole copying a population or a role of the question travels as a
+    value where the record names one and as a stand-in word where it does
+    not, and the rule holding copies walked only the values — so a
+    stand-in could become another, and any name a stand-in. The same
+    rule read a population hole against every population the program
+    names, so a source written as the target was one of them too. What
+    is left of the member half is one entry over one leaf.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1888, total
+    assert total == 1887, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

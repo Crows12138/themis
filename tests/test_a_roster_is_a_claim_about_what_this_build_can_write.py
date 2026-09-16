@@ -147,14 +147,14 @@ def test_one_slot_answers_differently_in_two_statements():
     """``target`` is the instance the module's own prose predicted.
 
     Under the statement about transporting an answer it is a population,
-    and the program declares every population there is. Under the five
-    about a dose-response curve and a collider it is a variable — the
-    question's target, which the question records. A table with one
-    answer per slot NAME is right about one of those.
+    the one the question carries its answer to. Under the five about a
+    dose-response curve and a collider it is a variable — the question's
+    target, which the question records. A table with one answer per slot
+    NAME is right about one of those.
     """
     transported = _COPIED_FROM.get(
         ("transport_rests_on_s_admissibility", "target"))
-    assert transported[0] == "the domains the program declares"
+    assert transported[0] == "the target population the question declares"
     curve = _COPIED_FROM.get(
         ("the_question_asks_for_a_dose_response_curve", "target"))
     assert curve[0] == "the question's target"

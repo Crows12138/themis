@@ -3135,6 +3135,10 @@ def _query_target_label(stmt) -> "str | Unnamed":
     queries' `target.atom` shape was handled. Now also reads `to` for
     cause queries and falls back to a generic phrase instead of an
     angle-bracketed placeholder a renderer would surface verbatim.
+
+    The phrase says the question names no outcome, and is read that way:
+    a proximal effect names its own ``outcome``, and falling past it
+    handed a reader the phrase where the question had the name.
     """
     q = getattr(stmt, "query", None)
     if q is None:
@@ -3145,10 +3149,10 @@ def _query_target_label(stmt) -> "str | Unnamed":
         pred = getattr(atom, "predicate", None)
         if pred:
             return pred
-    # CauseQuery exposes its source/destination as ``from_atom`` /
-    # ``to_atom`` (avoiding Python's ``from`` keyword); AssocQuery uses
-    # left/right.
-    for attr in ("to_atom", "to", "right"):
+    # A proximal effect calls it ``outcome``. CauseQuery exposes its
+    # source/destination as ``from_atom`` / ``to_atom`` (avoiding Python's
+    # ``from`` keyword); AssocQuery uses left/right.
+    for attr in ("outcome", "to_atom", "to", "right"):
         atom = getattr(q, attr, None)
         if atom is not None:
             pred = getattr(atom, "predicate", None)
@@ -3159,7 +3163,8 @@ def _query_target_label(stmt) -> "str | Unnamed":
 
 def _query_intervention_label(stmt) -> "str | Unnamed":
     """Best-effort label for the query's treatment variable. See
-    ``_query_target_label`` for the cause-query motivation."""
+    ``_query_target_label`` for the cause-query motivation, and for what
+    the phrase it falls back to says."""
     q = getattr(stmt, "query", None)
     if q is None:
         return Unnamed.INTERVENTION
@@ -3169,11 +3174,11 @@ def _query_intervention_label(stmt) -> "str | Unnamed":
         pred = getattr(atom, "predicate", None)
         if pred:
             return pred
-    # CauseQuery exposes its source as ``from_atom``; AssocQuery uses
-    # ``left``. ``from`` is a Python keyword so it never appears as an
-    # attribute name on typed objects, but check it for dict-shaped
-    # callers anyway.
-    for attr in ("from_atom", "from_", "from", "left"):
+    # A proximal effect calls it ``treatment``. CauseQuery exposes its
+    # source as ``from_atom``; AssocQuery uses ``left``. ``from`` is a
+    # Python keyword so it never appears as an attribute name on typed
+    # objects, but check it for dict-shaped callers anyway.
+    for attr in ("treatment", "from_atom", "from_", "from", "left"):
         atom = getattr(q, attr, None)
         if atom is not None:
             pred = getattr(atom, "predicate", None)

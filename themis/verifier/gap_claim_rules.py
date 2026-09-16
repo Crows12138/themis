@@ -273,7 +273,7 @@ _NOT_NAMES: Mapping[str, str] = {
     "missing": "vocabulary", "assumptions": "vocabulary",
     "method": "vocabulary", "methods": "vocabulary",
     "branch": "vocabulary", "field": "vocabulary",
-    "kind": "vocabulary", "source": "vocabulary",
+    "kind": "vocabulary",
     "algorithm": "vocabulary",
     "fallback": "vocabulary",
     "phrase": "prose", "rationale": "prose",
@@ -286,7 +286,7 @@ _NOT_NAMES: Mapping[str, str] = {
     "h": "number", "n": "number", "precision": "number",
     "skew": "number", "strata": "number",
     "formula": "expression", "what": "expression",
-    "population": "domain",
+    "population": "domain", "source": "domain",
     # Arrived with the wider corpus.
     "bad": "number", "cells": "number", "confidence": "number",
     "control": "number", "d": "number", "f": "number",
@@ -399,6 +399,10 @@ def _bind() -> None:
     And per role: every slot named after a role of the question, in a
     statement that files it as a name, is declared a copy of the
     question or declared not to be one — once, and nothing else is.
+
+    And every stand-in is for a hole a statement declares and copies from
+    a record: a stand-in says that record names nothing there, and with no
+    record it says nothing anyone can check.
     """
     declared = statements_and_the_slots_they_declare()
     space = {slot for _statement, slot in declared}
@@ -436,6 +440,13 @@ def _bind() -> None:
             f"question and nothing says whether they copy it; entries "
             f"{sorted(either - roles)} name no such slot; {both} are said "
             f"both ways")
+    unread = sorted(pair for pair in _STANDS_IN
+                    if pair not in declared or _copied_from(*pair) is None)
+    if unread:
+        raise RuntimeError(
+            f"stand-ins {unread} are for a hole no statement declares, or "
+            f"one that copies no record; a stand-in says the record names "
+            f"nothing there, and without one it says nothing checkable")
 
 
 def _methods_the_answer_ran(result: Mapping, _context=None) -> set[str]:
@@ -495,7 +506,33 @@ def _fields_a_declaration_has(_result: Mapping, _context) -> set[str]:
     return {field.name for field in dataclasses.fields(VariableDeclaration)}
 
 
-def _domains_the_program_declares(_result: Mapping, context) -> set[str]:
+def _the_target_population_the_question_names(_result: Mapping,
+                                              context) -> set[str]:
+    """The population the question asks its answer to be carried TO.
+
+    Empty for a question that names none, which is the occasion a
+    sentence about it says so with a stand-in rather than a name.
+    """
+    target = getattr(getattr(context, "query", None), "target_population",
+                     None)
+    return {str(target)} if target else set()
+
+
+def _the_source_populations_the_program_names(_result: Mapping,
+                                              context) -> set[str]:
+    """The populations an answer is carried FROM: the source each
+    selection node declares.
+
+    Every selection node names one, so an empty set is a program that
+    declared no difference between populations at all — whose one route
+    comes from a source nobody named, and whose sentences say so.
+    """
+    return {str(node.source_population)
+            for node in getattr(context, "selection_nodes", ()) or ()
+            if getattr(node, "source_population", None)}
+
+
+def _domains_the_program_declares(result: Mapping, context) -> set[str]:
     """Every population the PROGRAM names, in either role.
 
     A domain is a name out of the register the name rule does not read —
@@ -503,17 +540,14 @@ def _domains_the_program_declares(_result: Mapping, context) -> set[str]:
     as a name would refuse every transported answer there is. It has a
     roster of its own all the same, and the program is where it lives:
     the query's target, and the source each selection node declares.
+
+    Both at once only where a sentence does not say which a hole is. Where
+    it does, the role's own record is asked: read against both, a source
+    written as the target and the target as the source was the answer
+    carried backwards, and every door took it.
     """
-    found: set[str] = set()
-    target = getattr(getattr(context, "query", None), "target_population",
-                     None)
-    if target:
-        found.add(str(target))
-    for node in getattr(context, "selection_nodes", ()) or ():
-        source = getattr(node, "source_population", None)
-        if source:
-            found.add(str(source))
-    return found
+    return (_the_target_population_the_question_names(result, context)
+            | _the_source_populations_the_program_names(result, context))
 
 
 def _ambiguities_the_caller_flagged(result: Mapping, _context) -> set[str]:
@@ -723,11 +757,19 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     # Two names out of the other register. A population is not a variable,
     # which is why the name rule cannot ask about them — and the program
     # declares every domain there is, as the query's target and as each
-    # selection node's source.
+    # selection node's source. Which of the two a hole holds is its
+    # sentence's, so it is read against that role; ``population`` falls
+    # back to both only in a sentence that does not say.
     (None, "population"): ("the domains the program declares",
                            _domains_the_program_declares, False),
-    (None, "source"): ("the domains the program declares",
-                       _domains_the_program_declares, False),
+    (None, "source"): ("the source populations the program declares",
+                       _the_source_populations_the_program_names, False),
+    ("the_source_populations_stratified_conditional_is_missing",
+     "population"): ("the source populations the program declares",
+                     _the_source_populations_the_program_names, False),
+    ("the_target_populations_covariate_distribution_is_missing",
+     "population"): ("the target population the question declares",
+                     _the_target_population_the_question_names, False),
     # What the CALLER flagged, copied onto the envelope beside the gap
     # that reports it. Both copies are the producer's, which is the shape
     # the first three have too.
@@ -736,8 +778,8 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     # And the slot whose answer is the sentence's. Under this statement a
     # target is where an answer is being transported TO.
     ("transport_rests_on_s_admissibility", "target"):
-        ("the domains the program declares",
-         _domains_the_program_declares, False),
+        ("the target population the question declares",
+         _the_target_population_the_question_names, False),
     # And the slots that copy the QUESTION. That record is on the program
     # rather than the envelope, and it is the one no answer can edit. The
     # slots are names as well, which the name rule asks; being one was
@@ -746,6 +788,40 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
        for statement, slots in _COPIES_THE_QUESTION.items()
        for slot in slots},
 }
+
+#: What a copied hole holds where the record it copies names nothing: the
+#: word its sentence puts there instead, which a reader is shown in place
+#: of a name ("<source population>").
+#:
+#: A hole is one fact whichever half it travels in, and this is the one
+#: occasion a producer writes it as a word. Read only where it travels as
+#: a ``said``, every copied hole could have its name replaced by any word
+#: and a stand-in by another, and the door took each. Read off the
+#: producers and held to them by test. Which word stands in is the
+#: SENTENCE'S rather than the slot's: a target is the target population in
+#: the statement about transporting and the outcome in the one about a
+#: curve. A copied hole with no entry is never left to a stand-in.
+_STANDS_IN: Mapping[tuple[str, str], Any] = {
+    ("transport_rests_on_s_admissibility", "source"):
+        _gaps.Unnamed.SOURCE_POPULATION,
+    ("transport_rests_on_s_admissibility", "target"):
+        _gaps.Unnamed.TARGET_POPULATION,
+    ("the_source_populations_stratified_conditional_is_missing",
+     "population"): _gaps.Unnamed.POPULATION,
+    ("the_target_populations_covariate_distribution_is_missing",
+     "population"): _gaps.Unnamed.POPULATION,
+    ("the_question_asks_for_a_dose_response_curve", "intervention"):
+        _gaps.Unnamed.INTERVENTION,
+    ("the_question_asks_for_a_dose_response_curve", "target"):
+        _gaps.Unnamed.OUTCOME,
+}
+
+
+def _copied_from(statement: str | None,
+                 slot: str) -> tuple[str, Any, bool] | None:
+    """The record a hole copies IN THIS STATEMENT, or the general one."""
+    return (_COPIED_FROM.get((statement, slot))
+            or _COPIED_FROM.get((None, slot)))
 
 
 def _the_question_asked(program: Mapping) -> tuple[str | None,
@@ -1060,22 +1136,34 @@ def verify_gap_quotes(result: Mapping, context) -> None:
     is a name out of the register the name rule cannot read, and the
     variable a statement copies from the question is the question's.
 
+    And asked of the hole whichever half it travels in. Where the record
+    names nothing, a producer writes the hole as a WORD, the stand-in its
+    sentence says instead; a walk over ``said`` alone read every hole
+    except the ones written that way, so any name could become a stand-in
+    and any stand-in another. A word in a copied hole is accepted only as
+    the stand-in its sentence declares, and only where the record names
+    nothing.
+
     Returns ``None`` on accept, including when there is no report.
     """
     report = result.get("data_gap_report")
     if not isinstance(report, Mapping):
         return
     rosters: dict[str, set] = {}
+
+    def recorded(entry: tuple[str, Any, bool]) -> set:
+        says, build, _lists = entry
+        if says not in rosters:
+            rosters[says] = build(result, context)
+        return rosters[says]
+
     for where, statement, said in every_said_mapping(report):
         for key, value in said.items():
-            entry = (_COPIED_FROM.get((statement, str(key)))
-                     or _COPIED_FROM.get((None, str(key))))
+            entry = _copied_from(statement, str(key))
             if entry is None:
                 continue
-            says, build, lists = entry
-            if says not in rosters:
-                rosters[says] = build(result, context)
-            known = rosters[says]
+            says, _build, lists = entry
+            known = recorded(entry)
             if not known:
                 continue
             spelt = ([p.strip() for p in str(value).split(",")] if lists
@@ -1089,6 +1177,32 @@ def verify_gap_quotes(result: Mapping, context) -> None:
                     f"sentence reaches them with that word already "
                     f"substituted in, so they are sent after something "
                     f"this answer never did",
+                    step_index=None, rule=_RULE,
+                )
+    for where, statement, words, _said in every_word_mapping(report):
+        for key, word in words.items():
+            entry = _copied_from(statement, str(key))
+            if entry is None:
+                continue
+            says = entry[0]
+            stand_in = _STANDS_IN.get((statement or "", str(key)))
+            if stand_in is None or word != language.state(stand_in):
+                owed = ("" if stand_in is None
+                        else f", which here is {str(stand_in)!r}")
+                raise VerificationError(
+                    f"a gap puts the word {word!r} where it quotes {says} "
+                    f"(at {where}.{key}). That hole holds a name out of the "
+                    f"record, or the one word its sentence says when the "
+                    f"record names nothing{owed}",
+                    step_index=None, rule=_RULE,
+                )
+            known = recorded(entry)
+            if known:
+                raise VerificationError(
+                    f"a gap tells a reader the {key} here has no name, and "
+                    f"{says} are {sorted(known)} (at {where}.{key}). A "
+                    f"reader is handed a placeholder where the answer had "
+                    f"the name",
                     step_index=None, rule=_RULE,
                 )
 

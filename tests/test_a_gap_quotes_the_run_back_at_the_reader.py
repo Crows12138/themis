@@ -33,12 +33,20 @@ p-value) which is not equal to anything recorded, and a COINED label
 fact be findable would refuse all 41. Holding those needs a comparison
 with a tolerance, which is a different authority and a different
 frontier.
+
+A HOLE IS ONE FACT WHICHEVER HALF IT TRAVELS IN. Where the record names
+nothing, a producer writes the hole as a word, the stand-in its sentence
+says instead, and a rule reading only ``said`` read every hole except
+those: any of the 965 names below could become a stand-in and pass. And a
+population hole is its ROLE'S: read against every population the program
+names, a source written as the target was the answer carried backwards.
 """
 from __future__ import annotations
 
 import copy
 import json
 import pathlib
+from types import SimpleNamespace
 
 import pytest
 
@@ -46,9 +54,12 @@ from tests.answer_corpus import the_door_for, verify_honestly
 from themis.kernel import _premises_of
 from themis.verifier import VerificationError
 from themis import gaps, language
+from themis.output import data_gap_report
+from themis.types import Atom, ConstTerm
 from themis.verifier.gap_claim_rules import (
     _A_WORD_COPIES,
     _COPIED_FROM,
+    _STANDS_IN,
     _IN_ITS_SENTENCE,
     _NOT_NAMES,
     _ROLES,
@@ -500,3 +511,185 @@ def test_a_question_that_spells_only_half_of_itself_is_not_appealed_to():
         if isinstance(statement.get("query"), dict):
             statement["query"].pop("target", None)
     verify_gap_subjects(forged, program)
+
+
+# ------------------------------------ and the word a hole holds when nothing names it
+
+
+def _stand_ins_written(gaps_) -> dict:
+    return {(str(line.sentence), slot): word
+            for gap in gaps_ for line in gap.describes
+            for slot, word in (line.words or {}).items()}
+
+
+def test_a_stand_in_is_the_word_its_producer_writes_when_nothing_names_the_hole():
+    """Asked of the producers with records that name nothing, not read off
+    the corpus: the corpus carries one stand-in, and a table held to one
+    example is a statement about that example."""
+    asks_a_curve = SimpleNamespace(
+        statements=(),
+        extensions={"ambiguities": [{"kind": "dose_response_query"}]})
+    route = {"transportable": True,
+             "adjustment_set": [{"predicate": "z", "args": []}]}
+    written = {
+        **_stand_ins_written(data_gap_report._classify_transport_assumptions(
+            {"transport_identification": {"sources": [route]}})),
+        **_stand_ins_written(data_gap_report._transport_source_data_needs(
+            route, 0, target_pop=None)),
+        **_stand_ins_written(data_gap_report._classify_dose_response_data(
+            asks_a_curve, SimpleNamespace(query=None), ())),
+    }
+    assert written == {hole: language.state(word)
+                       for hole, word in _STANDS_IN.items()}
+
+
+def _a_report_saying(sentence, slot, word):
+    return {"data_gap_report": {"gaps": [{"describes": [
+        {"sentence": sentence, "words": {slot: word}}]}]}}
+
+
+def _atom(name):
+    return Atom(predicate=name, args=(ConstTerm(name="u"),))
+
+
+#: A context whose every record this rule reads names nothing, and one
+#: whose every record names something.
+_NAMES_NOTHING = SimpleNamespace(query=None, selection_nodes=())
+_NAMES_ALL = SimpleNamespace(
+    query=SimpleNamespace(target_population="clinic",
+                          intervention=SimpleNamespace(atom=_atom("x")),
+                          target=SimpleNamespace(atom=_atom("y"))),
+    selection_nodes=(SimpleNamespace(source_population="trial"),))
+
+
+@pytest.mark.parametrize("hole", sorted(_STANDS_IN), ids="|".join)
+def test_a_stand_in_is_true_only_where_its_record_names_nothing(hole):
+    """A stand-in says the record gives this hole no name, which is a
+    claim about the record like any name is."""
+    forged = _a_report_saying(*hole, language.state(_STANDS_IN[hole]))
+    verify_gap_quotes(forged, _NAMES_NOTHING)
+    with pytest.raises(VerificationError, match="has no name"):
+        verify_gap_quotes(forged, _NAMES_ALL)
+
+
+def test_a_copied_hole_written_as_any_other_word_is_refused():
+    """Every name on the corpus, rewritten as each stand-in and as a word
+    of another set. None of those is the stand-in its sentence says where
+    its record names something, which on this corpus is every one of
+    them."""
+    words = [language.state(member) for member in gaps.Unnamed]
+    words.append(language.state(
+        data_gap_report.Window.BASELINE_AND_TWO_FOLLOW_UPS))
+    refused = 0
+    for name, where, _statement, key in SITES:
+        row = SHAPES[name]
+        for word in words:
+            forged = dict(row["result"])
+            forged["data_gap_report"] = copy.deepcopy(
+                row["result"]["data_gap_report"])
+            said = _said(forged, where)
+            del said[key]
+            line = (_said(forged, where.rsplit(".", 1)[0]) if "." in where
+                    else forged["data_gap_report"])
+            if not said:
+                del line["said"]
+            line.setdefault("words", {})[key] = dict(word)
+            with pytest.raises(VerificationError,
+                               match="where it quotes|has no name"):
+                verify_gap_quotes(forged, CONTEXTS[name])
+            refused += 1
+    assert refused == 965 * 6, refused
+
+
+def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():
+    """A transport with no difference declared between populations, whose
+    one route comes from a source nobody named."""
+    sites = [(name, where, statement, key)
+             for name, pair in SHAPES.items()
+             for where, statement, words, _said in every_word_mapping(
+                 (pair["result"] or {}).get("data_gap_report") or {})
+             for key in words if _entry(statement, key) is not None]
+    assert len(sites) == 1, sites
+    name, where, _statement, key = sites[0]
+    row = SHAPES[name]
+    the_door_for(row["result"])(row["program"], row["result"])
+    refused = 0
+    for member in gaps.Unnamed:
+        forged = copy.deepcopy(row["result"])
+        word = _said(forged, where)[key]
+        if word["token"] == str(member):
+            continue
+        word["token"] = str(member)
+        with pytest.raises(VerificationError, match="which here is"):
+            the_door_for(row["result"])(row["program"], forged)
+        refused += 1
+    assert refused == 4, refused
+
+
+def test_a_population_hole_is_read_against_its_own_role():
+    """The direction an answer is carried in. Read against every population
+    the program names, a source written as the target passed every door."""
+    swapped = 0
+    for name, where, statement, key in SITES:
+        role = _entry(statement, key)[0]
+        if "population" not in role or "domains" in role:
+            continue
+        row = SHAPES[name]
+        block = row["result"]["extensions"]["transport_identification"]
+        others = ([block.get("target_population")] if "source" in role
+                  else [s.get("source_population") for s in block["sources"]])
+        for other in others:
+            forged = copy.deepcopy(row["result"])
+            said = _said(forged, where)
+            if other is None or other == said[key]:
+                continue
+            said[key] = other
+            with pytest.raises(VerificationError, match="never did"):
+                the_door_for(row["result"])(row["program"], forged)
+            swapped += 1
+    assert swapped == 42, swapped
+
+
+_CURVE = "the_question_asks_for_a_dose_response_curve"
+
+
+def test_a_curve_names_every_role_the_question_is_read_for():
+    """Two readings of which field holds the question's intervention and
+    target: the producer's, and the one its stand-in is judged against.
+
+    Where the second finds a name the first must write it — a stand-in
+    there hands a reader a placeholder where the question had the name,
+    and is refused for it. A proximal effect calls the two ``treatment``
+    and ``outcome``, and the producer read past them. Asked of a question
+    of every class the corpus holds, flagged for a curve, because no answer
+    on the corpus carries a curve for most of them.
+
+    What is left is the other direction, and a number: a cause and an
+    association name the curve's roles by fields the question's roles are
+    not read from, so there the name is written and nothing reads it.
+    """
+    asks_a_curve = SimpleNamespace(
+        statements=(),
+        extensions={"ambiguities": [{"kind": "dose_response_query"}]})
+    one_of_each = {}
+    for name in sorted(CONTEXTS):
+        query = getattr(CONTEXTS[name], "query", None)
+        if query is not None:
+            one_of_each.setdefault(type(query).__name__, CONTEXTS[name])
+    unread = set()
+    for kind, context in sorted(one_of_each.items()):
+        (gap,) = data_gap_report._classify_dose_response_data(
+            asks_a_curve, SimpleNamespace(query=context.query), ())
+        line = gap.describes[0]
+        assert str(line.sentence) == _CURVE, line
+        said, words = line.said or {}, line.words or {}
+        for slot in ("intervention", "target"):
+            known = _COPIED_FROM[(_CURVE, slot)][1]({}, context)
+            if known:
+                assert said.get(slot) in known, (kind, slot, said, words)
+            elif slot in said:
+                unread.add((kind, slot))
+    assert unread == {("AssocQuery", "intervention"), ("AssocQuery", "target"),
+                      ("CauseQuery", "intervention"), ("CauseQuery", "target")}, (
+        sorted(unread))
+    assert len(one_of_each) == 10, sorted(one_of_each)
