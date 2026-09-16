@@ -415,7 +415,6 @@ def test_what_the_program_settles_and_has_no_witness_yet():
         "graph_theta_independence_mismatch",
         "ill_defined_intervention_versions",
         "missing_iv_candidate",
-        "missing_structural_input",
         "selection_on_collider_opens_path",
         "unmeasured_confounder_risk",
         "unverified_proposal_edge_on_query_path",
@@ -424,20 +423,14 @@ def test_what_the_program_settles_and_has_no_witness_yet():
 
 
 def test_the_species_of_those_kinds_no_witness_reads():
-    """The same list one level down. A structural input the program lacks is
-    witnessed for the two species whose facts carry the claim, and stays on
-    the list above for the seven whose facts do not."""
+    """The same list one level down. A structural input the program lacks
+    left it when every species of it had a witness: the two whose facts
+    carry the whole claim first, then the seven whose claim is about the
+    question and the graph."""
     assert {str(m) for m in UNWITNESSED_SPECIES} == {
-        "conditioning_event_has_probability_zero",
-        "duplicate_treatment_atom",
         "feedback_loop_needs_an_instrument",
         "feedback_loop_outside_the_simultaneous_case",
         "framing_fields_unfilled",
-        "given_violates_backdoor",
         "graph_contradicts_supplied_marginal",
-        "joint_with_mediation_or_transport",
-        "mediator_off_the_directed_paths",
-        "mediator_set_off_the_directed_paths",
-        "path_coefficient_undeclared",
     }
     assert all(m.gap in UNWITNESSED for m in UNWITNESSED_SPECIES)

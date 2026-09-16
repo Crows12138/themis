@@ -1687,9 +1687,18 @@ def test_the_declared_remainder_is_what_it_is():
     anything. Rehearsed beyond the corpus, the quote turned out not to be
     one: written in the list's spelling rather than the declaration's
     letters, it was refused on every answer whose declaration says ``FFQ``.
+
+    Then 6: the detail a structural refusal carries about its question --
+    the conditioned atoms that break the back door, the edge whose
+    coefficient is missing, the declaration a joint question has to drop.
+    The other seven structural species had no witness, because what they
+    claim is about the question and the graph and not carried whole in
+    their own facts; their copies were held to each other and nothing else.
+    Each species is asked of the question and the graph now, and the
+    detail with it.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1864, total
+    assert total == 1858, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

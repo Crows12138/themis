@@ -726,13 +726,21 @@ _bind_species()
 #
 # The other kind the program settles, and it settles it species by species:
 # each says a question or a declaration cannot be run as written, and each
-# for a different reason. Two carry the whole of their claim in their own
-# facts -- a name, the part of the program that writes it, and whether the
-# graph has no node of it or several -- so they are asked of the graph and
-# of that part at every copy, which is where each reader of one reads it:
-# the ask a caller fills, the note summing the asks up, the sentence in the
-# report. Held to each other and to nothing else, the copies agreed on a
-# part that writes no such name and on a name the graph holds.
+# for a different reason. So each is asked at every copy, which is where
+# each reader of one reads it -- the ask a caller fills, the note summing
+# the asks up, the sentence in the report -- and asked of the program on its
+# own rather than through the other copies. Held to each other and to
+# nothing else, the copies agreed on a part that writes no such name and on
+# a name the graph holds.
+#
+# What a copy is asked is what its species says. Two carry the whole of
+# their claim in their own facts: a name, the part of the program that
+# writes it, and whether the graph has no node of it or several. The rest
+# say something about the question and the graph -- a mediator off the
+# paths, a condition no model meets -- and carry at most a detail of it, the
+# atoms that break the back door or the edge whose coefficient is missing.
+# Those are asked of the question and the graph, and the detail, where
+# there is one, of the same.
 
 
 def _atoms_in(node: object) -> Iterator[Atom]:
@@ -841,11 +849,233 @@ def _several_nodes_are_it(statement: Mapping,
     return None
 
 
-#: The species whose claim their own facts carry, and what exhibits each
-#: one false.
+def _given_breaks_the_back_door(statement: Mapping,
+                                facts: RefusalFacts) -> str | None:
+    """"identify.given holds X, Y, or a descendant of X" -- refuted by a
+    question that is no identification, by a given holding none of those,
+    or by atoms other than the ones it holds."""
+    q = facts.query
+    if not isinstance(q, IdentifyQuery):
+        return "the question is not an identification, so it has no given"
+    x, y = q.intervention.atom, q.target
+    forbidden = ((_descendants(facts.graph, x) if x in facts.graph else {x})
+                 | {y})
+    offending = {_atom_label_verifier(a) for a in q.given if a in forbidden}
+    if not offending:
+        return ("nothing it conditions on is the treatment, the outcome or a "
+                "descendant of the treatment")
+    said = (statement.get("said") or {}).get("atoms")
+    if isinstance(said, str) and set(said.split(", ")) != offending:
+        return (f"what it conditions on that is the treatment, the outcome "
+                f"or a descendant of the treatment is "
+                f"{', '.join(sorted(offending))}")
+    return None
+
+
+def _mediates(graph: nx.DiGraph, x: Atom, y: Atom, m: Atom) -> bool:
+    """Whether ``m`` lies on a directed path from ``x`` to ``y`` -- what a
+    decomposition through it presupposes."""
+    return (len({x, y, m}) == 3 and all(n in graph for n in (x, y, m))
+            and nx.has_path(graph, x, m) and nx.has_path(graph, m, y))
+
+
+def _the_mediator_is_off_the_paths(statement: Mapping,
+                                   facts: RefusalFacts) -> str | None:
+    """"The declared mediator lies on no directed path from X to Y" --
+    refuted by a question declaring no mediator, or by one that lies on
+    one."""
+    q = facts.query
+    if not isinstance(q, EffectQuery) or q.mediator is None:
+        return "the question declares no mediator"
+    x, y = q.intervention.atom, q.target.atom
+    if _mediates(facts.graph, x, y, q.mediator):
+        return (f"{_atom_label_verifier(q.mediator)} lies on a directed path "
+                f"from {_atom_label_verifier(x)} to {_atom_label_verifier(y)}")
+    return None
+
+
+def _a_mediator_of_the_block_is_off_the_paths(
+    statement: Mapping, facts: RefusalFacts,
+) -> str | None:
+    """"One of the declared mediators lies off the directed paths, or the
+    set is empty or holds X or Y" -- refuted by a question declaring no
+    block, or by a block every member of which lies on one."""
+    q = facts.query
+    if not isinstance(q, EffectQuery) or not q.mediators:
+        return "the question declares no mediator block"
+    x, y = q.intervention.atom, q.target.atom
+    if all(_mediates(facts.graph, x, y, m) for m in q.mediators):
+        return (f"every mediator in it lies on a directed path from "
+                f"{_atom_label_verifier(x)} to {_atom_label_verifier(y)}")
+    return None
+
+
+def _the_coefficient_is_undeclared(statement: Mapping,
+                                   facts: RefusalFacts) -> str | None:
+    """"A linear SCM counterfactual needs this edge's path coefficient" --
+    refuted by another kind of question, by an edge the graph does not
+    have, by one the counterfactual never reads, or by one whose
+    coefficient the program declares.
+
+    Read is what the abduction reads: every edge into a variable that still
+    reaches the outcome once the edges into the treatment are cut, except
+    the edges into the treatment, whose equation the intervention replaces.
+    """
+    q = facts.query
+    if not isinstance(q, SCMCounterfactualQuery):
+        return ("the question is not a linear-SCM counterfactual, the one "
+                "kind that reads a coefficient")
+    said = statement.get("said") or {}
+    parent, child = said.get("parent"), said.get("child")
+    if not isinstance(parent, str) or not isinstance(child, str):
+        return None
+    graph = facts.graph
+    edge = next(((p, c) for p, c in graph.edges
+                 if _atom_label_verifier(p) == parent
+                 and _atom_label_verifier(c) == child), None)
+    if edge is None:
+        return f"the graph has no edge {parent} -> {child}"
+    x, y = q.intervention.atom, q.target
+    if x not in graph or y not in graph:
+        return None
+    if edge[1] == x:
+        return (f"{child} is the variable intervened on, and the "
+                f"intervention replaces its equation")
+    cut = graph.copy()
+    cut.remove_edges_from(list(graph.in_edges(x)))
+    if edge[1] != y and edge[1] not in nx.ancestors(cut, y):
+        return (f"{child} does not reach {_atom_label_verifier(y)} once the "
+                f"edges into {_atom_label_verifier(x)} are cut")
+    if getattr(graph.edges[edge].get("source"), "coefficient",
+               None) is not None:
+        return f"the program declares the coefficient of {parent} -> {child}"
+    return None
+
+
+@dataclass(frozen=True)
+class _Event:
+    """A counterfactual event in the shape the verifier's model walk reads:
+    a variable, the world it is read in, and the value it takes there."""
+
+    variable: Atom
+    subscript: frozenset
+    value: object
+
+
+#: Background draws where a model's backgrounds are too many to enumerate.
+#: A draw meeting the condition proves it can happen; none meeting it proves
+#: nothing and accepts the claim.
+_CONDITION_DRAWS = 50_000
+
+
+def _the_condition_cannot_happen(statement: Mapping,
+                                 facts: RefusalFacts) -> str | None:
+    """"The conditioning conjunction has probability zero in every model
+    the graph admits" -- refuted by a model the graph admits in which it
+    has positive probability.
+
+    One model is enough to exhibit it. Every mechanism in a sampled model
+    gives every value positive probability, so a condition that can happen
+    at all happens in it. Silent where the model cannot be walked -- an atom
+    the graph lacks, a value outside the binary domain it is sampled over --
+    and where a sampled background misses a condition that is merely rare.
+    """
+    import random
+
+    import numpy as np
+
+    from .semantic_probe import (
+        _EXACT_BACKGROUND_CAP,
+        _background_size,
+        _counterfactual_true_exact,
+        _counterfactual_true_mc,
+        _sample_scm,
+    )
+
+    q = facts.query
+    if not isinstance(q, CounterfactualConjunctionQuery) or not q.condition:
+        return "the question conditions on nothing"
+    condition = tuple(
+        _Event(e.variable, frozenset((s.atom, s.value) for s in e.subscript),
+               e.value)
+        for e in q.condition)
+    try:
+        topo = list(nx.topological_sort(facts.graph))
+        model = _sample_scm(facts.graph, facts.bidirected, {},
+                            random.Random(0))
+        if _background_size(model, topo) <= _EXACT_BACKGROUND_CAP:
+            chance = _counterfactual_true_exact(model, condition, topo)
+        else:
+            chance = _counterfactual_true_mc(
+                model, condition, topo, _CONDITION_DRAWS,
+                np.random.default_rng(0))
+    except Exception:  # noqa: BLE001 -- a witness not exhibited accepts
+        return None
+    if chance > 0:
+        return (f"in a model the graph admits it has probability "
+                f"{chance:.3g}")
+    return None
+
+
+#: The declarations that make a joint question a mediation or a transport
+#: question as well, each with what declares it. Written here rather than
+#: read off the routing table, which is the producer's; a test holds it to
+#: the fields that trigger the rows the joint route displaces.
+_ASKED_BESIDE_A_JOINT_EFFECT: dict[str, Callable[[EffectQuery], bool]] = {
+    "target_population": lambda q: q.target_population is not None,
+    "mediators": lambda q: bool(q.mediators),
+    "mediator": lambda q: q.mediator is not None,
+}
+
+
+def _a_joint_question_asks_another_layer(statement: Mapping,
+                                         facts: RefusalFacts) -> str | None:
+    """"A joint intervention combined with mediation or transport" --
+    refuted by a question with one treatment, by one asking for neither,
+    or by sending the reader to drop a declaration it does not make."""
+    q = facts.query
+    if not isinstance(q, EffectQuery) or not q.extra_interventions:
+        return "the question intervenes on one treatment, so it is not joint"
+    asked = sorted(field for field, declares
+                   in _ASKED_BESIDE_A_JOINT_EFFECT.items() if declares(q))
+    if not asked:
+        return "the question asks for neither mediation nor transport"
+    drop = (statement.get("said") or {}).get("drop")
+    if isinstance(drop, str) and drop.strip("`") not in asked:
+        return (f"what it declares beside the joint intervention is "
+                f"{', '.join(asked)}")
+    return None
+
+
+def _the_treatments_repeat(statement: Mapping,
+                           facts: RefusalFacts) -> str | None:
+    """"The joint treatment vector repeats an atom" -- refuted by a
+    question with one treatment, or by treatments that are all different."""
+    q = facts.query
+    if not isinstance(q, EffectQuery) or not q.extra_interventions:
+        return "the question intervenes on one treatment"
+    treatments = [q.intervention.atom,
+                  *(iv.atom for iv in q.extra_interventions)]
+    if len(set(treatments)) == len(treatments):
+        return (f"its treatments "
+                f"{', '.join(_atom_label_verifier(a) for a in treatments)} "
+                f"are all different")
+    return None
+
+
+#: Each structural species, and what exhibits it false.
 _WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
     Need.ATOM_NOT_IN_GRAPH: _no_node_is_it,
     Need.NAME_HOLDS_SEVERAL_NODES: _several_nodes_are_it,
+    Need.GIVEN_VIOLATES_BACKDOOR: _given_breaks_the_back_door,
+    Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: _the_mediator_is_off_the_paths,
+    Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS:
+        _a_mediator_of_the_block_is_off_the_paths,
+    Need.PATH_COEFFICIENT_UNDECLARED: _the_coefficient_is_undeclared,
+    Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO: _the_condition_cannot_happen,
+    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT:
+        _a_joint_question_asks_another_layer,
+    Need.DUPLICATE_TREATMENT_ATOM: _the_treatments_repeat,
 }
 
 
@@ -949,10 +1179,10 @@ def verify_species_claims(result: Mapping, facts: RefusalFacts) -> None:
     and the routes it offers. Raises :class:`VerificationError` naming the
     copy and what the program says instead; silent on every other species.
 
-    And a species whose claim its own facts carry is held to the program at
-    each copy the same way, on its own rather than through the others: the
-    name it says, the part it says writes that name, and the nodes of the
-    graph the name is.
+    And a structural species is held to the program at each copy the same
+    way, on its own rather than through the others: what it says about the
+    question, the graph and the part of the program it names, together with
+    whatever detail of that the copy carries.
     """
     if not isinstance(result, Mapping):
         return

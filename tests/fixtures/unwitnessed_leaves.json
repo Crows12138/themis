@@ -968,7 +968,6 @@
   "data_gap_report.gaps.[].describes.[].said.winner",
   "data_gap_report.gaps.[].describes.[].said.winner@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,sentence=the_result_reflects_one_layer_only",
   "data_gap_report.gaps.[].describes.[].said.won",
-  "data_gap_report.gaps.[].describes.[].words.why.said.drop",
   "data_gap_report.gaps.[].provenance.[].ref_id@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,ref_kind=program_site",
   "data_gap_report.gaps.[].said.lost",
   "data_gap_report.gaps.[].said.won",
@@ -1001,7 +1000,6 @@
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:identify:none": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.atoms",
   "missing_information.[].name"
  ],
  "needs_investigation:probability:none": [
@@ -1043,8 +1041,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:scm_counterfactual:none#f2b812": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.child",
-  "data_gap_report.gaps.[].describes.[].words.why.said.parent",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -1900,8 +1896,6 @@
   "extensions.survival_curve.follow_up_ends"
  ],
  "scm_counterfactual_linear_fit": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.child",
-  "data_gap_report.gaps.[].describes.[].words.why.said.parent",
   "derivation.steps.[].step_id",
   "estimation_context.random_state",
   "investigation_requests.[].priority"

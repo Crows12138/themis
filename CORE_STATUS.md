@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-20824 passed / 518 skipped, warning-clean
+20858 passed / 518 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,37 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #685 结构性拒答说「这个问题跑不了」，却没有人拿问题去问它（2026-09-17）
+
+**现象。** `missing_structural_input` 由程序判定，按 species 配证人。#682 给两个 species 配了证人，它们的主张整个装在自己的事实里（名字、写它的部分、它是几个节点）。其余 7 个说的是问题和图：given 里有原子破坏后门、中介不在从处理到结局的有向路径上、中介块有成员不在路径上、反事实溯因缺一条没声明的系数、条件事件在任何模型里概率为零、联合干预同时要中介或迁移、联合处理向量有重复。它们最多带一个细节（atoms、parent/child、drop），没有证人，几份拷贝只互相押。按读诚实答案的门集量，诚实答案 21 个（语料 5 行加造出的 16 个）：
+- 每份拷贝一起改：25 处放行（改 atoms、把边倒过来、换 drop；把诚实答案放到主张为假的程序旁边）；
+- 只改一份拷贝、在只判程序主张的 `verify_refusal` 上问：100 处放行；
+- 放到主张为假的程序旁边、在 `verify_refusal` 上问：22 处放行。其中两个中介 species 的伪造在 `verify_answer_claims` 上会被 mediation 块自己的规则拒，但那条规则读的是扩展块，不在 `verify_refusal` 上。
+
+**根因。** #682 建 `_WITNESSES` 时，把「能配证人」写成了「主张装在自己的事实里」，模块注释也这么说，于是主张要读问题和图才能判的 species 被当成「事实不装主张」，留在钉住的待证清单上。证人的签名本来就同时拿到拷贝和 `RefusalFacts`（图、问题），读法没有这个限制。
+
+**为什么是根因不是表象。** 只押 atoms、drop 这些细节和别的拷贝一致，仍是拷贝互押（教训 76）：一起改照样放行。主张说的是程序，只有从程序重推才能判真假。
+
+**结构。**
+- `_WITNESSES` 补上 7 个证人，都读问题和图，有细节的连细节一起押；所在一节的注释改成「一个 species 问的是它说了什么」。
+  - `given_violates_backdoor`：不是识别问题、given 里没有处理/结局/处理的后代、或 atoms 与这样的原子集合不同（按集合比，重排为真），都反驳。
+  - 两个中介 species：问题没声明中介（块）、或中介（块里每个成员）都在从处理到结局的有向路径上（互异、在图里、`has_path` 两段），反驳。
+  - `path_coefficient_undeclared`：不是线性 SCM 反事实、图里没有这条边、子节点是被干预的变量、切掉进入处理的边后子节点到不了结局、或这条边声明了系数，反驳。
+  - `conditioning_event_has_probability_zero`：问题没有条件、或验证器自己的随机 SCM（`semantic_probe` 的采样；背景能枚举就精确求和，否则抽样）里条件事件概率为正，反驳。一个模型就够：采样模型里每个值概率都为正，条件只要可能发生就会发生。走不动（原子不在图里、值不在二元域里）时沉默。
+  - `joint_with_mediation_or_transport`：问题不是联合、或没有同时要中介/迁移、或让读者去掉的声明不是问题写了的，反驳。问题同时写了两层时，说去掉哪一层都算真话。三个字段在验证器里重写成 `_ASKED_BESIDE_A_JOINT_EFFECT`，测试钉住它等于 routing 里被 joint 挤掉的那几行的 `triggered_by`。
+  - `duplicate_treatment_atom`：问题不是联合、或处理都不相同，反驳。
+- `verify_species_claims` 的 docstring 改成同样的说法。`MISSING_STRUCTURAL_INPUT` 离开 `UNWITNESSED`，`UNWITNESSED_SPECIES` 从 11 个剩 4 个。
+
+**测量。**
+- 改后：诚实 21 个两道门全收；上面三类伪造全部拒；两处「另一句真话」（atoms 重排、两层都写时去掉另一层）照收。
+- gate 自己的扫描只跑涉及的 5 行：6 片声明叶子不再漏（`why.said.drop` 1、`why.said.atoms` 1、`why.said.parent`/`child` 两行各 2），没有新增。声明余项 **1864→1858**。
+- 余项计数测试 (2112, 166)→(2113, 165)：多拒的一片是联合问题报告那份的 `drop`；另两个带细节的 species 的 atoms、边，原来就作为名字被拒。
+- 架构图不变。
+
+**还开着。** 同一行里「绕过去的路」的 `alternative_paths.[].said.drop`/`wanted`（dispatch conflict 路线一族）仍在声明余项里，那是路线句子，不是 species 拷贝，另起一条。`UNWITNESSED_SPECIES` 剩 4 个：两个反馈环 species、`framing_fields_unfilled`、`graph_contradicts_supplied_marginal`。
+
+**账。** 新文件 `tests/test_a_structural_refusal_is_asked_of_the_question_it_refuses.py` 34 个测试：诚实 12、放到主张为假的程序旁边 11（`verify_refusal` 按 species 拒，`verify_answer_claims` 也拒）、细节改写 8（6 处假话每份一起改和逐份都拒，2 处真话照收）、两层都写时去掉哪层都收 1、超过枚举上限时抽样给出同样结论 1、联合字段表等于 routing 1。`test_a_refusal_is_a_claim_about_the_program.py` 两个清单钉子更新；gate 总数 1864→1858 并加一段；余项计数加一段。基线 20824→**20858**。
 
 ### #684 问题点了哪些变量，三处各写一张清单：声明过却不在边上的中介，被验证器当成这个问题没有的名字（2026-09-17）
 

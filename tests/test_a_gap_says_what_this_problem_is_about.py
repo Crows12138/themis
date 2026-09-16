@@ -466,6 +466,11 @@ def test_the_remainder_is_counted_rather_than_described():
     declaration it quotes: the known noise a measurement field names (19)
     and where a threshold cuts (2). They were filed as prose and as an
     expression, and neither kind was ever the reason nothing held them.
+
+    And 1 more when the structural refusals whose claim is about the
+    question got a witness: the declaration a joint question is told to
+    drop, in the report's own copy. The atoms and the edge the other two
+    detailed species carry were refused here already, being names.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -480,7 +485,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2112, 166), (refused, accepted)
+    assert (refused, accepted) == (2113, 165), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
