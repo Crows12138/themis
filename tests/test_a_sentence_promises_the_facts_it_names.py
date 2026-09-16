@@ -331,6 +331,128 @@ def test_the_reader_is_told_which_half_was_wrong():
         verify_statements_carry_their_facts(result)
 
 
+# --- and the list they are handed together ------------------------------------
+
+
+def _lists_of_statements(result) -> list[tuple[tuple, list]]:
+    """Every list whose items are all statements, and where it sits.
+
+    Written here for the same reason ``_statements`` is: the claim under
+    test is about a list rather than about any one statement, and a gate
+    that finds the rule's lists with the rule's own code agrees with it
+    about which lists there are.
+    """
+    out: list[tuple[tuple, list]] = []
+
+    def walk(node, path: list) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                walk(value, [*path, key])
+        elif isinstance(node, list):
+            if node and all(isinstance(item, dict)
+                            and isinstance(item.get("vocabulary"), str)
+                            and "token" in item for item in node):
+                out.append((tuple(path), node))
+            for index, value in enumerate(node):
+                walk(value, [*path, "[]", index])
+
+    walk(result, [])
+    return out
+
+
+def test_no_list_the_corpus_ships_says_one_sentence_twice():
+    """The standing statement of what the rule asks, against what ships.
+
+    The second number is the denominator the case is really about: a list
+    of one cannot repeat anything, so only these can carry the forgery a
+    reader would meet without any of it being planted by hand.
+    """
+    lists = [(shape, where, items) for shape in sorted(SHAPES)
+             for where, items in _lists_of_statements(SHAPES[shape]["result"])]
+    for shape, where, items in lists:
+        for index, item in enumerate(items):
+            assert item not in items[:index], (shape, where, item)
+    assert sum(1 for _, _, items in lists if len(items) > 1) == 21
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_a_sentence_handed_to_a_reader_twice_is_refused(shape):
+    """The forgery none of the audits above can see. Each of them is about
+    one statement — its sentence, the set it is from, the record its coiner
+    filed — and being one of several is not a property any statement has,
+    so the pair was nobody's question."""
+    row = SHAPES[shape]
+    refused = survived = by_this_rule = unplantable = planted = 0
+    for path, items in _lists_of_statements(row["result"]):
+        planted += 1
+        forged = copy.deepcopy(row["result"])
+        _at(forged, path).append(copy.deepcopy(items[0]))
+        try:
+            the_door_for(row["result"])(row["program"], forged)
+        except SyntacticError:
+            unplantable += 1
+            continue
+        except Exception:                       # noqa: BLE001
+            refused += 1
+        else:
+            survived += 1
+        try:
+            verify_statements_carry_their_facts(forged)
+        except VerificationError:
+            by_this_rule += 1
+    assert survived == 0
+    assert unplantable == 0
+    assert by_this_rule == refused == planted
+
+
+def test_two_occasions_of_one_sentence_are_two_sentences():
+    """Why the pair is compared whole and not by its tokens.
+
+    One corpus row says ``a_risk_sits_outside_its_bound`` twice in the
+    same list, once about each arm of the same query, and a reader needs
+    both. Asking for distinct TOKENS would refuse that answer; what makes
+    an occasion that occasion is the facts it came with, so it is the
+    facts that are compared, and only the pair that is one is refused.
+    """
+    row = SHAPES["needs_investigation:causation:none#4f0014"]
+    where, items = next(
+        (w, i) for w, i in _lists_of_statements(row["result"])
+        if len(i) > 1 and len({str(s["token"]) for s in i}) == 1)
+    assert [s["said"]["quantity"] for s in items] == [
+        "P(Y=1|do(X=1))", "P(Y=1|do(X=0))"]
+    verify_statements_carry_their_facts(row["result"])
+
+    forged = copy.deepcopy(row["result"])
+    twins = _at(forged, where)
+    twins[1] = copy.deepcopy(twins[0])
+    with pytest.raises(VerificationError, match="twice, with the same facts"):
+        verify_statements_carry_their_facts(forged)
+
+
+def test_the_two_ways_a_design_can_break_are_not_one_way_twice():
+    """The leaf this came from, at the door.
+
+    ``sutva_concerns`` names what would have to be true of the units for
+    the answer to mean anything, the set has exactly two members, and
+    every row that carries the list carries both — so bending either
+    member is the same forgery as doubling it, and the reader is warned
+    about one thing twice while the other leaves without a word.
+    """
+    row = SHAPES["needs_investigation:effect:none#03cf75"]
+    forged = copy.deepcopy(row["result"])
+    concerns = next(
+        (gap.get("required_data") or {}).get("sutva_concerns")
+        for gap in forged["data_gap_report"]["gaps"]
+        if (gap.get("required_data") or {}).get("sutva_concerns"))
+    assert len(concerns) == len(_members("sutva_concern")) == 2
+    concerns[1]["token"] = concerns[0]["token"]
+
+    with pytest.raises(VerificationError, match="twice, with the same facts"):
+        verify_statements_carry_their_facts(forged)
+    with pytest.raises(VerificationError):
+        the_door_for(row["result"])(row["program"], forged)
+
+
 # --- which sites the table names ----------------------------------------------
 
 

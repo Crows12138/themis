@@ -1617,11 +1617,21 @@ def test_the_declared_remainder_is_what_it_is():
     declared at (21), the side of the question a variable is on (19).
     Both were unheld because the audit that asks whether a value has a
     second record was only ever asked of the half a fact travels in
-    when it needs no translating. What is left of the member half is
-    its tail: twenty entries over eleven leaves, the largest eight.
+    when it needs no translating. Then the largest 8 of what was left,
+    which were about no statement in particular: the two ways a design
+    can break SUTVA are named in a LIST, and either of them could be
+    written where the other belongs. Every audit above is about one
+    statement, and being one of several is not a property a statement
+    has, so the pair was nobody's question — a list is a claim of its
+    own, these are the sentences a reader gets here and they are
+    different sentences, and the statement walk asks it now. Whole
+    statements are compared and not tokens, because four honest lists
+    say one token twice with different facts beside it. What is left of
+    the member half is its tail: twelve entries over ten leaves, four of
+    them the direction a monotonicity assumption runs in.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1910, total
+    assert total == 1902, total
     assert len(SHAPES) == 243, len(SHAPES)
 
 

@@ -82,6 +82,22 @@ reaches, and two sites on the envelope are typed as open objects, where
 the set name could be rewritten to any string and a reader sent to a
 table no surface holds.
 
+A LIST of statements makes a claim of its own, and being total over
+the envelope is what lets this rule ask it: these are the sentences a
+reader gets HERE, and they are different sentences. Every audit above
+is about one statement — the sentence it names, the set it is from,
+the record its coiner filed — and none of them is about the list,
+because being one of several is not a property any of them has. So a
+way past that names two of a design's SUTVA concerns could name the
+first of them twice: the reader is told to watch one thing twice and
+never told about the other, and no rule was looking at the pair.
+
+The same TOKEN twice is not the question, and asking it would refuse
+honest answers — four lists on this corpus say a sentence twice with
+different facts, one risk outside its bound and then another. The
+same STATEMENT twice is: two occasions that are the same occasion,
+which is one occasion said twice with something else gone.
+
 Membership is read, not restated: :data:`themis.language.TOKENS_ARE_OURS`
 is where a set says whose its tokens are, and the words the producer wrote
 are the member list. The exception is a table that is partial ON PURPOSE,
@@ -324,6 +340,35 @@ def _hold(where: str, vocabulary: str, token: str, entry: Mapping,
         )
 
 
+def _once_each(where: str, items: Sequence) -> None:
+    """A list of statements, against itself.
+
+    Compared whole rather than by token: which facts an occasion
+    carried are what make it that occasion, and two sentences from one
+    template about two different things are two sentences. What this
+    refuses is the pair that is one — rendered, a reader is handed the
+    same words twice, and whatever the duplicate displaced is not on
+    the envelope to be missed.
+    """
+    seen: list = []
+    for item in items:
+        if not (isinstance(item, Mapping)
+                and isinstance(item.get("vocabulary"), str)
+                and "token" in item):
+            return
+        if any(item == earlier for earlier in seen):
+            raise VerificationError(
+                f"{where} hands a reader the sentence "
+                f"{str(item.get('token') or '')!r} twice, with the "
+                f"same facts both times; the list is what a reader is "
+                f"shown, so one of its places is saying nothing new "
+                f"and whatever belonged there is not here to be "
+                f"missed",
+                rule=_RULE,
+            )
+        seen.append(item)
+
+
 def _walk(node, path: tuple[str, ...],
           record: Mapping | None = None) -> None:
     """Every statement under this node, wherever it is written.
@@ -353,6 +398,8 @@ def _walk(node, path: tuple[str, ...],
         for key, value in node.items():
             _walk(value, (*path, str(key)), node)
     elif isinstance(node, Sequence) and not isinstance(node, (str, bytes)):
+        if node:
+            _once_each(".".join(path) or "the result", node)
         for item in node:
             _walk(item, (*path, "[]"), record)
 

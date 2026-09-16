@@ -594,7 +594,6 @@
  ],
  "needs_investigation:effect:none#03cf75": [
   "bounds_results.[].data_required.[].said.expression",
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -623,7 +622,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#06d3b8": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -744,7 +742,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#30ca3b": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#38993c": [
@@ -808,7 +805,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#60ffe9": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -825,7 +821,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#6898ab": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -952,7 +947,6 @@
   "missing_information.[].said.predicate"
  ],
  "needs_investigation:effect:none#b26e61": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#b2e77c": [
@@ -1006,7 +1000,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#dd007d": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
   "estimation_context.model_preference",
@@ -1472,7 +1465,6 @@
   "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#11765d": [
-  "data_gap_report.gaps.[].required_data.sutva_concerns.[].token",
   "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#203ca4": [
