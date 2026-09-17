@@ -211,7 +211,7 @@ def test_every_gap_in_the_corpus_asks_for_what_its_species_asks_for(corpus):
             for gap in report.get("gaps") or []:
                 seen += 1
                 species.add(gap.get("kind"))
-    assert (seen, len(species)) == (1031, 38), (seen, len(species))
+    assert (seen, len(species)) == (1038, 38), (seen, len(species))
 
 
 # --- and every shape the corpus does not say ------------------------------
@@ -251,7 +251,7 @@ def test_no_gap_may_ask_for_a_shape_its_species_does_not(corpus):
                      )["required_data"] = {"data_type": "ipd"}
                     assert _refuses(forged), (name, index, "invented")
                     bent["invented"] += 1
-    assert bent == {"stated": 675, "dropped": 135, "invented": 896}, bent
+    assert bent == {"stated": 675, "dropped": 135, "invented": 903}, bent
 
 
 def test_the_shape_a_missing_distribution_asks_for_is_read_off_its_ask(corpus):

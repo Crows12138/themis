@@ -158,7 +158,7 @@ def test_the_list_is_carried_by_almost_every_answer():
     """And which groups a request comes in, stated so that a fourth is a
     failure here rather than an item the rule reads by whichever branch it
     falls through — the mistake this module already made once."""
-    assert len(CARRIERS) == 160
+    assert len(CARRIERS) == 161
     groups = {r.get("group") for n in CARRIERS
               for r in _requests(SHAPES[n]["result"])}
     assert groups == {"framing", "assumption", "structure", "parameter"}
@@ -192,7 +192,7 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 306
+    assert linked == 310
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
@@ -230,7 +230,7 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert (checked, parameters) == (2157, 111), (checked, parameters)
+    assert (checked, parameters) == (2185, 111), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -354,7 +354,7 @@ def test_a_patch_that_asks_for_what_the_program_already_declared():
         tried += 1
         with pytest.raises(VerificationError, match="already declares it"):
             door(program, result)
-    assert tried == 120
+    assert tried == 121
 
 
 def test_a_patch_that_misreports_what_the_program_fixed():
@@ -533,7 +533,7 @@ def test_the_heading_over_the_list_is_held_to_the_list():
                     by_this_rule += 1
                     continue
                 survived.append((name, ri, path))
-    assert by_this_rule == 1400
+    assert by_this_rule == 1407
     assert {p for _, _, p in survived} == {"priority"}
     assert len(survived) == 13
 
@@ -681,7 +681,7 @@ def test_every_ask_names_a_gap_its_own_report_carries():
     """
     asks = list(_asks())
     twinned = sum(1 for *_rest, twin in asks if twin)
-    assert (len(asks), twinned) == (468, 147), (len(asks), twinned)
+    assert (len(asks), twinned) == (472, 147), (len(asks), twinned)
     for name, ri, ii, _twin in asks:
         result = SHAPES[name]["result"]
         named = result["investigation_requests"][ri]["items"][ii]["gap"]
@@ -720,7 +720,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
             continue
         lonely += 1
         assert "never said it had" in str(caught.value), (name, caught.value)
-    assert (refused, lonely) == (468, 321), (refused, lonely)
+    assert (refused, lonely) == (472, 325), (refused, lonely)
 
 
 def test_an_answer_with_no_report_is_not_asked_this():

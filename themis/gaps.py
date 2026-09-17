@@ -167,6 +167,11 @@ class Need(EnvelopeName):
         GapKind.MISSING_STRUCTURAL_INPUT,
         "one of the declared mediators lies off the directed paths, or the "
         "set is empty or holds X or Y")
+    DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES = (
+        "decomposition_within_a_stratum_the_treatment_moves",
+        GapKind.MISSING_STRUCTURAL_INPUT,
+        "direct and indirect effects are asked within a stratum the "
+        "treatment causes, which holds no one population to decompose")
     PATH_COEFFICIENT_UNDECLARED = (
         "path_coefficient_undeclared", GapKind.MISSING_STRUCTURAL_INPUT,
         "a linear SCM counterfactual needs this edge's path coefficient")
@@ -378,6 +383,16 @@ SAYS: dict[str, language.Words] = {
         "en": "at least one mediator lies off the directed paths "
               "X → … → M → … → Y (or the set is empty, or holds X or Y); "
               "check the mediator declaration or the edges in the graph",
+    },
+    "decomposition_within_a_stratum_the_treatment_moves": {
+        "zh": "问的是条件 {atoms} 所定的那一层人里的直接效应和间接效应，但 X 会"
+              "影响 {atoms}：X 取不同的值，落进这一层的就是不同的人，这一层里"
+              "没有一群固定的人可以拿来分解效应",
+        "en": "the question asks for the direct and indirect effects among "
+              "the people its condition on {atoms} picks out, but X affects "
+              "{atoms}: setting X to different values puts different people "
+              "in that stratum, so it holds no fixed population whose effect "
+              "could be decomposed",
     },
     "path_coefficient_undeclared": {
         "zh": "线性 SCM 反事实需要这条边上的通径系数：{parent} -> {child}",
@@ -2165,6 +2180,12 @@ ESCAPES: dict[Need, tuple[Route, ...]] = {
         Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
     ),
     Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS: (
+        Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
+    ),
+    # The total effect within the stratum is still a question, and
+    # conditioning on what the treatment causes is one the ID/IDC engine
+    # decides; it is the decomposition that has nothing to act on.
+    Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES: (
         Route.FALL_BACK_TO_THE_TOTAL_EFFECT,
     ),
 

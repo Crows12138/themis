@@ -92,6 +92,9 @@ Public surface (re-exports from sub-modules):
   ``verify_a_given_holding_an_end_is_refused`` (a question conditioning on
   its own treatment or outcome is refused before any route, and answered
   with that refusal alone; a route's answer to one passed every door) /
+  ``verify_a_decomposition_within_a_moved_stratum_is_refused`` (a
+  decomposition asked within a stratum the treatment moves is answered
+  with that refusal alone; with its item removed it passed every door) /
   ``verify_joint_identification`` (the same sentence for a do() over a
   treatment SET, in a block whose pattern vocabulary the contract declares
   disjoint from the scalar one — which is why one verifier dispatching on
@@ -845,6 +848,7 @@ from .verify import (
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
     verify_a_given_holding_an_end_is_refused,
+    verify_a_decomposition_within_a_moved_stratum_is_refused,
     verify_loop_withdrawal_is_owed,
     verify_recovery_verdicts_are_owed,
     verify_selection_recovery,
@@ -1016,6 +1020,7 @@ __all__ = [
     "verify_scm_counterfactual",
     "verify_scm_counterfactual_numeric",
     "verify_a_given_holding_an_end_is_refused",
+    "verify_a_decomposition_within_a_moved_stratum_is_refused",
     "verify_loop_withdrawal_is_owed",
     "verify_recovery_verdicts_are_owed",
     "verify_selection_recovery",

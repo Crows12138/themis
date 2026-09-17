@@ -107,7 +107,7 @@ def test_every_line_attributed_to_an_estimator_names_a_declared_id():
             1 for e in _ledger(result)
             if e.get("id") and e.get("provenance") in ATTRIBUTED
             and e["id"] not in declared)
-    assert (ledgers, empty, undeclared) == (106, 14, 0), (
+    assert (ledgers, empty, undeclared) == (107, 14, 0), (
         ledgers, empty, undeclared)
 
 

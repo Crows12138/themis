@@ -643,7 +643,7 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
         else:
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
-    assert asked == 2238, asked
+    assert asked == 2248, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -1717,10 +1717,16 @@ def test_the_declared_remainder_is_what_it_is():
     pattern says it conditioned on (seven), what a refusal's item is named
     and ranked, where an ask's annotation comes from. The fossil row's one
     leaf went with it.
+
+    Then 15 more, by one row bringing a shape no row carried. A
+    decomposition asked within a stratum is evaluated within it, and the
+    numeric step records the stratum it conditioned on, which no stored
+    step did. The fifteen leaves the row leaves are the ones the same answer
+    asked of no stratum already declares, leaf for leaf.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1866, total
-    assert len(SHAPES) == 250, len(SHAPES)
+    assert total == 1881, total
+    assert len(SHAPES) == 251, len(SHAPES)
 
 
 def _contract_blocks() -> frozenset[str]:
@@ -1852,6 +1858,8 @@ def test_the_sweep_asks_about_the_whole_envelope():
     1142 questions -- five such identifications, two effect answers
     conditioning on a stratum, and the refusal of an effect question
     conditioning on its own outcome -- and the fossil row took 39.
+
+    Then 33838: that decomposition asked within a stratum, 160 questions.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1861,7 +1869,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33678, asked_total
+    assert asked_total == 33838, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

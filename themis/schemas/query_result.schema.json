@@ -3382,6 +3382,7 @@
         "given_holds_the_treatment_or_outcome",
         "mediator_off_the_directed_paths",
         "mediator_set_off_the_directed_paths",
+        "decomposition_within_a_stratum_the_treatment_moves",
         "path_coefficient_undeclared",
         "conditioning_event_has_probability_zero",
         "joint_with_mediation_or_transport",

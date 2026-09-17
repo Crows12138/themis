@@ -120,7 +120,7 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (449, 60, 62, 24), (
+    assert (equal, prefix, values, no_id) == (454, 60, 62, 24), (
         equal, prefix, values, no_id)
 
 

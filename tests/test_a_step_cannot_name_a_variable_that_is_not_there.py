@@ -72,7 +72,7 @@ def test_how_many_atoms_this_gate_actually_reaches():
             inputs = step.get("inputs")
             if isinstance(inputs, dict):
                 steps += 1
-    assert steps == 369, steps
+    assert steps == 374, steps
 
     # The walker itself, on shapes it has to descend through.
     u = ConstTerm(name="u")
@@ -101,8 +101,12 @@ def test_the_corpus_carries_atom_inputs_to_be_asked_about():
     Then 486: the identifier answers an identify query conditioning on a
     descendant of the treatment, and five rows of those answers each carry
     an exchange step naming the treatment and the outcome.
+
+    Then 492: a decomposition asked within a stratum is evaluated within it,
+    and the row's two check steps, the natural effects' and the controlled
+    one's, each name the treatment, the outcome and the mediator.
     """
-    assert len(ATOM_INPUTS) == 486, len(ATOM_INPUTS)
+    assert len(ATOM_INPUTS) == 492, len(ATOM_INPUTS)
 
 
 @pytest.mark.parametrize(
@@ -151,8 +155,8 @@ def test_every_moved_argument_is_refused_and_by_which_rule():
                else "an older rule")
         by_who[key] += 1
 
-    assert sum(by_who.values()) == 486, by_who
-    assert by_who == {"new gate": 378, "an older rule": 108}, by_who
+    assert sum(by_who.values()) == 492, by_who
+    assert by_who == {"new gate": 384, "an older rule": 108}, by_who
 
 
 def test_the_message_names_the_whole_atom_not_just_the_predicate():

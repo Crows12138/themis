@@ -85,12 +85,12 @@ def test_a_gap_report_is_carried_by_almost_every_answer():
     carriers = [n for n in SHAPES
                 if (SHAPES[n]["result"].get("data_gap_report") or {}).get(
                     "gaps")]
-    assert len(carriers) == 238, sorted(set(SHAPES) - set(carriers))
+    assert len(carriers) == 239, sorted(set(SHAPES) - set(carriers))
     # Some carriers say nothing that names a variable, so they have gaps
     # and nothing for this rule to ask. That is an answer, not a skip.
     assert len(set(carriers) - set(WITH_NAMES)) == 52, len(
         set(carriers) - set(WITH_NAMES))
-    assert len(WITH_NAMES) == 186, len(WITH_NAMES)
+    assert len(WITH_NAMES) == 187, len(WITH_NAMES)
 
 
 def test_every_key_a_gap_says_is_classified():
@@ -490,7 +490,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2255, 165), (refused, accepted)
+    assert (refused, accepted) == (2271, 167), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

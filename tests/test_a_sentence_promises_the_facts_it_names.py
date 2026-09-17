@@ -92,10 +92,13 @@ SHAPES = json.loads(
 #: the identifier began answering a query conditioning on a descendant of
 #: the treatment: eight rows brought 232, most of them what their 56 gaps
 #: describe, ask for, say and offer as a way past, and the stored refusal
-#: they replaced took 12.
-REACHED = 5306
+#: they replaced took 12. 27 came with the row brought when a decomposition
+#: asked within a stratum was evaluated within it: what its seven gaps
+#: describe, ask for and say, the four ways past the one gap that offers
+#: any, and the five assumptions on its ledger.
+REACHED = 5333
 PER_CARRIER = {
-    "gap_routes": 1214,
+    "gap_routes": 1218,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
@@ -103,10 +106,10 @@ PER_CARRIER = {
     # a per-carrier pin is for — a narrowing shows up as one of them
     # falling while the others hold. They moved by one each again with the
     # joint general-ID refresh.
-    "gap_describes": 1205,
-    "gap_if_provided": 1031,
-    "gap_says": 737,
-    "assumption_claim": 509,
+    "gap_describes": 1212,
+    "gap_if_provided": 1038,
+    "gap_says": 741,
+    "assumption_claim": 514,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
     # statement quoted INSIDE another sentence's hole, which is the shape

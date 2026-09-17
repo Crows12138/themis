@@ -203,7 +203,9 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
     # second treatment's definition, which its producer had grown since the row was stored.
     # 56 more slots and 56 more gaps: the eight rows brought when the identifier began
     # answering a query conditioning on a descendant of the treatment.
-    assert (slots, gap_total, len(species)) == (1182, 1031, 38)
+    # 7 more slots and 7 more gaps: the row brought when a decomposition asked within a
+    # stratum was evaluated within it.
+    assert (slots, gap_total, len(species)) == (1189, 1038, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

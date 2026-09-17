@@ -111,13 +111,16 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     general-ID row picked up a ninth, and by 24 when the identifier began
     answering a query conditioning on a descendant of the treatment: the
     rows collected for it brought 27 and the stored refusal they replaced
-    took three. Together is the point: the subjects are the denominator
+    took three, and by four with the row brought when a decomposition asked
+    within a stratum was evaluated within it, whose four gaps about a
+    variable's definition are one per variable the question names.
+    Together is the point: the subjects are the denominator
     and the named ones the numerator, so a rule losing ground separates
     them and a corpus growing does not.
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (461, 461)
+    assert (inside, len(pairs)) == (465, 465)
 
 
 def _riders():
@@ -143,12 +146,12 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 461 of 461 either way — and this corpus offers 207 rides
+    honest side — 465 of 465 either way — and this corpus offers 213 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 461
-    assert len(list(_riders())) == 207
+               if any(v in r for r in refs)) == 465
+    assert len(list(_riders())) == 213
 
 
 def test_one_of_those_rides_is_actually_refused():
@@ -293,7 +296,7 @@ def test_the_other_said_kinds_are_declared_not_held():
                     continue
                 assert not any(str(said["subject"]) in r for r in refs)
                 unanchored += 1
-    assert unanchored == 22
+    assert unanchored == 24
 
 
 def test_the_rule_is_silent_where_there_is_no_report():

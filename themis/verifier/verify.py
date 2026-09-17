@@ -5476,6 +5476,13 @@ def verify_mediation_decomposition(
     way ``c_factor`` and ``joint_general_id`` are — a W that satisfies
     every condition and went unnamed is the failure.
 
+    Asked of a stratum, every condition is read on W together with the
+    atoms the QUESTION conditions on, and W holds none of them, as the
+    identifier reads them. A stratum holding something the treatment causes
+    is refused a block outright: the identifier searches no decomposition
+    there (``stratum_moved``), so a block beside one is a decomposition of
+    a population the question does not have.
+
     ``failed_condition`` is checked for AGREEMENT and not re-derived, and
     the distinction is the point. Which condition is named is the label of
     the candidate that got FURTHEST along a fixed order, searched without
@@ -5547,9 +5554,11 @@ def verify_mediation_decomposition(
     forbidden_nde = frozenset(desc_x)
     forbidden_cde = frozenset(desc_x).union(
         *(_verifier_directed_descendants(graph, m) for m in mediators))
+    stratum = frozenset(getattr(g, "atom", g)
+                        for g in getattr(query, "given", ()) or ())
 
     def _nde_holds(w) -> bool:
-        held = frozenset(w)
+        held = frozenset(w) | stratum
         if _verifier_is_m_connected(g_bar_x, bidir, x, y, held):
             return False
         if any(_verifier_is_m_connected(g_bar_x, bidir, x, m, held)
@@ -5561,7 +5570,7 @@ def verify_mediation_decomposition(
         return not (held & forbidden_nde)
 
     def _cde_holds(w) -> bool:
-        held = frozenset(w)
+        held = frozenset(w) | stratum
         if _verifier_is_m_connected(g_bar_xm, bidir, x, y, held):
             return False
         if any(_verifier_is_m_connected(g_bar_xm, bidir, m, y, held)
@@ -5587,7 +5596,16 @@ def verify_mediation_decomposition(
     if not mediates:
         return
 
-    pool = [n for n in graph.nodes if n != x and n != y and n not in mediators]
+    moved = stratum & desc_x
+    if moved:
+        _err(f"is written for a question conditioning on "
+             f"{sorted(n.predicate for n in moved)}, which the treatment "
+             f"causes; which people fall in that stratum depends on the value "
+             f"the treatment is set to, and no decomposition is searched "
+             f"within it")
+
+    pool = [n for n in graph.nodes
+            if n != x and n != y and n not in mediators and n not in stratum]
 
     for arm, holds in (("nde_nie", _nde_holds), ("cde", _cde_holds)):
         attempt = block.get(arm)
@@ -5607,6 +5625,9 @@ def verify_mediation_decomposition(
 
         if claims:
             w = frozenset(_node(s) for s in named)
+            if w & stratum:
+                _err(f"{arm} names {sorted(named)} to adjust on, holding what "
+                     f"the question already conditions on")
             if not holds(w):
                 _err(f"{arm} claims identifiability adjusting on "
                      f"{sorted(named)}, which does not satisfy the "
@@ -6036,6 +6057,82 @@ def verify_a_given_holding_an_end_is_refused(
         f"any route is offered it, and the answer says {status!r} carrying "
         f"{needs or 'no missing item'}; a reader is given what no route was "
         f"asked",
+        step_index=None, rule=None)
+
+
+def verify_a_decomposition_within_a_moved_stratum_is_refused(
+    result: object, program: object, context: VerificationContext,
+) -> None:
+    """A decomposition asked within a stratum the treatment moves is
+    answered with that refusal and nothing else.
+
+    Which people fall in such a stratum depends on the value the treatment
+    is set to, so it holds no one population whose effect could be
+    decomposed, and the mediation routes refuse the question as asked. The
+    species' witness holds a copy of the refusal to the question, and the
+    decomposition's audit refuses a block beside such a stratum; nothing
+    held that the refusal is written. Measured: with its item removed, it
+    passed ``verify_answer_claims`` and ``verify_refusal`` on every one of
+    500 such questions, a mediator and a block alike.
+
+    Which questions those are is read off the question, the program and
+    the ground graph: an effect question naming a mediator or a block, each
+    on a directed path from the treatment to the outcome, conditioning on
+    something the treatment causes -- and reaching the mediation routes.
+    The routes ranked above them answer it first, and are read off what
+    triggers each: a declared loop reaching the estimand, the program's
+    longitudinal strategy question, a second treatment, a target
+    population. So are the answers given before any route: an atom outside
+    the graph, the strict framing gate's, and the refusal of a question
+    conditioning on its own treatment or outcome.
+    """
+    from collections.abc import Mapping
+
+    import networkx as nx
+
+    from ..gaps import Need
+    from ..types import ResultStatus, atoms_the_graph_is_asked_about
+    from .rules import _atom_label_verifier as _label
+    from .rules import _verifier_directed_descendants, declared_loops_reaching
+
+    query, graph = context.query, context.graph
+    if not isinstance(result, Mapping) or not isinstance(query, EffectQuery):
+        return
+    mediators = tuple(query.mediators) or (
+        (query.mediator,) if query.mediator is not None else ())
+    if not mediators or any(a not in graph
+                            for a in atoms_the_graph_is_asked_about(query)):
+        return
+    x, y = query.intervention.atom, query.target.atom
+    longitudinal = (getattr(program, "options", None) or {}).get("longitudinal")
+    if (declared_loops_reaching(graph, context.feedback, x, y)
+            or (isinstance(longitudinal, Mapping) and query.mediator is None
+                and y.predicate == longitudinal.get("outcome")
+                and x.predicate in (longitudinal.get("treatments") or ()))
+            or query.extra_interventions
+            or query.target_population is not None
+            or ends_the_given_holds(query)
+            or _stopped_by_the_framing_gate(result, program, query)):
+        return
+    if not all(m not in (x, y) and nx.has_path(graph, x, m)
+               and nx.has_path(graph, m, y) for m in mediators):
+        return
+    caused = _verifier_directed_descendants(graph, x)
+    moved = [v.atom for v in query.given if v.atom in caused]
+    if not moved:
+        return
+    refusal = str(Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES)
+    status = result.get("status")
+    needs = [item.get("need") for item in result.get("missing_information") or ()
+             if isinstance(item, Mapping)]
+    if status == str(ResultStatus.NEEDS_INVESTIGATION) and needs == [refusal]:
+        return
+    raise VerificationError(
+        f"{refusal}: the question asks for a decomposition within a stratum "
+        f"holding {', '.join(sorted(map(_label, moved)))}, which "
+        f"{_label(x)} causes, and the answer says {status!r} carrying "
+        f"{needs or 'no missing item'}; no population within that stratum "
+        f"stays put for its effect to be decomposed",
         step_index=None, rule=None)
 
 

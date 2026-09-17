@@ -93,7 +93,7 @@ def test_every_stored_note_is_what_summarise_writes_over_its_items():
             assert request.get("note") == _owed(items), (
                 name, request.get("target"))
             held += 1
-    assert held == 217
+    assert held == 218
 
 
 def test_every_stored_answer_passes_the_rule():

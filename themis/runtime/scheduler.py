@@ -886,6 +886,34 @@ def _build_identify_via_iv(
     )
 
 
+def _a_decomposition_within_a_moved_stratum(
+    stmt: QueryStatement, q: EffectQuery, moved: "frozenset[Atom]", name: str,
+) -> QueryResult:
+    """The refusal of direct and indirect effects asked within a stratum
+    the treatment moves (``stratum_moved`` on the identifier's result).
+
+    Which people fall in such a stratum depends on the value X is set to,
+    so it holds no one population whose effect could be decomposed, and
+    no graph identifies a decomposition of it or fails to: no
+    ``structural_result``, as for the refusal given before any route.
+    """
+    return QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=QueryKind.EFFECT,
+        query_id=stmt.id,
+        missing_information=(
+            gaps.missing(
+                kind=MissingKind.STRUCTURE,
+                name=f"{name}:stratum_moved_by_the_treatment",
+                priority=Priority.HIGH,
+                need=gaps.Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES,
+                atoms=", ".join(dict.fromkeys(
+                    _atom_to_str(v.atom) for v in q.given if v.atom in moved)),
+            ),
+        ),
+    )
+
+
 def _dispatch_mediation(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -927,7 +955,8 @@ def _dispatch_mediation(
     assert m is not None  # guaranteed by caller
 
     mediation = structural_solver.mediation_sets(
-        graph, x, y, m, bidirected=bidirected or None
+        graph, x, y, m, given=tuple(v.atom for v in q.given),
+        bidirected=bidirected or None,
     )
 
     # Decompose result for extensions and derivation rendering.
@@ -982,6 +1011,9 @@ def _dispatch_mediation(
                 }
             },
         )
+    if mediation.stratum_moved:
+        return _a_decomposition_within_a_moved_stratum(
+            stmt, q, mediation.stratum_moved, "mediation")
 
     # Three-step derivation:
     #   s1: mediation_nde_nie_check — four-condition check for NDE/NIE
@@ -1148,7 +1180,8 @@ def _dispatch_mediation_joint(
     ms = frozenset(q.mediators)
 
     mediation = structural_solver.mediation_sets_joint(
-        graph, x, y, ms, bidirected=bidirected or None
+        graph, x, y, ms, given=tuple(v.atom for v in q.given),
+        bidirected=bidirected or None,
     )
 
     nde_nie_info = {
@@ -1198,6 +1231,9 @@ def _dispatch_mediation_joint(
                 }
             },
         )
+    if mediation.stratum_moved:
+        return _a_decomposition_within_a_moved_stratum(
+            stmt, q, mediation.stratum_moved, "mediation_joint")
 
     any_identifiable = (
         mediation.nde_nie.identifiable or mediation.cde.identifiable

@@ -241,7 +241,7 @@ def test_the_statement_index_is_the_vocabularies_themis_gaps_holds():
     names = {str(member) for member in _gaps.BY_SENTENCE.values()}
     names |= {str(member) for member in _gaps.BY_NAME.values()}
     names |= {str(member) for member in _gaps.BY_ROUTE.values()}
-    assert names < known and len(known) == 247, len(known)
+    assert names < known and len(known) == 248, len(known)
     shown = {statement for statement, _key in SHOWN if statement}
     # And the fifteen the index does not know, which is the same shortfall
     # the slot count above measures, seen from the statement side: how
@@ -262,4 +262,4 @@ def test_a_table_keyed_by_a_kind_is_in_the_index_only_if_it_is_spoken():
                 for text in words.values() for slot in _slots_of(text)}
     assert wanted and not wanted & pairs
     assert len(provided) == 8 and provided <= pairs
-    assert len(pairs) == 256, len(pairs)
+    assert len(pairs) == 257, len(pairs)

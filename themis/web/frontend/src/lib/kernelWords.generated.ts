@@ -2339,6 +2339,10 @@ export const GAP_SAYS: Record<string, Words> = {
     zh: 'P(γ|δ) 经 ID*/IDC* 算法判定不可识别——存在 w-图 / 下标冲突见证（例如 PNS 的 P(y_x, y\'_{{x\'}}) 配一条 X→Y 直接边，或一条后门挡住了每一次条件移动）。不存在任何观测估计量',
     en: 'ID*/IDC* found P(γ|δ) unidentifiable — there is a w-graph or subscript-conflict witness (PNS\'s P(y_x, y\'_{{x\'}}) beside a direct X→Y edge, say, or a back-door that blocks every conditioning move). No observational estimand exists',
   },
+  decomposition_within_a_stratum_the_treatment_moves: {
+    zh: '问的是条件 {atoms} 所定的那一层人里的直接效应和间接效应，但 X 会影响 {atoms}：X 取不同的值，落进这一层的就是不同的人，这一层里没有一群固定的人可以拿来分解效应',
+    en: 'the question asks for the direct and indirect effects among the people its condition on {atoms} picks out, but X affects {atoms}: setting X to different values puts different people in that stratum, so it holds no fixed population whose effect could be decomposed',
+  },
   duplicate_treatment_atom: {
     zh: '联合处理向量里有重复的原子',
     en: 'the joint treatment vector repeats an atom',

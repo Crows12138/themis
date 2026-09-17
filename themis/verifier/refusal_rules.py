@@ -1062,6 +1062,39 @@ def _a_mediator_of_the_block_is_off_the_paths(
     return None
 
 
+def _the_stratum_is_not_moved(statement: Mapping,
+                              facts: RefusalFacts) -> str | None:
+    """"Direct and indirect effects are asked within a stratum the treatment
+    causes" -- refuted by a question declaring no mediator, by a mediator
+    off the directed paths (refused first), by a stratum holding nothing the
+    treatment causes, by atoms other than the ones it holds that are, or by
+    a loop that claims the question first."""
+    q = facts.query
+    members = (() if not isinstance(q, EffectQuery) else tuple(q.mediators)
+               or ((q.mediator,) if q.mediator is not None else ()))
+    if not isinstance(q, EffectQuery) or not members:
+        return "the question declares no mediator"
+    claimed = _no_loop_claims_it(facts)
+    if claimed is not None:
+        return claimed
+    x, y = q.intervention.atom, q.target.atom
+    if not all(_mediates(facts.graph, x, y, m) for m in members):
+        return ("a mediator it declares lies on no directed path from "
+                f"{_atom_label_verifier(x)} to {_atom_label_verifier(y)}, "
+                "which is refused before its stratum is asked about")
+    caused = nx.descendants(facts.graph, x)
+    moved = {_atom_label_verifier(v.atom) for v in q.given
+             if v.atom in caused}
+    if not moved:
+        return (f"nothing it conditions on is caused by "
+                f"{_atom_label_verifier(x)}")
+    said = (statement.get("said") or {}).get("atoms")
+    if isinstance(said, str) and set(said.split(", ")) != moved:
+        return (f"what it conditions on that {_atom_label_verifier(x)} "
+                f"causes is {', '.join(sorted(moved))}")
+    return None
+
+
 def _the_coefficient_is_undeclared(statement: Mapping,
                                    facts: RefusalFacts) -> str | None:
     """"A linear SCM counterfactual needs this edge's path coefficient" --
@@ -1306,6 +1339,8 @@ _WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
     Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: _the_mediator_is_off_the_paths,
     Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS:
         _a_mediator_of_the_block_is_off_the_paths,
+    Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES:
+        _the_stratum_is_not_moved,
     Need.PATH_COEFFICIENT_UNDECLARED: _the_coefficient_is_undeclared,
     Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO: _the_condition_cannot_happen,
     Need.JOINT_WITH_MEDIATION_OR_TRANSPORT:

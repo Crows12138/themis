@@ -1633,6 +1633,23 @@
   "numeric_estimate.four_way_ratio.bootstrap.kind",
   "structural_result.value"
  ],
+ "numerically_solved:effect:numeric_result#f188a1": [
+  "data_gap_report.gaps.[].describes.[].said.branch",
+  "data_gap_report.gaps.[].describes.[].said.subject",
+  "extensions.mediation_decomposition.numeric.cde.False",
+  "extensions.mediation_decomposition.numeric.cde.True",
+  "extensions.mediation_decomposition.numeric.e_y_control",
+  "extensions.mediation_decomposition.numeric.e_y_cross_control_outer",
+  "extensions.mediation_decomposition.numeric.e_y_cross_treated_outer",
+  "extensions.mediation_decomposition.numeric.e_y_cross_world",
+  "extensions.mediation_decomposition.numeric.e_y_treated",
+  "extensions.mediation_decomposition.numeric.nde_at_control",
+  "extensions.mediation_decomposition.numeric.nde_at_treated",
+  "extensions.mediation_decomposition.numeric.nie_at_control",
+  "extensions.mediation_decomposition.numeric.nie_at_treated",
+  "extensions.mediation_decomposition.numeric.te",
+  "structural_result.value"
+ ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate": [
   "data_gap_report.gaps.[].describes.[].said.level",
   "data_gap_report.gaps.[].describes.[].said.levels",

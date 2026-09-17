@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-09-17
+> 更新时间：2026-09-18
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21591 passed / 532 skipped, warning-clean
+21650 passed / 533 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,60 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #694 分解问的是问题点名的那一层（2026-09-18）
+
+**现象。** 效应问题带条件、又指定中介（单个或中介块）时，中介路由给出的结论与不带条件时相同。
+- 识别器 `mediation_sets(_joint)` 没有 `given` 参数，四个条件（M1–M4 / C1–C2）只在调整集 W 上判。verifier 的四条检查规则和 `verify_mediation_decomposition` 也只在 W 上重算；数值步 `mediation_numeric_evaluate` 的 `observed` 取自生产端输入，没人拿它和问题比。
+- 随机 ADMG（probe694i，种子 6941，300 个，双向边 0.15，条件从 a/b/c/m 里抽）：条件含 X 的后代时，HEAD 每条路由有 128 次说可识别（NDE/NIE 与 CDE 都可 105，只有 CDE 23），另有 2 次条件不含后代、这一层里的总效应经 IDC 判定不可识别，却说 NDE/NIE 可识别。全部在 `verify_answer_claims` 和 `verify` 上收下。
+- 双向边 0.35、只抽处理前变量（probe694i，种子 6942，700 个）：每条路由 9 次「这一层总效应不可识别、NDE/NIE 可识别」，全部收下。
+- θ 路径上的数没有量到错，d-分离守卫在这些情形下给的是 insufficient_theta。
+
+**根因。** 分层里的自然效应和受控效应，识别条件就是把分层算进协变量：条件在 W ∪ 分层上判，W 从分层以外取（Pearl 2001 定理 2 带协变量的形式）。这只对处理不影响的分层成立。分层含 X 的后代时，X 取不同的值，落进这一层的是不同的人，这一层里没有一群固定的人可以分解效应。识别器的签名接不到分层，所以生产端和 verifier 两边都在判一个不带条件的问题。
+
+**为什么是根因不是表象。** 其余识别路由都读分层：后门准则把 `given` 并进阻断集，联合干预的调整准则读 `given`，一般识别的 verifier 规则从问题本身读条件（写明「生产端少报也躲不掉」）。中介是唯一在签名上就接不到分层的识别路由。只在 verifier 补，生产端继续给错结论；只在生产端补，伪造照样过。
+
+**结构。**
+- `structural_solver.mediation_sets(..., given=)` 与 `mediation_sets_joint(..., given=)`：
+  - 先判中介本身（原前提），再判分层：分层含 X 的后代时，结果带 `stratum_moved`（这些原子），两条路由都不搜；
+  - 否则四条路由（NDE/NIE、CDE，单个与块）的每个条件在 `W ∪ 分层` 上判，W 的候选池去掉分层。
+- 分派：`_dispatch_mediation(_joint)` 传 `given`；`stratum_moved` 非空时返回新拒答 `_a_decomposition_within_a_moved_stratum`：`needs_investigation`，不带 `structural_result`（和 #693 的路由前拒答一样，不是「不可识别」），gap 名 `mediation:stratum_moved_by_the_treatment` / `mediation_joint:...`，`said.atoms` 按问题里的顺序列出被 X 影响的原子，不带中介块。
+- 新结构种类 `decomposition_within_a_stratum_the_treatment_moves`（MISSING_STRUCTURAL_INPUT）：句子、schema 枚举、前端词表；可走的路 `fall_back_to_the_total_effect`（这一层里的总效应仍是一个问题，由 ID/IDC 判定）。
+- verifier：
+  - `rules._the_stratum_asked(ctx)` 从问题读分层；`mediation_nde_nie_check`、`mediation_cde_check` 及两个块规则在 `W ∪ 分层` 上重算，W 含分层原子直接拒。
+  - `mediation_numeric_evaluate`：`observed` 必须等于问题的条件。
+  - `verify_mediation_decomposition`：读问题的分层；分层含 X 的后代时有块就拒；W 不许含分层；非可识别的穷举在去掉分层的池上、条件带分层。
+  - 见证 `_the_stratum_is_not_moved`：问题没有中介、中介不在有向路径上（那条拒答先给）、分层里没有 X 的后代、所说原子与实际不符、环先认领问题，都反驳。
+  - 完整门新规则 `verify_a_decomposition_within_a_moved_stratum_is_refused`（`_hold_what_the_answer_says` 调用）：这类问题的答案必须是 `needs_investigation` 且只带这一条。排在中介路由之前的路由按各自的触发条件读：够到估计量的环、程序的纵向策略问题、第二个处理、目标人群；路由之前的答案也排除：原子不在图里、strict framing 闸门、#693 的条件含一端。
+
+**测量。**
+- 同一批程序（probe694i）改后：条件含后代的每条路由 213 个全部拒答；「这一层总效应不可识别、NDE/NIE 可识别」两组参数下都是 0。种子 6942 上另有两组 HEAD 说可识别、改后说不可识别：总效应可识别时 NDE/NIE 与 CDE 5 个，总效应不可识别时 CDE 11 个。HEAD 用的 W 放到 W ∪ 分层上不成立。块验证对「不可识别」会在去掉分层的池上穷举所有 W；这 16 个答案没有单独过门，下面演练里改后的诚实答案全收。
+- 演练（gen694 + rehearse694，种子 69401，250 张图，每张图三种分层 × 单个中介 / 中介块，共 1434 个答案；无双向边的图声明全部 CPT）：
+  - 诚实答案在读得了它的门上全收（拒答没有推导链，`verify` 不适用）。
+  - θ 路径上的数对照嵌套反事实的精确真值（每个节点 v = [U_v < P(v|父)]，按各世界的阈值切分 U 精确积分）：带数的 446 个全部一致，其中处理前分层 197 个（带 NDE/NIE 的 170 个，只有 CDE 的 27 个）。块中介 CDE 的参考点按块的拓扑序取键。
+  - HEAD 答案放到改后 verifier 上：条件含后代的 500 个全拒；处理前分层上与改后不同的 108 个拒 104 个，收下的 4 个两边都说不可识别，只是点名的失败条件不同（按设计只核一致性，不重算是哪条）。
+  - 伪造全拒：拒答搬到分层不含后代的问题 934 个（三道门）、原子写错 500 个（三道门）、无条件的分解放到含后代的分层 500 个、数值步丢掉 `observed` 170 个（三道门）。拒答去掉条目 500 个：补门前在 `verify_answer_claims` 和 `verify_refusal` 上收下，补门后 `verify_answer_claims` 拒。
+  - 无条件的答案放到处理前分层的问题上：带推导链的门拒掉数值不同的全部；两边识别结论相同的 127 个在各门都收下，差别只在数据缺口报告、分层变量的 framing 注记、θ 中止报的缺失键（见「还开着」）。
+- `verify_answer_claims` 不重算任何 θ 路径上的数（probe694l：中介和普通后门的 θ 答案把数改大 0.2，HEAD 与改后都收下，只有 `verify` 拒），所以「在另一层上算的数」只由 `verify` 拒。
+- 新测试文件放到 HEAD 代码上跑，31 个里 21 个失败。
+- gate：从新测试采集，加 1 行 `numerically_solved:effect:numeric_result#f188a1`（分层内带数的中介答案：数值步的 `observed` 非空，语料里没有），语料 250→251。它幸存的 15 片叶子与不带分层的同类行 `#7173f0` 已声明的集合逐片相同；声明余项 1866→1881，asked 33678→33838。拒答没有带出新的叶子形状，不加行。
+- 架构图：rules.py 12986→13051 行，verify.py 7989→8086 行，verify_* 入口 110→111。
+
+**还开着。**
+- 估计层（`themis.estimate`）在分层上仍用整张表：后门、生存、双稳健、剂量反应、测量误差各修正、中介等策略不按问题的分层取行，也不写 `numeric_estimate.given`，frame 规则对没写 `given` 的估计不拒。数据扫描（probe694g）：条件不含后代的后门答案 8/24 离条件真值很远，全部收下；中介数据估计在 c=True 与 c=False 上给出同一个数（probe694e）。这是下一轮。
+- θ 中止（`nde_nie_status` / `cde_status` 为 insufficient_theta）不重算：报的缺失键、以及能算出数的地方报中止，verifier 都收下。与分层无关，所有中止都这样。
+- 迁移的 `transport_formula_ast` 同样从生产端输入读 `observed`。
+- 联合干预路由对条件含处理后代的问题报 `joint_effect_not_identifiable`，是否属实没量。
+
+**账。**
+- 新文件 `tests/test_a_decomposition_is_asked_of_the_stratum_it_names.py`，共 31 个测试：
+  - 识别器 5 个：打开路径的分层撤回结论、分层旁换调整集、后代分层不搜 3 个；
+  - 分派与门 14 个：拒答 6 个、拒答就是整个答案 2 个、门读的路由与路由表一致 1 个、排在中介之前的路由先答 3 个、中介无效先拒 1 个、不含后代的分层照答 1 个；
+  - verifier 规则在分层旁重算 4 个；
+  - 搬移与改写 5 个：无条件的分解放到打开路径的分层 2 个、放到含后代的分层 2 个、拒答搬到不含后代的分层与原子写错 1 个；
+  - 数 3 个：分层内的数等于真值 2 个、在另一层上算的数被拒 1 个。
+- 计数钉子：多这一行让 24 个文件里的 47 条计数钉子跟着动——引用点 996→1002、语料里的缺口 1031→1038、缺口的主语 461→465、语句 5306→5333、调查条目 468→472、骨架 417→421、状态改写 1500→1506 等；另有 2 条读的是代码不是语料，随新种类动（`themis.gaps` 持有的词表 247→248、按 kind 键的表 256→257）。归因两步：语料文件与改前的备份逐项比，只多了这一行，旧的 250 行一字未动；再把语料换回改前的备份、用改后的代码重跑这 25 个文件——读代码的那 2 条通过，其余每一条的实测值都正好回到改前的期望值，即改后的代码在旧答案上不改变任何计数。新语料上这 25 个文件的 4372 个测试全过。
+- 基线 21591→**21650**，skipped 532→**533**：共多 60 个测试——新文件 31 个，新行给 18 个文件的语料参数化测试带来 29 个（28 过、1 个 skip：`test_a_price_that_is_not_there_still_says_something.py:170` 这形状上没有数值估计）。收集对比显示没有任何测试消失。
 
 ### #693 同一个问题两种写法，答复一致（2026-09-17）
 

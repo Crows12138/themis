@@ -1057,6 +1057,9 @@ class MediationResult(NamedTuple):
     nde_nie: MediationAttempt
     cde: MediationAttempt
     mediator_valid: bool  # False if M doesn't mediate X→Y structurally
+    # The atoms of the question's stratum that X causes. Non-empty means
+    # neither decomposition was searched for: see ``mediation_sets``.
+    stratum_moved: frozenset[Atom] = frozenset()
 
 
 def _mutilate_outgoing(graph: nx.DiGraph, node: Atom) -> nx.DiGraph:
@@ -1146,11 +1149,17 @@ def _nde_nie_route(
     y: Atom,
     m: Atom,
     bidirected: "BidirectedEdgeSet",
+    stratum: "frozenset[Atom]" = frozenset(),
 ) -> _Route:
     """Pearl 2001's four conditions for the natural effects.
 
     ``check`` returns None iff all four hold for W, else the first to fail
     in the theorem's own order.
+
+    Each condition is read on W together with ``stratum``, the atoms the
+    question conditions on: within a stratum the theorem's covariates are
+    W and the stratum both, and a W that satisfies a separation alone can
+    fail it beside a stratum that opens a path W does not close.
 
     The order is what the label means. M4 is a membership test on W and
     the other three are separations, so checking M4 first is cheaper — but
@@ -1166,22 +1175,23 @@ def _nde_nie_route(
     forbidden = _forbidden_for_nde(graph, x, frozenset({m}))
 
     def check(w: frozenset[Atom]) -> str | None:
-        w_tuple = tuple(w)
+        held = w | stratum
+        held_tuple = tuple(held)
 
         # M1: Y ⊥ X | W in G\bar{X} (all X→Y backdoors blocked by W)
-        if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+        if is_m_connected(g_bar_x, bidirected, x, y, held_tuple):
             return "M1"
 
         # M2: M ⊥ X | W in G\bar{X} (all X→M backdoors blocked by W)
-        if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+        if is_m_connected(g_bar_x, bidirected, x, m, held_tuple):
             return "M2"
 
         # M3: Y ⊥ M | X, W in G\bar{M} (M→Y backdoors blocked by {X}∪W)
-        if is_m_connected(g_bar_m, bidirected, m, y, tuple(w | {x})):
+        if is_m_connected(g_bar_m, bidirected, m, y, tuple(held | {x})):
             return "M3"
 
         # M4: W contains no descendants of X
-        if w & forbidden:
+        if held & forbidden:
             return "M4"
 
         return None
@@ -1195,11 +1205,13 @@ def _cde_route(
     y: Atom,
     m: Atom,
     bidirected: "BidirectedEdgeSet",
+    stratum: "frozenset[Atom]" = frozenset(),
 ) -> _Route:
     """The CDE(m) back-door adjustment conditions.
 
     ``check`` returns None iff both hold for W, else the first to fail, in
-    the order they are named.
+    the order they are named. Read on W together with ``stratum``, for the
+    reason ``_nde_nie_route`` gives.
 
     C1: in G\\bar{XM} (outgoing edges from both X and M removed), Y is
         m-separated from X given W AND Y is m-separated from M given W.
@@ -1215,16 +1227,17 @@ def _cde_route(
     forbidden = _forbidden_for_cde(graph, x, frozenset({m}))
 
     def check(w: frozenset[Atom]) -> str | None:
-        w_tuple = tuple(w)
+        held = w | stratum
+        held_tuple = tuple(held)
 
         # C1: in G\bar{XM}, Y m-sep from both X and M given W
-        if is_m_connected(g_bar_xm, bidirected, x, y, w_tuple):
+        if is_m_connected(g_bar_xm, bidirected, x, y, held_tuple):
             return "C1"
-        if is_m_connected(g_bar_xm, bidirected, m, y, w_tuple):
+        if is_m_connected(g_bar_xm, bidirected, m, y, held_tuple):
             return "C1"
 
         # C2: W excludes descendants of X and of M
-        if w & forbidden:
+        if held & forbidden:
             return "C2"
 
         return None
@@ -1238,6 +1251,7 @@ def mediation_sets(
     y: Atom,
     m: Atom,
     *,
+    given: "Iterable[Atom]" = (),
     bidirected: "BidirectedEdgeSet | None" = None,
     max_adjustment_size: int = 3,
 ) -> MediationResult:
@@ -1275,6 +1289,16 @@ def mediation_sets(
     Subset-minimal search: smallest W first, both strategies return the
     first valid W found (not all W — keeps output compact).
 
+    ``given`` is the stratum the question is asked of. The effects within
+    a stratum are identified by the same conditions with the stratum among
+    the covariates, so both routes read every condition on W together with
+    it, and W is drawn from the rest. That holds only for a stratum the
+    treatment does not move. Where X causes one of its atoms, which people
+    fall in the stratum depends on the value X is set to, so there is no
+    one population within it whose effect could be split. Those atoms come
+    back as ``stratum_moved``, after the mediator's own precondition, and
+    neither route is searched.
+
     Reference: Pearl 2001 "Direct and indirect effects"; VanderWeele
     2015 ch.2.
     """
@@ -1301,24 +1325,43 @@ def mediation_sets(
             mediator_valid=False,
         )
 
+    stratum = frozenset(given)
+    moved = stratum & nx.descendants(graph, x)
+    if moved:
+        empty = MediationAttempt(
+            identifiable=False,
+            adjustment=frozenset(),
+            failed_condition=None,
+        )
+        return MediationResult(
+            mediator=m,
+            nde_nie=empty,
+            cde=empty,
+            mediator_valid=True,
+            stratum_moved=frozenset(moved),
+        )
+
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
 
-    # One candidate pool: every node that is neither an endpoint nor the
-    # mediator. Which of them a route may actually use is that route's own
-    # membership condition, asked through the same function the checker
-    # asks — so the rule that admits a candidate and the rule that names
-    # its refusal cannot come apart.
-    w_pool = [n for n in graph.nodes if n != x and n != y and n != m]
+    # One candidate pool: every node that is neither an endpoint, nor the
+    # mediator, nor in the stratum every candidate is held beside. Which of
+    # them a route may actually use is that route's own membership
+    # condition, asked through the same function the checker asks — so the
+    # rule that admits a candidate and the rule that names its refusal
+    # cannot come apart.
+    w_pool = [n for n in graph.nodes
+              if n != x and n != y and n != m and n not in stratum]
 
     # Search NDE/NIE (smallest W first)
     nde_attempt = _search_mediation_adjustment(
-        _nde_nie_route(graph, x, y, m, bidir_eff), w_pool,
+        _nde_nie_route(graph, x, y, m, bidir_eff, stratum), w_pool,
         max_adjustment_size,
     )
 
     # Search CDE (smallest W first)
     cde_attempt = _search_mediation_adjustment(
-        _cde_route(graph, x, y, m, bidir_eff), w_pool, max_adjustment_size,
+        _cde_route(graph, x, y, m, bidir_eff, stratum), w_pool,
+        max_adjustment_size,
     )
 
     return MediationResult(
@@ -1453,6 +1496,9 @@ class MediationJointResult(NamedTuple):
     cde: MediationAttempt = MediationAttempt(
         identifiable=False, adjustment=frozenset(), failed_condition=None,
     )
+    # The atoms of the question's stratum that X causes, as on the
+    # single-mediator result.
+    stratum_moved: frozenset[Atom] = frozenset()
 
 
 def _mutilate_outgoing_set(graph: nx.DiGraph, nodes) -> nx.DiGraph:
@@ -1474,11 +1520,13 @@ def _nde_nie_joint_route(
     y: Atom,
     ms: "frozenset[Atom]",
     bidirected: "BidirectedEdgeSet",
+    stratum: "frozenset[Atom]" = frozenset(),
 ) -> _Route:
     """The joint NDE/NIE conditions for the mediator SET ``ms``.
 
     ``check`` returns None iff all hold for W, else the first to fail, in
-    the same order as the single-mediator twin and for the same reason.
+    the same order as the single-mediator twin and for the same reason,
+    and read on W together with ``stratum`` as the twin reads them.
 
     The single-mediator four conditions (Pearl 2001, Theorem 2) with M
     replaced by the vector M_set (VanderWeele-Vansteelandt 2014):
@@ -1498,25 +1546,26 @@ def _nde_nie_joint_route(
     forbidden = _forbidden_for_nde(graph, x, ms)
 
     def check(w: frozenset[Atom]) -> str | None:
-        w_tuple = tuple(w)
+        held = w | stratum
+        held_tuple = tuple(held)
 
         # M1: Y _|_ X | W in G_Xbar.
-        if is_m_connected(g_bar_x, bidirected, x, y, w_tuple):
+        if is_m_connected(g_bar_x, bidirected, x, y, held_tuple):
             return "M1"
 
         # M2: each M_j _|_ X | W in G_Xbar.
         for m in ms:
-            if is_m_connected(g_bar_x, bidirected, x, m, w_tuple):
+            if is_m_connected(g_bar_x, bidirected, x, m, held_tuple):
                 return "M2"
 
         # M3: each M_j _|_ Y | X, W in G_Msetbar (all set outgoing removed).
-        xw_tuple = tuple(w | {x})
+        xw_tuple = tuple(held | {x})
         for m in ms:
             if is_m_connected(g_bar_ms, bidirected, m, y, xw_tuple):
                 return "M3"
 
         # M4: W contains no descendant of X.
-        if w & forbidden:
+        if held & forbidden:
             return "M4"
 
         return None
@@ -1530,11 +1579,13 @@ def _cde_set_route(
     y: Atom,
     ms: "frozenset[Atom]",
     bidirected: "BidirectedEdgeSet",
+    stratum: "frozenset[Atom]" = frozenset(),
 ) -> _Route:
     """The CDE(m*) back-door conditions for the mediator SET ``ms``.
 
     ``check`` returns None iff both hold for W, else the first failing
-    label.
+    label. Read on W together with ``stratum``, as its single-mediator
+    twin reads them.
 
     The single-mediator CDE conditions (``_cde_route``) with M
     replaced by the vector M_set — the ordinary back-door criterion for the
@@ -1561,17 +1612,18 @@ def _cde_set_route(
     forbidden = _forbidden_for_cde(graph, x, ms)
 
     def check(w: frozenset[Atom]) -> str | None:
-        w_tuple = tuple(w)
+        held = w | stratum
+        held_tuple = tuple(held)
 
         # C1: in G\bar{X,M_set}, Y m-sep from X and from each M_j given W.
-        if is_m_connected(g_bar, bidirected, x, y, w_tuple):
+        if is_m_connected(g_bar, bidirected, x, y, held_tuple):
             return "C1"
         for m in ms:
-            if is_m_connected(g_bar, bidirected, m, y, w_tuple):
+            if is_m_connected(g_bar, bidirected, m, y, held_tuple):
                 return "C1"
 
         # C2: W excludes descendants of X and of any set member.
-        if w & forbidden:
+        if held & forbidden:
             return "C2"
 
         return None
@@ -1585,6 +1637,7 @@ def mediation_sets_joint(
     y: Atom,
     mediators: "frozenset[Atom] | tuple[Atom, ...]",
     *,
+    given: "Iterable[Atom]" = (),
     bidirected: "BidirectedEdgeSet | None" = None,
     max_adjustment_size: int = 3,
 ) -> MediationJointResult:
@@ -1614,6 +1667,11 @@ def mediation_sets_joint(
     every node that is neither an endpoint nor a mediator; each route
     then applies its own membership condition to it.
 
+    ``given`` is read as ``mediation_sets`` reads it: every condition on W
+    together with the stratum, W drawn from outside it, and a stratum the
+    treatment moves returned as ``stratum_moved`` with neither route
+    searched.
+
     Reference: VanderWeele & Vansteelandt 2014 "Mediation analysis with
     multiple mediators" (Epidemiologic Methods); Pearl 2001 is the k=1
     special case.
@@ -1642,24 +1700,35 @@ def mediation_sets_joint(
             cde=empty_attempt,
         )
 
+    stratum = frozenset(given)
+    moved = stratum & nx.descendants(graph, x)
+    if moved:
+        return MediationJointResult(
+            mediators=ms,
+            nde_nie=empty_attempt,
+            mediator_set_valid=True,
+            cde=empty_attempt,
+            stratum_moved=frozenset(moved),
+        )
+
     bidir_eff: BidirectedEdgeSet = bidirected or frozenset()
 
     w_pool = [
         n for n in graph.nodes
-        if n != x and n != y and n not in ms
+        if n != x and n != y and n not in ms and n not in stratum
     ]
 
     # The subset searcher varies only W, and a route has already bound
     # itself to the graph — so the joint routes drop into it unchanged.
     attempt = _search_mediation_adjustment(
-        _nde_nie_joint_route(graph, x, y, ms, bidir_eff), w_pool,
+        _nde_nie_joint_route(graph, x, y, ms, bidir_eff, stratum), w_pool,
         max_adjustment_size,
     )
 
     # CDE-for-a-set: back-door for the joint do(X, M_set), which forbids a
     # descendant of any mediator as well as of X.
     cde_attempt = _search_mediation_adjustment(
-        _cde_set_route(graph, x, y, ms, bidir_eff), w_pool,
+        _cde_set_route(graph, x, y, ms, bidir_eff, stratum), w_pool,
         max_adjustment_size,
     )
 

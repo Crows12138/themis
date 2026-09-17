@@ -2167,6 +2167,18 @@ def _rule_identify_via_iv(
 
 # ===================================================== Phase 6.mediation S.M.3
 
+def _the_stratum_asked(ctx: VerificationContext) -> frozenset:
+    """The atoms the question conditions on, read off the QUERY.
+
+    The mediation checks hold their conditions on W together with these,
+    and take them from here rather than from a producer input for the
+    reason ``general_id_criterion`` gives: a check run beside a narrower
+    stratum than the one asked is a check of another question.
+    """
+    return frozenset(getattr(g, "atom", g)
+                     for g in getattr(ctx.query, "given", ()) or ())
+
+
 def _rule_mediation_nde_nie_check(
     ctx: VerificationContext,
     inputs: dict,
@@ -2185,6 +2197,9 @@ def _rule_mediation_nde_nie_check(
     The check outputs True iff W satisfies all four conditions. A False
     output means W (possibly empty) does not identify NDE/NIE; callers
     typically pass adjustment=∅ as the witness for unidentifiability.
+
+    Asked of a stratum, every condition is read on W together with it
+    (``_the_stratum_asked``), and W holds none of its atoms.
 
     Independent reimplementation — does not call structural_solver.
     """
@@ -2212,13 +2227,21 @@ def _rule_mediation_nde_nie_check(
             "mediation_nde_nie_check: adjustment must not contain x, y, or mediator",
             step_index=step_index, rule="mediation_nde_nie_check",
         )
+    stratum = _the_stratum_asked(ctx)
+    if w & stratum:
+        raise RuleCheckFailed(
+            "mediation_nde_nie_check: adjustment must not contain an atom of "
+            "the stratum the question conditions on",
+            step_index=step_index, rule="mediation_nde_nie_check",
+        )
+    held = w | stratum
 
     bidir = ctx.bidirected
 
     # M4: W has no X-descendants. Compute descendants from the directed
     # edges of G directly (BFS), without importing networkx.descendants.
     x_desc = _verifier_directed_descendants(graph, x)
-    if w & x_desc:
+    if held & x_desc:
         m4 = False
     else:
         m4 = True
@@ -2228,17 +2251,17 @@ def _rule_mediation_nde_nie_check(
     g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
 
     # M1: Y ⊥ X | W in G\bar{X}
-    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w)
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, held)
 
     # M2: M ⊥ X | W in G\bar{X}
-    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, w)
+    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, held)
 
     # Build G\bar{M} (M's outgoing edges removed)
     g_bar_m = graph.copy()
     g_bar_m.remove_edges_from(list(g_bar_m.out_edges(m)))
 
     # M3: Y ⊥ M | X, W in G\bar{M}
-    xw = w | {x}
+    xw = held | {x}
     m3 = not _verifier_is_m_connected(g_bar_m, bidir, m, y, xw)
 
     recomputed = m1 and m2 and m3 and m4
@@ -2261,6 +2284,9 @@ def _rule_mediation_cde_check(
     C1: Y m-separated from X given W AND Y m-separated from M given W,
         both in G\\bar{XM} (outgoing edges from both X and M removed)
     C2: W contains no descendants of X or M in G
+
+    Asked of a stratum, both are read on W together with it
+    (``_the_stratum_asked``), and W holds none of its atoms.
 
     Independent reimplementation — does not call structural_solver.
     """
@@ -2288,13 +2314,21 @@ def _rule_mediation_cde_check(
             "mediation_cde_check: adjustment must not contain x, y, or mediator",
             step_index=step_index, rule="mediation_cde_check",
         )
+    stratum = _the_stratum_asked(ctx)
+    if w & stratum:
+        raise RuleCheckFailed(
+            "mediation_cde_check: adjustment must not contain an atom of the "
+            "stratum the question conditions on",
+            step_index=step_index, rule="mediation_cde_check",
+        )
+    held = w | stratum
 
     bidir = ctx.bidirected
 
     # C2: W has no descendants of X or M
     x_desc = _verifier_directed_descendants(graph, x)
     m_desc = _verifier_directed_descendants(graph, m)
-    if w & (x_desc | m_desc):
+    if held & (x_desc | m_desc):
         c2 = False
     else:
         c2 = True
@@ -2305,8 +2339,8 @@ def _rule_mediation_cde_check(
     g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
 
     # C1: both Y ⊥ X and Y ⊥ M given W in G\bar{XM}
-    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, w)
-    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, w)
+    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, held)
+    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, held)
     c1 = c1_x and c1_m
 
     recomputed = c1 and c2
@@ -2396,8 +2430,9 @@ def _rule_mediation_nde_nie_joint_check(
     Treating the set as a block is what tolerates a recanting witness
     inside the set: removing every member's outgoing edges cuts the
     intra-set confounding path, so M3 passes where a single-mediator M4
-    would fail. Independent reimplementation — does not call
-    structural_solver.
+    would fail. Asked of a stratum, every condition is read on W together
+    with it (``_the_stratum_asked``). Independent reimplementation — does
+    not call structural_solver.
     """
     rule = "mediation_nde_nie_joint_check"
     graph = _require(inputs, "graph", step_index, rule)
@@ -2427,22 +2462,30 @@ def _rule_mediation_nde_nie_joint_check(
             f"{rule}: adjustment must not contain x, y, or any mediator",
             step_index=step_index, rule=rule,
         )
+    stratum = _the_stratum_asked(ctx)
+    if w & stratum:
+        raise RuleCheckFailed(
+            f"{rule}: adjustment must not contain an atom of the stratum the "
+            f"question conditions on",
+            step_index=step_index, rule=rule,
+        )
+    held = w | stratum
 
     bidir = ctx.bidirected
 
     # M4: W has no X-descendants.
     x_desc = _verifier_directed_descendants(graph, x)
-    m4 = not (w & x_desc)
+    m4 = not (held & x_desc)
 
     # G\bar{X}
     g_bar_x = graph.copy()
     g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
 
     # M1: Y ⊥ X | W
-    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, w)
+    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, held)
     # M2: each M_j ⊥ X | W
     m2 = all(
-        not _verifier_is_m_connected(g_bar_x, bidir, x, m, w)
+        not _verifier_is_m_connected(g_bar_x, bidir, x, m, held)
         for m in ms
     )
 
@@ -2450,7 +2493,7 @@ def _rule_mediation_nde_nie_joint_check(
     g_bar_ms = graph.copy()
     for m in ms:
         g_bar_ms.remove_edges_from(list(g_bar_ms.out_edges(m)))
-    xw = w | {x}
+    xw = held | {x}
     # M3: each M_j ⊥ Y | {X}∪W
     m3 = all(
         not _verifier_is_m_connected(g_bar_ms, bidir, m, y, xw)
@@ -2483,7 +2526,9 @@ def _rule_mediation_cde_joint_check(
 
     Weaker than the joint NDE/NIE conditions (no X-M_set no-confounding
     requirement) — identifies where the natural effects fail under a latent
-    X<->M edge. Independent reimplementation; does not call structural_solver.
+    X<->M edge. Asked of a stratum, both are read on W together with it
+    (``_the_stratum_asked``). Independent reimplementation; does not call
+    structural_solver.
     """
     rule = "mediation_cde_joint_check"
     graph = _require(inputs, "graph", step_index, rule)
@@ -2513,6 +2558,14 @@ def _rule_mediation_cde_joint_check(
             f"{rule}: adjustment must not contain x, y, or any mediator",
             step_index=step_index, rule=rule,
         )
+    stratum = _the_stratum_asked(ctx)
+    if w & stratum:
+        raise RuleCheckFailed(
+            f"{rule}: adjustment must not contain an atom of the stratum the "
+            f"question conditions on",
+            step_index=step_index, rule=rule,
+        )
+    held = w | stratum
 
     bidir = ctx.bidirected
 
@@ -2521,7 +2574,7 @@ def _rule_mediation_cde_joint_check(
     m_desc: set = set()
     for m in ms:
         m_desc |= _verifier_directed_descendants(graph, m)
-    c2 = not (w & (x_desc | m_desc))
+    c2 = not (held & (x_desc | m_desc))
 
     # G\bar{X,M_set}: remove outgoing edges of X AND every mediator.
     g_bar = graph.copy()
@@ -2530,9 +2583,9 @@ def _rule_mediation_cde_joint_check(
         g_bar.remove_edges_from(list(g_bar.out_edges(m)))
 
     # C1: Y ⊥ X | W and each M_j ⊥ Y | W in G\bar{X,M_set}.
-    c1_x = not _verifier_is_m_connected(g_bar, bidir, x, y, w)
+    c1_x = not _verifier_is_m_connected(g_bar, bidir, x, y, held)
     c1_m = all(
-        not _verifier_is_m_connected(g_bar, bidir, m, y, w)
+        not _verifier_is_m_connected(g_bar, bidir, m, y, held)
         for m in ms
     )
     c1 = c1_x and c1_m
@@ -2989,6 +3042,18 @@ def _rule_mediation_numeric_evaluate(
         )
     observed_raw = inputs.get("observed", ())
     observed: tuple[ValuedAtom, ...] = tuple(observed_raw) if observed_raw else ()
+    # The stratum the formulas condition on is the question's. Rebuilt from
+    # a narrower one, every number below is the right arithmetic about a
+    # population nobody asked about, and agrees with itself.
+    asked = tuple(getattr(ctx.query, "given", ()) or ())
+    if set(observed) != set(asked):
+        raise RuleCheckFailed(
+            f"mediation_numeric_evaluate: evaluated within "
+            f"{sorted(str(v) for v in observed)}, and the question conditions "
+            f"on {sorted(str(v) for v in asked)} — the effects reported are "
+            f"about another stratum",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
 
     nde_nie_adj = inputs.get("nde_nie_adjustment")
     cde_adj = inputs.get("cde_adjustment")
