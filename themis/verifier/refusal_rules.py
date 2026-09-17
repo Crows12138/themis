@@ -69,9 +69,11 @@ from .rules import (
     _atom_label_verifier,
     _check_d_separation,
     _graph_minus_x_outgoing,
+    _query_atoms,
     _verifier_backdoor_holds,
     _verifier_is_admg_backdoor_connected,
     declared_loops_reaching,
+    interventions_the_graph_identifies,
     iv_criterion_holds,
 )
 
@@ -158,6 +160,38 @@ def _the_question_the_routes_answer(facts: RefusalFacts) -> RefusalFacts:
     return facts
 
 
+def _the_estimand(
+    facts: RefusalFacts,
+) -> tuple[Atom, Atom, frozenset[Atom]] | None:
+    """The treatment, the outcome and the stratum of ``P(y | do(x), given)``.
+
+    An effect query and an identify query are two spellings of it, one with
+    values on its atoms and one without, and identification does not read
+    the values. Read through one spelling only, every refusal of the other
+    was accepted without a search.
+    """
+    q = facts.query
+    if isinstance(q, (EffectQuery, IdentifyQuery)):
+        return _query_atoms(q, "unidentifiable_no_admissible_set", 0)
+    return None
+
+
+def _poses_identification(facts: RefusalFacts) -> bool:
+    """Two different nodes of the graph and a stratum holding neither.
+
+    What a stratum holding the treatment or the outcome asks is not a
+    question of identification, and no search here speaks to it: read as
+    one, the treatment was stripped from it and the rest found identified,
+    which refuted the kernel's refusals of those questions.
+    """
+    estimand = _the_estimand(facts)
+    if estimand is None:
+        return False
+    x, y, given = estimand
+    return (x != y and not given & {x, y}
+            and all(n in facts.graph for n in given | {x, y}))
+
+
 def _asks_what_the_search_can_answer(facts: RefusalFacts) -> bool:
     """True when the estimand is the one the witness searches express.
 
@@ -170,7 +204,7 @@ def _asks_what_the_search_can_answer(facts: RefusalFacts) -> bool:
     """
     facts = _the_question_the_routes_answer(facts)
     q = facts.query
-    if not isinstance(q, EffectQuery):
+    if not _poses_identification(facts):
         return False
     if facts.selection_nodes or _no_loop_claims_it(facts):
         return False
@@ -233,11 +267,10 @@ def _canonical_adjustment_set(
 
 
 def _adjustment_witness(facts: RefusalFacts) -> frozenset[Atom] | None:
-    q = facts.query
-    if not isinstance(q, EffectQuery):
+    estimand = _the_estimand(facts)
+    if estimand is None:
         return None
-    x, y = q.intervention.atom, q.target.atom
-    given = frozenset(v.atom for v in getattr(q, "given", ()) or ())
+    x, y, given = estimand
     graph = facts.graph
     if x not in graph or y not in graph or x == y:
         return None
@@ -293,10 +326,18 @@ def _front_door_holds(
 
 
 def _front_door_witness(facts: RefusalFacts) -> frozenset[Atom] | None:
-    q = facts.query
-    if not isinstance(q, EffectQuery):
+    """A mediator set the front-door criterion holds through, for a question
+    asked of no stratum.
+
+    The criterion identifies the effect on the whole population. Read for a
+    question asked of a stratum, it refuted an honest refusal: the effect
+    ran through a mediator, and the stratum was a child of the treatment
+    that shares a latent cause with the outcome.
+    """
+    estimand = _the_estimand(facts)
+    if estimand is None or estimand[2]:
         return None
-    x, y = q.intervention.atom, q.target.atom
+    x, y, _ = estimand
     graph = facts.graph
     if x not in graph or y not in graph or x == y:
         return None
@@ -412,7 +453,15 @@ def _no_loop_claims_it(facts: RefusalFacts) -> str | None:
 
 
 def _refute_unidentifiable(gap: dict, facts: RefusalFacts) -> str | None:
-    """"No admissible set exists" — refuted by producing one.
+    """"No admissible set exists" — refuted by producing one, or by the
+    graph identifying the estimand without one.
+
+    The two searches name what a reader would adjust for or measure, so they
+    speak first. Neither decides the question: an effect only a product of
+    c-factors expresses, or one whose treatment its outcome does not descend
+    from, has neither, and a refusal of it was accepted. What decides it is
+    :func:`~themis.verifier.rules.interventions_the_graph_identifies`, the
+    decision the chain's hedge verdict is held to.
 
     Only where the estimand is one a search here expresses. The kind is
     raised for every route that failed, transport's and a mediation
@@ -443,7 +492,18 @@ def _refute_unidentifiable(gap: dict, facts: RefusalFacts) -> str | None:
     if m is not None:
         return (f"the front-door criterion holds through {_names(m)} in this "
                 f"graph")
-    return None
+    estimand = _the_estimand(facts)
+    if estimand is None:
+        return None
+    x, y, given = estimand
+    under = interventions_the_graph_identifies(
+        facts.graph, facts.bidirected, x, y, given)
+    if under is None:
+        return None
+    exchanged = under - {x}
+    return ("the c-factors of this graph identify it"
+            + (f" once {_names(exchanged)} is exchanged for an intervention"
+               if exchanged else ""))
 
 
 _REFUTERS = {

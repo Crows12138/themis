@@ -12203,6 +12203,83 @@ def _rule_identify_via_tian(
         )
 
 
+def _ancestors_within(
+    graph: nx.DiGraph, nodes: frozenset, of: frozenset,
+) -> frozenset:
+    """``of`` and its ancestors in the graph induced by ``nodes``."""
+    sub = graph.subgraph(nodes)
+    found: set = set()
+    for node in of:
+        found |= set(nx.ancestors(sub, node)) | {node}
+    return frozenset(found)
+
+
+def _c_components_within(
+    graph: nx.DiGraph, bidirected: frozenset, nodes: frozenset,
+) -> tuple[frozenset[Atom], ...]:
+    """The c-components of the ADMG induced by ``nodes``."""
+    return _verifier_c_components(
+        graph.subgraph(nodes),
+        frozenset(p for p in bidirected if p <= nodes))
+
+
+def interventions_the_graph_identifies(
+    graph: nx.DiGraph,
+    bidirected: frozenset,
+    x: Atom,
+    y: Atom,
+    given: frozenset[Atom] = frozenset(),
+) -> frozenset[Atom] | None:
+    """The interventions ``P(y | do(x), given)`` is identified under in this
+    graph, or ``None`` where the graph does not identify it.
+
+    Decided on the graph, with no formula built. A part of the stratum the
+    outcome no longer depends on once the interventions are set is exchanged
+    for an intervention first (Rule 2, :func:`_idc_replay_exchange`). What is
+    left is the joint distribution of the outcome and the rest of the
+    stratum under those interventions, and that is identified when every
+    c-component of their ancestors outside the interventions is computed
+    from the c-component of the graph holding it: taking ancestors inside
+    that component until they are the part itself, which succeeds, or the
+    whole component, which is a hedge (Tian's Identify).
+
+    One decision for every door that needs it, so a chain's verdict and a
+    refusal's cannot be held to two different graphs' worth of criteria.
+    Measured against the kernel's identifier on 823 random programs of five
+    and six variables, effect and identify queries with a stratum and
+    without: no disagreement.
+
+    The question it decides names two different nodes of the graph and a
+    stratum of other nodes, and anything else raises :class:`ValueError`.
+    A stratum holding the treatment or the outcome poses no question of
+    identification, and answering one anyway is how this came to strip the
+    treatment and call the rest identified, and to crash on the outcome.
+    """
+    given = frozenset(given)
+    if (x == y or given & {x, y}
+            or any(n not in graph for n in given | {x, y})):
+        raise ValueError(
+            "an identification question names two different nodes of the "
+            "graph and a stratum that holds neither")
+    do_set, rest = _idc_replay_exchange(
+        graph, bidirected, x, frozenset({y}), given)
+    everything = frozenset(graph.nodes)
+    whole = _c_components_within(graph, bidirected, everything)
+    asked = _ancestors_within(
+        graph, everything - do_set, frozenset({y}) | frozenset(rest))
+    for part in _c_components_within(graph, bidirected, asked):
+        holding = next(c for c in whole if part <= c)
+        while True:
+            closed = _ancestors_within(graph, holding, part)
+            if closed == part:
+                break
+            if closed == holding:
+                return None
+            holding = next(c for c in _c_components_within(
+                graph, bidirected, closed) if part <= c)
+    return frozenset(do_set)
+
+
 def _rule_tian_hedge_witness(
     ctx: VerificationContext,
     inputs: dict,
@@ -12211,10 +12288,15 @@ def _rule_tian_hedge_witness(
     step_by_id: dict,
     step_output_by_id: dict,
 ) -> None:
-    """Verifier-side hedge check (Shpitser Line 5): re-derive the
-    c-components of the ADMG. A hedge exists when the c-component containing both
-    x and y covers everything reachable to y (i.e., x and y in the
-    same c-component of G[An_G(Y)])."""
+    """Verifier-side hedge check: the claim that this graph does not
+    identify the question, asked of :func:`interventions_the_graph_identifies`
+    for the question the query asks, stratum included.
+
+    It asked whether ``x`` shares a c-component of ``G[An(y)]`` with a child
+    of its own. That is sufficient for identification when it fails, and not
+    necessary: in the napkin graph (``w1 -> w2 -> x -> y``, ``w1 <-> x``,
+    ``w1 <-> y``) ``y`` is such a child, and the effect is identified.
+    """
     decomp_ref = _require(
         inputs, "decomposition", step_index, "tian_hedge_witness",
     )
@@ -12231,36 +12313,22 @@ def _rule_tian_hedge_witness(
             step_index=step_index, rule="tian_hedge_witness",
         )
 
-    x, y, _held = _query_atoms(ctx.query, "tian_hedge_witness", step_index)
+    x, y, held = _query_atoms(ctx.query, "tian_hedge_witness", step_index)
 
-    # Restrict to ancestors of y plus y itself; bidirected restricted
-    # accordingly. Hedge condition: x and y in the same c-component of
-    # G[An(Y)].
-    if y not in ctx.graph.nodes():
+    try:
+        under = interventions_the_graph_identifies(
+            ctx.graph, ctx.bidirected, x, y, held)
+    except ValueError as exc:
         raise RuleCheckFailed(
-            "tian_hedge_witness: y not in graph",
+            f"tian_hedge_witness: the query is no identification question: "
+            f"{exc}",
             step_index=step_index, rule="tian_hedge_witness",
-        )
-    ancestors = set(nx.ancestors(ctx.graph, y)) | {y}
-    sub = ctx.graph.subgraph(ancestors)
-    bi_ancestors = frozenset(p for p in ctx.bidirected if p <= frozenset(ancestors))
-    cc = _verifier_c_components(sub, bi_ancestors)
-    x_cc = next((c for c in cc if x in c), None)
-    # Tian-Pearl (2002a) Thm 9 / Tian-Shpitser (2009): for a single intervention
-    # X on a single target Y, P(Y|do(X)) is UNidentifiable iff a bidirected path
-    # connects X to one of its CHILDREN within G[An(Y)] — i.e. X shares its
-    # c-component of G[An(Y)] with a child of X. The earlier check compared X to
-    # Y, which only recognises the bow-arc hedge and so wrongly rejected correct
-    # unidentifiability whenever the hedge sits on a descendant of X
-    # (What If Fig 9.17: A->L->Y, A->Y, A<->L — Y is in its own c-component, but
-    # the hedge is on the A<->L bow with L a child of A).
-    x_children = set(sub.successors(x)) if x in sub else set()
-    hedge_present = x_cc is not None and any(child in x_cc for child in x_children)
-    if not hedge_present:
+        ) from exc
+    if under is not None:
         raise RuleCheckFailed(
-            "tian_hedge_witness: no bidirected path connects x to a child of x "
-            "in G[An(Y)] (Tian-Pearl 2002a Thm 9) — runtime claim of "
-            "unidentifiability is unsound",
+            f"tian_hedge_witness: the c-factors of this graph identify the "
+            f"question under do({', '.join(sorted(map(_atom_label_verifier, under)))}) "
+            f"— runtime claim of unidentifiability is unsound",
             step_index=step_index, rule="tian_hedge_witness",
         )
 

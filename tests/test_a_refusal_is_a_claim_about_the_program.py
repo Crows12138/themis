@@ -317,19 +317,25 @@ def test_a_witness_has_to_be_admissible_beside_what_was_asked(honest):
         themis.verify_refusal(_conditioned(given=()), _forge(honest))
 
 
-def test_conditioning_the_reader_asked_for_can_be_what_blocks_it(honest):
-    """The same graph, asked about the subgroup s — which is downstream of
-    the treatment and a collider. No set is admissible beside that, so this
-    refusal stands and the door says nothing. The pair is the point: the
-    witness is a fact about the estimand, not about the graph alone.
+def test_conditioning_the_reader_asked_for_changes_what_identifies_it(
+        honest):
+    """The same graph, asked about the subgroup s, which is downstream of
+    the treatment and a collider. No set is admissible beside that, and
+    this test said the refusal therefore stood. It does not: with nothing
+    latent, the joint distribution of y and s under do(x) is the graph's
+    c-factors, the kernel answers the question with their ratio, and a
+    refusal of it is refuted by that rather than by an adjustment set. The
+    pair is still the point: the witness is a fact about the estimand, not
+    about the graph alone.
 
-    Asked of the witness rule itself. The refusal it lifts also names the
-    verdict an unconditioned effect on an ADMG reaches, which a conditioned
-    question on a graph with no latent confounding cannot, and the door
-    refuses it for that."""
+    Asked of the witness rule itself, and then of the door, where the
+    verdict the lifted refusal names -- an unconditioned effect on an ADMG
+    -- is refused as well."""
     program, forged = _conditioned(given=("s",)), _forge(honest)
-    verify_refusal_claims(forged["data_gap_report"], _facts(program, "q"))
-    with pytest.raises(VerificationError, match="admg_effect_not_identifiable"):
+    with pytest.raises(VerificationError,
+                       match="c-factors of this graph identify it"):
+        verify_refusal_claims(forged["data_gap_report"], _facts(program, "q"))
+    with pytest.raises(VerificationError):
         themis.verify_refusal(program, forged)
 
 
