@@ -287,8 +287,8 @@ def test_the_estimand_is_carried_by_the_answers_that_identify_one():
     that the rewriting tests below, which all work by renaming something,
     are known to be one row short of the whole rather than silently so.
     """
-    assert len(WITH_FORMULA) == 104, len(WITH_FORMULA)
-    assert len(CHAINLESS) == 40, len(CHAINLESS)
+    assert len(WITH_FORMULA) == 111, len(WITH_FORMULA)
+    assert len(CHAINLESS) == 42, len(CHAINLESS)
     assert len(NAMES_A_PREDICATE) == len(WITH_FORMULA) - 1
     for name in WITH_FORMULA:
         written = SHAPES[name]["result"]["formula"]

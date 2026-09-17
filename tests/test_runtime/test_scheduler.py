@@ -224,20 +224,11 @@ def test_confidence_is_routed_through_composite_for_every_query() -> None:
     assert by_id["q_effect_1"].confidence is None
 
 
-def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() -> None:
-    """Regression for V3: a `given` that violates backdoor
-    preconditions (descendant of X) must not surface as a
-    structurally-solved negative identify proof, because the verifier
-    correctly rejects `unidentifiable_via_backdoor` on that context."""
-
+def _identify_given(*given_names: str):
     def atom(pred: str) -> Atom:
         return Atom(predicate=pred, args=(ConstTerm(name="me"),))
 
-    from themis import gaps
-
-    x = atom("x")
-    z = atom("z")
-    y = atom("y")
+    x, z, y = atom("x"), atom("z"), atom("y")
     program = Program(
         version="0.1",
         objects=("me",),
@@ -245,17 +236,37 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
             CauseStatement(from_atom=x, to_atom=z),
             CauseStatement(from_atom=z, to_atom=y),
             QueryStatement(
-                id="q_invalid_given",
+                id="q_given",
                 query=IdentifyQuery(
                     target=y,
                     intervention=Intervention(atom=x, value=True),
-                    given=(z,),
+                    given=tuple(atom(n) for n in given_names),
                 ),
             ),
         ),
     )
-    graph = project(instantiate(program))
-    result = dispatch_all(program, graph)[0]
+    return dispatch_all(program, project(instantiate(program)))[0]
+
+
+def test_identify_given_a_descendant_is_decided_by_the_engine() -> None:
+    """A descendant of X in the given is the identifier's to decide, and
+    here it identifies the question: exchanged for an intervention, z leaves
+    P(y | do(x, z)). It must still never surface as a negative back-door
+    proof, which the verifier rejects on that context."""
+    result = _identify_given("z")
+
+    assert result.status is ResultStatus.STRUCTURALLY_SOLVED
+    assert result.query_kind is QueryKind.IDENTIFY
+    assert result.structural_result is not None
+    assert result.structural_result.value is True
+    assert "unidentifiable_via_backdoor" not in {
+        step.rule for step in result.derivation}
+
+
+def test_identify_given_its_own_outcome_is_refused_before_any_route() -> None:
+    from themis import gaps
+
+    result = _identify_given("y")
 
     assert result.status is ResultStatus.NEEDS_INVESTIGATION
     assert result.query_kind is QueryKind.IDENTIFY
@@ -264,7 +275,7 @@ def test_identify_invalid_given_descendant_is_not_emitted_as_negative_proof() ->
     assert result.missing_information
     assert result.missing_information[0].kind is MissingKind.STRUCTURE
     assert result.missing_information[0].need is (
-        gaps.Need.GIVEN_VIOLATES_BACKDOOR)
+        gaps.Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME)
 
 
 # ===================================== what an ObservationalJoint may say

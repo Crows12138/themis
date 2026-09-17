@@ -13,12 +13,13 @@ every door that reads it; and at the door that reads only what the program
 settles, the 12 among them whose verdict another route reaches passed too.
 
 Which answers owe the block is read off the program, the question and the
-graph; the one answer that owes none although a loop reaches is the one the
-strict framing gate stopped before any route ran. The other way round, the
-block's audit held the loop it names to one the program declares, not to
-one that reaches the question: beside a program declaring a second loop
-that reaches nothing of it, a refusal whose block named that one passed
-every door. And a loop's route outranks every other route to an effect
+graph; the answers that owe none although a loop reaches are the ones given
+before any route runs, the loop's among them: the strict framing gate's, and
+the refusal of a question conditioning on its own treatment or outcome. The
+other way round, the block's audit held the loop it names to one the program
+declares, not to one that reaches the question: beside a program declaring a
+second loop that reaches nothing of it, a refusal whose block named that one
+passed every door. And a loop's route outranks every other route to an effect
 question, so a verdict any other route reaches is not the question's where
 a loop reaches it.
 
@@ -63,14 +64,16 @@ def _looped(name):
     return program
 
 
-def _gated(name):
-    """Stopped by the strict framing gate, before any route."""
+def _before_any_route(name):
+    """Answered before any route: stopped by the strict framing gate, or
+    refused for conditioning on its own treatment or outcome."""
     pair = SHAPES[name]
     needs = [m.get("need") for m in pair["result"].get("missing_information")
              or ()]
-    return (bool((pair["program"].get("options") or {}).get("strict_framing"))
-            and bool(needs)
-            and all(n == "framing_fields_unfilled" for n in needs))
+    gated = (bool((pair["program"].get("options") or {}).get("strict_framing"))
+             and bool(needs)
+             and all(n == "framing_fields_unfilled" for n in needs))
+    return gated or needs == ["given_holds_the_treatment_or_outcome"]
 
 
 ROWS = sorted(
@@ -82,14 +85,16 @@ ROWS = sorted(
 
 VERDICTS = sorted(
     name for name in ROWS
-    if SHAPES[name]["result"].get("status") == "needs_investigation"
+    if not _before_any_route(name)
+    and SHAPES[name]["result"].get("status") == "needs_investigation"
     and {str(s) for _, s, _ in _species_written(SHAPES[name]["result"])}
     - LOOP_SPECIES)
 
 
 def test_the_rows():
-    assert len(ROWS) == 138, len(ROWS)
-    assert [name for name in ROWS if _gated(name)] == [
+    assert len(ROWS) == 141, len(ROWS)
+    assert [name for name in ROWS if _before_any_route(name)] == [
+        "needs_investigation:effect:none#614789",
         "needs_investigation:effect:none#af79f6"]
     assert len(VERDICTS) == 12, VERDICTS
 
@@ -97,7 +102,7 @@ def test_the_rows():
 @pytest.mark.parametrize("name", ROWS)
 def test_an_answer_beside_a_loop_it_withdraws_nothing_for(name):
     program, result = _looped(name), SHAPES[name]["result"]
-    if _gated(name):
+    if _before_any_route(name):
         themis.verify_answer_claims(program, copy.deepcopy(result))
         return
     with pytest.raises(VerificationError, match="withdraws nothing"):
@@ -110,8 +115,8 @@ def test_the_kernels_own_answer_to_the_looped_program_is_accepted(name):
     qid = SHAPES[name]["result"]["query_id"]
     result = next(r for r in themis.run(program)["results"]
                   if r.get("query_id") == qid)
-    assert ("feedback_loop" in (result.get("extensions") or {})) != _gated(
-        name)
+    assert ("feedback_loop" in (result.get("extensions") or {})) != (
+        _before_any_route(name))
     verify_honestly(program, result)
     themis.verify_refusal(program, result)
 

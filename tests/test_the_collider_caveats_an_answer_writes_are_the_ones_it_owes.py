@@ -160,7 +160,7 @@ def test_on_every_corpus_answer_the_caveats_owed_are_the_ones_written():
 
 def test_the_measured_sizes():
     assert (len(REMOVALS), len(ADDITIONS), len(FLIPS), len(RESTATED)) == (
-        7, 5, 3, 30), (len(REMOVALS), len(ADDITIONS), len(FLIPS), len(RESTATED))
+        10, 6, 3, 39), (len(REMOVALS), len(ADDITIONS), len(FLIPS), len(RESTATED))
 
 
 def test_the_forgeries_start_from_answers_their_door_reads():

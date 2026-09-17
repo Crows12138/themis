@@ -93,7 +93,7 @@ def test_every_stored_note_is_what_summarise_writes_over_its_items():
             assert request.get("note") == _owed(items), (
                 name, request.get("target"))
             held += 1
-    assert held == 212
+    assert held == 217
 
 
 def test_every_stored_answer_passes_the_rule():
@@ -137,7 +137,7 @@ def test_a_framing_request_over_several_asks_keeps_its_spelling():
         assert request["target"] == f"define_variable:{len(request['items'])}_items"
         assert "note" not in request
         compared += 1
-    assert compared == 23
+    assert compared == 26
 
 
 @pytest.mark.parametrize("name", INSTRUMENT_ROWS)

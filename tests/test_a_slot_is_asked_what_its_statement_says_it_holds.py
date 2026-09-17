@@ -139,7 +139,9 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
     # interval on four refreshed answers, whose instrument needs something conditioned.
     # 1 more sentence: the refreshed joint general-ID answer carries a gap about its second
     # treatment's definition, which its producer had grown since the row was stored.
-    assert (routes, sentences) == (427, 810), (routes, sentences)
+    # 15 more routes and 56 more sentences: the eight rows brought when the identifier began
+    # answering a query conditioning on a descendant of the treatment.
+    assert (routes, sentences) == (442, 866), (routes, sentences)
 
 
 def test_a_gaps_own_said_is_the_occasion_its_kind_names():
@@ -153,7 +155,7 @@ def test_a_gaps_own_said_is_the_occasion_its_kind_names():
             if re.fullmatch(r"gaps\.\d+\.said", where):
                 gap = report["gaps"][int(where.split(".")[1])]
                 tops.append((statement, gap["kind"]))
-    assert len(tops) == 145, len(tops)
+    assert len(tops) == 151, len(tops)
     assert all(statement == kind for statement, kind in tops)
     assert {kind for _statement, kind in tops} <= set(_gaps.IF_PROVIDED)
 
@@ -172,8 +174,8 @@ def test_the_walk_reads_the_spellings_the_statement_rule_reads():
 
 
 def test_the_corpus_writes_target_in_six_statements():
-    assert len(TARGETS) == 33, len(TARGETS)
-    assert len(AS_A_NAME) == 22, len(AS_A_NAME)
+    assert len(TARGETS) == 39, len(TARGETS)
+    assert len(AS_A_NAME) == 28, len(AS_A_NAME)
     assert {statement for _n, _w, statement in NOT_AS_A_NAME} == {
         "transport_rests_on_s_admissibility"}
 

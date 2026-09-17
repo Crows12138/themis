@@ -62,7 +62,7 @@ from ..gaps import NEEDED, GapKind, Need, QueryPart
 from ..types import (
     Atom, CausationQuery, CounterfactualConjunctionQuery, CounterfactualQuery,
     EffectQuery, IdentifyQuery, ProximalEffectQuery, Query,
-    SCMCounterfactualQuery,
+    SCMCounterfactualQuery, ends_the_given_holds,
 )
 from .errors import VerificationError
 from .rules import (
@@ -795,6 +795,22 @@ def _an_instrument(facts: RefusalFacts) -> str | None:
             f"conditioned")
 
 
+def _refused_before_any_route(facts: RefusalFacts) -> str | None:
+    """Why the question is refused before any route is offered it, or
+    ``None``.
+
+    A question that conditions on its own treatment or outcome is, and that
+    refusal is its whole answer: every other species is a route's verdict,
+    the loop's among them, or a verdict on a question of another kind.
+    """
+    held = ends_the_given_holds(facts.query)
+    if not held:
+        return None
+    return (f"the question conditions on its own treatment or outcome "
+            f"({', '.join(sorted(map(_atom_label_verifier, held)))}), which is "
+            f"refused before any route is offered it")
+
+
 #: What has to hold of the question for each species of the unidentifiable
 #: kind to be its verdict. Total over the kind: see :func:`_bind_species`.
 _ANSWERS: dict[Need, tuple[_Condition, ...]] = {
@@ -986,26 +1002,18 @@ def _several_nodes_are_it(statement: Mapping,
     return None
 
 
-def _given_breaks_the_back_door(statement: Mapping,
-                                facts: RefusalFacts) -> str | None:
-    """"identify.given holds X, Y, or a descendant of X" -- refuted by a
-    question that is no identification, by a given holding none of those,
-    or by atoms other than the ones it holds."""
-    q = facts.query
-    if not isinstance(q, IdentifyQuery):
-        return "the question is not an identification, so it has no given"
-    x, y = q.intervention.atom, q.target
-    forbidden = ((_descendants(facts.graph, x) if x in facts.graph else {x})
-                 | {y})
-    offending = {_atom_label_verifier(a) for a in q.given if a in forbidden}
-    if not offending:
-        return ("nothing it conditions on is the treatment, the outcome or a "
-                "descendant of the treatment")
+def _given_holds_an_end(statement: Mapping,
+                        facts: RefusalFacts) -> str | None:
+    """"the question conditions on its own treatment or outcome" -- refuted
+    by a given holding neither, or by atoms other than the ones it holds."""
+    held = {_atom_label_verifier(a)
+            for a in ends_the_given_holds(facts.query)}
+    if not held:
+        return "nothing it conditions on is its own treatment or outcome"
     said = (statement.get("said") or {}).get("atoms")
-    if isinstance(said, str) and set(said.split(", ")) != offending:
-        return (f"what it conditions on that is the treatment, the outcome "
-                f"or a descendant of the treatment is "
-                f"{', '.join(sorted(offending))}")
+    if isinstance(said, str) and set(said.split(", ")) != held:
+        return (f"what it conditions on that is its own treatment or "
+                f"outcome is {', '.join(sorted(held))}")
     return None
 
 
@@ -1294,7 +1302,7 @@ def _the_loop_is_off_the_two_equations(statement: Mapping,
 _WITNESSES: dict[Need, Callable[[Mapping, RefusalFacts], str | None]] = {
     Need.ATOM_NOT_IN_GRAPH: _no_node_is_it,
     Need.NAME_HOLDS_SEVERAL_NODES: _several_nodes_are_it,
-    Need.GIVEN_VIOLATES_BACKDOOR: _given_breaks_the_back_door,
+    Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME: _given_holds_an_end,
     Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: _the_mediator_is_off_the_paths,
     Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS:
         _a_mediator_of_the_block_is_off_the_paths,
@@ -1413,11 +1421,21 @@ def verify_species_claims(result: Mapping, facts: RefusalFacts) -> None:
     way, on its own rather than through the others: what it says about the
     question, the graph and the part of the program it names, together with
     whatever detail of that the copy carries.
+
+    Both after the one verdict given before any route, which no copy of
+    another species can be (:func:`_refused_before_any_route`).
     """
     if not isinstance(result, Mapping):
         return
+    before = _refused_before_any_route(facts)
     judged: dict[Need, str | None] = {}
     for where, species, holder in _species_written(result):
+        if (before is not None
+                and species != Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME):
+            raise VerificationError(
+                f"{where} says the verdict is {str(species)!r}, and {before}. "
+                f"A reader sent after this verdict's remedy is sent after a "
+                f"route the question never reached")
         if species in _ANSWERS:
             if species not in judged:
                 judged[species] = next(

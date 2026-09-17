@@ -61,7 +61,7 @@ TARGETS = sorted(
 def test_the_items_that_send_a_reader_to_measure_something():
     """The denominator, and the two skeleton kinds told apart.
 
-    297 of the 382 skeletons are variable patches, which name a predicate
+    306 of the 417 skeletons are variable patches, which name a predicate
     and no arguments — their whole purpose is to introduce a variable the
     problem does NOT have, so this rule is silent for them by construction
     rather than by exception.
@@ -69,7 +69,10 @@ def test_the_items_that_send_a_reader_to_measure_something():
     Both numbers went up by eight together with a targeted corpus refresh
     that picked up investigation items its rows predated, so the 85 this
     rule does speak for is unchanged. They went up by one together again
-    when the joint general-ID row was refreshed.
+    when the joint general-ID row was refreshed. When the identifier began
+    answering a query conditioning on a descendant of the treatment, the
+    eight rows collected for it brought nine patches and 26 skeletons this
+    rule speaks for.
     """
     skeletons = [
         item["skeleton"]
@@ -78,12 +81,12 @@ def test_the_items_that_send_a_reader_to_measure_something():
         for item in req.get("items") or []
         if isinstance(item.get("skeleton"), dict) and item["skeleton"]
     ]
-    assert len(skeletons) == 382, len(skeletons)
+    assert len(skeletons) == 417, len(skeletons)
     kinds = {}
     for sk in skeletons:
         kinds[sk.get("kind")] = kinds.get(sk.get("kind"), 0) + 1
-    assert kinds == {"variable_patch": 297, "probability": 85}, kinds
-    assert len(TARGETS) == 85, len(TARGETS)
+    assert kinds == {"variable_patch": 306, "probability": 111}, kinds
+    assert len(TARGETS) == 111, len(TARGETS)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _ in TARGETS}))
@@ -103,7 +106,7 @@ def test_every_moved_unit_is_refused():
         with pytest.raises(Exception, match="no such variable"):  # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 85, refused
+    assert refused == 111, refused
 
 
 def test_the_given_side_is_held_too():

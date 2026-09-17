@@ -724,6 +724,11 @@
  "needs_investigation:effect:none#30ca3b": [
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
+ "needs_investigation:effect:none#31c82c": [
+  "extensions.identification.conditioned_on.[]",
+  "investigation_requests.[].items.[].skeleton.annotations.source",
+  "missing_information.[].priority"
+ ],
  "needs_investigation:effect:none#38993c": [
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
@@ -791,6 +796,11 @@
   "estimation_context.random_state",
   "estimator_failure.estimator"
  ],
+ "needs_investigation:effect:none#5ec0c1": [
+  "extensions.identification.conditioned_on.[]",
+  "investigation_requests.[].items.[].skeleton.annotations.source",
+  "missing_information.[].priority"
+ ],
  "needs_investigation:effect:none#60ffe9": [
   "estimation_context.ci_bootstrap",
   "estimation_context.data_columns.[]",
@@ -801,6 +811,9 @@
   "estimator_failure.recorded.outcome_relative_range",
   "estimator_failure.recorded.outcome_relative_std",
   "estimator_failure.recorded.outcome_scale"
+ ],
+ "needs_investigation:effect:none#614789": [
+  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#63d205": [
   "extensions.identification.conditioned_on.[]",
@@ -998,9 +1011,6 @@
   "bounds_results.[].data_required.[].said.expression",
   "extensions.missing_data_recovery.search_budget",
   "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:identify:none": [
-  "missing_information.[].name"
  ],
  "needs_investigation:probability:none": [
   "investigation_requests.[].items.[].skeleton.annotations.source"
@@ -2173,6 +2183,21 @@
   "missing_information.[].observable.population"
  ],
  "structurally_solved:identify:identify_via_idc": [
+  "extensions.identification.conditioned_on.[]"
+ ],
+ "structurally_solved:identify:identify_via_idc#6d4ecb": [
+  "extensions.identification.conditioned_on.[]"
+ ],
+ "structurally_solved:identify:identify_via_idc#8365bd": [
+  "extensions.identification.conditioned_on.[]"
+ ],
+ "structurally_solved:identify:identify_via_idc#9b51d7": [
+  "extensions.identification.conditioned_on.[]"
+ ],
+ "structurally_solved:identify:identify_via_idc#9fa353": [
+  "extensions.identification.conditioned_on.[]"
+ ],
+ "structurally_solved:identify:identify_via_idc#fbb987": [
   "extensions.identification.conditioned_on.[]"
  ],
  "structurally_solved:identify:identify_via_iv": [

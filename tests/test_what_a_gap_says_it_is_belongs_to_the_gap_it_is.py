@@ -201,7 +201,9 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
     # interval on four refreshed answers, whose instrument needs something conditioned.
     # 1 more slot and 1 more gap: the refreshed joint general-ID answer carries a gap about its
     # second treatment's definition, which its producer had grown since the row was stored.
-    assert (slots, gap_total, len(species)) == (1126, 975, 38)
+    # 56 more slots and 56 more gaps: the eight rows brought when the identifier began
+    # answering a query conditioning on a descendant of the treatment.
+    assert (slots, gap_total, len(species)) == (1182, 1031, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

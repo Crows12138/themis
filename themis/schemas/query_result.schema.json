@@ -3379,7 +3379,7 @@
       "enum": [
         "atom_not_in_graph",
         "name_holds_several_nodes",
-        "given_violates_backdoor",
+        "given_holds_the_treatment_or_outcome",
         "mediator_off_the_directed_paths",
         "mediator_set_off_the_directed_paths",
         "path_coefficient_undeclared",

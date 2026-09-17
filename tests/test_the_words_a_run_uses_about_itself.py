@@ -115,7 +115,7 @@ def test_an_answer_may_not_say_it_answers_another_question():
             with pytest.raises(Exception):
                 door(program, result)
             refused += 1
-    assert refused == 2187
+    assert refused == 2250
 
 
 def test_the_kind_is_refused_by_this_rule_and_not_only_by_the_routing():
@@ -139,7 +139,7 @@ def test_the_kind_is_refused_by_this_rule_and_not_only_by_the_routing():
             with pytest.raises(VerificationError, match="the question asked"):
                 verify_answer_names_its_kind(result, program)
             asked += 1
-    assert asked == 2187
+    assert asked == 2250
 
 
 # ------------------------------------------------------------ answer_tier
@@ -190,7 +190,7 @@ def test_every_other_tier_this_answer_could_claim_is_refused():
             else:
                 survived.append((name, was, other))
     assert survived == []
-    assert refused == 470
+    assert refused == 484
 
 
 def test_the_two_bends_a_reader_is_hurt_most_by_keep_their_own_words():

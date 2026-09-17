@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21308 passed / 518 skipped, warning-clean
+21591 passed / 532 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,75 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #693 同一个问题两种写法，答复一致（2026-09-17）
+
+**现象。** P(y | do(x), 条件) 写成 identify 查询和写成效应查询，走的是两套前置条件。
+- identify 分派在 ID/IDC 识别引擎之前先做一次后门时代的检查：条件里含 X、Y 或 X 的任一后代，就报 `given_violates_backdoor`，不去识别。probe693a 量了 161 个条件含后代的随机问题：同一估计量写成效应查询，内核识别出 123 个；#692 的判定与效应写法 161 个全部一致。
+- 条件含处理或结局时方向相反（probe693b）。identify 写法拒答；效应写法把问题送进路由，回来报不可识别，有潜变量时报 `conditional_admg_not_identifiable`，没有时报 `no_backdoor_or_frontdoor`，让读者去收集数据。
+- 700 个随机潜变量程序，条件从全部变量里抽（probe693c）：HEAD 上两种写法有 424 个问题答复不同，其中条件含一端的 313 个，只含后代等的 111 个。
+- 扩到效应查询的其他形状（probe693f/g，HEAD），条件含处理或结局时：
+  - 中介分解（单个中介、中介块）和迁移（c 不同）给出已解答案；
+  - 联合干预、迁移（y 不同）、反馈环、潜变量各自给出本路由的拒答。
+
+**根因。** 条件里含本问题的处理或结局，这个问题就不是任何效应的一个分层，也谈不上图识别不识别它。这是问题本身的缺陷，应当在任何路由之前判一次，两种写法共用。代码里这条检查只写在 identify 分派里，还和「X 的后代」绑在一起。「后代」是后门准则的前提，ID/IDC 不需要它。效应分派没有这条检查，问题就被各条路由按各自的方式处理了。
+
+**为什么是根因不是表象。** 表象修法是：identify 分派去掉「后代」，效应分派补一条同样的检查，两处各写一份清单。两份清单会继续漂移，比如效应查询有联合干预的第二个处理，identify 没有。量到的两个方向（identify 过严、效应过松）出自同一个缺口：这条前置条件没有唯一的读法，也没有固定在路由之前。
+
+**结构。**
+- `themis.types.ends_the_given_holds(query)`：返回条件里哪些是问题自己的处理（包括联合干预的其他处理）或结局。两种写法都读它，其他查询种类返回空。
+- `scheduler._a_given_holding_an_end(stmt, kind)`：两个分派在「问题的原子都在图里」之后、任何路由之前问它。identify 分派原来的「后代 ∪ {x, y}」检查删除，后代交给 ID/IDC。
+- 种类改名：`given_violates_backdoor` 改为 `given_holds_the_treatment_or_outcome`。句子、可走的路、schema 枚举、前端词表同步改。gap 名为 `query:{kind}_given`。
+- verifier：
+  - 见证 `_given_holds_an_end` 取代 `_given_breaks_the_back_door`：条件不含任何一端，或所说的原子与实际不符，都反驳。
+  - 拒答门 `verify_species_claims`：问题条件含一端时，这条拒答以外任何种类的副本都拒（`_refused_before_any_route`）。反馈环、中介、联合干预等结构种类也在内，不只 `_ANSWERS` 里的不可识别种类。
+  - 完整门新规则 `verify_a_given_holding_an_end_is_refused`，由 `_hold_what_the_answer_says` 调用，`verify` 和 `verify_answer_claims` 都会走到。规则要求这类问题的答案是 `needs_investigation`，且只带这一条。例外是 strict framing 闸门先拦下的效应问题，由 `_stopped_by_the_framing_gate` 判断，这个函数与反馈环规则共用。
+  - `verify_loop_withdrawal_is_owed` 不再要求这类问题带撤回块。内核改动之后，反馈环够到的问题上，诚实拒答曾被这条规则拒掉（probe693i，4 个）。
+
+**测量。**
+- 两种写法对拍（probe693c，种子 6933，700 个程序）：
+  - 改后 700 对全部一致。诚实答案 `verify_refusal` 全收，identify 识别链 `verify` 全收。
+  - 伪造两组，每组每种写法 480 次，全拒：条件含一端的拒答搬到不含一端的问题上；路由的判决搬到含一端的问题上。
+  - HEAD 上 424 对不一致；identify 写法把路由判决搬到含一端的问题上，放行 384/480。
+- 加完整门和反馈环（probe693j，种子 69331，700 个，每条边 8% 概率声明成环）：
+  - 诚实答案在 `verify_answer_claims`、`verify_refusal`、`verify` 上全收。
+  - 伪造五组，每组每种写法 480 次，全拒。新增的一组是已识别答案搬到含一端的问题上。
+  - 两种写法只在环够到估计量时不一致，共 149 对，因为 identify 不读环（#688 遗留）。
+- 效应查询各形状（probe693f/g/h/k）：条件取 x、y、c+y，形状包括中介、中介块、联合干预、迁移、无边界人群、反馈环、潜变量。
+  - 改后全部报这条拒答，诚实答案全收。
+  - HEAD 给出的答案放到改后的 verifier 上：路由拒答全拒。9 个已解答案（中介分解 6、迁移 3）在 verifier 补丁前 `verify` 与 `verify_answer_claims` 全收，补丁后被新规则拒。拿掉条目的拒答，补丁前在 `verify_answer_claims` 上被收下，补丁后被拒。
+- 有块要带的规则（probe693i：反馈环、样本限制在共同效应上、缺失指示、LLM 提议的边、strict framing）：两种写法的诚实答案全收。
+- `themis.estimate`（probe693e）：条件含后代时估计值与 HEAD 相同；条件含一端时报这条拒答，不做估计。
+- 新测试文件放到 HEAD 代码上跑，53 个失败。
+- gate：
+  - 化石行 `needs_investigation:identify:none` 删除，它的 need 已不在 schema 里。从产出这类答案的测试重新采集，加 8 行，语料 243→250：条件含处理后代的 identify 识别 5 行，条件含分层的效应答案 2 行，条件含结局的效应问题的拒答 1 行。
+  - 声明余项 1855→1866。新增 12 片，全在别的行已声明的族里：识别模式的 `conditioned_on` 7 片，`missing_information` 的 name 和 priority，ask 的 annotation source。化石行的 1 片随行删掉。
+  - asked 32575→33678。
+  - 第一次采集是 9 行，多出的一行是条件为 c 的联合干预后门答案，来自新测试的捐赠问题。新测试原先从条件为 c 的问题取「路由的答案」和「路由的判决」；中介两种形状能取到已解答案，只是因为中介路由不读条件（见「还开着」）。改为从同一程序不带条件的问题取，测试不再依赖任何路由怎么读条件，条件为 c 的联合答案也不再有测试产出；语料恢复后重采为 8 行。
+- 语料计数：另外 25 个测试文件里的计数随新行移动，例如缺口 975→1031、引用站点 946→996、变量补丁 297→306、ask 433→468、句子 5086→5306。核对方法：把语料换成 HEAD 去掉化石行的 242 行，用改后代码跑同一批计数测试，偏离旧值的只有化石行自己带的量（4 个缺口、4 条描述、1 行 missing_information、1 个无链答案，例如缺口 975→971、无链答案 71→70），其余全部保持旧值。
+- 架构图：verify.py 7920→7989 行，verify_* 入口 109→110。
+
+**还开着。**
+- 中介路由（单个中介、中介块）不读效应问题的条件：条件为 c 时，推导和扩展块与不带条件时逐字相同（probe694b）；条件为 c、d、w、m 时都给已解答案，各门收下（probe694a）。它们答的是无条件的估计量。联合干预路由在调整准则里读条件（c 记进 `conditioned_on`）；条件含处理的后代（d、m）时报 `joint_effect_not_identifiable`，这是否属实没量。这是下一轮。
+- identify 查询和判定都不读反馈环（#688）：环够到估计量时，两种写法仍不一致（probe693j，149/700）。
+- 识别模式块的 `extensions.identification.conditioned_on` 没有规则读（已声明，语料里 17 行带它）。
+
+**账。**
+- 新文件 `tests/test_a_question_asked_two_ways_is_answered_alike.py`，共 68 个测试：
+  - 效应查询 7 种形状 × 3 种条件含一端，21 个；
+  - 联合干预的第二个处理算一端，1 个；
+  - identify 写法，3 个；
+  - 后代交给识别器，2 个；
+  - strict framing，2 个；
+  - 路由的拒答不写在这类问题上，4 个（判决取自同一程序不带条件的问题）；
+  - 路由的答案不是它的答案，4 个（答案同样取自不带条件的问题）；
+  - 拒答就是整个答案，1 个；
+  - 两种写法随机对拍，30 个。
+- 改写的测试：`test_scheduler.py`（1 个测试拆成 2 个）；`test_every_raised_item_reaches_the_report.py`（条件改为结局）；`test_a_structural_refusal_is_asked_of_the_question_it_refuses.py`（诚实、搬移、改写三组按新种类重写）。
+- `test_a_loop_the_estimand_reaches_is_owed_its_withdrawal.py`：「欠撤回块」的例外从 strict framing 闸门扩到「路由之前」的两种答案（`_before_any_route`），判决组不含它们；行数 138→141，例外行 1→2。
+- 拒答门里比较种类用 `!=`，不用 `is`：`Need` 词表放弃了身份比较（`test_a_vocabulary_that_gives_up_identity_is_not_asked_for_it.py`）。
+- 计数：gate 三处（声明余项、asked、语句词表的伪造数 2186→2238）；`test_a_step_cannot_name_a_variable_that_is_not_there.py` 三处（步骤 359→369，原子输入 476→486，其中由较早规则拦下的 98→108）；其余 25 个文件见上。
+- 基线 21308→**21591**，skipped 518→**532**：新行在两个按语料行参数化的测试里跳过 15 个（预算测试 8 个，这些行没有数值估计；估计量求和测试 7 个，公式里没有求和），化石行原来跳过的 1 个随行删掉。第一次全量只有 L3 运行时钉子失败：并行下 `case_009` 一次跑了 1333 ms，单独跑时本树和 HEAD 都是 20 ms 左右；基线取自重跑的全量。
 
 ### #692 一张图识别不识别一个估计量，只判定一次（2026-09-17）
 

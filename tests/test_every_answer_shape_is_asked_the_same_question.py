@@ -643,7 +643,7 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
         else:
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
-    assert asked == 2186, asked
+    assert asked == 2238, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -1705,10 +1705,22 @@ def test_the_declared_remainder_is_what_it_is():
     Refreshed from the test that produces it, the leaves of the transport
     chain and its number are gone with the chain, and the answer it gives
     leaves three in families other rows already declare.
+
+    Then 11 more, by a refresh that brought shapes rather than holes. An
+    identify query conditioning on a descendant of the treatment was refused
+    before the identifier was asked, and the row keeping that refusal kept a
+    need the schema no longer has. The identifier answers such questions
+    now, and a question conditioning on its own treatment or outcome is
+    refused alike in both spellings. Collected again from the tests that ask
+    them, eight rows bring shapes no row carried, and the twelve leaves they
+    leave are in families other rows declare: the stratum an identification
+    pattern says it conditioned on (seven), what a refusal's item is named
+    and ranked, where an ask's annotation comes from. The fossil row's one
+    leaf went with it.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1855, total
-    assert len(SHAPES) == 243, len(SHAPES)
+    assert total == 1866, total
+    assert len(SHAPES) == 250, len(SHAPES)
 
 
 def _contract_blocks() -> frozenset[str]:
@@ -1834,6 +1846,12 @@ def test_the_sweep_asks_about_the_whole_envelope():
     back-door chain and the identification pattern (17 questions) where it
     carried the transport chain, the transport block's number and a
     structural value (19).
+
+    Then 33678, by the refresh that let the identifier answer an identify
+    query conditioning on a descendant of the treatment. Eight rows bring
+    1142 questions -- five such identifications, two effect answers
+    conditioning on a stratum, and the refusal of an effect question
+    conditioning on its own outcome -- and the fossil row took 39.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -1843,7 +1861,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 32575, asked_total
+    assert asked_total == 33678, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

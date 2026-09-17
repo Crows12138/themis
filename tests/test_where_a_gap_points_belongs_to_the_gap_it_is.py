@@ -334,7 +334,7 @@ def test_no_answer_this_build_produces_cites_a_space_it_may_not():
                         stray.append((name, gap.get("kind"),
                                       ref.get("ref_kind")))
     assert not stray
-    assert (slots, len(species)) == (975, 38)
+    assert (slots, len(species)) == (1031, 38)
 
 
 def test_every_gap_in_the_corpus_carries_exactly_one_ref():
@@ -348,7 +348,7 @@ def test_every_gap_in_the_corpus_carries_exactly_one_ref():
                      for one in (CORPUS[name]["result"].get("results")
                                  or [CORPUS[name]["result"]])
                      for gap in _gaps_in(one))
-    assert dict(widths) == {1: 975}
+    assert dict(widths) == {1: 1031}
 
 
 def _door(envelope):

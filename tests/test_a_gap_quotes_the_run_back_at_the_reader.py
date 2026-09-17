@@ -37,7 +37,7 @@ frontier.
 A HOLE IS ONE FACT WHICHEVER HALF IT TRAVELS IN. Where the record names
 nothing, a producer writes the hole as a word, the stand-in its sentence
 says instead, and a rule reading only ``said`` read every hole except
-those: any of the 946 names below could become a stand-in and pass. And a
+those: any of the 996 names below could become a stand-in and pass. And a
 population hole is its ROLE'S: read against every population the program
 names, a source written as the target was the answer carried backwards.
 """
@@ -121,14 +121,16 @@ def test_the_facts_this_rule_speaks_for():
         split[key] = split.get(key, 0) + 1
     # 4 fewer each of assumptions and method: the sentence naming a Balke-Pearl interval's method and assumptions went with the
     # interval on four refreshed answers, whose instrument needs something conditioned.
+    # 18 more intervention, 26 more what and 6 more target: the eight rows brought when the
+    # identifier began answering a query conditioning on a descendant of the treatment.
     assert split == {
-        "assumptions": 36, "method": 63, "what": 87,
+        "assumptions": 36, "method": 63, "what": 113,
         "methods": 73, "population": 16, "source": 10,
-        "kind": 11, "target": 33,
-        "intervention": 566, "treatment": 21, "outcome": 18,
+        "kind": 11, "target": 39,
+        "intervention": 584, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3,
     }, split
-    assert len(SITES) == 946, len(SITES)
+    assert len(SITES) == 996, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -147,7 +149,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 946, refused
+    assert refused == 996, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -616,7 +618,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 946 * 6, refused
+    assert refused == 996 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

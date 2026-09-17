@@ -1079,6 +1079,33 @@ def atoms_the_graph_is_asked_about(query: Query) -> tuple[Atom, ...]:
     return atoms_held_by(query)
 
 
+def ends_the_given_holds(query: Query) -> tuple[Atom, ...]:
+    """What a question conditions on that is its own treatment or outcome.
+
+    Holding the treatment fixed beside setting it, or the outcome beside
+    asking for it, is no stratum an effect could be asked of, and no graph
+    identifies it or fails to. So it is refused before any route is offered
+    the question, and alike for the two spellings of the estimand: the
+    identify query refused it and the effect query sent it down the routes,
+    to come back as an effect the graph does not identify.
+
+    A descendant of the treatment is not among these. Whether conditioning
+    on one leaves the effect identified is the identifier's to decide, and
+    a check in front of it that refused every descendant refused questions
+    it answers.
+    """
+    if isinstance(query, IdentifyQuery):
+        ends = {query.intervention.atom, query.target}
+        given: tuple[Atom, ...] = query.given
+    elif isinstance(query, EffectQuery):
+        ends = {query.intervention.atom, query.target.atom,
+                *(iv.atom for iv in query.extra_interventions)}
+        given = tuple(v.atom for v in query.given)
+    else:
+        return ()
+    return tuple(dict.fromkeys(a for a in given if a in ends))
+
+
 @dataclass(frozen=True)
 class QueryStatement:
     id: str

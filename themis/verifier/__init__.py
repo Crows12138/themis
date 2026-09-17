@@ -89,6 +89,9 @@ Public surface (re-exports from sub-modules):
   An effect answer computed from the DAG, beside a program declaring a loop
   its estimand reaches, passed every door; which answers owe the block is
   read off the program, the question and the ground graph) /
+  ``verify_a_given_holding_an_end_is_refused`` (a question conditioning on
+  its own treatment or outcome is refused before any route, and answered
+  with that refusal alone; a route's answer to one passed every door) /
   ``verify_joint_identification`` (the same sentence for a do() over a
   treatment SET, in a block whose pattern vocabulary the contract declares
   disjoint from the scalar one — which is why one verifier dispatching on
@@ -841,6 +844,7 @@ from .verify import (
     verify_regression_calibration_numeric,
     verify_scm_counterfactual,
     verify_scm_counterfactual_numeric,
+    verify_a_given_holding_an_end_is_refused,
     verify_loop_withdrawal_is_owed,
     verify_recovery_verdicts_are_owed,
     verify_selection_recovery,
@@ -1011,6 +1015,7 @@ __all__ = [
     "verify_regression_calibration_numeric",
     "verify_scm_counterfactual",
     "verify_scm_counterfactual_numeric",
+    "verify_a_given_holding_an_end_is_refused",
     "verify_loop_withdrawal_is_owed",
     "verify_recovery_verdicts_are_owed",
     "verify_selection_recovery",

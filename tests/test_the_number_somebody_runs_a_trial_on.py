@@ -59,7 +59,7 @@ CONTEXTS = {
 
 def test_the_corpus_carries_data_asks():
     """Stated so a narrowing shows up as a failure, not as a quiet pass."""
-    assert len(ASKS) == 109, len(ASKS)
+    assert len(ASKS) == 135, len(ASKS)
 
 
 def test_every_precision_target_this_build_can_write_has_arithmetic_here():
@@ -87,7 +87,7 @@ def test_the_number_is_what_its_own_terms_buy():
         again = arithmetic(lambda key: float(target["said"][key]))
         assert again == need["min_sample_size"], (name, index, again)
         checked += 1
-    assert checked == 108, checked
+    assert checked == 134, checked
 
 
 def test_the_names_a_reader_is_sent_after_are_the_problems():
@@ -186,7 +186,7 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (316, 375), (held, free)
+    assert (held, free) == (374, 453), (held, free)
 
 
 def test_a_design_swapped_for_another_declared_one_is_refused():
@@ -214,7 +214,7 @@ def test_a_design_swapped_for_another_declared_one_is_refused():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (648, 0), (refused, accepted)
+    assert (refused, accepted) == (804, 0), (refused, accepted)
 
 
 def test_a_size_that_agrees_with_nothing_is_refused():
@@ -229,7 +229,7 @@ def test_a_size_that_agrees_with_nothing_is_refused():
         with pytest.raises(VerificationError, match="wrong size"):
             verify_required_data(bad, CONTEXTS[name])
         refused += 1
-    assert refused == 108, refused
+    assert refused == 134, refused
 
 
 def test_a_term_swapped_moves_the_number_it_was_sized_from():
@@ -252,7 +252,7 @@ def test_a_term_swapped_moves_the_number_it_was_sized_from():
             verify_required_data(bad, CONTEXTS[name])
         except VerificationError:
             refused += 1
-    assert refused == 108, refused
+    assert refused == 134, refused
 
 
 # --------------------------------------------------- the stated silences
@@ -316,4 +316,4 @@ def test_which_kind_of_data_closes_a_gap_is_not_held():
         ask["data_type"] = "cohort" if need["data_type"] != "cohort" else "ipd"
         verify_required_data(bad, CONTEXTS[name])
         accepted += 1
-    assert accepted == 109, accepted
+    assert accepted == 135, accepted

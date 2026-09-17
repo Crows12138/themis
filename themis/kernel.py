@@ -154,6 +154,7 @@ from .verifier import (
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
     verify_collider_caveats_are_owed,
+    verify_a_given_holding_an_end_is_refused,
     verify_loop_withdrawal_is_owed,
     verify_recovery_verdicts_are_owed,
     verify_gap_quotes,
@@ -1751,6 +1752,11 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # reaches it. Which answers owe it is the program's; a block where none
     # is owed names a loop that reaches nothing, which its audit refuses.
     verify_loop_withdrawal_is_owed(result, prog, ctx)
+
+    # And whether a question the dispatch refuses before any route is
+    # answered with that refusal. The refusal door holds the species written
+    # on the answer; a route's answer writes none, and passed.
+    verify_a_given_holding_an_end_is_refused(result, prog, ctx)
 
     # And what a column was DECLARED to be. The pre-flight diagnostic
     # re-derives its verdict FROM the recorded scale and domain, which

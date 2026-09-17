@@ -4,16 +4,17 @@
 species by species. Two species carry the whole of their claim in their own
 facts -- a name, the part that writes it, the nodes it is -- and had a
 witness. The other seven say something about the question and the graph: a
-conditioned atom breaks the back door, a mediator is off the paths from the
-treatment to the outcome, the abduction needs a coefficient nobody declared,
+condition holds the question's own treatment or outcome, a mediator is off the
+paths from the treatment to the outcome, the abduction needs a coefficient
+nobody declared,
 a condition has probability zero in every model, a joint question also asks
 for mediation or transport, a joint treatment repeats. At most they carry a
 detail of that. They had no witness, so the copies of one were held to each
 other and to nothing else.
 
 Measured before the witnesses, on answers made beyond the corpus as well as
-on it: bent together at every copy, 25 forgeries were accepted -- the atoms
-said to break the back door rewritten, the edge whose coefficient is missing
+on it: bent together at every copy, 25 forgeries were accepted -- the
+conditioned atoms a refusal names rewritten, the edge whose coefficient is missing
 turned round, the declaration a joint question must drop renamed, and each
 honest answer put beside a program where its claim is false. Bent at one copy
 and asked at the door that reads only what the program settles, 100 more. Put
@@ -111,12 +112,21 @@ def _conditioned(*condition):
                      condition=list(condition))
 
 
+_ENDS = "given_holds_the_treatment_or_outcome"
+
 #: Honest answers, and the species each is.
 HONEST = {
-    "a descendant of the treatment conditioned on": (
-        _program(_BACKDOOR + [_identify("z", "d")]), "given_violates_backdoor"),
-    "the outcome and a descendant conditioned on": (
-        _program(_BACKDOOR + [_identify("d", "y")]), "given_violates_backdoor"),
+    "the treatment conditioned on": (
+        _program(_BACKDOOR + [_identify("z", "x")]), _ENDS),
+    "the outcome conditioned on, beside a descendant": (
+        _program(_BACKDOOR + [_identify("d", "y")]), _ENDS),
+    "the treatment and the outcome conditioned on": (
+        _program(_BACKDOOR + [_identify("y", "x")]), _ENDS),
+    "the outcome conditioned on, asked as an effect": (
+        _program(_BACKDOOR + [_query(
+            kind="effect", intervention={"atom": _a("x"), "value": True},
+            target={"atom": _a("y"), "value": True},
+            given=[{"atom": _a("y"), "value": True}])]), _ENDS),
     "a mediator the treatment never reaches": (
         _program(_MEDIATOR + [_cause_me("x", "y"), _cause_me("m", "extra"),
                               _effect(mediator=_a("m"))]),
@@ -154,14 +164,15 @@ HONEST = {
 
 #: The honest answer beside a program where what it says is false.
 ELSEWHERE = {
-    "nothing conditioned on breaks the back door": (
-        "a descendant of the treatment conditioned on",
+    "nothing conditioned on is an end of the question": (
+        "the treatment conditioned on",
         _program(_BACKDOOR + [_identify("z")])),
-    "what is conditioned on is a parent, not a descendant": (
-        "a descendant of the treatment conditioned on",
-        _program(_binary("x", "y", "d", "z") + [
-            _cause_me("x", "y"), _cause_me("d", "x"), _cause_me("z", "y"),
-            _identify("z", "d")])),
+    "a descendant of the treatment conditioned on is the identifier's": (
+        "the treatment conditioned on",
+        _program(_BACKDOOR + [_identify("z", "d")])),
+    "asked as an effect, nothing conditioned on is an end": (
+        "the outcome conditioned on, asked as an effect",
+        _program(_BACKDOOR + [_effect()])),
     "the mediator is on a path": (
         "a mediator the treatment never reaches",
         _program(_MEDIATOR + [_cause_me("x", "m"), _cause_me("m", "y"),
@@ -194,18 +205,16 @@ ELSEWHERE = {
 
 #: A detail bent, and whether what it then says is still true.
 BENT = {
-    "the treatment said to break the back door": (
-        "a descendant of the treatment conditioned on", {"atoms": "x(me)"},
-        False),
-    "a conditioned atom that does not break it": (
-        "a descendant of the treatment conditioned on", {"atoms": "z(me)"},
-        False),
-    "one of the two that do": (
-        "the outcome and a descendant conditioned on", {"atoms": "d(me)"},
-        False),
-    "the two that do, the other way round": (
-        "the outcome and a descendant conditioned on",
-        {"atoms": "y(me), d(me)"}, True),
+    "the outcome said for the treatment": (
+        "the treatment conditioned on", {"atoms": "y(me)"}, False),
+    "a conditioned atom that is no end": (
+        "the treatment conditioned on", {"atoms": "z(me)"}, False),
+    "a descendant said beside the outcome": (
+        "the outcome conditioned on, beside a descendant",
+        {"atoms": "y(me), d(me)"}, False),
+    "the two ends, the other way round": (
+        "the treatment and the outcome conditioned on",
+        {"atoms": "y(me), x(me)"}, True),
     "the edge into the treatment": (
         "a coefficient missing on the path",
         {"parent": "w(me)", "child": "x(me)"}, False),

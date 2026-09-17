@@ -42,6 +42,7 @@ from ..types import (
     StepRef,
     StructuralResult,
     ValuedAtom,
+    ends_the_given_holds,
 )
 from .context import VerificationContext
 from .declaration_rules import (
@@ -5969,6 +5970,75 @@ def verify_feedback_loop(
              "coefficient of the two-equation system or nothing at all")
 
 
+def _stopped_by_the_framing_gate(result: object, program: object,
+                                 query: object) -> bool:
+    """Whether the answer is the strict framing gate's.
+
+    The gate stops an effect question before anything else is asked of it,
+    so its answer carries that verdict and no other, and owes nothing a
+    later step would have written.
+    """
+    from collections.abc import Mapping
+
+    from ..gaps import Need
+
+    if (not isinstance(result, Mapping) or not isinstance(query, EffectQuery)
+            or not (getattr(program, "options", None) or {}).get(
+                "strict_framing")):
+        return False
+    needs = [item.get("need") for item in result.get("missing_information") or ()
+             if isinstance(item, Mapping)]
+    return bool(needs) and all(
+        need == str(Need.FRAMING_FIELDS_UNFILLED) for need in needs)
+
+
+def verify_a_given_holding_an_end_is_refused(
+    result: object, program: object, context: VerificationContext,
+) -> None:
+    """A question conditioning on its own treatment or outcome is answered
+    with that refusal and nothing else.
+
+    It is no stratum an effect could be asked of, so the dispatch refuses it
+    before any route is offered the question, and the refusal is the whole
+    answer: ``needs_investigation``, carrying that species alone. The
+    refusal door holds that no copy of another species is written on it;
+    nothing held that the refusal is written at all. Measured: nine answers
+    the routes gave such questions before the dispatch asked -- mediation
+    decompositions, one mediator and two, and transported estimands, on a
+    treatment or outcome held fixed -- passed every door, and the refusal
+    with its item removed passed the doors that take no chain.
+
+    Which questions those are is read off the question
+    (:func:`~themis.types.ends_the_given_holds`). The one answer to one that
+    is not this refusal is the strict framing gate's, which stops an effect
+    question before this is asked of it.
+    """
+    from collections.abc import Mapping
+
+    from ..gaps import Need
+    from ..types import ResultStatus
+    from .rules import _atom_label_verifier as _label
+
+    if not isinstance(result, Mapping):
+        return
+    held = ends_the_given_holds(context.query)
+    if not held or _stopped_by_the_framing_gate(result, program, context.query):
+        return
+    refusal = str(Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME)
+    status = result.get("status")
+    needs = [item.get("need") for item in result.get("missing_information") or ()
+             if isinstance(item, Mapping)]
+    if status == str(ResultStatus.NEEDS_INVESTIGATION) and needs == [refusal]:
+        return
+    raise VerificationError(
+        f"{refusal}: the question conditions on its own treatment or outcome "
+        f"({', '.join(sorted(map(_label, held)))}), which is refused before "
+        f"any route is offered it, and the answer says {status!r} carrying "
+        f"{needs or 'no missing item'}; a reader is given what no route was "
+        f"asked",
+        step_index=None, rule=None)
+
+
 def verify_loop_withdrawal_is_owed(result: object, program: object,
                                    context: VerificationContext) -> None:
     """A loop the estimand reaches is withdrawn on the answer that owes it.
@@ -5984,15 +6054,17 @@ def verify_loop_withdrawal_is_owed(result: object, program: object,
 
     Which answers owe one is a fact about the program, the question and the
     ground graph: an effect question some declared loop reaches, in the
-    graph carrying every declared loop's two edges. The one answer that
-    owes none although a loop reaches is one the program's strict framing
-    gate stopped before any route ran, which carries that verdict and no
-    other. A block where none is owed names a loop that reaches nothing of
-    the question, and is its own audit's to refuse.
+    graph carrying every declared loop's two edges. The answers that owe
+    none although a loop reaches are the two given before any route runs,
+    the loop's being one: the strict framing gate's, and the refusal of a
+    question conditioning on its own treatment or outcome, which
+    :func:`verify_a_given_holding_an_end_is_refused` holds. That refusal,
+    with a loop reaching the question, was refused here. A block where none
+    is owed names a loop that reaches nothing of the question, and is its
+    own audit's to refuse.
     """
     from collections.abc import Mapping
 
-    from ..gaps import Need
     from .rules import declared_loops_reaching
 
     if not isinstance(result, Mapping) or not isinstance(
@@ -6006,11 +6078,8 @@ def verify_loop_withdrawal_is_owed(result: object, program: object,
     if not reaching or (isinstance(extensions, Mapping)
                         and "feedback_loop" in extensions):
         return
-    needs = [item.get("need") for item in result.get("missing_information") or ()
-             if isinstance(item, Mapping)]
-    if ((getattr(program, "options", None) or {}).get("strict_framing")
-            and needs
-            and all(need == str(Need.FRAMING_FIELDS_UNFILLED) for need in needs)):
+    if (ends_the_given_holds(query)
+            or _stopped_by_the_framing_gate(result, program, query)):
         return
     loops = sorted(sorted(str(a.predicate) for a in loop) for loop in reaching)
     raise VerificationError(

@@ -77,9 +77,13 @@ RULE_QUESTION = "answer_status_question_check"
 #: question was too, and 119 once the report's tier was recomputed — the
 #: status is one of the five things that recomputation reads, so a word
 #: these two rules cannot tell apart is told apart by what the tier would
-#: have to become (#588).
-SWAPS = 1458
-SURVIVING = 119
+#: have to become (#588). The eight rows collected when the identifier
+#: began answering a query conditioning on a descendant of the treatment,
+#: less the refusal they replaced, made it 1500 and 124. Each of the five
+#: new survivors relabels an identification as needing investigation, as
+#: 19 already did.
+SWAPS = 1500
+SURVIVING = 124
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -116,7 +120,7 @@ SURVIVING = 119
 SURVIVORS = {
     "counterfactual_solved -> numerically_solved": 43,
     "needs_investigation -> numerically_solved": 42,
-    "structurally_solved -> needs_investigation": 19,
+    "structurally_solved -> needs_investigation": 24,
     "needs_investigation -> outside_language": 8,
     "counterfactual_bounded -> counterfactual_solved": 2,
     "counterfactual_bounded -> numerically_solved": 2,
@@ -236,7 +240,7 @@ def test_what_the_question_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (725, 733), (refused, passed)
+    assert (refused, passed) == (750, 750), (refused, passed)
 
 
 def test_what_this_rule_reaches_on_its_own():
@@ -251,7 +255,7 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (953, 505), (refused, passed)
+    assert (refused, passed) == (981, 519), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [

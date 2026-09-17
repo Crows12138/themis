@@ -91,6 +91,7 @@ from ..types import (
     StructuralResult,
     ValuedAtom,
     atoms_the_graph_is_asked_about,
+    ends_the_given_holds,
 )
 from . import (
     confidence_calc,
@@ -307,6 +308,35 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
     )
 
 
+def _a_given_holding_an_end(
+    stmt: QueryStatement, kind: QueryKind,
+) -> QueryResult | None:
+    """The refusal of a question that conditions on its own treatment or
+    outcome, or ``None``.
+
+    Asked before any route by both spellings of the estimand, so an effect
+    query and an identify query asking the same thing are refused the same
+    way (:func:`~themis.types.ends_the_given_holds`).
+    """
+    held = ends_the_given_holds(stmt.query)
+    if not held:
+        return None
+    return QueryResult(
+        status=ResultStatus.NEEDS_INVESTIGATION,
+        query_kind=kind,
+        query_id=stmt.id,
+        missing_information=(
+            gaps.missing(
+                kind=MissingKind.STRUCTURE,
+                name=f"query:{kind.value}_given",
+                priority=Priority.HIGH,
+                need=gaps.Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME,
+                atoms=", ".join(_atom_to_str(atom) for atom in held),
+            ),
+        ),
+    )
+
+
 def _dispatch_identify(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -338,24 +368,9 @@ def _dispatch_identify(
             ),
         )
 
-    forbidden_given = frozenset(nx.descendants(graph, x)) | {x, y}
-    invalid_given = tuple(atom for atom in q.given if atom in forbidden_given)
-    if invalid_given:
-        labels = ", ".join(_atom_to_str(atom) for atom in invalid_given)
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.IDENTIFY,
-            query_id=stmt.id,
-            missing_information=(
-                gaps.missing(
-                    kind=MissingKind.STRUCTURE,
-                    name="query:identify_given",
-                    priority=Priority.HIGH,
-                    need=gaps.Need.GIVEN_VIOLATES_BACKDOOR,
-                    atoms=labels,
-                ),
-            ),
-        )
+    refused = _a_given_holding_an_end(stmt, QueryKind.IDENTIFY)
+    if refused is not None:
+        return refused
 
     # ───────────────────────── Phase 15B — ID/IDC is the engine.
     # The complete Shpitser-Pearl algorithm decides identifiability and
@@ -5545,6 +5560,9 @@ def _dispatch_effect(
                 for a in missing_atoms
             ),
         )
+    refused = _a_given_holding_an_end(stmt, QueryKind.EFFECT)
+    if refused is not None:
+        return refused
 
     notes: list[MissingItem] = []
     for route, identify in _EFFECT_IDENTIFICATION:

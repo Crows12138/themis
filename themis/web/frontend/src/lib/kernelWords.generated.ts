@@ -2355,9 +2355,9 @@ export const GAP_SAYS: Record<string, Words> = {
     zh: '变量 `{predicate}` 已声明，但缺 {count} 个操作化字段：{fields}',
     en: 'variable `{predicate}` is declared but is missing {count} operationalisation field(s): {fields}',
   },
-  given_violates_backdoor: {
-    zh: 'identify.given 违反了后门前置条件（含 X、Y，或 X 的某个后代）：{atoms}',
-    en: 'identify.given breaks the back-door precondition (it holds X, Y, or a descendant of X): {atoms}',
+  given_holds_the_treatment_or_outcome: {
+    zh: '问题的条件里含有它自己的处理或结局：{atoms}',
+    en: 'the question conditions on its own treatment or outcome: {atoms}',
   },
   graph_contradicts_supplied_marginal: {
     zh: 'Theta 中缺条目 {key}；theta 里有 {have}，但声明的图蕴含 {variable} ⊥ {{{extras}}} | {{{conditioning}}} 不成立，故不能用边缘量替代条件量。要么补上被要求的那个条件量，要么改图——「多给点 theta」是另一个问题的答案',

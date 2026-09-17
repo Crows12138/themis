@@ -72,7 +72,7 @@ def test_how_many_atoms_this_gate_actually_reaches():
             inputs = step.get("inputs")
             if isinstance(inputs, dict):
                 steps += 1
-    assert steps == 359, steps
+    assert steps == 369, steps
 
     # The walker itself, on shapes it has to descend through.
     u = ConstTerm(name="u")
@@ -97,8 +97,12 @@ def test_the_corpus_carries_atom_inputs_to_be_asked_about():
     in its one population, and its row carries the back-door chain, whose
     criterion step names two atoms, where the transport chain's admissibility
     and formula steps named four.
+
+    Then 486: the identifier answers an identify query conditioning on a
+    descendant of the treatment, and five rows of those answers each carry
+    an exchange step naming the treatment and the outcome.
     """
-    assert len(ATOM_INPUTS) == 476, len(ATOM_INPUTS)
+    assert len(ATOM_INPUTS) == 486, len(ATOM_INPUTS)
 
 
 @pytest.mark.parametrize(
@@ -131,6 +135,9 @@ def test_every_moved_argument_is_refused_and_by_which_rule():
     Then 378 and 98, by the row the population question refreshed: the four
     atoms of its transport chain were this gate's, and the two of the
     back-door criterion step that replaced it are held to the query first.
+
+    Then 378 and 108: the ten atoms the refreshed rows bring are an
+    exchange's, and each is held to the query first.
     """
     by_who: dict[str, int] = {"new gate": 0, "an older rule": 0}
     for name, i, field in ATOM_INPUTS:
@@ -144,8 +151,8 @@ def test_every_moved_argument_is_refused_and_by_which_rule():
                else "an older rule")
         by_who[key] += 1
 
-    assert sum(by_who.values()) == 476, by_who
-    assert by_who == {"new gate": 378, "an older rule": 98}, by_who
+    assert sum(by_who.values()) == 486, by_who
+    assert by_who == {"new gate": 378, "an older rule": 108}, by_who
 
 
 def test_the_message_names_the_whole_atom_not_just_the_predicate():

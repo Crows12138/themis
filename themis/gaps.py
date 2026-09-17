@@ -155,9 +155,10 @@ class Need(EnvelopeName):
         "name_holds_several_nodes", GapKind.MISSING_STRUCTURAL_INPUT,
         "a declaration names a column whose variable the instantiated graph "
         "holds at more than one node")
-    GIVEN_VIOLATES_BACKDOOR = (
-        "given_violates_backdoor", GapKind.MISSING_STRUCTURAL_INPUT,
-        "identify.given holds X, Y, or a descendant of X")
+    GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME = (
+        "given_holds_the_treatment_or_outcome",
+        GapKind.MISSING_STRUCTURAL_INPUT,
+        "the question conditions on its own treatment or outcome")
     MEDIATOR_OFF_THE_DIRECTED_PATHS = (
         "mediator_off_the_directed_paths", GapKind.MISSING_STRUCTURAL_INPUT,
         "the declared mediator lies on no directed path from X to Y")
@@ -360,11 +361,10 @@ SAYS: dict[str, language.Words] = {
               "more than one node: {atoms}; a name there is one column of "
               "data, which can be only one of them, and which is not written",
     },
-    "given_violates_backdoor": {
-        "zh": "identify.given 违反了后门前置条件（含 X、Y，或 X 的某个"
-              "后代）：{atoms}",
-        "en": "identify.given breaks the back-door precondition (it holds X, "
-              "Y, or a descendant of X): {atoms}",
+    "given_holds_the_treatment_or_outcome": {
+        "zh": "问题的条件里含有它自己的处理或结局：{atoms}",
+        "en": "the question conditions on its own treatment or outcome: "
+              "{atoms}",
     },
     "mediator_off_the_directed_paths": {
         "zh": "这个中介不落在任何一条有向路径 X → … → M → … → Y 上；"
@@ -2238,9 +2238,9 @@ NO_SPECIES_ESCAPE: dict[Need, str] = {
         "each step as a variable of its own is the whole repair, and a "
         "route would be that sentence twice"
     ),
-    Need.GIVEN_VIOLATES_BACKDOOR: (
-        "the sentence lists the offending atoms, and taking them out of "
-        "identify.given is the repair it already describes"
+    Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME: (
+        "the sentence lists the atoms, and taking them out of the "
+        "question's given is the repair it already describes"
     ),
     Need.PATH_COEFFICIENT_UNDECLARED: (
         "the ask IS the repair — this edge's coefficient, declared. There "

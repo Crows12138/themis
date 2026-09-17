@@ -139,7 +139,7 @@ def test_every_honest_estimand_names_only_atoms_the_problem_carries():
         for atom in named:
             assert {t.name for t in atom.args} <= objects, (name, atom)
         checked += 1
-    assert (checked, len(nameless)) == (103, 1), (checked, nameless)
+    assert (checked, len(nameless)) == (110, 1), (checked, nameless)
 
 
 def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
@@ -152,7 +152,7 @@ def test_every_honest_sum_ranges_over_the_atom_its_body_binds():
             ranged = _bound_to(total.body, total.bind.name)
             assert ranged == {total.over}, (name, total.over, ranged)
             sums += 1
-    assert sums == 115, sums
+    assert sums == 136, sums
 
 
 def test_an_atom_is_written_the_way_a_reader_writes_one():
@@ -350,7 +350,7 @@ def test_every_honest_answer_shape_is_still_accepted():
     refused for having no derivation and for nothing else, which is what
     says the rules above added no complaint to them.
 
-    Forty estimands are on such answers — a formula reaches a reader
+    Forty-two estimands are on such answers — a formula reaches a reader
     whether or not a route was taken — and every forgery above is put to
     the door that READS the answer carrying it, so the individual they
     name is asked about. It was one estimand while the corpus held mostly
@@ -358,6 +358,6 @@ def test_every_honest_answer_shape_is_still_accepted():
     matters is that it is no longer one, and that the count is a fact
     about the corpus rather than a list somebody maintains.
     """
-    assert len(set(WITH_FORMULA) & set(CHAINLESS)) == 40
+    assert len(set(WITH_FORMULA) & set(CHAINLESS)) == 42
     for name in sorted(SHAPES):
         verify_honestly(*_pair(name))

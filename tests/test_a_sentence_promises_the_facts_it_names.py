@@ -88,10 +88,14 @@ SHAPES = json.loads(
 #: (what it describes, what it asks for, what it says) and the bootstrap
 #: line on its ledger. Three left when two refusals stopped carrying a copy
 #: of the reason the identification layer files on its own block: the two
-#: reasons, and the one factor under the missing-data one.
-REACHED = 5086
+#: reasons, and the one factor under the missing-data one. 220 came when
+#: the identifier began answering a query conditioning on a descendant of
+#: the treatment: eight rows brought 232, most of them what their 56 gaps
+#: describe, ask for, say and offer as a way past, and the stored refusal
+#: they replaced took 12.
+REACHED = 5306
 PER_CARRIER = {
-    "gap_routes": 1193,
+    "gap_routes": 1214,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
@@ -99,9 +103,9 @@ PER_CARRIER = {
     # a per-carrier pin is for — a narrowing shows up as one of them
     # falling while the others hold. They moved by one each again with the
     # joint general-ID refresh.
-    "gap_describes": 1149,
-    "gap_if_provided": 975,
-    "gap_says": 676,
+    "gap_describes": 1205,
+    "gap_if_provided": 1031,
+    "gap_says": 737,
     "assumption_claim": 509,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a

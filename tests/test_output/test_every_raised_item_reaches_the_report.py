@@ -247,9 +247,9 @@ def test_an_item_is_reported_once_and_not_once_per_pass():
 def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
     """End to end: the reason the kernel gave is the reason the user reads.
 
-    ``identify.given`` containing a descendant of X is a fixable mistake in
-    the query, and the dispatcher says so precisely. The report used to
-    answer "未找到满足 IV 条件的工具变量" instead — because the target
+    ``identify.given`` holding the question's own outcome is a fixable
+    mistake in the query, and the dispatcher says so precisely. The report
+    used to answer "未找到满足 IV 条件的工具变量" instead — because the target
     ``query:identify_given`` contains the letters i-v — and sent the user
     off to find an instrument for a query that needed one word deleted.
     """
@@ -269,7 +269,7 @@ def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
                 "kind": "identify",
                 "target": _a("y"),
                 "intervention": {"atom": _a("x"), "value": True},
-                "given": [_a("d")],
+                "given": [_a("y")],
             }},
         ],
     }
@@ -277,7 +277,7 @@ def test_a_rejected_query_reports_the_reason_it_was_rejected_for():
     gaps = _report(result)["gaps"]
     assert "missing_iv_candidate" not in {g["kind"] for g in gaps}
     carried = [
-        g for g in gaps if "后门前置条件" in _gaps.described(g)
+        g for g in gaps if "它自己的处理或结局" in _gaps.described(g)
     ]
     assert len(carried) == 1, [_gaps.described(g) for g in gaps]
 

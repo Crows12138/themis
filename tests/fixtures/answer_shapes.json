@@ -59769,6 +59769,2034 @@ false
 "status": "needs_investigation"
 }
 },
+"needs_investigation:effect:none#31c82c": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "effect",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=True,e=True,x=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=True,e=True,x=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=True|d=True,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=True|d=True,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=False,e=True,x=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=False,e=True,x=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=True|d=False,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=True|d=False,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=True|d=True,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=True|d=True,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=True|d=False,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=True|d=False,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "e"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "e",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "c"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "c",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "ask_the_marginal_effect",
+"said": {
+"intervention": "x",
+"target": "y"
+}
+},
+{
+"route": "maybe_it_is_not_a_collider",
+"said": {
+"collider": "e"
+}
+},
+{
+"route": "treat_the_collider_as_a_target_population",
+"said": {
+"collider": "e"
+}
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"collider": "e",
+"intervention": "x",
+"target": "y"
+},
+"sentence": "the_conditioning_node_is_a_collider"
+}
+],
+"kind": "collider_conditioning_opens_backdoor",
+"provenance": [
+{
+"ref_id": "collider:e|x->y",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"collider": "e"
+},
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "ask_the_marginal_effect",
+"said": {
+"intervention": "x",
+"target": "y"
+}
+},
+{
+"route": "maybe_it_is_not_a_collider",
+"said": {
+"collider": "c"
+}
+},
+{
+"route": "treat_the_collider_as_a_target_population",
+"said": {
+"collider": "c"
+}
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"collider": "c",
+"intervention": "x",
+"target": "y"
+},
+"sentence": "the_conditioning_node_is_a_collider"
+}
+],
+"kind": "collider_conditioning_opens_backdoor",
+"provenance": [
+{
+"ref_id": "collider:c|x->y",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"collider": "c"
+},
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "declare_the_intervention_an_event",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "split_the_intervention_in_two",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "use_experimental_data_for_the_versions"
+},
+{
+"route": "accept_the_mixed_estimand"
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"intervention": "x"
+},
+"sentence": "the_intervention_says_neither_state_nor_event"
+}
+],
+"kind": "ill_defined_intervention_versions",
+"provenance": [
+{
+"ref_id": "intervention_state_inferred:x",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"intervention": "x"
+},
+"severity": "important"
+}
+]
+},
+"extensions": {
+"identification": {
+"conditioned_on": [
+"c(me)",
+"e(me)"
+],
+"pattern": "c_factor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "e"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "c"
+}
+],
+"investigation_requests": [
+{
+"action": "validate_parameter",
+"group": "parameter",
+"items": [
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=True,e=True,x=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=True,e=True,x=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(d=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=True|d=True,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(e=True|d=True,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=False,e=True,x=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=False,e=True,x=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(d=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=True|d=False,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(e=True|d=False,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=True|d=True,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(e=True|d=True,y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=True|d=False,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(e=True|d=False,y=False)"
+}
+],
+"priority": "high",
+"target": "parameter:10_items"
+},
+{
+"action": "define_variable",
+"group": "framing",
+"items": [
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "y"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "y"
+},
+"target": "y"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "x"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "x"
+},
+"target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "e"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "e"
+},
+"target": "e"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "c"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "c"
+},
+"target": "c"
+}
+],
+"priority": "medium",
+"target": "define_variable:4_items"
+}
+],
+"missing_information": [
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=True,e=True,x=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"x"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=True,e=True,x=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=True|d=True,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=True|d=True,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=False,e=True,x=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"x"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=False,e=True,x=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=True|d=False,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=True|d=False,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=True|d=True,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=True|d=True,y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=True|d=False,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=True|d=False,y=False)"
+}
+}
+],
+"query_id": "q",
+"query_kind": "effect",
+"status": "needs_investigation"
+}
+},
 "needs_investigation:effect:none#38993c": {
 "program": {
 "domain": {
@@ -64963,6 +66991,2514 @@ false
 "status": "needs_investigation"
 }
 },
+"needs_investigation:effect:none#5ec0c1": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "effect",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=True,e=True,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=True,e=True,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=True|e=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=True|e=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=True|x=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=True|x=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=False,e=True,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=False,e=True,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=False|e=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=False|e=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=True,e=False,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=True,e=False,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=True|e=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=True|e=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(e=False|x=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(e=False|x=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=False,e=False,y=True)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=False,e=False,y=True)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(d=False|e=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(d=False|e=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "marginal",
+"min_sample_size": 1100,
+"precision_target": {
+"said": {
+"p": "0.5",
+"precision": "0.03"
+},
+"token": "pin_one_proportion",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "marginal"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=True,e=True,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=True,e=True,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=False,e=True,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=False,e=True,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=True,e=False,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=True,e=False,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"said": {
+"what": "P(c=True|d=False,e=False,y=False)"
+},
+"sentence": "a_distribution_is_missing"
+}
+],
+"kind": "missing_distribution",
+"provenance": [
+{
+"ref_id": "parameter:P(c=True|d=False,e=False,y=False)",
+"ref_kind": "investigation_request"
+}
+],
+"required_data": {
+"data_type": "ipd",
+"min_sample_size": 400,
+"precision_target": {
+"said": {
+"h": "0.2"
+},
+"token": "detect_a_binary_effect",
+"vocabulary": "precision_target"
+}
+},
+"severity": "blocking",
+"signature": "conditional"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "c"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "c",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "ask_the_marginal_effect",
+"said": {
+"intervention": "x",
+"target": "y"
+}
+},
+{
+"route": "maybe_it_is_not_a_collider",
+"said": {
+"collider": "c"
+}
+},
+{
+"route": "treat_the_collider_as_a_target_population",
+"said": {
+"collider": "c"
+}
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"collider": "c",
+"intervention": "x",
+"target": "y"
+},
+"sentence": "the_conditioning_node_is_a_collider"
+}
+],
+"kind": "collider_conditioning_opens_backdoor",
+"provenance": [
+{
+"ref_id": "collider:c|x->y",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"collider": "c"
+},
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "declare_the_intervention_an_event",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "split_the_intervention_in_two",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "use_experimental_data_for_the_versions"
+},
+{
+"route": "accept_the_mixed_estimand"
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"intervention": "x"
+},
+"sentence": "the_intervention_says_neither_state_nor_event"
+}
+],
+"kind": "ill_defined_intervention_versions",
+"provenance": [
+{
+"ref_id": "intervention_state_inferred:x",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"intervention": "x"
+},
+"severity": "important"
+}
+]
+},
+"extensions": {
+"identification": {
+"conditioned_on": [
+"c(me)"
+],
+"pattern": "c_factor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+}
+}
+]
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "c"
+}
+],
+"investigation_requests": [
+{
+"action": "validate_parameter",
+"group": "parameter",
+"items": [
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=True,e=True,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=True,e=True,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=True|e=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(d=True|e=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=True|x=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(e=True|x=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=False,e=True,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=False,e=True,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=False|e=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(d=False|e=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=True,e=False,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=True,e=False,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=True|e=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(d=True|e=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(e=False|x=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(e=False|x=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=False,e=False,y=True)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=False,e=False,y=True)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(d=False|e=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(d=False|e=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+},
+"value": null
+},
+"target": "parameter:P(y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=True,e=True,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=True,e=True,y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=False,e=True,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=False,e=True,y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=True,e=False,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": true
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=True,e=False,y=False)"
+},
+{
+"gap": "missing_distribution",
+"need": "theta_entry_missing",
+"said": {
+"key": "P(c=True|d=False,e=False,y=False)"
+},
+"skeleton": {
+"annotations": {
+"source": "TODO"
+},
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": false
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": false
+}
+],
+"kind": "probability",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": true
+},
+"value": null
+},
+"target": "parameter:P(c=True|d=False,e=False,y=False)"
+}
+],
+"priority": "high",
+"target": "parameter:16_items"
+},
+{
+"action": "define_variable",
+"group": "framing",
+"items": [
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "y"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "y"
+},
+"target": "y"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "x"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "x"
+},
+"target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "c"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "c"
+},
+"target": "c"
+}
+],
+"priority": "medium",
+"target": "define_variable:3_items"
+}
+],
+"missing_information": [
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=True,e=True,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=True,e=True,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=True|e=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=True|e=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=True|x=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"e",
+"x"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=True|x=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=False,e=True,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=False,e=True,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=False|e=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=False|e=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=True,e=False,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=True,e=False,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=True|e=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=True|e=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(e=False|x=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"e",
+"x"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(e=False|x=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=False,e=False,y=True)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=False,e=False,y=True)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(d=False|e=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"d",
+"e"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(d=False|e=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=True,e=True,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=True,e=True,y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=False,e=True,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=False,e=True,y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=True,e=False,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=True,e=False,y=False)"
+}
+},
+{
+"gap": "missing_distribution",
+"kind": "parameter",
+"name": "parameter:P(c=True|d=False,e=False,y=False)",
+"need": "theta_entry_missing",
+"observable": {
+"variables": [
+"c",
+"d",
+"e",
+"y"
+]
+},
+"priority": "high",
+"said": {
+"key": "P(c=True|d=False,e=False,y=False)"
+}
+}
+],
+"query_id": "q",
+"query_kind": "effect",
+"status": "needs_investigation"
+}
+},
 "needs_investigation:effect:none#60ffe9": {
 "program": {
 "domain": {
@@ -65405,6 +69941,402 @@ false
 ],
 "priority": "medium",
 "target": "define_variable:2_items"
+}
+],
+"query_id": "q",
+"query_kind": "effect",
+"status": "needs_investigation"
+}
+},
+"needs_investigation:effect:none#614789": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "z"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "z"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "effect",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": true
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "point_estimate",
+"describes": [
+{
+"sentence": "a_structural_input_is_missing",
+"words": {
+"why": {
+"said": {
+"atoms": "y(me)"
+},
+"token": "given_holds_the_treatment_or_outcome",
+"vocabulary": "gap_says"
+}
+}
+}
+],
+"kind": "missing_structural_input",
+"provenance": [
+{
+"ref_id": "query:effect_given",
+"ref_kind": "investigation_request"
+}
+],
+"severity": "blocking"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"alternative_paths": [
+{
+"route": "declare_the_intervention_an_event",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "split_the_intervention_in_two",
+"said": {
+"intervention": "x"
+}
+},
+{
+"route": "use_experimental_data_for_the_versions"
+},
+{
+"route": "accept_the_mixed_estimand"
+}
+],
+"blocks": "identification",
+"describes": [
+{
+"said": {
+"intervention": "x"
+},
+"sentence": "the_intervention_says_neither_state_nor_event"
+}
+],
+"kind": "ill_defined_intervention_versions",
+"provenance": [
+{
+"ref_id": "intervention_state_inferred:x",
+"ref_kind": "verifier_check"
+}
+],
+"said": {
+"intervention": "x"
+},
+"severity": "important"
+}
+]
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+}
+],
+"investigation_requests": [
+{
+"action": "run_experiment",
+"group": "structure",
+"items": [
+{
+"gap": "missing_structural_input",
+"need": "given_holds_the_treatment_or_outcome",
+"said": {
+"atoms": "y(me)"
+},
+"target": "query:effect_given"
+}
+],
+"note": {
+"need": "given_holds_the_treatment_or_outcome",
+"said": {
+"atoms": "y(me)"
+}
+},
+"priority": "high",
+"target": "query:effect_given"
+},
+{
+"action": "define_variable",
+"group": "framing",
+"items": [
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "y"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "y"
+},
+"target": "y"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "x"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "x"
+},
+"target": "x"
+}
+],
+"priority": "medium",
+"target": "define_variable:2_items"
+}
+],
+"missing_information": [
+{
+"gap": "missing_structural_input",
+"kind": "structure",
+"name": "query:effect_given",
+"need": "given_holds_the_treatment_or_outcome",
+"priority": "high",
+"said": {
+"atoms": "y(me)"
+}
 }
 ],
 "query_id": "q",
@@ -83933,292 +88865,6 @@ false
 ],
 "query_id": "q",
 "query_kind": "effect",
-"status": "needs_investigation"
-}
-},
-"needs_investigation:identify:none": {
-"program": {
-"domain": {
-"objects": [
-{
-"kind": "object",
-"name": "me"
-}
-]
-},
-"statements": [
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "x"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "y"
-},
-{
-"domain": [
-true,
-false
-],
-"kind": "variable",
-"predicate": "d"
-},
-{
-"from": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-}
-},
-{
-"from": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"kind": "cause",
-"to": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "d"
-}
-},
-{
-"id": "q",
-"kind": "query",
-"query": {
-"given": [
-{
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "d"
-}
-],
-"intervention": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-"kind": "identify",
-"target": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-}
-}
-}
-],
-"version": "0.1"
-},
-"result": {
-"data_gap_report": {
-"answer_tier": "point",
-"gaps": [
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"sentence": "a_structural_input_is_missing",
-"words": {
-"why": {
-"said": {
-"atoms": "d(me)"
-},
-"token": "given_violates_backdoor",
-"vocabulary": "gap_says"
-}
-}
-}
-],
-"kind": "missing_structural_input",
-"provenance": [
-{
-"ref_id": "query:identify_given",
-"ref_kind": "investigation_request"
-}
-],
-"severity": "blocking"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "y"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "y",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "x"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "x",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-},
-{
-"blocks": "interpretation",
-"describes": [
-{
-"said": {
-"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
-"variable": "d"
-},
-"sentence": "the_variable_has_no_operational_definition"
-}
-],
-"kind": "ambiguous_variable_definition",
-"provenance": [
-{
-"ref_id": "d",
-"ref_kind": "framing_note"
-}
-],
-"severity": "important"
-}
-]
-},
-"framing_notes": [
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "y"
-},
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "x"
-},
-{
-"missing": [
-"time_window",
-"measurement",
-"observability",
-"direction",
-"baseline",
-"state_vs_event"
-],
-"predicate": "d"
-}
-],
-"investigation_requests": [
-{
-"action": "run_experiment",
-"group": "structure",
-"items": [
-{
-"gap": "missing_structural_input",
-"need": "given_violates_backdoor",
-"said": {
-"atoms": "d(me)"
-},
-"target": "query:identify_given"
-}
-],
-"note": {
-"need": "given_violates_backdoor",
-"said": {
-"atoms": "d(me)"
-}
-},
-"priority": "high",
-"target": "query:identify_given"
-}
-],
-"missing_information": [
-{
-"gap": "missing_structural_input",
-"kind": "structure",
-"name": "query:identify_given",
-"need": "given_violates_backdoor",
-"priority": "high",
-"said": {
-"atoms": "d(me)"
-}
-}
-],
-"query_id": "q",
-"query_kind": "identify",
 "status": "needs_investigation"
 }
 },
@@ -205632,6 +210278,5265 @@ false
 "state_vs_event"
 ],
 "predicate": "z"
+}
+],
+"query_id": "q",
+"query_kind": "identify",
+"status": "structurally_solved",
+"structural_result": {
+"value": true
+}
+}
+},
+"structurally_solved:identify:identify_via_idc#6d4ecb": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "identify",
+"target": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "e"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "e",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "c"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "c",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+}
+]
+},
+"derivation": {
+"kind": "derivation",
+"steps": [
+{
+"inputs": {
+"graph": {
+"edges": [
+[
+1,
+0
+],
+[
+1,
+2
+],
+[
+1,
+3
+],
+[
+2,
+0
+],
+[
+2,
+3
+],
+[
+3,
+0
+],
+[
+4,
+2
+],
+[
+4,
+3
+]
+],
+"kind": "graph",
+"nodes": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+]
+},
+"x": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"y": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"output": true,
+"rule": "idc_rule2_exchange",
+"step_id": "s1"
+},
+{
+"inputs": {
+"exchange": {
+"kind": "step_ref",
+"step_id": "s1"
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+}
+}
+}
+},
+"output": {
+"kind": "structural_result",
+"value": true
+},
+"rule": "identify_via_idc",
+"step_id": "s2"
+}
+],
+"version": "0.1"
+},
+"extensions": {
+"identification": {
+"conditioned_on": [
+"c(me)",
+"e(me)"
+],
+"estimand": "conditional_idc_ratio",
+"pattern": "c_factor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+}
+]
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "e"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "c"
+}
+],
+"query_id": "q",
+"query_kind": "identify",
+"status": "structurally_solved",
+"structural_result": {
+"value": true
+}
+}
+},
+"structurally_solved:identify:identify_via_idc#8365bd": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "f"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "f"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "f"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "identify",
+"target": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "f"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "f",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "d"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "d",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+}
+]
+},
+"derivation": {
+"kind": "derivation",
+"steps": [
+{
+"inputs": {
+"graph": {
+"edges": [
+[
+0,
+2
+],
+[
+1,
+2
+],
+[
+5,
+2
+]
+],
+"kind": "graph",
+"nodes": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "f"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+]
+},
+"x": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"y": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"output": true,
+"rule": "idc_rule2_exchange",
+"step_id": "s1"
+},
+{
+"inputs": {
+"exchange": {
+"kind": "step_ref",
+"step_id": "s1"
+},
+"formula": {
+"denominator": {
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "f"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+"kind": "fraction",
+"numerator": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "f"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+}
+}
+},
+"output": {
+"kind": "structural_result",
+"value": true
+},
+"rule": "identify_via_idc",
+"step_id": "s2"
+}
+],
+"version": "0.1"
+},
+"extensions": {
+"identification": {
+"adjustment_set": [],
+"conditioned_on": [
+"d(me)",
+"f(me)"
+],
+"estimand": "conditional_idc_ratio",
+"pattern": "backdoor"
+}
+},
+"formula": {
+"denominator": {
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "f"
+}
+}
+},
+"kind": "fraction",
+"numerator": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "f"
+}
+}
+}
+]
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "f"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "d"
+}
+],
+"query_id": "q",
+"query_kind": "identify",
+"status": "structurally_solved",
+"structural_result": {
+"value": true
+}
+}
+},
+"structurally_solved:identify:identify_via_idc#9b51d7": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "identify",
+"target": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "c"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "c",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+}
+]
+},
+"derivation": {
+"kind": "derivation",
+"steps": [
+{
+"inputs": {
+"graph": {
+"edges": [
+[
+1,
+0
+],
+[
+2,
+0
+],
+[
+2,
+1
+],
+[
+3,
+2
+],
+[
+4,
+3
+]
+],
+"kind": "graph",
+"nodes": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+]
+},
+"x": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"y": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"output": true,
+"rule": "idc_rule2_exchange",
+"step_id": "s1"
+},
+{
+"inputs": {
+"exchange": {
+"kind": "step_ref",
+"step_id": "s1"
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+}
+}
+}
+},
+"output": {
+"kind": "structural_result",
+"value": true
+},
+"rule": "identify_via_idc",
+"step_id": "s2"
+}
+],
+"version": "0.1"
+},
+"extensions": {
+"identification": {
+"conditioned_on": [
+"c(me)"
+],
+"estimand": "conditional_idc_ratio",
+"pattern": "c_factor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_d_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+}
+}
+]
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_d_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "c"
+}
+],
+"query_id": "q",
+"query_kind": "identify",
+"status": "structurally_solved",
+"structural_result": {
+"value": true
+}
+}
+},
+"structurally_solved:identify:identify_via_idc#9fa353": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "identify",
+"target": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "e"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "e",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "d"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "d",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+}
+]
+},
+"derivation": {
+"kind": "derivation",
+"steps": [
+{
+"inputs": {
+"graph": {
+"edges": [
+[
+2,
+1
+],
+[
+3,
+1
+],
+[
+3,
+2
+],
+[
+4,
+0
+],
+[
+4,
+2
+]
+],
+"kind": "graph",
+"nodes": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+]
+},
+"x": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"y": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"output": true,
+"rule": "idc_rule2_exchange",
+"step_id": "s1"
+},
+{
+"inputs": {
+"exchange": {
+"kind": "step_ref",
+"step_id": "s1"
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"kind": "fraction",
+"numerator": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"kind": "valued_atom",
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+}
+}
+},
+"output": {
+"kind": "structural_result",
+"value": true
+},
+"rule": "identify_via_idc",
+"step_id": "s2"
+}
+],
+"version": "0.1"
+},
+"extensions": {
+"identification": {
+"conditioned_on": [
+"d(me)",
+"e(me)"
+],
+"estimand": "conditional_idc_ratio",
+"pattern": "c_factor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_y_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_y_me"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+"kind": "fraction",
+"numerator": {
+"kind": "product",
+"terms": [
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+},
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+]
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "e"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "d"
+}
+],
+"query_id": "q",
+"query_kind": "identify",
+"status": "structurally_solved",
+"structural_result": {
+"value": true
+}
+}
+},
+"structurally_solved:identify:identify_via_idc#fbb987": {
+"program": {
+"domain": {
+"objects": [
+{
+"kind": "object",
+"name": "me"
+}
+]
+},
+"statements": [
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "x"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "y"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "c"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "d"
+},
+{
+"domain": [
+true,
+false
+],
+"kind": "variable",
+"predicate": "e"
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+}
+},
+{
+"from": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"kind": "cause",
+"to": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+},
+{
+"kind": "bidirected",
+"left": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"right": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+{
+"id": "q",
+"kind": "query",
+"query": {
+"given": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+],
+"intervention": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "x"
+},
+"value": true
+},
+"kind": "identify",
+"target": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+],
+"version": "0.1"
+},
+"result": {
+"data_gap_report": {
+"answer_tier": "point",
+"gaps": [
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "y"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "y",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "x"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "x",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "d"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "d",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+}
+]
+},
+"derivation": {
+"kind": "derivation",
+"steps": [
+{
+"inputs": {
+"graph": {
+"edges": [
+[
+0,
+1
+],
+[
+0,
+3
+],
+[
+0,
+4
+],
+[
+2,
+1
+]
+],
+"kind": "graph",
+"nodes": [
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+{
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+]
+},
+"x": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "x"
+},
+"y": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+}
+},
+"output": true,
+"rule": "idc_rule2_exchange",
+"step_id": "s1"
+},
+{
+"inputs": {
+"exchange": {
+"kind": "step_ref",
+"step_id": "s1"
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_c_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_c_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": null
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+},
+"kind": "valued_atom",
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "d"
+},
+"kind": "valued_atom",
+"value": null
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "y"
+},
+"kind": "valued_atom",
+"value": null
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "c"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"kind": "atom",
+"predicate": "e"
+}
+}
+}
+},
+"output": {
+"kind": "structural_result",
+"value": true
+},
+"rule": "identify_via_idc",
+"step_id": "s2"
+}
+],
+"version": "0.1"
+},
+"extensions": {
+"identification": {
+"adjustment_set": [
+"c(me)"
+],
+"conditioned_on": [
+"d(me)"
+],
+"estimand": "conditional_idc_ratio",
+"pattern": "backdoor"
+}
+},
+"formula": {
+"denominator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_c_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+},
+"kind": "fraction",
+"numerator": {
+"bind": {
+"name": "t_e_me"
+},
+"body": {
+"bind": {
+"name": "t_c_me"
+},
+"body": {
+"kind": "product",
+"terms": [
+{
+"given": [],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+}
+},
+{
+"given": [
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_e_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+},
+"value": {
+"kind": "var_ref",
+"name": "t_c_me"
+}
+},
+{
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "d"
+}
+}
+],
+"kind": "probability_ref",
+"target": {
+"atom": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "y"
+}
+}
+}
+]
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "c"
+}
+},
+"kind": "sum",
+"over": {
+"args": [
+{
+"name": "me",
+"type": "const"
+}
+],
+"predicate": "e"
+}
+}
+},
+"framing_notes": [
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "y"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "d"
 }
 ],
 "query_id": "q",
