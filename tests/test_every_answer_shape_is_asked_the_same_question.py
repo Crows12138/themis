@@ -277,7 +277,40 @@ def _at(result, path):
     return node
 
 
-def _bends(value, members):
+def _a_name_neither_document_uses(program, result) -> str:
+    """A name the answer cannot be read as already saying.
+
+    The third kind of lie about a string is "some other name", and it was
+    the literal ``"x"`` — a name the variables in this corpus actually
+    have. A rule may accept two spellings of one variable on purpose:
+    ``_atom_spellings`` in the verifier documents doing exactly that,
+    because the two producers of the block it reads key on different
+    things and insisting on one would refuse the other's honest answer.
+    Handed ``"x"`` for ``"x(p9)"``, such a rule is being told the truth it
+    already tells, accepts it correctly, and the leaf is scored a hole.
+
+    The third sentence of one principle, whose other two are written where
+    they are enforced: a lie has to be one the contract permits
+    (:func:`_bends`), a lie has to be a different value
+    (:func:`_is_material`) — and a lie has to be a LIE. A bend whose
+    envelope is still true tests nothing, and counting its acceptance as a
+    hole reports a correct rule as one.
+
+    Both documents, because either alone leaves the other free to have the
+    name: an answer spells the variables a program declares, and the rules
+    that matter here read the two against each other. Derived rather than
+    guessed, which is the whole of the fix — ``"x"`` was a guess that the
+    name was free.
+    """
+    said = {value for _, value in _leaves(program) if isinstance(value, str)}
+    said |= {value for _, value in _leaves(result) if isinstance(value, str)}
+    name = "x"
+    while name in said:
+        name += "z"
+    return name
+
+
+def _bends(value, members, stranger):
     """Several KINDS of lie per leaf, not one.
 
     This returned a single value, and "held" was then partly a fact about
@@ -302,6 +335,11 @@ def _bends(value, members):
     and :func:`_the_domain_of` is asked what this leaf may hold here —
     which for the two leaves a statement is made of is carried beside them
     rather than fixed by where they sit.
+
+    AND A LIE HAS TO BE A LIE. The name the third kind uses comes from
+    :func:`_a_name_neither_document_uses` rather than from a literal,
+    because a literal is a guess that no variable is called that, and on
+    this corpus the guess was wrong.
     """
     if members is not None and value in members:
         return _from_domain(value, members)
@@ -314,7 +352,7 @@ def _bends(value, members):
             return [0.9 if value < 0.5 else 0.1, value / 2 + 0.01, 0.0]
         return [value * 3.0 + 1.0, -value - 1.0, 0.0, value / 2.0]
     if isinstance(value, str):
-        return [value + "_forged", "", "x"]
+        return [value + "_forged", "", stranger]
     return []
 
 
@@ -510,8 +548,10 @@ def _sweep(program, result):
         return sorted(asked), asked
 
     survived = []
+    stranger = _a_name_neither_document_uses(program, result)
     for name, shape, path, value in _asked(result):
-        for bent in _bends(value, _the_domain_of(result, path, shape)):
+        for bent in _bends(value, _the_domain_of(result, path, shape),
+                           stranger):
             if not _is_material(value, bent):
                 continue
             bad = _tamper(result, path, bent)
@@ -1729,9 +1769,19 @@ def test_the_declared_remainder_is_what_it_is():
     nothing checked. It is held now, on every row that names one, and six
     of those rows -- the identifications of a conditional estimand -- had
     that leaf and no other, so they leave this list entirely.
+
+    Then 147 fewer, by neither way: they had been closed the whole time
+    and this gate was wrong about them. The third kind of lie it tells
+    about a string was the literal ``"x"``, and a rule that reads a
+    variable's name may accept more than one spelling of it on purpose, so
+    the bend handed such a rule the truth it already told. 34 families over
+    101 rows -- the counterfactual's intervened variable, the slots where a
+    gap names the treatment, the instrument, the outcome it is about, the
+    expression a bound needs data for. The name comes from
+    :func:`_a_name_neither_document_uses` now, and a lie has to be a lie.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1872, total
+    assert total == 1725, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
