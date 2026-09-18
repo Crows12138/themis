@@ -169,6 +169,7 @@ from .verifier import (
     verify_identification_formula,
     verify_fitted_diagnostics,
     verify_a_column_is_one_node,
+    verify_a_column_is_a_name_the_program_states,
     verify_frame,
     verify_post_stratification,
     verify_feedback_loop,
@@ -1649,6 +1650,12 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # records a number is re-derived from are written in columns, and a
     # column that stood for two nodes agrees with itself in all of them.
     verify_a_column_is_one_node(result, ctx.graph)
+    # And whether it stood for one at all, which the sibling above cannot
+    # ask: it finds its nodes by looking each column up, so a column
+    # matching nothing is a column it never sees. Asked of the PROGRAM,
+    # because the second place a column is named — the indicator saying
+    # which follow-up times are events — is not a node of any graph.
+    verify_a_column_is_a_name_the_program_states(result, ast)
 
     # Every sentence the envelope carries, against the holes the sentence
     # it names declares. Not part of any block's audit and not attached to

@@ -716,6 +716,18 @@ Public surface (re-exports from sub-modules):
   written in columns, which agree with themselves: a lagged outcome
   adjusted for as the outcome's own column re-derived to the same wrong
   number, and passed)
+- Whether a column of the frame stood for anything at all:
+  ``verify_a_column_is_a_name_the_program_states`` (the other half of the
+  same list, and not a half the rule above could reach: it finds its nodes
+  by looking each column up, so a column naming none of them is a column
+  it never visits. A frame narrowed to a column nobody declared is a
+  number computed over data the program never described. Asked of the
+  program rather than of the graph, because a program names a column in
+  two places and the graph carries one: the predicate a variable is
+  declared under, and the indicator a follow-up time declares beside it
+  saying which rows had the event — which is no node of any graph, so a
+  rule reading the graph would refuse the one honest survival answer
+  there is)
 - Pre-flight data diagnostic: ``verify_type_reconciliation`` (2026-07-11,
   borrow-list #3 — re-derives every declared_type_data_mismatch verdict from
   the recorded sufficient statistics in extensions.type_reconciliation
@@ -913,7 +925,11 @@ from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
 from .post_stratification_rules import verify_post_stratification
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
-from .frame_rules import verify_a_column_is_one_node, verify_frame
+from .frame_rules import (
+    verify_a_column_is_one_node,
+    verify_a_column_is_a_name_the_program_states,
+    verify_frame,
+)
 from .display_copy_rules import verify_numeric_display_agrees
 from .markov_blanket_rules import verify_markov_blanket
 from .notears_rules import verify_notears_fit
@@ -966,6 +982,7 @@ __all__ = [
     "verify_identification_formula",
     "verify_fitted_diagnostics",
     "verify_a_column_is_one_node",
+    "verify_a_column_is_a_name_the_program_states",
     "verify_frame",
     "verify_post_stratification",
     "verify_assoc",

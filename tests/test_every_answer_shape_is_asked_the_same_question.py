@@ -1779,9 +1779,18 @@ def test_the_declared_remainder_is_what_it_is():
     gap names the treatment, the instrument, the outcome it is about, the
     expression a bound needs data for. The name comes from
     :func:`_a_name_neither_document_uses` now, and a lie has to be a lie.
+
+    Then 23 fewer, closed. A column a number was read off has to be a name
+    the program states. One rule already read that list and asked whether a
+    column stood for several of the program's nodes; it could not ask
+    whether a column stood for any, because it builds its table by looking
+    each column up and a column matching none puts nothing in it. The 23
+    are every row that states a column list and ran no estimator: where one
+    ran, the list is held by the arithmetic that consumed it, and where
+    none did, nothing in the answer had touched the caller's list at all.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1725, total
+    assert total == 1702, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

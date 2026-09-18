@@ -895,6 +895,68 @@ def verify_a_column_is_one_node(result: Any, graph: Any) -> None:
                 f"wrote")
 
 
+def verify_a_column_is_a_name_the_program_states(
+    result: Any, program: Any,
+) -> None:
+    """A number read off a frame rests on columns the program named.
+
+    The sibling above asks whether a column stood for SEVERAL of the
+    program's nodes. It cannot ask the other half — whether a column stood
+    for any — because it finds its nodes by looking each column up, and a
+    column matching nothing contributes nothing to look at. So the two
+    failures of one list were not two halves of one question: one was
+    asked and the other could not be phrased from where it was standing.
+
+    A frame narrowed to a column nobody declared is a number computed over
+    data the program never described, and on the page it reads exactly like
+    a number that was not.
+
+    Read off the PROGRAM and not off the graph, because a program names a
+    column in two places and the graph carries one of them. A variable
+    declaration names the column its predicate spells; a declaration that
+    says the variable is a follow-up time names a second one beside it —
+    which rows had the event and which merely ran out of observation. That
+    second column is not a node of the graph and never will be, so a rule
+    reading the graph would refuse the one honest survival answer there is,
+    and the exception it would then need is the sign that it was reading
+    the wrong document.
+
+    Worked out here rather than asked of the layer that narrowed the frame:
+    what is held is a claim about which names were reachable, and a check
+    that asks the producer for its own answer establishes only that the
+    producer agrees with itself.
+    """
+    if not isinstance(result, dict) or not isinstance(program, dict):
+        return
+    context = result.get("estimation_context")
+    columns = context.get("data_columns") if isinstance(context, dict) else None
+    if not isinstance(columns, list):
+        return
+
+    stated: set[str] = set()
+    for stmt in program.get("statements") or ():
+        if not isinstance(stmt, dict) or stmt.get("kind") != "variable":
+            continue
+        if isinstance(stmt.get("predicate"), str):
+            stated.add(stmt["predicate"])
+        censoring = stmt.get("censoring")
+        if isinstance(censoring, dict) and isinstance(
+                censoring.get("event_indicator"), str):
+            stated.add(censoring["event_indicator"])
+
+    strangers = sorted(
+        column for column in columns
+        if isinstance(column, str) and column not in stated)
+    if strangers:
+        _reject(
+            _RULE,
+            f"estimation_context.data_columns holds {strangers}, and the "
+            f"program declares no variable of that name; the frame this "
+            f"number was read off was narrowed to a column nobody "
+            f"described, so the sample it is about is one no reader of the "
+            f"program can identify")
+
+
 def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     """Hold every block's account of itself to what already said it.
 
