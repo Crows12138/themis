@@ -1912,9 +1912,19 @@ def test_the_declared_remainder_is_what_it_is():
     are every row that states a column list and ran no estimator: where one
     ran, the list is held by the arithmetic that consumed it, and where
     none did, nothing in the answer had touched the caller's list at all.
+
+    Then 70 fewer, closed. The rule that holds what a reader is shown to
+    the chain it was recorded from had one block for a subject, which made
+    its reach a fact about where an estimator wrote its numbers. A joint
+    mediation decomposition reports four controlled effects under
+    ``extensions``, recorded on the way OUT of the step that produced
+    them, and not one of them was compared with anything. 68 of the 70
+    come out of the heading the reading beside this one calls "another
+    field of the answer, named alike", which is where it said the work
+    was.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1702, total
+    assert total == 1632, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

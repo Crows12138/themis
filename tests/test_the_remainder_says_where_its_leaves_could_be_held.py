@@ -193,14 +193,18 @@ def test_the_remainder_split_is_what_it_is():
     producer write a fact down a second time moves them from the last
     heading to the first without closing anything, and that is progress
     nobody would otherwise see.
+
+    First use, and it read true: the frontier after this one closed 70
+    leaves and 68 of them came out of the first heading, which is where
+    this reading said the work a rule could reach was.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 566,
+        gate._ANSWER_ALIKE: 498,
         gate._PROGRAM_ALIKE: 9,
         gate._ANSWER_OTHERWISE: 317,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 674,
-        gate._EVERY_READING_MATCHES: 131,
+        gate._EVERY_READING_MATCHES: 129,
     }
 
 

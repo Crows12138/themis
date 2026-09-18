@@ -190,8 +190,45 @@ def _same_number(a, b) -> bool:
     return abs(float(a) - float(b)) <= _TOL
 
 
+def _predicates(value):
+    """A name a reader reads, reduced to the part a step records.
+
+    ``_atom_label_verifier`` spells an atom ``pred(args)``, with ``@t``
+    where the program is unrolled. A block about one unit names the unit —
+    a counterfactual's target is ``Y(joe)`` because that is whose outcome
+    it is — and the step above it records ``Y``, because which unit the
+    question is about does not change whether it is identified. Reducing
+    rather than skipping is the point: the predicate is what the two
+    record in common, and "the strings differ" is how a relabelled target
+    would pass.
+
+    Containers reduce element-wise, since a set of treatments is named the
+    same way one is.
+    """
+    if isinstance(value, str):
+        return value.split("(")[0] if "(" in value else value
+    if isinstance(value, list):
+        return [_predicates(v) for v in value]
+    return value
+
+
 def _agree(shown, recorded) -> bool:
     """Whether two recordings of one fact say the same thing.
+
+    Three asymmetries are real and not shape mismatches, and the third is
+    the reader's own vocabulary: a block about one unit names the unit and
+    the step records the predicate, so where the two differ only by that,
+    the predicate is what they have in common. Tried after the direct
+    reading fails, so a block that does record the bare name is unaffected.
+    """
+    if _agree_directly(shown, recorded):
+        return True
+    reduced = _predicates(shown)
+    return reduced != shown and _agree_directly(reduced, recorded)
+
+
+def _agree_directly(shown, recorded) -> bool:
+    """The reading that takes both sides at their word.
 
     Numbers compare within the distance JSON round-tripping can introduce;
     containers compare element-wise so a nested tuple inside a mapping is
@@ -257,13 +294,31 @@ def _chain_record(steps) -> dict:
     it found on every ask — and once the envelope is walked to its leaves
     there are hundreds of asks and some of the things found are moment
     matrices.
+
+    A step's OUTPUT is as much a thing the chain wrote down as its inputs
+    are, and it is where a decomposition's numbers live: a joint mediation
+    answer records its four controlled effects on the way out, never on
+    the way in, so the block a reader reads them from agreed with nothing.
+    Read by the marker the serialisation already uses rather than by a
+    list of which rules produce mappings: ``items`` as a mapping IS how a
+    serialised mapping is spelled here, and an output that is a typed
+    VALUE — ``{"kind": "structural_result", "value": true}`` — names
+    nothing. Reading such a wrapper's own keys as names was measured: its
+    ``kind`` then answers for every block that has one, and twenty-one
+    honest bootstrap records were called a different run.
     """
     record: dict = {}
     for index, step in enumerate(steps):
+        named: dict = {}
         inputs = step.get("inputs")
         if isinstance(inputs, dict):
-            for name, value in inputs.items():
-                record[name] = (index, _plain(value))
+            named.update(inputs)
+        produced = step.get("output")
+        if isinstance(produced, dict) and isinstance(produced.get("items"),
+                                                     dict):
+            named.update(produced["items"])
+        for name, value in named.items():
+            record[name] = (index, _plain(value))
     return record
 
 
@@ -303,17 +358,60 @@ def _named_subjects(estimate: dict, path: tuple = ()):
             yield from _named_subjects(value, path + (key,))
 
 
-def _unambiguous(estimate: dict) -> frozenset:
-    """Leaf names this envelope uses in exactly one place.
+#: The blocks a reader reads a run's own numbers from. The rule used to
+#: name one of them, which made its reach a fact about which block an
+#: estimator happened to write into rather than about what a reader is
+#: shown — the same mistake this module already records making one level
+#: down, when asking only the envelope's outer keys made the reach a fact
+#: about how deep an estimator nests.
+_SUBJECTS = ("numeric_estimate", "extensions")
+
+
+def _subjects(result: dict):
+    """Each block a reader reads, named."""
+    for key in _SUBJECTS:
+        block = result.get(key)
+        if isinstance(block, dict):
+            yield key, block
+
+
+def _unambiguous(block: dict) -> frozenset:
+    """Leaf names this block uses in exactly one place.
 
     Whether a leaf's own name means anything is not a fact about how deep
-    it sits. It is a fact about whether anything else on this envelope
-    answers to the same word.
+    it sits. It is a fact about whether anything else answers to the same
+    word.
     """
     claims: dict = {}
-    for path, _ in _named_subjects(estimate):
+    for path, _ in _named_subjects(block):
         claims[path[-1]] = claims.get(path[-1], 0) + 1
     return frozenset(name for name, count in claims.items() if count == 1)
+
+
+def _claimed_outright(result: dict, block: dict) -> frozenset:
+    """Words another block claims as its own, which this one may not take.
+
+    A leaf deep inside a block may be compared under its bare name where
+    nothing else answers to that word, and once there is more than one
+    block the question "anything else" has to reach across them. Asking it
+    as a plain count over both was measured and is wrong in the other
+    direction: two blocks show the same run's ``p_y_do_x0``, a count calls
+    that ambiguity, and 73 leaves of ``numeric_estimate`` — the
+    probabilities of causation among them — stopped being compared at all.
+
+    What tells the two apart is not how often a word appears but whether
+    some block claims it OUTRIGHT. A key at a block's top level is that
+    block's own vocabulary: ``numeric_estimate.method`` is the method that
+    ran, so an estimand's nested ``method`` deeper in another block is a
+    different fact wearing the same word. A word no block claims at its
+    top level belongs to no block, and a leaf carrying it means the same
+    thing wherever it sits.
+    """
+    out: set = set()
+    for _key, other in _subjects(result):
+        if other is not block:
+            out |= set(other)
+    return frozenset(out)
 
 
 def _spellings(path: tuple, unambiguous: frozenset):
@@ -356,15 +454,23 @@ def _spellings(path: tuple, unambiguous: frozenset):
 
 
 def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
-    """Hold ``numeric_estimate`` to the chain it was recorded from.
+    """Hold what a reader is shown to the chain it was recorded from.
 
-    Every name the two share must name the same thing. A result with no
-    numeric estimate has no second copy and is nothing to check; one whose
-    derivation ends in a step recording no inputs is refused, because the
-    estimate then rests on a record nobody can read.
+    Every name the two share must name the same thing. The subject is
+    every block of :data:`_SUBJECTS` the answer carries, because which of
+    them an estimator wrote its numbers into is a fact about the estimator
+    and not about what a reader reads: a joint mediation decomposition
+    reports four controlled effects under ``extensions``, recorded in the
+    step that produced them, and not one of them was compared with
+    anything.
+
+    A result with none of those blocks has no second copy and is nothing
+    to check; one whose derivation ends in a step recording no inputs is
+    refused, because what a reader is shown then rests on a record nobody
+    can read.
     """
-    estimate = result.get("numeric_estimate")
-    if not isinstance(estimate, dict):
+    blocks = list(_subjects(result))
+    if not blocks:
         return
     steps = (derivation or {}).get("steps") or ()
     if not steps:
@@ -384,19 +490,26 @@ def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
 
     at = len(steps) - 1
     record = _chain_record(steps)
-    unambiguous = _unambiguous(estimate)
-    for path, shown in _named_subjects(estimate):
-        for name in _spellings(path, unambiguous):
-            if name not in record:
-                continue
-            where, recorded = record[name]
-            if not _agree(shown, recorded):
-                _disagree(".".join(path), shown, recorded, where)
-            break
+    for key, block in blocks:
+        own = _unambiguous(block) - _claimed_outright(result, block)
+        for path, shown in _named_subjects(block):
+            for name in _spellings(path, own):
+                if name not in record:
+                    continue
+                where, recorded = record[name]
+                if not _agree(shown, recorded):
+                    _disagree(f"{key}." + ".".join(path), shown, recorded,
+                              where)
+                break
 
-    for view, prefix in _PREFIXED_VIEWS.items():
-        _check_prefixed_view(estimate.get(view), inputs, view, prefix, at)
-    _check_stratum_table(estimate, inputs, at)
+    # The two nested views are shapes ``numeric_estimate`` has and the
+    # other blocks do not; they stay asked of it alone rather than of
+    # whatever else happens to carry a key of the same name.
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, dict):
+        for view, prefix in _PREFIXED_VIEWS.items():
+            _check_prefixed_view(estimate.get(view), inputs, view, prefix, at)
+        _check_stratum_table(estimate, inputs, at)
 
 
 def _check_prefixed_view(view, inputs: dict, name: str, prefix: str,
