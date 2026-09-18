@@ -224,9 +224,19 @@ def test_the_remainder_split_is_what_it_is():
     descriptor it was handed to the same rebuild the block is held to, so
     the leaves that moved are exactly the ones this reading said were a
     second writing of something the answer already carries.
+
+    Sixth use, 18 more from the same heading, and the first time the
+    heading was right for a reason it does not itself state. These
+    leaves are a sum's binder and the references to it, and what holds
+    them is not a second writing anywhere: it is that the formula uses
+    the name it binds. The reading files a leaf under "named alike"
+    whenever the same word appears twice in the answer, which is true
+    here — the binder and its references ARE the same word. It read the
+    evidence correctly and called it a coincidence; the frontier turned
+    the coincidence into the reason.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 244,
+        gate._ANSWER_ALIKE: 226,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 280,
         gate._PROGRAM_OTHERWISE: 5,

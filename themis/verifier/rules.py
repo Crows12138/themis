@@ -12970,6 +12970,109 @@ def atoms_within(node: Any) -> Iterator[Atom]:
             yield from atoms_within(getattr(node, declared.name, None))
 
 
+def _names_a_formula_uses(node: Any) -> Iterator[str]:
+    """Every bound-variable reference anywhere below, at any depth.
+
+    Same container vocabulary as :func:`atoms_within`, and for the same
+    reason: a formula is a tree of frozen dataclasses, and a walk that
+    knew only mappings and sequences would see none of it.
+    """
+    if isinstance(node, VarRef):
+        yield node.name
+        return
+    if isinstance(node, (str, bytes)):
+        return
+    if isinstance(node, Mapping):
+        for value in node.values():
+            yield from _names_a_formula_uses(value)
+        return
+    if isinstance(node, (list, tuple, set, frozenset)):
+        for value in node:
+            yield from _names_a_formula_uses(value)
+        return
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        for declared in dataclasses.fields(node):
+            yield from _names_a_formula_uses(getattr(node, declared.name, None))
+
+
+def _every_name_a_formula_uses_is_one_it_binds(
+    node: Any, bound: frozenset[str], step_index: int, rule_name: str,
+) -> None:
+    """A formula is a scope, and a scope is closed in both directions.
+
+    A sum writes a name and then spends it: ``SumExpr`` carries a
+    ``BindDecl`` and the terms underneath refer back to it with a
+    ``VarRef``. Neither of those is an atom. The roster check beside this
+    one holds every variable a step NAMES against the graph, and a graph
+    has nothing at all to say about the name a sum chose for its own
+    index — so a formula could bind ``t_c_me`` and refer to anything it
+    liked, and 18 declared leaves sat exactly there: ten binders and
+    eight references, free because the only reader of a formula was
+    looking for atoms.
+
+    What holds them needs no data, no program and no question. It is a
+    property of the formula by itself:
+
+    - every name used is one an enclosing sum binds, and
+    - every name bound is one the body under it uses.
+
+    Both directions, because one alone is half a scope. Without the
+    first, a reference can point at nothing; without the second, a binder
+    can be renamed freely, since nothing below would notice. Measured on
+    the stored answers before this was written: 145 references, all 145
+    resolving, and 61 sums, all 61 spending the name they bind.
+
+    ``over`` is read in the OUTER scope. A sum ranges over a variable of
+    the graph, not over its own index, and the atom walk holds that.
+    """
+    if isinstance(node, SumExpr):
+        declared = getattr(getattr(node, "bind", None), "name", None)
+        _every_name_a_formula_uses_is_one_it_binds(
+            getattr(node, "over", None), bound, step_index, rule_name)
+        body = getattr(node, "body", None)
+        if declared is None:
+            _every_name_a_formula_uses_is_one_it_binds(
+                body, bound, step_index, rule_name)
+            return
+        if declared not in set(_names_a_formula_uses(body)):
+            raise RuleCheckFailed(
+                f"{rule_name} sums over a variable it calls {declared!r} and "
+                f"nothing under that sum ever uses the name; a binder no term "
+                f"spends is a name that means nothing, and a formula that can "
+                f"rename it freely is one nobody is holding",
+                step_index=step_index, rule=rule_name,
+            )
+        _every_name_a_formula_uses_is_one_it_binds(
+            body, bound | {declared}, step_index, rule_name)
+        return
+    if isinstance(node, VarRef):
+        if node.name not in bound:
+            raise RuleCheckFailed(
+                f"{rule_name} names the bound variable {node.name!r} in a "
+                f"formula where no sum binds it; a reference to a name "
+                f"nothing binds stands for whatever the reader guesses",
+                step_index=step_index, rule=rule_name,
+            )
+        return
+    if isinstance(node, (str, bytes)):
+        return
+    if isinstance(node, Mapping):
+        for value in node.values():
+            _every_name_a_formula_uses_is_one_it_binds(
+                value, bound, step_index, rule_name)
+        return
+    if isinstance(node, (list, tuple, set, frozenset)):
+        for value in node:
+            _every_name_a_formula_uses_is_one_it_binds(
+                value, bound, step_index, rule_name)
+        return
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        for declared_field in dataclasses.fields(node):
+            _every_name_a_formula_uses_is_one_it_binds(
+                getattr(node, declared_field.name, None),
+                bound, step_index, rule_name)
+
+
 def _every_atom_a_step_names_is_one_the_graph_has(
     ctx: VerificationContext, inputs: Mapping, step_index: int, rule_name: str,
 ) -> frozenset[str]:
@@ -13123,6 +13226,8 @@ def dispatch_rule(
     """
     named = _every_atom_a_step_names_is_one_the_graph_has(
         ctx, inputs, step_index, rule_name)
+    _every_name_a_formula_uses_is_one_it_binds(
+        inputs, frozenset(), step_index, rule_name)
     asked = _WhatTheRuleAskedFor(inputs)
     _dispatch_to_the_rule(
         rule_name, ctx, asked, claimed_output, step_index,

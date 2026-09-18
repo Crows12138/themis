@@ -1968,9 +1968,21 @@ def test_the_declared_remainder_is_what_it_is():
     descriptor is held to the rebuild the block beside it is held to. 38
     of the 53 come out of the first heading of the reading beside this
     one, 15 out of "named otherwise".
+
+    Then 18 fewer, and they were held by a property of a formula rather
+    than by anything either document says. A sum writes a name and then
+    spends it: ``SumExpr`` carries a binder and the terms underneath
+    refer back to it, and neither of those is an atom, so the roster
+    check had nothing to say about them — a graph does not know what a
+    sum called its own index. Ten binders and eight references were free
+    for that reason. What holds them is that a formula is a SCOPE and a
+    scope is closed both ways: every name used is one an enclosing sum
+    binds, and every name bound is one the body under it uses. The second
+    direction is what makes the binder itself holdable, since a name
+    nothing refers to could be rewritten freely.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1331, total
+    assert total == 1313, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

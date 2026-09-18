@@ -1586,30 +1586,12 @@
   "derivation.steps.[].step_id"
  ],
  "structurally_solved:counterfactual_conjunction:id_star_identification#bc863b": [
-  "derivation.steps.[].inputs.formula.bind.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].bind.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].body.bind.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].body.body.bind.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].body.body.body.bind.name",
   "derivation.steps.[].inputs.formula.body.terms.[].body.body.body.body.terms.[].given.[].value",
-  "derivation.steps.[].inputs.formula.body.terms.[].body.body.body.body.terms.[].given.[].value.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].body.body.body.body.terms.[].target.value.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].target.value.name",
-  "derivation.steps.[].inputs.formula.body.terms.[].terms.[].given.[].value.name",
   "derivation.steps.[].step_id",
   "formula.body.terms.[].body.body.body.body.terms.[].given.[].value"
  ],
  "structurally_solved:counterfactual_conjunction:id_star_identification#c17338": [
-  "derivation.steps.[].inputs.formula.denominator.bind.name",
-  "derivation.steps.[].inputs.formula.denominator.body.bind.name",
-  "derivation.steps.[].inputs.formula.denominator.body.body.bind.name",
-  "derivation.steps.[].inputs.formula.denominator.body.body.body.bind.name",
   "derivation.steps.[].inputs.formula.denominator.body.body.body.body.terms.[].given.[].value",
-  "derivation.steps.[].inputs.formula.denominator.body.body.body.body.terms.[].given.[].value.name",
-  "derivation.steps.[].inputs.formula.denominator.body.body.body.body.terms.[].target.value.name",
-  "derivation.steps.[].inputs.formula.numerator.bind.name",
-  "derivation.steps.[].inputs.formula.numerator.body.terms.[].target.value.name",
-  "derivation.steps.[].inputs.formula.numerator.body.terms.[].terms.[].given.[].value.name",
   "derivation.steps.[].step_id",
   "formula.denominator.body.body.body.body.terms.[].given.[].value"
  ],
