@@ -1725,8 +1725,8 @@ def test_the_declared_remainder_is_what_it_is():
     asked of no stratum already declares, leaf for leaf.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1881, total
-    assert len(SHAPES) == 251, len(SHAPES)
+    assert total == 1890, total
+    assert len(SHAPES) == 252, len(SHAPES)
 
 
 def _contract_blocks() -> frozenset[str]:
@@ -1869,7 +1869,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33838, asked_total
+    assert asked_total == 33921, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

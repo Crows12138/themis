@@ -84,7 +84,7 @@ def test_the_answers_that_took_no_route_are_the_ones_this_is_for():
     lesson turned on the reader of it. So it is measured next door rather
     than described here.
     """
-    assert len(CHAINLESS) == 73, len(CHAINLESS)
+    assert len(CHAINLESS) == 74, len(CHAINLESS)
     statuses = {SHAPES[name]["result"].get("status") for name in CHAINLESS}
     assert statuses == {"needs_investigation", "outside_language",
                         "numerically_solved"}
@@ -303,7 +303,7 @@ def test_an_estimand_on_a_chainless_answer_is_refused():
     gap diagnosis may still show one: this is the question the reader was
     told could not be answered YET, written out."""
     carriers = [n for n in CHAINLESS if "formula" in SHAPES[n]["result"]]
-    assert len(carriers) == 42, len(carriers)
+    assert len(carriers) == 43, len(carriers)
 
     # Asked of every one of them, not of the first. This was one row when
     # it was written, and a loop over one row and a lookup of one row read
@@ -327,7 +327,7 @@ def test_a_reader_may_not_be_sent_to_fill_in_another_variable():
     the second turn takes verbatim as a patch."""
     carriers = [n for n in CHAINLESS
                 if SHAPES[n]["result"].get("investigation_requests")]
-    assert len(carriers) == 69, len(carriers)
+    assert len(carriers) == 70, len(carriers)
 
     for name in carriers:
         program, result = _pair(name)

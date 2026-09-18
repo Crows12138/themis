@@ -1848,7 +1848,7 @@
         },
         "given": {
           "type": "array",
-          "description": "The Z=z stratum a conditional ATE P(Y|do(X),Z=z) is taken within, written when the question conditions on one — by general_id_idc_plugin and by selection_backdoor_recovery. Each entry is a [predicate, value] pair, in the question's order.",
+          "description": "The Z=z stratum a conditional ATE P(Y|do(X),Z=z) is taken within, written whenever the question conditions on one. An effect question is estimated on the rows its stratum names, so this says which people the number beside it is about; it is written once where the question's facts are assembled, and the two routes that record it themselves — general_id_idc_plugin and selection_backdoor_recovery, whose formulas condition inside themselves — keep what they wrote. Each entry is a [predicate, value] pair, in the question's order.",
           "items": {
             "type": "array",
             "minItems": 2,
@@ -2712,6 +2712,8 @@
             "strata_would_be_too_thin",
             "target_value_absent",
             "too_few_inputs",
+            "too_few_rows_in_the_stratum_asked",
+        "no_estimate_within_the_stratum_asked",
             "too_many_joint_treatments",
             "too_many_strata",
             "too_sparse_to_estimate",

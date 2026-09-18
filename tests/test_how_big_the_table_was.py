@@ -62,7 +62,7 @@ def test_every_copy_of_the_count_already_agrees():
     # 4 fewer copies: four refreshed answers no longer carry a numeric
     # Balke-Pearl interval around a node that is not an instrument with
     # nothing conditioned, and each such row wrote its own.
-    assert (agree, total) == (339, 339)
+    assert (agree, total) == (340, 340)
 
 
 def test_the_count_is_written_in_more_than_one_block():

@@ -85,12 +85,12 @@ def test_a_gap_report_is_carried_by_almost_every_answer():
     carriers = [n for n in SHAPES
                 if (SHAPES[n]["result"].get("data_gap_report") or {}).get(
                     "gaps")]
-    assert len(carriers) == 239, sorted(set(SHAPES) - set(carriers))
+    assert len(carriers) == 240, sorted(set(SHAPES) - set(carriers))
     # Some carriers say nothing that names a variable, so they have gaps
     # and nothing for this rule to ask. That is an answer, not a skip.
     assert len(set(carriers) - set(WITH_NAMES)) == 52, len(
         set(carriers) - set(WITH_NAMES))
-    assert len(WITH_NAMES) == 187, len(WITH_NAMES)
+    assert len(WITH_NAMES) == 188, len(WITH_NAMES)
 
 
 def test_every_key_a_gap_says_is_classified():
@@ -490,7 +490,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2271, 167), (refused, accepted)
+    assert (refused, accepted) == (2281, 167), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -516,14 +516,14 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
                        if pair["result"].get("derivation") is None)
     leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
-    assert len(chainless) == 73, len(chainless)
+    assert len(chainless) == 74, len(chainless)
     # 4 fewer: two of those answers take no route.
     # 106 more leaves and 42 more name leaves: three answers with no chain were collected when
     # the identifier began answering a query conditioning on a descendant of the treatment,
     # and the stored refusal they replaced went.
-    assert len(leaves) == 1100, len(leaves)
+    assert len(leaves) == 1110, len(leaves)
     assert sum(len(_name_leaves(SHAPES[name]["result"]))
-               for name in chainless) == 511, len(leaves)
+               for name in chainless) == 518, len(leaves)
     # The three with no name claim in them have nothing here to ask, which
     # is not the same as this missing them: a refusal outside the language
     # says why in prose and has no variable to be about, and two causation

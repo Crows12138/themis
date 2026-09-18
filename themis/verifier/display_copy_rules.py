@@ -195,14 +195,29 @@ def _agree(shown, recorded) -> bool:
 
     Numbers compare within the distance JSON round-tripping can introduce;
     containers compare element-wise so a nested tuple inside a mapping is
-    reached. One asymmetry is real and not a shape mismatch: where a step
-    records only the DISCRIMINATOR of a block the estimate carries whole —
-    the reason an interaction could not be reported, say — what the two
-    have in common is the kind, and that is what is compared. Silence
-    there would let the two names drift apart.
+    reached. Two asymmetries are real and not shape mismatches.
+
+    Where a step records only the DISCRIMINATOR of a block the estimate
+    carries whole — the reason an interaction could not be reported, say —
+    what the two have in common is the kind, and that is what is compared.
+    Silence there would let the two names drift apart.
+
+    And where the estimate carries a STRATUM and the step the variables it
+    was taken on: an answer within ``c=True`` says which people it is
+    about, and the criterion step above it says the question was answered
+    conditioning on ``c``, because identification does not depend on which
+    value. The names are what the two record in common, and the step's are
+    a set — the criterion is about a set of variables — so they are
+    compared as one. Comparing the two whole calls every honest
+    within-stratum answer two different runs.
     """
     if isinstance(shown, dict) and isinstance(recorded, str):
         return shown.get("kind") == recorded
+    if (isinstance(shown, list) and isinstance(recorded, list) and shown
+            and all(isinstance(p, list) and len(p) == 2
+                    and isinstance(p[0], str) for p in shown)
+            and all(isinstance(name, str) for name in recorded)):
+        return sorted(p[0] for p in shown) == sorted(recorded)
     if shown is None or recorded is None:
         return shown is None and recorded is None
     if isinstance(shown, bool) or isinstance(recorded, bool):

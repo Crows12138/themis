@@ -122,8 +122,8 @@ def test_the_corpus_carries_refusals_to_ask_about():
     Seven fewer than there were, and not by a narrowing: two refusals
     carried a copy of the identification layer's reason in ``recorded``,
     two leaves on one and five on the other, and the copy is gone."""
-    assert len(REFUSALS) == 36, len(REFUSALS)
-    assert sum(1 for name in REFUSALS for _ in _leaves(_block(name))) == 324
+    assert len(REFUSALS) == 37, len(REFUSALS)
+    assert sum(1 for name in REFUSALS for _ in _leaves(_block(name))) == 333
 
 
 def test_the_recorded_facts_and_the_sentences_facts_are_one_mapping():
@@ -149,7 +149,7 @@ def test_every_spoken_fact_is_the_recorded_one_rendered():
                 language.symbols(_as_written(details[key], str(spoken))))
             assert again == spoken, (name, key, spoken, again)
             checked += 1
-    assert checked == 70, checked
+    assert checked == 73, checked
 
 
 def test_every_word_is_the_recorded_one_the_envelope_could_hold():
@@ -225,7 +225,7 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (220, 104), (held, free)
+    assert (held, free) == (227, 106), (held, free)
 
 
 def test_a_dropped_fact_is_refused():
@@ -248,7 +248,7 @@ def test_a_dropped_fact_is_refused():
                     held += 1
                 else:
                     free += 1
-    assert (held, free) == (160, 0), (held, free)
+    assert (held, free) == (166, 0), (held, free)
 
 
 def test_a_kind_swapped_for_another_declared_one_is_refused():
@@ -263,7 +263,7 @@ def test_a_kind_swapped_for_another_declared_one_is_refused():
         with pytest.raises(VerificationError, match="registry declares"):
             verify_refusal_block(bad)
         refused += 1
-    assert refused == 36, refused
+    assert refused == 37, refused
 
 
 def test_a_species_this_build_never_heard_of_says_nothing_about_its_kind():
@@ -497,7 +497,7 @@ def test_the_estimator_has_no_second_record_to_be_held_to():
         word = _block(name)["estimator"]
         if word not in _strings(rest, []) + _strings(pair["program"], []):
             alone += 1
-    assert alone == 31, alone
+    assert alone == 32, alone
 
     schema = json.loads(
         (pathlib.Path(__file__).parents[1] / "themis" / "schemas"

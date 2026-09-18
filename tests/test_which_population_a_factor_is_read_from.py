@@ -144,8 +144,8 @@ TRANSPORTING = sorted(
 def test_the_answers_in_the_corpus_that_read_from_more_than_one():
     """Which answers this rule has something to choose between on."""
     assert TRANSPORTED in TRANSPORTING and len(TRANSPORTING) == 10
-    assert len(SHAPES) == 251
-    assert len(WITH_FORMULA) == 111
+    assert len(SHAPES) == 252
+    assert len(WITH_FORMULA) == 112
 
 
 def test_the_two_places_a_transported_estimand_reads_from():

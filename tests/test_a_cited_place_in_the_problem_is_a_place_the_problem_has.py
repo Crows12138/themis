@@ -113,7 +113,7 @@ def test_every_cited_site_in_the_corpus_is_a_site_its_problem_has(corpus):
             else:
                 refused.append((name, ref_id, why))
     assert refused == []
-    assert (resolved, exempt) == (130, 1)
+    assert (resolved, exempt) == (131, 1)
 
 
 def test_the_one_cited_place_that_is_not_a_place_is_named_and_explained():
@@ -166,7 +166,7 @@ def test_the_two_patterns_are_one_question_asked_both_ways(corpus):
                 tally[ref_id].append(declared)
     assert len(tally["program:front_door_pattern"]) == 11
     assert all(n >= 1 for n in tally["program:front_door_pattern"])
-    assert len(tally["program:confounder_pattern:no_bidirected"]) == 67
+    assert len(tally["program:confounder_pattern:no_bidirected"]) == 68
     assert set(tally["program:confounder_pattern:no_bidirected"]) == {0}
 
 

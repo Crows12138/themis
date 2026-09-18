@@ -3565,6 +3565,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
     zh: '量化结局误测要把残差方差拆开，而这个拆分是围绕识别效应的那条设计取的；P({outcome}|do({exposure})) 在这张图上既不是后门识别、也不是前门识别，还没有工具变量，于是没有设计可以围绕。结局上的经典可加误差不改变任何条件均值——缺席的是精度代价，不是点估计',
     en: 'quantifying a mismeasured outcome means splitting the residual variance, and that split is taken around the design that identifies the effect; P({outcome}|do({exposure})) is here neither back-door nor front-door identified and has no instrument, so there is no design to take it around. A classical additive error on the outcome leaves every conditional mean unchanged — what is missing is the precision cost, not the point',
   },
+  no_estimate_within_the_stratum_asked: {
+    zh: '问题问的是 {stratum} 这一层里的效应，而回答这个问题的路线在整份数据上估计、没有办法只算这一层；这一层的数要由一条按分层估计的路线来给，拿整份数据算出来的数回答的是另一个问题',
+    en: 'the question asks for the effect within {stratum}, and the route that answers it estimates over the whole frame and has no way to hold a stratum inside it; a number within that stratum needs a route built to estimate by stratum, and one over everybody answers another question',
+  },
   no_first_stage: {
     zh: '{instrument} 在这份样本里推不动 {treatment}（第一阶段统计量是 {statistic}）。工具带来的对比要除以这个数才能变成效应，而它是零——图上那条相关箭头在数据里看不见',
     en: '{instrument} does not move {treatment} in this sample (the first-stage statistic is {statistic}). The contrast the instrument induces has to be divided by that number to become an effect, and it is zero — the graph\'s relevance arrow is not visible in the data',
@@ -3744,6 +3748,10 @@ export const REFUSAL_SAYS: Record<string, Words> = {
   too_few_inputs: {
     zh: '{what} 至少要 {needed} 个，只收到 {given} 个',
     en: '{what} needs at least {needed}, and {given} were given',
+  },
+  too_few_rows_in_the_stratum_asked: {
+    zh: '问题问的是 {stratum} 这一层里的效应，数据里这一层只有 {rows} 行，低于 {minimum} 行的下限；这一层的效应要用这一层的人来算，拿别处的行凑出来的数回答的是另一个问题',
+    en: 'the question asks for the effect within {stratum}, and the frame holds {rows} rows there, below the {minimum} this needs; the effect within a stratum is estimated on the people the stratum names, and rows from anywhere else answer another question',
   },
   too_many_joint_treatments: {
     zh: '联合效应最多支持 {cap} 个处理（饱和基是 2^K − 1 列，交互项是 2^K 个角点的有限差分）；实际是 {count} 个（{treatments}）',

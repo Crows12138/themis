@@ -120,7 +120,7 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (465, 465)
+    assert (inside, len(pairs)) == (468, 468)
 
 
 def _riders():
@@ -150,8 +150,8 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 465
-    assert len(list(_riders())) == 213
+               if any(v in r for r in refs)) == 468
+    assert len(list(_riders())) == 214
 
 
 def test_one_of_those_rides_is_actually_refused():

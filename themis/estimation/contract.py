@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from .. import language as _lang
+from ..refusals import EstimatorFailure, Refusal
 from .refusal_words import Refuses
 from .warning_words import Contract
 
@@ -224,6 +225,76 @@ def validate_data(
         sample_size=sample_size,
         warnings=tuple(warnings),
         columns=columns,
+    )
+
+
+def within_the_stratum(
+    contract: DataContract, stratum: Iterable[tuple[str, object]],
+) -> DataContract:
+    """The same contract read on the rows a question's stratum names.
+
+    A question conditioning on ``Z=z`` asks about the people in that
+    stratum, and every number answering it — the point, the interval, the
+    sensitivity beside it — is theirs. The columns, their types and their
+    completeness are facts about the whole frame and were settled before
+    this; what is settled here is which rows the estimate is about.
+
+    The fingerprint moves with the rows: ``data_hash`` is recomputed over
+    the same columns on the restricted frame, so two numbers taken within
+    different strata of one table cannot share a fingerprint, and the row
+    count the contract reports is the stratum's own. The minimum is asked
+    again for the same reason it was asked of the table: under it what
+    comes out is the arithmetic of a few rows, and a stratum that thin is
+    refused rather than answered from the rows outside it. A stratum on a
+    continuous column asks for equality with a point and lands here too,
+    which is the honest answer to a question the data cannot hold.
+
+    The two ways this refuses are two different facts and leave by two
+    doors. A column the frame does not have is the frame's: no question
+    about that stratum can be answered from these rows, and it is a
+    contract error like every other missing column. A stratum the frame
+    holds too few rows in is the QUESTION's: the frame is fine and the
+    people asked about are barely in it, which is an estimator refusing to
+    speak — so it is raised as one, reaches the envelope through the same
+    door every other refusal does, and leaves the queries beside it alone.
+
+    ``stratum`` is a sequence of ``(column, value)`` pairs, in the
+    question's order. An empty one returns the contract unchanged: a
+    question naming no stratum is about the whole table.
+    """
+    held = tuple(stratum)
+    if not held:
+        return contract
+    spelt = ", ".join(f"{column}={value}" for column, value in held)
+    missing = sorted({column for column, _ in held
+                      if column not in contract.data.columns})
+    if missing:
+        raise DataContractError(Refuses.THE_STRATUM_IS_NOT_IN_THE_DATA,
+                                stratum=spelt, columns=missing)
+    keep = pd.Series(True, index=contract.data.index)
+    for column, value in held:
+        keep &= contract.data[column] == value
+    rows = contract.data[keep].reset_index(drop=True)
+    if len(rows) < _MIN_SAMPLE_SIZE:
+        raise EstimatorFailure(Refusal.TOO_FEW_ROWS_IN_THE_STRATUM_ASKED,
+                               stratum=spelt, rows=len(rows),
+                               minimum=_MIN_SAMPLE_SIZE)
+    # The advisory is about the rows a number was fitted on, so the whole
+    # table's copy of it is dropped and this stratum's asked afresh.
+    whole_said = _lang.state(Contract.SAMPLE_IS_BELOW_THE_ADVISORY,
+                             rows=contract.sample_size,
+                             advisory=_WARN_SAMPLE_SIZE)
+    warnings = [w for w in contract.warnings if w != whole_said]
+    if len(rows) < _WARN_SAMPLE_SIZE:
+        warnings.append(_lang.state(Contract.SAMPLE_IS_BELOW_THE_ADVISORY,
+                                    rows=len(rows),
+                                    advisory=_WARN_SAMPLE_SIZE))
+    return DataContract(
+        data=rows,
+        data_hash=_hash_frame(rows[list(contract.columns)]),
+        sample_size=len(rows),
+        warnings=tuple(warnings),
+        columns=contract.columns,
     )
 
 

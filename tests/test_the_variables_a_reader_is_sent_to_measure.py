@@ -84,11 +84,11 @@ def test_the_items_that_send_a_reader_to_measure_something():
         for item in req.get("items") or []
         if isinstance(item.get("skeleton"), dict) and item["skeleton"]
     ]
-    assert len(skeletons) == 421, len(skeletons)
+    assert len(skeletons) == 424, len(skeletons)
     kinds = {}
     for sk in skeletons:
         kinds[sk.get("kind")] = kinds.get(sk.get("kind"), 0) + 1
-    assert kinds == {"variable_patch": 310, "probability": 111}, kinds
+    assert kinds == {"variable_patch": 313, "probability": 111}, kinds
     assert len(TARGETS) == 111, len(TARGETS)
 
 

@@ -95,10 +95,15 @@ SHAPES = json.loads(
 #: they replaced took 12. 27 came with the row brought when a decomposition
 #: asked within a stratum was evaluated within it: what its seven gaps
 #: describe, ask for and say, the four ways past the one gap that offers
-#: any, and the five assumptions on its ledger.
-REACHED = 5333
+#: any, and the five assumptions on its ledger. 21 came with the row
+#: brought when a question was refused because the stratum it names holds
+#: too few rows to answer it on: each of its five gaps is stated as a kind
+#: and describes one thing, two of them offer seven ways past between them,
+#: its three investigation items say what they ask for, and the refusal
+#: says itself.
+REACHED = 5354
 PER_CARRIER = {
-    "gap_routes": 1218,
+    "gap_routes": 1225,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
@@ -106,9 +111,9 @@ PER_CARRIER = {
     # a per-carrier pin is for — a narrowing shows up as one of them
     # falling while the others hold. They moved by one each again with the
     # joint general-ID refresh.
-    "gap_describes": 1212,
-    "gap_if_provided": 1038,
-    "gap_says": 741,
+    "gap_describes": 1217,
+    "gap_if_provided": 1043,
+    "gap_says": 744,
     "assumption_claim": 514,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
@@ -117,7 +122,7 @@ PER_CARRIER = {
     # the totals all along, and the block that carries it on its own was
     # the part nothing asked.
     "measurement_scale": 72,
-    "refusal_sentence": 39,
+    "refusal_sentence": 40,
 }
 
 
@@ -568,7 +573,7 @@ def test_the_carrier_that_can_never_speak_says_why():
     # And the other one is not silent: this is the reach the widening buys.
     holed = sum(bool(_holes(REFUSED, str(m)))
                 for m in language.VOCABULARIES[REFUSED])
-    assert holed == 131, holed
+    assert holed == 133, holed
 
 
 def test_every_carrier_is_a_vocabulary_this_build_declares():

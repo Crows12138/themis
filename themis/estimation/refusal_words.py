@@ -81,6 +81,15 @@ class Refuses(language.Word, vocabulary="estimation_refusal",
               "needs — under that, what comes out is not an estimate but "
               "the arithmetic of those rows",
     })
+    THE_STRATUM_IS_NOT_IN_THE_DATA = ("the_stratum_is_not_in_the_data", {
+        "zh": "问题问的是 {stratum} 这一层里的效应，而数据里没有 {columns} 这"
+              "些列；没有这些列就分不出这一层的人，整张表上的数回答的是另一"
+              "个问题",
+        "en": "the question asks for the effect within {stratum}, and the "
+              "data has no {columns} column; without it these rows cannot "
+              "be told apart, and a number over all of them answers a "
+              "different question",
+    })
 
     # --- one column of it -----------------------------------------------
     COLUMN_HAS_GAPS = ("column_has_gaps", {

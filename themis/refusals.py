@@ -455,6 +455,21 @@ class Refusal(EnvelopeName):
         "the term is defined and the estimator declines to report it at "
         "this precision",
     )
+    #: The stratum that is nobody's cell: the one the QUESTION named. The
+    #: three above are about a place an identifying formula has to produce
+    #: a number in, and the estimator chose the place — so a reader's move
+    #: is to change the design or the set. Here the reader chose it, and
+    #: the rows that would answer are not elsewhere in the table, because
+    #: everywhere else is somebody else.
+    TOO_FEW_ROWS_IN_THE_STRATUM_ASKED = (
+        "too_few_rows_in_the_stratum_asked",
+        Kind.DATA,
+        "the question conditions on a stratum and the frame holds too few "
+        "rows in it. Every route answering that question estimates on the "
+        "people the stratum names, so there is nowhere else to take rows "
+        "from, and a number over the rest of the table answers a different "
+        "question",
+    )
     #: Measured on the cut rather than in it. ``too_sparse_to_estimate``
     #: reports a place that turned out thin once the sample was cut there;
     #: this one is decided BEFORE any stratum exists, from how many rows a
@@ -593,6 +608,19 @@ class Refusal(EnvelopeName):
     )
 
     # --- Themis has not built this case ---------------------------------------
+    #: Not "the stratum is thin" (a fact about the data) and not "the
+    #: question is unidentified" (the identification layer answered it).
+    #: The route that reaches this question estimates over the frame it was
+    #: handed and has no way to hold a stratum inside it. Which route that
+    #: is, the block already says.
+    NO_ESTIMATE_WITHIN_THE_STRATUM_ASKED = (
+        "no_estimate_within_the_stratum_asked",
+        Kind.UNBUILT,
+        "the question asks for the effect within a stratum and the route "
+        "that answers it estimates over the whole frame; answering within "
+        "the stratum needs a route built to hold one, and a number over "
+        "everybody would answer a different question",
+    )
     INTRACTABLE_ESTIMAND = (
         "intractable_estimand",
         Kind.UNBUILT,
@@ -2353,6 +2381,26 @@ SAYS: dict[str, language.Words] = {
         "en": "the number of rows at {where} is {given}, below the {needed} "
               "this estimator requires before it will report a number there; "
               "the rows are present and there are not enough of them",
+    },
+    "too_few_rows_in_the_stratum_asked": {
+        "zh": "问题问的是 {stratum} 这一层里的效应，数据里这一层只有 {rows} 行，"
+              "低于 {minimum} 行的下限；这一层的效应要用这一层的人来算，拿别处"
+              "的行凑出来的数回答的是另一个问题",
+        "en": "the question asks for the effect within {stratum}, and the "
+              "frame holds {rows} rows there, below the {minimum} this "
+              "needs; the effect within a stratum is estimated on the "
+              "people the stratum names, and rows from anywhere else "
+              "answer another question",
+    },
+    "no_estimate_within_the_stratum_asked": {
+        "zh": "问题问的是 {stratum} 这一层里的效应，而回答这个问题的路线在整份"
+              "数据上估计、没有办法只算这一层；这一层的数要由一条按分层估计的"
+              "路线来给，拿整份数据算出来的数回答的是另一个问题",
+        "en": "the question asks for the effect within {stratum}, and the "
+              "route that answers it estimates over the whole frame and has "
+              "no way to hold a stratum inside it; a number within that "
+              "stratum needs a route built to estimate by stratum, and one "
+              "over everybody answers another question",
     },
     "no_complete_case_rows": {
         "zh": "{cells} 这一格里没有一行是完整的——行是有的，而每一行都在恢复"

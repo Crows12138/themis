@@ -82,7 +82,7 @@ RULE_QUESTION = "answer_status_question_check"
 #: less the refusal they replaced, made it 1500 and 124. Each of the five
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
-SWAPS = 1506
+SWAPS = 1512
 SURVIVING = 124
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
@@ -240,7 +240,7 @@ def test_what_the_question_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (753, 753), (refused, passed)
+    assert (refused, passed) == (756, 756), (refused, passed)
 
 
 def test_what_this_rule_reaches_on_its_own():
@@ -255,7 +255,7 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (986, 520), (refused, passed)
+    assert (refused, passed) == (990, 522), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [

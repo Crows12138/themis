@@ -48,7 +48,9 @@ from ..types import (
 )
 from .claim import Claim, annotated, answered, blocked, passed
 from . import declared as _declared
-from .contract import DataContract, validate_data
+from .contract import (
+    DataContract, DataContractError, validate_data, within_the_stratum,
+)
 from .form import (
     MODEL_WORD_TWO_STAGE,
     MODEL_WORDS_DOSE_RESPONSE,
@@ -588,6 +590,27 @@ def _maybe_estimate_longitudinal(
         else "longitudinal_ipw_msm"
     )
 
+    # The question's stratum, read here because this pass answers an effect
+    # query outside the loop that reads it everywhere else — and a number
+    # that says nothing about which people it is about is read as the whole
+    # table's.
+    stratum = _the_stratum_this_pass_answers_within(ast, output, target)
+    if stratum:
+        baseline = {str(name) for name in (confounders_by_time[0] or ())}
+        if not all(column in baseline for column, _ in stratum):
+            # This estimator's model of time is the spec's own ordering, and
+            # in it a covariate outside the first block is measured after a
+            # treatment. There is no fixed population to condition on there
+            # and no way inside a g-formula to hold one, so this pass does
+            # not claim the query: the cascade's own conditional route
+            # identifies P(Y | do(X), Z=z) and conditions inside its formula.
+            return
+        try:
+            contract = within_the_stratum(contract, stratum)
+        except EstimatorFailure as exc:
+            refusals.record(target, estimator=method_name, exc=exc)
+            return
+
     # The one knob this route resolves for itself. ``options.cluster`` is
     # resolved before the run records what it was told, so the envelope
     # carries the column that was actually used; this one was resolved here,
@@ -685,6 +708,7 @@ def _maybe_estimate_longitudinal(
             "weight_max": est.weight_max,
         }
     target["numeric_estimate"] = numeric_estimate
+    _say_which_stratum_the_number_is_within(target, stratum)
     # Stamp what the estimator REPORTS having resampled over, not what the
     # caller asked for — the claim and the fact then cannot drift apart.
     _attach_bootstrap_meta(target["numeric_estimate"], est.cluster, est.draws)
@@ -695,6 +719,25 @@ def _maybe_estimate_longitudinal(
     # The verifier accepts that terminal for a longitudinal-numeric result
     # and additionally re-derives the number via verify_longitudinal_numeric.
     _finalise_numeric_result(target)
+
+
+def _the_stratum_this_pass_answers_within(ast: dict, output: dict, target):
+    """The stratum the query this pass answers conditions on.
+
+    Read through the same pairing and the same reader the effect-query loop
+    uses, so "which people this question is about" has one answer however
+    the question is reached. Re-validating the program here is the price of
+    this pass running before the loop that does it once; it is paid only by
+    a program that carries a longitudinal spec.
+    """
+    from ..input.semantic_validator import validate_program
+    from ..input.syntactic_validator import validate_ast
+
+    prog = validate_program(validate_ast(ast))
+    for q_stmt, result in _pair_effect_queries(prog, output):
+        if result is target and q_stmt is not None:
+            return _the_stratum_asked(q_stmt.query)
+    return ()
 
 
 def _longitudinal_target_result(output: dict):
@@ -794,6 +837,25 @@ def _maybe_estimate_missing_recovery(
         program, target.get("query_id")
     )
     if treatment is None or outcome is None:
+        return
+    # This entrance answers an effect question outside the loop that reads
+    # the question's stratum, so it reads it here — and says it cannot hold
+    # one. The identification layer has already narrowed for the stratum (a
+    # conditioned variable leaves the adjustment set), so a number over the
+    # whole frame is neither the conditional estimand nor the marginal one.
+    # Restricting the frame is not available to this route: its columns are
+    # the partially observed ones, and taking the rows where a stratum's
+    # column equals a value is selecting on having observed it, which is
+    # the bias this route exists to undo.
+    stratum = _the_stratum_this_pass_answers_within(
+        _ensure_dict(program), output, target)
+    if stratum:
+        target["estimator_failure"] = refusals.block(
+            estimator="missing_data_recovery",
+            failure_type=Refusal.NO_ESTIMATE_WITHIN_THE_STRATUM_ASKED,
+            details={"stratum": ", ".join(
+                f"{column}={value}" for column, value in stratum)},
+        )
         return
     adjustment = tuple(block.get("adjustment_set") or [])
 
@@ -995,13 +1057,22 @@ def _estimate_effect_queries(
     for q_stmt, result in _pair_effect_queries(prog, output):
         if q_stmt is None or _already_answered(result):
             continue
+        stratum = _the_stratum_asked(q_stmt.query)
+        try:
+            within = within_the_stratum(contract, stratum)
+        except EstimatorFailure as exc:
+            # The stratum is this question's alone, so a thin one is this
+            # question's refusal and not the run's: the queries beside it
+            # are about other people and are answered as usual.
+            refusals.record(result, estimator="the_stratum_asked", exc=exc)
+            continue
         facts = EffectFacts(
             q_stmt=q_stmt,
             graph=graph,
             bidirected=bidirected,
             feedback=feedback,
             prog=prog,
-            contract=contract,
+            contract=within,
             ate_estimator=ate_estimator,
             misclassification=misclassification,
             measurement_error=measurement_error,
@@ -1014,11 +1085,39 @@ def _estimate_effect_queries(
                 (result.get("extensions") or {}).get(blocks.Block.SELECTION_RECOVERY)
             ),
             dose_response_triggered=q_stmt.id in dose_response_query_ids,
+            whole=contract,
         )
         evaluations.append(run_cascade(
             _EFFECT_STRATEGIES, facts, result, knobs, query_id=q_stmt.id,
         ))
+        _say_which_stratum_the_number_is_within(result, stratum)
     return evaluations
+
+
+def _the_stratum_asked(query) -> tuple[tuple[str, Any], ...]:
+    """The stratum a question conditions on, as a column and a value each.
+
+    In the question's order, which is the order the answer writes it back
+    in and the order the frame rule reads it in.
+    """
+    return tuple((g.atom.predicate, g.value) for g in query.given)
+
+
+def _say_which_stratum_the_number_is_within(result: dict, stratum) -> None:
+    """A number answered within a stratum says which one, on the estimate.
+
+    Written here rather than at each route because it is the same fact for
+    all of them: these rows are the question's stratum, so the number is
+    about those people. A route that conditions inside its own formula has
+    already written it and keeps its own copy — the two say the same thing
+    and only one of them is this pass's to write.
+    """
+    if not stratum:
+        return
+    estimate = result.get("numeric_estimate")
+    if not isinstance(estimate, dict) or estimate.get("given") is not None:
+        return
+    estimate["given"] = [[column, value] for column, value in stratum]
 
 
 class _SpecIsNotAMapping(EstimatorFailure):
@@ -1159,8 +1258,12 @@ _EFFECT_STRATEGIES = check_table((
         produces=Estimand.TRANSPORTED_EFFECT,
         # Post-stratification onto declared strata: the method IS the shape.
         models=MODEL_WORDS_NONE,
+        # Reads the source sample whole: re-weighting its strata by the
+        # target's marginal is a statement about every row of it, and the
+        # question's own stratum is one this route declines rather than
+        # narrows (there is no declared target distribution within it).
         run=lambda f, r, k: _try_transport_estimate(
-            f.q_stmt, r, f.contract, k.program,
+            f.q_stmt, r, f.whole, k.program,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
             ci_level=intervals.CONFIDENCE_LEVEL, cluster=k.cluster,
         ),
@@ -1200,8 +1303,11 @@ _EFFECT_STRATEGIES = check_table((
         produces=Estimand.QUERY_EFFECT,
         # A saturated-strata recovery plug-in: no outcome model to choose.
         models=MODEL_WORDS_NONE,
+        # Reads the sample whole and takes the stratum as an argument: the
+        # recovery formula conditions inside itself, against reference data
+        # for the same strata.
         run=lambda f, r, k: _try_selection_recovery_estimate(
-            f.q_stmt, r, f.contract, k.reference_data, k.selection_values,
+            f.q_stmt, r, f.whole, k.reference_data, k.selection_values,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
             cluster=k.cluster,
         ),
@@ -1501,8 +1607,11 @@ _EFFECT_STRATEGIES = check_table((
         defers_to=frozenset({"iv_overidentified", "iv_wald"}),
         # The non-parametric plug-in: its method is its shape.
         models=MODEL_WORDS_NONE,
+        # Reads the table whole: IDC identifies P(Y | do(X), Z=z) as a ratio
+        # over the whole joint distribution, so the rows outside the stratum
+        # are its denominator and restricting to the stratum would delete it.
         run=lambda f, r, k: _try_general_id_estimate(
-            f.q_stmt, r, f.contract, f.graph, f.bidirected,
+            f.q_stmt, r, f.whole, f.graph, f.bidirected,
             x_atom=f.x_atom, y_atom=f.y_atom, given_atoms=f.given_atoms,
             random_state=k.random_state, ci_bootstrap=k.ci_bootstrap,
             cluster=k.cluster,
@@ -4919,6 +5028,16 @@ def _try_transport_estimate(
     # be reading the wrong population's strata as if they were the right
     # one. The structural answer, which names every route, stands either
     # way (#326).
+    # A question conditioning on a stratum asks for the effect among those
+    # people IN THE TARGET population, and what the program declares about
+    # the target is one marginal over the adjustment set. Re-weighting the
+    # source's strata by it answers for the whole target, not for the
+    # stratum asked, and the distribution that would answer for the stratum
+    # is not on the envelope. So this route reads the whole source sample
+    # and declines the question it cannot narrow, rather than narrowing the
+    # sample and reporting the answer under the question's name.
+    if q_stmt.query.given:
+        return blocked('design_unavailable')
     routes = [
         r for r in (transport_block.get("sources") or [])
         if isinstance(r, dict) and r.get("transportable")

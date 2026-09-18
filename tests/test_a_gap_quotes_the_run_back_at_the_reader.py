@@ -125,14 +125,16 @@ def test_the_facts_this_rule_speaks_for():
     # identifier began answering a query conditioning on a descendant of the treatment.
     # 2 more assumptions and 4 more intervention: the row brought when a decomposition
     # asked within a stratum was evaluated within it.
+    # 4 more intervention: the row brought when a question was refused because the
+    # stratum it names holds too few rows to answer it on.
     assert split == {
         "assumptions": 38, "method": 63, "what": 113,
         "methods": 73, "population": 16, "source": 10,
         "kind": 11, "target": 39,
-        "intervention": 588, "treatment": 21, "outcome": 18,
+        "intervention": 592, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3,
     }, split
-    assert len(SITES) == 1002, len(SITES)
+    assert len(SITES) == 1006, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -151,7 +153,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 1002, refused
+    assert refused == 1006, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -623,7 +625,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 1002 * 6, refused
+    assert refused == 1006 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

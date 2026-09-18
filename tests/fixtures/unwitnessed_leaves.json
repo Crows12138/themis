@@ -322,6 +322,7 @@
  "general_id_idc_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
+  "estimation_context.sample_size",
   "extensions.identification.conditioned_on.[]"
  ],
  "general_id_plugin": [
@@ -970,6 +971,15 @@
   "estimation_context.random_state",
   "estimator_failure.estimator"
  ],
+ "needs_investigation:effect:none#c60193": [
+  "estimation_context.ci_bootstrap",
+  "estimation_context.data_columns.[]",
+  "estimation_context.model_preference",
+  "estimation_context.random_state",
+  "estimation_context.sample_size",
+  "estimator_failure.estimator",
+  "extensions.identification.conditioned_on.[]"
+ ],
  "needs_investigation:effect:none#cdaa7d": [
   "data_gap_report.gaps.[].alternative_paths.[].said.drop",
   "data_gap_report.gaps.[].alternative_paths.[].said.drop@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,route=drop_the_other_layer",
@@ -1288,6 +1298,7 @@
  "numerically_solved:effect:numeric_general_id_estimate#5414a2": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
+  "estimation_context.sample_size",
   "extensions.identification.conditioned_on.[]"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [

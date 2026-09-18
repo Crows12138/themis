@@ -92,7 +92,7 @@ VERDICTS = sorted(
 
 
 def test_the_rows():
-    assert len(ROWS) == 142, len(ROWS)
+    assert len(ROWS) == 143, len(ROWS)
     assert [name for name in ROWS if _before_any_route(name)] == [
         "needs_investigation:effect:none#614789",
         "needs_investigation:effect:none#af79f6"]

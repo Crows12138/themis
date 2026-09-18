@@ -310,6 +310,35 @@ def _asked_values(program: Any, query_id: Any) -> dict[str, Any]:
     return {field: read(query) for field, read in reads.items()}
 
 
+def _the_stratum_is_written(estimate: dict, program: Any, query_id: Any) -> None:
+    """A number answering a question about a stratum says which stratum.
+
+    The value the estimate shows back is held against the question's by the
+    table above; what is held here is that it shows one at all. The two
+    halves are one rule and were not always both available: while every
+    route but the conditional plug-in estimated a conditional question on
+    the whole table, holding the field's absence would have refused every
+    honest answer there was, and the absence meant "this route does not
+    write it" rather than "this number is the whole table's". Now the rows
+    a number is computed on are the rows the question names, so a number
+    with no stratum beside it IS a number about everybody — and read as
+    one, which is the misreading this asks about.
+    """
+    query = query_of(program, query_id) if isinstance(program, dict) else None
+    if not isinstance(query, dict) or str(query.get("kind")) != "effect":
+        return
+    stratum = _stratum_of(query)
+    if not stratum or estimate.get("given") is not None:
+        return
+    _reject(
+        _RULE,
+        f"the question asks about the stratum {stratum!r} and "
+        f"numeric_estimate carries no `given`, so nothing on it says which "
+        f"people its number is about; a number that names no stratum is "
+        f"read as the whole table's, and these two are different "
+        f"quantities")
+
+
 def _the_values(estimate: dict, block: dict, where: str,
                 domains: dict[str, list], asked: dict) -> None:
     for field, subject in (("states", estimate.get("treatment")),
@@ -891,6 +920,7 @@ def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
 
     domains = _declared_domains(program)
     asked = _asked_values(program, query_id)
+    _the_stratum_is_written(estimate, program, query_id)
     for name, block in _every_layer(estimate):
         _the_names(estimate, block, name)
         _the_values(estimate, block, name, domains, asked)

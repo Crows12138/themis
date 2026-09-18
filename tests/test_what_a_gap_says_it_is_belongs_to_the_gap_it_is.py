@@ -205,7 +205,7 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
     # answering a query conditioning on a descendant of the treatment.
     # 7 more slots and 7 more gaps: the row brought when a decomposition asked within a
     # stratum was evaluated within it.
-    assert (slots, gap_total, len(species)) == (1189, 1038, 38)
+    assert (slots, gap_total, len(species)) == (1194, 1043, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

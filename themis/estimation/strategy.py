@@ -287,6 +287,17 @@ class EffectFacts(StructuralFacts):
     Everything structural comes from the shared base, so a guard shared
     with the identification layer means the same thing on both sides
     rather than being two solver calls that look alike.
+
+    ``contract`` is the rows THIS QUESTION is about: a question
+    conditioning on a stratum is about the people in it, and a strategy
+    reading this reads them. ``whole`` is every row the caller handed in,
+    and a route reads it only where its estimand is not the one this
+    question conditions to — a second population to transport onto, a
+    biased sample to recover from, a formula that conditions inside
+    itself. The default is the narrower of the two on purpose: a route
+    added later that says nothing is about the question as asked, and a
+    route that needs the rest of the table says so where it asks for
+    them. Where the question names no stratum the two are the same frame.
     """
 
     def __init__(
@@ -303,6 +314,7 @@ class EffectFacts(StructuralFacts):
         measurement_error: dict | None,
         selection_recovery: dict | None,
         dose_response_triggered: bool,
+        whole: Any = None,
     ) -> None:
         super().__init__(
             q_stmt=q_stmt, graph=graph, bidirected=bidirected,
@@ -310,6 +322,7 @@ class EffectFacts(StructuralFacts):
         )
         self.prog = prog
         self.contract = contract
+        self.whole = contract if whole is None else whole
         self.ate_estimator = ate_estimator
         self.misclassification = misclassification or {}
         self.measurement_error = measurement_error or {}
