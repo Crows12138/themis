@@ -218,11 +218,17 @@ def test_the_remainder_split_is_what_it_is():
     recomputed rather than looked up, and so a leaf nothing writes twice
     was held anyway. The heading is honest about comparisons. It cannot
     see a function.
+
+    Fifth use, and the plainest: 38 here, 15 from "named otherwise", and
+    nothing from anywhere else. The frontier held a step's record of the
+    descriptor it was handed to the same rebuild the block is held to, so
+    the leaves that moved are exactly the ones this reading said were a
+    second writing of something the answer already carries.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 282,
+        gate._ANSWER_ALIKE: 244,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 295,
+        gate._ANSWER_OTHERWISE: 280,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 667,
         gate._EVERY_READING_MATCHES: 129,

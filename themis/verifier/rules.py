@@ -71,7 +71,7 @@ _NUMERIC_TOL = 1e-9
 
 def _rule_graph_is_dag(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -144,7 +144,7 @@ def _check_d_separation(
 
 def _rule_d_separation_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -186,7 +186,7 @@ def _graph_minus_x_outgoing(graph: nx.DiGraph, x: Atom) -> nx.DiGraph:
 
 def _rule_backdoor_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -312,7 +312,7 @@ def _build_expected_backdoor_formula(
 
 def _rule_backdoor_adjustment_formula(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -376,7 +376,7 @@ def _rule_backdoor_adjustment_formula(
 
 def _rule_identify_via_backdoor(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -516,7 +516,7 @@ def _verifier_set_m_connected(
 
 def _rule_joint_backdoor_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -595,7 +595,7 @@ def _rule_joint_backdoor_criterion(
 
 def _rule_identify_via_joint_backdoor(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -643,7 +643,7 @@ def _rule_identify_via_joint_backdoor(
 
 def _rule_identify_via_general_id(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -705,7 +705,7 @@ _INTERACTION_UNAVAILABLE_KINDS = frozenset({
 })
 
 
-def _check_joint_answer(inputs: dict, step_index: int, rule: str) -> None:
+def _check_joint_answer(inputs: Mapping, step_index: int, rule: str) -> None:
     """The two numbers a joint terminal carries, and the rule that an
     absent interaction must say WHICH way it went missing.
 
@@ -770,7 +770,7 @@ def _check_joint_answer(inputs: dict, step_index: int, rule: str) -> None:
 
 def _rule_numeric_joint_backdoor_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -915,7 +915,7 @@ def _verifier_backdoor_paths(
 
 def _rule_front_door_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1084,7 +1084,7 @@ def _build_expected_front_door_formula(
 
 def _rule_front_door_adjustment_formula(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1121,7 +1121,7 @@ def _rule_front_door_adjustment_formula(
 
 def _rule_identify_via_front_door(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -1249,7 +1249,7 @@ def unconditional_instrument_holds(graph, bidirected, x, y, z) -> bool:
 
 def _rule_iv_criterion_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1325,7 +1325,7 @@ def declared_loops_reaching(graph, declared, x, y) -> frozenset:
 
 def _rule_feedback_loop_withdraws_adjustment(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     **_: Any,
@@ -1392,7 +1392,7 @@ def _rule_feedback_loop_withdraws_adjustment(
 
 def _rule_vector_iv_criterion_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1474,7 +1474,7 @@ def _rule_vector_iv_criterion_check(
 
 def _rule_general_id_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1591,7 +1591,7 @@ def _rule_general_id_criterion(
 
 def _rule_ctf_conjunction_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1660,7 +1660,7 @@ def _rule_ctf_conjunction_criterion(
 
 def _rule_id_star_identification(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1754,7 +1754,7 @@ def _rule_id_star_identification(
 
 def _rule_iv_wald_numeric_evaluate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -1995,7 +1995,7 @@ def _rule_iv_wald_numeric_evaluate(
 
 
 def _require_reported_probability(
-    holder: dict,
+    holder: Mapping,
     key: str,
     *,
     step_index: int,
@@ -2079,7 +2079,7 @@ def _require_number_column(
 
 
 def _pin_number(
-    holder: dict,
+    holder: Mapping,
     key: str,
     expected: float,
     *,
@@ -2111,7 +2111,7 @@ def _pin_number(
 
 def _rule_identify_via_iv(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -2181,7 +2181,7 @@ def _the_stratum_asked(ctx: VerificationContext) -> frozenset:
 
 def _rule_mediation_nde_nie_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -2275,7 +2275,7 @@ def _rule_mediation_nde_nie_check(
 
 def _rule_mediation_cde_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -2354,7 +2354,7 @@ def _rule_mediation_cde_check(
 
 def _rule_identify_via_mediation(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -2414,7 +2414,7 @@ def _rule_identify_via_mediation(
 
 def _rule_mediation_nde_nie_joint_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -2511,7 +2511,7 @@ def _rule_mediation_nde_nie_joint_check(
 
 def _rule_mediation_cde_joint_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -2601,7 +2601,7 @@ def _rule_mediation_cde_joint_check(
 
 def _rule_identify_via_mediation_joint(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -2657,7 +2657,7 @@ def _rule_identify_via_mediation_joint(
 
 def _rule_longitudinal_sequential_exchangeability_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -2753,7 +2753,7 @@ def _rule_longitudinal_sequential_exchangeability_check(
 
 def _rule_identify_via_gformula(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -2963,7 +2963,7 @@ def _verifier_build_mediation_controlled_outcome_formula(
 
 def _rule_mediation_numeric_evaluate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -3305,7 +3305,7 @@ _MIN_NUMERIC_SAMPLE_SIZE = 10
 
 def _rule_numeric_backdoor_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3457,7 +3457,7 @@ _AIPW_CI_METHODS = frozenset({"influence_function", "bootstrap"})
 
 
 def _audit_dr_numeric_estimate(
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3648,7 +3648,7 @@ def _audit_dr_numeric_estimate(
 
 def _rule_numeric_aipw_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3665,7 +3665,7 @@ def _rule_numeric_aipw_estimate(
 
 def _rule_numeric_tmle_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3696,7 +3696,7 @@ def _rule_numeric_tmle_estimate(
 
 def _rule_numeric_ipw_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3713,7 +3713,7 @@ def _rule_numeric_ipw_estimate(
 
 def _rule_numeric_frontdoor_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -3892,7 +3892,7 @@ def _point_in_ar_set(kind, lower, upper, point, *, tol) -> bool:
     return False  # empty
 
 
-def _check_anderson_rubin(inputs: dict, point, step_index: int) -> None:
+def _check_anderson_rubin(inputs: Mapping, point, step_index: int) -> None:
     """Re-solve the Anderson-Rubin confidence set from the reported
     residualised sufficient statistics and confirm the claimed set (kind +
     endpoints), the F critical value, and the IV point (Szy/Szx) all match —
@@ -3989,7 +3989,7 @@ def _check_anderson_rubin(inputs: dict, point, step_index: int) -> None:
 
 def _rule_numeric_iv_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -4143,7 +4143,7 @@ def _rule_numeric_iv_estimate(
     _check_first_stage(inputs, step_index)
 
 
-def _check_first_stage(inputs: dict, step_index: int) -> None:
+def _check_first_stage(inputs: Mapping, step_index: int) -> None:
     """Recompute the first-stage F from the moments it is a ratio of.
 
     The number Stock and Yogo's threshold is applied to, and the one a
@@ -4239,7 +4239,7 @@ def _check_first_stage(inputs: dict, step_index: int) -> None:
 
 
 def _check_stratified_wald(
-    inputs: dict, point: float, method: str, step_index: int,
+    inputs: Mapping, point: float, method: str, step_index: int,
 ) -> None:
     """Recompute a stratified-Wald point from the recorded stratum table.
 
@@ -4354,7 +4354,7 @@ def _check_stratified_wald(
 
 
 def _check_stratified_anderson_rubin(
-    inputs: dict, point, method: str, step_index: int,
+    inputs: Mapping, point, method: str, step_index: int,
 ) -> None:
     """Re-solve the stratified Anderson-Rubin set from the stratum table.
 
@@ -4513,7 +4513,7 @@ def _check_stratified_anderson_rubin(
 
 def _rule_numeric_iv_overid_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -4646,7 +4646,7 @@ _AR_REGION_SHAPES = frozenset(
 
 def _rule_numeric_anderson_rubin_region(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -4763,7 +4763,7 @@ def _rule_numeric_anderson_rubin_region(
 
 def _rule_numeric_general_id_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -4892,7 +4892,7 @@ def _rule_numeric_general_id_estimate(
 
 def _rule_numeric_joint_general_id_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -5011,7 +5011,7 @@ def _rule_numeric_joint_general_id_estimate(
 
 def _check_joint_corner_estimands(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     treatments: frozenset,
     outcome,
     *,
@@ -5127,7 +5127,7 @@ def _check_joint_corner_estimands(
 
 def _rule_numeric_scm_counterfactual_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -5220,7 +5220,7 @@ def _rule_numeric_scm_counterfactual_estimate(
 
 def _rule_numeric_ctf_conjunction_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -5406,9 +5406,142 @@ def _verifier_proximal_criterion_fails(graph, bidirected, query) -> str | None:
     return None
 
 
+def _proximal_sieve(terms) -> list:
+    """A sieve's terms, as the envelope spells them.
+
+    Independent twin of the producer's rendering, and it carries the
+    producer's one ambiguity rather than correcting it: a factor's
+    variable is written by its PREDICATE alone, where the same block
+    writes the treatment and the outcome as full labels. So a term about
+    ``x(u)`` and one about ``x(nobody)`` reach a reader as the same word.
+    Spelling them differently here would refuse every honest answer, so
+    what is held is what is written, and the narrowing is recorded.
+    """
+    return [
+        [{"basis": str(factor.basis),
+          "dimension": factor.dimension,
+          "variable": factor.variable.predicate}
+         for factor in term.factors]
+        for term in (terms or ())
+    ]
+
+
+def _proximal_width(terms) -> int:
+    """How many columns a sieve builds.
+
+    A term is the tensor product of its factors, so on its own it is the
+    product of their dimensions — LESS ONE. Every basis family here spans
+    the constant, so each term's first column is dropped and a single
+    constant is restored for the whole design; without that, two terms
+    put the constant in twice and the normal matrix is singular before
+    any data has had a say.
+
+    Recomputed rather than copied, because a width is the one field here
+    that is arithmetic on the others and a wrong one buys a rank claim
+    nobody can check. And transcribed from the design rather than fitted
+    to the corpus: EVERY STORED SIEVE HAS ONE TERM, and for one term the
+    product and the product-less-one-plus-one are the same number, so the
+    corpus could not have told the difference.
+    """
+    if not terms:
+        return 0
+    total = 1
+    for term in terms:
+        product = 1
+        for factor in term.factors:
+            product *= factor.dimension
+        total += product - 1
+    return total
+
+
+def _the_proximal_descriptor(query) -> dict:
+    """The descriptor this question asks for, rebuilt in full.
+
+    Every field, because the point of rebuilding rather than comparing
+    field by field is that the SET of fields is checked too. A field the
+    producer adds tomorrow is a field this does not produce, and the
+    comparison fails rather than passing in silence — which is what
+    happened to the twelve the bridge channel brought with it.
+
+    Two readers ask for this now: the block a reader is shown, and the
+    copy the criterion step records among its inputs. They are the same
+    descriptor because they are the same question, and the producer
+    builds both out of one dict; holding them to one rebuild is what
+    makes that a fact about the question rather than about the producer.
+    """
+    from ..types import BridgeChannel, DiscreteChannel
+
+    out: dict = {}
+    for field in ("treatment", "outcome", "latent"):
+        declared = getattr(query, field, None)
+        if declared is not None:
+            out[field] = _atom_label_verifier(declared)
+    for field in ("treatment_proxy", "outcome_proxy", "covariates"):
+        declared = getattr(query, field, None)
+        if declared is not None:
+            out[field] = sorted(_atom_label_verifier(a) for a in declared)
+
+    # The channel's discriminator is its TYPE, not a field on it — the query
+    # carries a DiscreteChannel or a BridgeChannel — while the envelope
+    # carries the same distinction as a token, because a reader's surface
+    # cannot dispatch on a Python class. So the token is what the type is,
+    # and ``method`` is the same distinction said a second time in the
+    # vocabulary a reader reads.
+    channel = getattr(query, "channel", None)
+    if isinstance(channel, DiscreteChannel):
+        out["channel_kind"] = "discrete_channel"
+        out["method"] = "proximal_matrix"
+        out["latent_cardinality"] = channel.latent_cardinality
+        out["data_conditions"] = ["rank"]
+        return out
+    if not isinstance(channel, BridgeChannel):
+        return out
+
+    out["channel_kind"] = "bridge_channel"
+    out["method"] = "proximal_bridge"
+    out["estimator"] = str(channel.estimator)
+    for side in ("outcome", "treatment"):
+        bridge = getattr(channel, f"{side}_bridge", None)
+        if bridge is None:
+            continue
+        out[f"{side}_bridge_moment_terms"] = _proximal_sieve(
+            bridge.moment_terms)
+        out[f"{side}_bridge_span_terms"] = _proximal_sieve(bridge.span_terms)
+        out[f"{side}_bridge_moment_width"] = _proximal_width(
+            bridge.moment_terms)
+        out[f"{side}_bridge_span_width"] = _proximal_width(bridge.span_terms)
+        out[f"{side}_bridge_ridge"] = bridge.ridge
+    # One pair of conditions per bridge the channel actually carries, and
+    # the second pair is the first read in the other direction. Keyed on
+    # the treatment bridge alone, because an outcome bridge is what makes
+    # this a bridge channel at all. Transcribed rather than imported: a
+    # shared constant is a shared belief.
+    out["data_conditions"] = (
+        ["completeness", "bridge_in_span",
+         "treatment_bridge_completeness", "treatment_bridge_in_span"]
+        if getattr(channel, "treatment_bridge", None) is not None
+        else ["completeness", "bridge_in_span"])
+    return out
+
+
+def _what_was_written(value):
+    """A record's content, with the container's spelling taken out.
+
+    The block reaches a rule as JSON and a step's inputs reach it through
+    the derivation serializer, which spells every sequence as a tuple. A
+    tuple and a list write the same thing, and what is being compared
+    here is what was written down, so the comparison is made on content.
+    """
+    if isinstance(value, Mapping):
+        return {key: _what_was_written(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_what_was_written(item) for item in value]
+    return value
+
+
 def _rule_proximal_criterion(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -5427,7 +5560,7 @@ def _rule_proximal_criterion(
     covariates undo; and a re-run of the producer's code has nothing to
     disagree with the producer about.
 
-    inputs: graph
+    inputs: graph, estimand (when the structural path emitted it)
     output: bool
     """
     from ..types import ProximalEffectQuery
@@ -5452,6 +5585,44 @@ def _rule_proximal_criterion(
                else f"does not hold on this graph: {failed}"),
             step_index=step_index, rule="proximal_criterion",
         )
+
+    # The step records the descriptor it was handed, and a record of what
+    # a step was handed is a copy of something the question already says.
+    # The same rebuild the block is held to answers for it, so the two
+    # copies cannot drift from each other or from the question.
+    #
+    # Only when it is there: this rule is emitted twice, once by the
+    # structural path with the descriptor and once on the way to a numeric
+    # answer with the graph alone. A producer that drops it is not held
+    # here, and that narrowing is written down as a test rather than
+    # papered over by requiring a field nine stored answers do not have.
+    recorded = inputs.get("estimand")
+    if recorded is not None:
+        want = _the_proximal_descriptor(q)
+        shown, asked = _what_was_written(recorded), _what_was_written(want)
+        # Which shadow is written first is not a fact about the study, and
+        # the block a reader is shown is held to the same three fields as
+        # sets. The rebuild writes them sorted, so sorting the record is
+        # what makes the two agree about what a set is. Decided from the
+        # contract and not from the corpus: every stored answer here names
+        # ONE proxy a side and no covariates, so the corpus has nothing to
+        # say about order and could only have taught a wrong lesson.
+        for field in ("treatment_proxy", "outcome_proxy", "covariates"):
+            if isinstance(shown.get(field), list):
+                shown[field] = sorted(shown[field])
+        if shown != asked:
+            absent = object()
+            disagree = sorted(
+                key for key in set(shown) | set(asked)
+                if shown.get(key, absent) != asked.get(key, absent))
+            step_says = {key: shown.get(key) for key in disagree}
+            question_says = {key: asked.get(key) for key in disagree}
+            raise RuleCheckFailed(
+                f"proximal_criterion records an estimand that is not the one "
+                f"this question asks for; {disagree} disagree — the step "
+                f"says {step_says}, the question says {question_says}",
+                step_index=step_index, rule="proximal_criterion",
+            )
 
 
 #: The penalties the estimator re-solves at, as fractions of tr(G)/d.
@@ -5902,7 +6073,7 @@ def _proximal_arm_risk(rows, w_marginal, n_total, z_groups, w_groups, arm,
     return float(py @ np.linalg.solve(M, pw))
 
 
-def _proximal_numeric_licence(inputs: dict, step_index: int, rule: str,
+def _proximal_numeric_licence(inputs: Mapping, step_index: int, rule: str,
                               methods: frozenset) -> int:
     """The questions that come before the answer has a shape.
 
@@ -5951,7 +6122,7 @@ def _proximal_numeric_licence(inputs: dict, step_index: int, rule: str,
     return int(sample_size)
 
 
-def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
+def _proximal_numeric_prelude(inputs: Mapping, step_index: int, rule: str,
                               methods: frozenset) -> tuple[float, int]:
     """The licence, plus the point and the interval around it.
 
@@ -5985,7 +6156,7 @@ def _proximal_numeric_prelude(inputs: dict, step_index: int, rule: str,
 
 def _rule_numeric_proximal_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -6132,7 +6303,7 @@ def _rule_numeric_proximal_estimate(
 
 def _rule_numeric_proximal_null_test(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -6286,7 +6457,7 @@ def _rule_numeric_proximal_null_test(
         )
 
 
-def _check_proximal_bridge_curve(ctx, inputs: dict, channel: dict,
+def _check_proximal_bridge_curve(ctx, inputs: Mapping, channel: dict,
                                  step_index: int, rule: str) -> None:
     """Re-solve the one bridge, and re-evaluate it at every level.
 
@@ -6685,7 +6856,7 @@ def _check_curve_ladder(channel: dict, g, c, scale: float, d: int, rule: str,
 
 def _rule_numeric_proximal_bridge_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -7159,7 +7330,7 @@ _NUMERIC_MEASUREMENT_CORRECTION_METHODS = frozenset({
 
 def _rule_numeric_measurement_correction_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -7306,7 +7477,7 @@ def _check_ci_width(inputs, *, pinned: bool, step_index, rule: str) -> None:
 
 def _rule_numeric_causation_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -7575,7 +7746,7 @@ def _rule_numeric_causation_estimate(
 
 def _rule_probability_ref_lookup(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8093,7 +8264,7 @@ def _verifier_derive_via_bayes_inversion(
 
 def _rule_formula_evaluation(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8144,7 +8315,7 @@ def _rule_formula_evaluation(
 
 def _rule_numeric_result(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
@@ -8234,7 +8405,7 @@ def _rule_numeric_result(
 
 def _rule_unidentifiable_via_backdoor(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8314,7 +8485,7 @@ def _rule_unidentifiable_via_backdoor(
 
 def _rule_d_separated(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8368,7 +8539,7 @@ def _rule_d_separated(
 
 def _rule_no_directed_path(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8458,7 +8629,7 @@ def _validate_path_as_tuple_of_atoms(
 
 
 def _require_atom_paths(
-    inputs: dict,
+    inputs: Mapping,
     key: str,
     step_index: int,
     rule: str,
@@ -8477,7 +8648,7 @@ def _require_atom_paths(
 
 def _rule_cause_via_directed_path(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8618,7 +8789,7 @@ def _all_open_paths_for_verifier(
 
 def _rule_d_connected_via_open_path(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8927,7 +9098,7 @@ def _verifier_c_components(
 
 def _rule_m_separation_witness(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -8979,7 +9150,7 @@ def _rule_m_separation_witness(
 
 def _rule_m_connection_witness(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -9039,7 +9210,7 @@ def _relative_time_value(
 
 def _rule_t1_time_monotonicity(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -9065,7 +9236,7 @@ def _rule_t1_time_monotonicity(
 
 def _rule_t2_lag_bound(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -9104,7 +9275,7 @@ def _rule_t2_lag_bound(
 
 def _rule_t3_unroll_acyclic(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -9304,7 +9475,7 @@ def _ancestral_joint_for_verifier(
 def _recorded_instrument_table_matches_theta(
     graph: nx.DiGraph,
     theta: Theta,
-    inputs: dict,
+    inputs: Mapping,
     *,
     bidirected: frozenset[frozenset[Atom]],
     step_index: int,
@@ -9773,7 +9944,7 @@ def _numeric_result_matches(
 
 def _rule_counterfactual_cell_bounds(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -9932,7 +10103,7 @@ same road: nothing on the producer's side may report a risk beside it."""
 
 
 def _check_risk_provenance(
-    inputs: dict, ctx: VerificationContext, arm: AtomValue | None,
+    inputs: Mapping, ctx: VerificationContext, arm: AtomValue | None,
     *, step_index: int, rule: str,
 ) -> str:
     """The licence, re-derived rather than read.
@@ -9994,7 +10165,7 @@ def _check_risk_provenance(
 
 def _rule_numeric_counterfactual_cell_estimate(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -10262,7 +10433,7 @@ def _rule_numeric_counterfactual_cell_estimate(
 
 def _check_the_data_instrument(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     treatment: Atom,
     outcome: Atom,
     *,
@@ -10307,7 +10478,7 @@ def _check_the_data_instrument(
 
 def _rederive_cell_over_response_polytope(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     query,
     joint: dict,
     *,
@@ -10407,7 +10578,7 @@ def _instrument_response_maps(nz: int):
 
 
 def _verifier_recorded_iv_table(
-    inputs: dict, joint: dict, *, step_index: int, rule: str,
+    inputs: Mapping, joint: dict, *, step_index: int, rule: str,
 ):
     """The recorded ``P(X, Y | Z)`` table, checked before anything is read off it.
 
@@ -10476,7 +10647,7 @@ def _verifier_recorded_iv_table(
 
 def _rederive_causation_over_response_polytope(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     cells: dict,
     monotonic: bool,
     *,
@@ -10564,7 +10735,7 @@ def _rederive_causation_over_response_polytope(
 
 def _check_causation_general_id_risks(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     x_atom,
     y_atom,
     *,
@@ -10669,7 +10840,7 @@ def _said_assignment(intervention: dict) -> str:
 
 def _check_cf_cell_general_id_risk(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     query,
     *,
     step_index: int,
@@ -10798,7 +10969,7 @@ def _tian_pearl_poc_for_verifier(
 def _check_causation_over_the_polytope(
     ctx: VerificationContext,
     theta: Theta,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     declared_cells: dict,
     monotonic: bool,
@@ -10928,7 +11099,7 @@ def _counterfactual_joint_xy_for_verifier_by_atoms(
 
 def _rule_causation_probability_bounds(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11265,7 +11436,7 @@ def abduct_act_predict(
 
 def _rule_scm_abduction_action_prediction(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11392,7 +11563,7 @@ def _verifier_mutilate_incoming(graph: nx.DiGraph, x: Atom) -> nx.DiGraph:
 
 def _rule_s_admissibility_check(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11508,7 +11679,7 @@ def _rule_s_admissibility_check(
 
 def _rule_transport_formula(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11720,7 +11891,7 @@ def _value_shape_equal(va, vb, a_to_b_binds: dict, b_to_a_binds: dict) -> bool:
 
 def _rule_transport_formula_ast(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11785,7 +11956,7 @@ def _rule_transport_formula_ast(
 
 def _rule_tian_formula_ast(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -11921,7 +12092,7 @@ def _verifier_bind_target_value(
 
 def _rule_idc_formula_ast(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -12053,7 +12224,7 @@ def _verifier_bind_idc_values(formula, value_map: dict):
 
 def _rule_identify_via_transport(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict,
@@ -12117,7 +12288,7 @@ def _rule_identify_via_transport(
 
 def _rule_tian_c_decomposition(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -12167,7 +12338,7 @@ def _query_atoms(q, rule: str, step_index: int):
 
 def _rule_identify_via_tian(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict,
@@ -12347,7 +12518,7 @@ def interventions_the_graph_identifies(
 
 def _rule_tian_hedge_witness(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict,
@@ -12477,7 +12648,7 @@ def _idc_replay_exchange(graph, bidirected, x, y_set, z_set):
 
 def _rule_idc_rule2_exchange(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
 ) -> None:
@@ -12503,7 +12674,7 @@ def _rule_idc_rule2_exchange(
 
 def _rule_identify_via_idc(
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict,
@@ -12800,8 +12971,8 @@ def atoms_within(node: Any) -> Iterator[Atom]:
 
 
 def _every_atom_a_step_names_is_one_the_graph_has(
-    ctx: VerificationContext, inputs: dict, step_index: int, rule_name: str,
-) -> None:
+    ctx: VerificationContext, inputs: Mapping, step_index: int, rule_name: str,
+) -> frozenset[str]:
     """A step's inputs name variables, and the variables have to exist.
 
     An atom is a predicate AND its arguments: ``x(u)`` and ``x(nobody)``
@@ -12830,31 +13001,153 @@ def _every_atom_a_step_names_is_one_the_graph_has(
     has no content. It declines rather than refusing every atom there is.
     """
     if ctx.graph.number_of_nodes() == 0:
-        return
-    for atom in atoms_within(inputs):
-        if atom in ctx.graph:
-            continue
-        raise RuleCheckFailed(
-            f"{rule_name} names {atom.predicate}("
-            f"{','.join(a.name for a in atom.args)}) among its inputs and the "
-            f"program's graph has no such variable; a step cannot have "
-            f"reasoned about a variable that is not there, and an atom is "
-            f"its arguments as much as its predicate",
-            step_index=step_index, rule=rule_name,
-        )
+        return frozenset()
+    named: set[str] = set()
+    for key, value in inputs.items():
+        for atom in atoms_within(value):
+            named.add(key)
+            if atom in ctx.graph:
+                continue
+            raise RuleCheckFailed(
+                f"{rule_name}.{key} names {atom.predicate}("
+                f"{','.join(a.name for a in atom.args)}) and the "
+                f"program's graph has no such variable; a step cannot have "
+                f"reasoned about a variable that is not there, and an atom is "
+                f"its arguments as much as its predicate",
+                step_index=step_index, rule=rule_name,
+            )
+    return frozenset(named)
+
+
+#: Inputs a rule may record without reading, by the NAME of the input.
+#:
+#: The excuse is about the VALUE and not about the rule that carries it:
+#: a confidence level is a confidence level wherever it is written down,
+#: and if a second rule starts recording one it is the same question who
+#: holds it. Keyed by name for that reason, and short on purpose — every
+#: entry is a place where the reader of this step's record is somewhere
+#: else, and a new one has to be argued for rather than appearing.
+#:
+#: Measured when this list was written: of the twelve, ten have no leaf in
+#: the remainder file, so something does hold them; ``monotonicity`` and
+#: ``instrument_levels`` each have one leaf declared there, which is this
+#: same fact said by the other mechanism. Being on this list is a
+#: statement that THIS rule does not read the value, never a claim that
+#: somebody does.
+_RECORDED_FOR_A_READER_ELSEWHERE: frozenset[str] = frozenset({
+    # The level a confidence interval was built at. The bounds are
+    # re-derived from the sufficient statistics by the rule; the level
+    # they were built at is held against the context that states it.
+    "ci_level",
+    "ci_width_is",
+    # A weak-instrument region reported beside a point estimate, held by
+    # the rules that re-solve the region itself.
+    "ar_point",
+    # The instrument and its levels, and the joint tables a bounds
+    # computation was read off.
+    "instrument",
+    "instrument_levels",
+    "p_xyz",
+    "p_z",
+    "monotonicity",
+    # The risk expressions a probability-of-causation step prints.
+    "risk_formula",
+    "risk_formula_control",
+    "risk_formula_treated",
+    # The literal an SCM counterfactual intervenes at, held by the
+    # counterfactual binding beside it.
+    "intervention_value",
+})
+
+
+class _WhatTheRuleAskedFor(Mapping):
+    """A step's inputs, remembering which of them the rule asked for.
+
+    Read-only on purpose: a rule that could write here would be editing
+    the record it is checking. Iterating the keys is not asking — asking
+    is reading a value or testing for one, which is what a rule does when
+    it takes an input into account.
+    """
+
+    def __init__(self, inputs: Mapping) -> None:
+        self._inputs = dict(inputs)
+        self.asked: set[str] = set()
+
+    def __getitem__(self, key):
+        self.asked.add(key)
+        return self._inputs[key]
+
+    def __iter__(self):
+        return iter(self._inputs)
+
+    def __len__(self) -> int:
+        return len(self._inputs)
+
+    def __contains__(self, key) -> bool:
+        self.asked.add(key)
+        return key in self._inputs
+
+    def __repr__(self) -> str:
+        return repr(self._inputs)
 
 
 def dispatch_rule(
     rule_name: str,
     ctx: VerificationContext,
-    inputs: dict,
+    inputs: Mapping,
     claimed_output: Any,
     step_index: int,
     step_by_id: dict[str, Any],
     step_output_by_id: dict[str, Any],
 ) -> None:
-    _every_atom_a_step_names_is_one_the_graph_has(
+    """Run one step's rule, and account for everything the step recorded.
+
+    :class:`UnknownRuleInputError` has always said a rule input dict may
+    be "missing a required key, OR HAVE AN UNEXPECTED KEY". Nothing
+    implemented the second half. A step could therefore record anything
+    at all beside what its rule reads, and the record would be a claim
+    nobody ever looked at — measured, the criterion step of a proximal
+    answer recorded a fifteen-field descriptor its rule never opened.
+
+    Two things account for an input. The gate below reads every atom a
+    step names and holds it to the graph's roster, which is why most
+    inputs are held whatever their rule does with them: a forged variable
+    is not a node. The rule accounts for the rest by asking for them. An
+    input that is neither is recorded and unread, and has to be named in
+    :data:`_RECORDED_FOR_A_READER_ELSEWHERE` before it may exist.
+
+    What this does NOT say is that an input a rule asks for is checked. A
+    rule can read a value and compare it with nothing. This holds the
+    weaker and still worth having line: nothing is written into the
+    record that no reader was even offered.
+    """
+    named = _every_atom_a_step_names_is_one_the_graph_has(
         ctx, inputs, step_index, rule_name)
+    asked = _WhatTheRuleAskedFor(inputs)
+    _dispatch_to_the_rule(
+        rule_name, ctx, asked, claimed_output, step_index,
+        step_by_id, step_output_by_id,
+    )
+    unread = sorted(
+        set(asked) - asked.asked - named - _RECORDED_FOR_A_READER_ELSEWHERE)
+    if unread:
+        raise UnknownRuleInputError(
+            f"{rule_name} records {unread} among its inputs and neither reads "
+            f"them nor names a variable in them; an input no reader is "
+            f"offered is a claim nobody can be wrong about",
+            step_index=step_index, rule=rule_name,
+        )
+
+
+def _dispatch_to_the_rule(
+    rule_name: str,
+    ctx: VerificationContext,
+    inputs: Mapping,
+    claimed_output: Any,
+    step_index: int,
+    step_by_id: dict[str, Any],
+    step_output_by_id: dict[str, Any],
+) -> None:
     if rule_name == "identify_via_backdoor":
         _rule_identify_via_backdoor(
             ctx, inputs, claimed_output, step_index, step_by_id, step_output_by_id,
@@ -13006,7 +13299,7 @@ def dispatch_rule(
 
 # ========================================================== input helpers
 
-def _require(inputs: dict, key: str, step_index: int, rule: str):
+def _require(inputs: Mapping, key: str, step_index: int, rule: str):
     if key not in inputs:
         raise UnknownRuleInputError(
             f"{rule}.{key} is required",
@@ -13015,7 +13308,7 @@ def _require(inputs: dict, key: str, step_index: int, rule: str):
     return inputs[key]
 
 
-def _require_atom(inputs: dict, key: str, step_index: int, rule: str) -> Atom:
+def _require_atom(inputs: Mapping, key: str, step_index: int, rule: str) -> Atom:
     v = _require(inputs, key, step_index, rule)
     if not isinstance(v, Atom):
         raise UnknownRuleInputError(
@@ -13026,7 +13319,7 @@ def _require_atom(inputs: dict, key: str, step_index: int, rule: str) -> Atom:
 
 
 def _require_atom_set(
-    inputs: dict,
+    inputs: Mapping,
     key: str,
     step_index: int,
     rule: str,
@@ -13050,7 +13343,7 @@ def _require_atom_set(
     return frozenset(v)
 
 
-def _adjustment_names(inputs: dict, step_index: int, rule: str) -> frozenset:
+def _adjustment_names(inputs: Mapping, step_index: int, rule: str) -> frozenset:
     """The columns a step says it standardized over, as names.
 
     The two attribution routes standardize over DATA COLUMNS rather than

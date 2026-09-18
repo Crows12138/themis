@@ -54,8 +54,8 @@ from .errors import (
     VerificationError,
 )
 from .rules import (
-    Counterfactual, _numeric_result_matches, abduct_act_predict,
-    dispatch_rule, known_rule,
+    Counterfactual, _numeric_result_matches, _the_proximal_descriptor,
+    abduct_act_predict, dispatch_rule, known_rule,
 )
 from .semantic_probe import (
     formula_fits,
@@ -5430,120 +5430,6 @@ def verify_iv_surfaces(
         if shown != held:
             _err(f"shows the reader {field}={shown!r} while the block it "
                  f"copies holds {held!r}")
-
-
-def _proximal_sieve(terms) -> list:
-    """A sieve's terms, as the envelope spells them.
-
-    Independent twin of the producer's rendering, and it carries the
-    producer's one ambiguity rather than correcting it: a factor's
-    variable is written by its PREDICATE alone, where the same block
-    writes the treatment and the outcome as full labels. So a term about
-    ``x(u)`` and one about ``x(nobody)`` reach a reader as the same word.
-    Spelling them differently here would refuse every honest answer, so
-    what is held is what is written, and the narrowing is recorded.
-    """
-    return [
-        [{"basis": str(factor.basis),
-          "dimension": factor.dimension,
-          "variable": factor.variable.predicate}
-         for factor in term.factors]
-        for term in (terms or ())
-    ]
-
-
-def _proximal_width(terms) -> int:
-    """How many columns a sieve builds.
-
-    A term is the tensor product of its factors, so on its own it is the
-    product of their dimensions — LESS ONE. Every basis family here spans
-    the constant, so each term's first column is dropped and a single
-    constant is restored for the whole design; without that, two terms
-    put the constant in twice and the normal matrix is singular before
-    any data has had a say.
-
-    Recomputed rather than copied, because a width is the one field here
-    that is arithmetic on the others and a wrong one buys a rank claim
-    nobody can check. And transcribed from the design rather than fitted
-    to the corpus: EVERY STORED SIEVE HAS ONE TERM, and for one term the
-    product and the product-less-one-plus-one are the same number, so the
-    corpus could not have told the difference.
-    """
-    if not terms:
-        return 0
-    total = 1
-    for term in terms:
-        product = 1
-        for factor in term.factors:
-            product *= factor.dimension
-        total += product - 1
-    return total
-
-
-def _the_proximal_descriptor(query) -> dict:
-    """The descriptor this question asks for, rebuilt in full.
-
-    Every field, because the point of rebuilding rather than comparing
-    field by field is that the SET of fields is checked too. A field the
-    producer adds tomorrow is a field this does not produce, and the
-    comparison fails rather than passing in silence — which is what
-    happened to the twelve the bridge channel brought with it.
-    """
-    from ..types import BridgeChannel, DiscreteChannel
-
-    from .rules import _atom_label_verifier as _label
-
-    out: dict = {}
-    for field in ("treatment", "outcome", "latent"):
-        declared = getattr(query, field, None)
-        if declared is not None:
-            out[field] = _label(declared)
-    for field in ("treatment_proxy", "outcome_proxy", "covariates"):
-        declared = getattr(query, field, None)
-        if declared is not None:
-            out[field] = sorted(_label(a) for a in declared)
-
-    # The channel's discriminator is its TYPE, not a field on it — the query
-    # carries a DiscreteChannel or a BridgeChannel — while the envelope
-    # carries the same distinction as a token, because a reader's surface
-    # cannot dispatch on a Python class. So the token is what the type is,
-    # and ``method`` is the same distinction said a second time in the
-    # vocabulary a reader reads.
-    channel = getattr(query, "channel", None)
-    if isinstance(channel, DiscreteChannel):
-        out["channel_kind"] = "discrete_channel"
-        out["method"] = "proximal_matrix"
-        out["latent_cardinality"] = channel.latent_cardinality
-        out["data_conditions"] = ["rank"]
-        return out
-    if not isinstance(channel, BridgeChannel):
-        return out
-
-    out["channel_kind"] = "bridge_channel"
-    out["method"] = "proximal_bridge"
-    out["estimator"] = str(channel.estimator)
-    for side in ("outcome", "treatment"):
-        bridge = getattr(channel, f"{side}_bridge", None)
-        if bridge is None:
-            continue
-        out[f"{side}_bridge_moment_terms"] = _proximal_sieve(
-            bridge.moment_terms)
-        out[f"{side}_bridge_span_terms"] = _proximal_sieve(bridge.span_terms)
-        out[f"{side}_bridge_moment_width"] = _proximal_width(
-            bridge.moment_terms)
-        out[f"{side}_bridge_span_width"] = _proximal_width(bridge.span_terms)
-        out[f"{side}_bridge_ridge"] = bridge.ridge
-    # One pair of conditions per bridge the channel actually carries, and
-    # the second pair is the first read in the other direction. Keyed on
-    # the treatment bridge alone, because an outcome bridge is what makes
-    # this a bridge channel at all. Transcribed rather than imported: a
-    # shared constant is a shared belief.
-    out["data_conditions"] = (
-        ["completeness", "bridge_in_span",
-         "treatment_bridge_completeness", "treatment_bridge_in_span"]
-        if getattr(channel, "treatment_bridge", None) is not None
-        else ["completeness", "bridge_in_span"])
-    return out
 
 
 def verify_proximal_estimand(block: dict, query) -> None:

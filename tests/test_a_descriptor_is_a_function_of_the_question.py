@@ -36,7 +36,7 @@ import pytest
 
 from tests.answer_corpus import the_door_for, verify_honestly
 from themis.types import Atom, BasisFamily, ConstTerm, SieveFactor, SieveTerm
-from themis.verifier.verify import (
+from themis.verifier.rules import (
     _proximal_sieve,
     _proximal_width,
     _the_proximal_descriptor,

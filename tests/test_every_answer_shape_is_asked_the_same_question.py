@@ -1952,9 +1952,25 @@ def test_the_declared_remainder_is_what_it_is():
     question and compared whole: a field on either side the other does
     not have is a mismatch of its own, and the next twelve cannot arrive
     unheld.
+
+    Then 53 fewer, and not one of them by writing a comparison.
+    ``UnknownRuleInputError`` has said since it was written that a rule
+    input dict may be missing a required key OR HAVE AN UNEXPECTED ONE,
+    and nothing implemented the second half, so a step could write
+    anything at all beside what its rule reads. The criterion step of a
+    proximal answer wrote a fifteen-field descriptor its rule never
+    opened. Measuring that turned up what actually holds a step's inputs:
+    not the rules, but the roster check every step passes through — of
+    the 151 input names this corpus writes, 135 have no leaf here, and a
+    forged variable is refused because it is not a node. What is left is
+    what is not an atom. So an input a rule never asked for, and that
+    named no variable, now has to be on a list by name, and the
+    descriptor is held to the rebuild the block beside it is held to. 38
+    of the 53 come out of the first heading of the reading beside this
+    one, 15 out of "named otherwise".
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1384, total
+    assert total == 1331, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
