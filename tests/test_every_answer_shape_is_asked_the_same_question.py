@@ -1922,9 +1922,17 @@ def test_the_declared_remainder_is_what_it_is():
     come out of the heading the reading beside this one calls "another
     field of the answer, named alike", which is where it said the work
     was.
+
+    Then 94 fewer, and they came off a rule already written. Every step of
+    every derivation is asked whether the variables it names are ones the
+    graph has, and the walk that finds them knew three containers: a
+    mapping, a sequence, and one field called ``atom``. A formula is a
+    tree of frozen dataclasses and none of the three, so an identification
+    formula a step was handed named whatever it liked. All 94 come out of
+    the same heading again.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1632, total
+    assert total == 1538, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

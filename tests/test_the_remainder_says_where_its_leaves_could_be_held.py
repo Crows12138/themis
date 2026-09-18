@@ -196,10 +196,15 @@ def test_the_remainder_split_is_what_it_is():
 
     First use, and it read true: the frontier after this one closed 70
     leaves and 68 of them came out of the first heading, which is where
-    this reading said the work a rule could reach was.
+    this reading said the work a rule could reach was. Second use, all 94
+    of them, out of the same heading again -- and in both cases the
+    comparison this heading says CAN be written turned out to be one that
+    already existed and was not reaching far enough: once with a subject
+    that named the wrong block, once with a walk that could not see into
+    a formula.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 498,
+        gate._ANSWER_ALIKE: 404,
         gate._PROGRAM_ALIKE: 9,
         gate._ANSWER_OTHERWISE: 317,
         gate._PROGRAM_OTHERWISE: 5,

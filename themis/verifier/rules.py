@@ -12757,6 +12757,27 @@ def atoms_within(node: Any) -> Iterator[Atom]:
     lists carry atoms too, and a walk that reached only the scalar fields
     would leave those exactly as free as the fields it did reach — which
     is the shape of gap this walk exists to close.
+
+    A RECORD IS A CONTAINER, and this walk knew three of them: a mapping,
+    a sequence, and one field called ``atom``. A FORMULA IS NONE OF THE
+    THREE. ``SumExpr``, ``ProductExpr``, ``ProbabilityRefExpr`` and
+    ``FractionExpr`` are frozen dataclasses, so every atom a step was
+    handed inside a formula was invisible to the only rule written to
+    hold it — measured, 399 of them across the stored answers, on nine
+    step rules, and 94 declared leaves that are one of their predicates
+    or argument names. The gap was never in what that rule asks; it was
+    in how far this walk could see to ask it.
+
+    Saying "a dataclass is a container too" makes the ``atom`` case a
+    SUB-CASE of it, because a ``ValuedAtom`` is a dataclass whose field
+    happens to be called ``atom``. So the special case is replaced rather
+    than kept beside it, and both halves of that were measured: the
+    general branch reaches everything the special case reached — nothing
+    at all is lost — and 399 atoms it could not.
+
+    ``Atom`` still returns before the general branch. Its arguments are
+    ``Term``s: a name in a position rather than a variable, and yielding
+    one would say a unit is something the graph must have a node for.
     """
     if isinstance(node, Atom):
         yield node
@@ -12771,9 +12792,11 @@ def atoms_within(node: Any) -> Iterator[Atom]:
         for value in node:
             yield from atoms_within(value)
         return
-    inner = getattr(node, "atom", None)          # ValuedAtom and friends
-    if isinstance(inner, Atom):
-        yield inner
+    # A class is a dataclass by the same predicate its instances answer
+    # to, and ``fields()`` of one reads defaults off the class object.
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        for declared in dataclasses.fields(node):
+            yield from atoms_within(getattr(node, declared.name, None))
 
 
 def _every_atom_a_step_names_is_one_the_graph_has(
@@ -12792,7 +12815,22 @@ def _every_atom_a_step_names_is_one_the_graph_has(
     not what any particular rule needs its atoms FOR; it is that a step
     reasoning about a graph cannot name a variable that graph does not
     have, whatever it then does with it.
+
+    The GRAPH is the roster and not the program's own text, because a
+    statement quantified over units writes ``z(u)`` while the problem has
+    ``z(me)``, and that grounding is something only the graph performs —
+    measured, 31 atoms a step names across the stored answers are nodes
+    of the graph and appear nowhere in the program verbatim. So reading
+    the program instead would refuse them.
+
+    And a PROBLEM WITH NO GRAPH is not a problem this question is about.
+    One written entirely out of probabilities declares its variables and
+    causes nothing: the graph is empty while the problem names
+    everything, and a membership question with nothing to be a member of
+    has no content. It declines rather than refusing every atom there is.
     """
+    if ctx.graph.number_of_nodes() == 0:
+        return
     for atom in atoms_within(inputs):
         if atom in ctx.graph:
             continue
