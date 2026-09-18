@@ -171,7 +171,20 @@ def test_reordering_a_proxy_set_is_not_a_tamper():
     side, which the discrete channel refuses outright — it inverts a k×k
     measurement matrix and takes one each. Reaching for an estimate would
     make this a test of the bridge estimator instead.
+
+    The block is written out WHOLE, because the rule rebuilds the whole
+    descriptor from the question and a field going missing is now a
+    refusal of its own. This stub used to carry six fields: the
+    comparison it exercises was the only one anybody was making, and the
+    other twelve could be left out because nothing looked at them. That
+    is the defect this stub grew up beside, so it is spelled in full —
+    including the widths, which are three and not four: this bridge has
+    two terms per side, each drops its own constant column and one
+    constant is restored for the whole design.
     """
+    def _term(name):
+        return [{"variable": name, "basis": "polynomial", "dimension": 2}]
+
     program = _bridge_program()
     query = _typed_query(program)
     block = {
@@ -179,8 +192,15 @@ def test_reordering_a_proxy_set_is_not_a_tamper():
         "treatment": "x()", "outcome": "y()", "latent": "u()",
         "treatment_proxy": ["z2()", "z1()"],
         "outcome_proxy": ["w2()", "w1()"],
-        "covariates": [], "data_conditions": ["completeness"],
+        "covariates": [],
+        "data_conditions": ["completeness", "bridge_in_span"],
         "channel_kind": "bridge_channel",
+        "estimator": "outcome_regression",
+        "outcome_bridge_moment_terms": [_term("z1"), _term("z2")],
+        "outcome_bridge_span_terms": [_term("w1"), _term("w2")],
+        "outcome_bridge_moment_width": 3,
+        "outcome_bridge_span_width": 3,
+        "outcome_bridge_ridge": None,
     }
     verify_proximal_estimand(block, query)
 

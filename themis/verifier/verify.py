@@ -5432,6 +5432,120 @@ def verify_iv_surfaces(
                  f"copies holds {held!r}")
 
 
+def _proximal_sieve(terms) -> list:
+    """A sieve's terms, as the envelope spells them.
+
+    Independent twin of the producer's rendering, and it carries the
+    producer's one ambiguity rather than correcting it: a factor's
+    variable is written by its PREDICATE alone, where the same block
+    writes the treatment and the outcome as full labels. So a term about
+    ``x(u)`` and one about ``x(nobody)`` reach a reader as the same word.
+    Spelling them differently here would refuse every honest answer, so
+    what is held is what is written, and the narrowing is recorded.
+    """
+    return [
+        [{"basis": str(factor.basis),
+          "dimension": factor.dimension,
+          "variable": factor.variable.predicate}
+         for factor in term.factors]
+        for term in (terms or ())
+    ]
+
+
+def _proximal_width(terms) -> int:
+    """How many columns a sieve builds.
+
+    A term is the tensor product of its factors, so on its own it is the
+    product of their dimensions — LESS ONE. Every basis family here spans
+    the constant, so each term's first column is dropped and a single
+    constant is restored for the whole design; without that, two terms
+    put the constant in twice and the normal matrix is singular before
+    any data has had a say.
+
+    Recomputed rather than copied, because a width is the one field here
+    that is arithmetic on the others and a wrong one buys a rank claim
+    nobody can check. And transcribed from the design rather than fitted
+    to the corpus: EVERY STORED SIEVE HAS ONE TERM, and for one term the
+    product and the product-less-one-plus-one are the same number, so the
+    corpus could not have told the difference.
+    """
+    if not terms:
+        return 0
+    total = 1
+    for term in terms:
+        product = 1
+        for factor in term.factors:
+            product *= factor.dimension
+        total += product - 1
+    return total
+
+
+def _the_proximal_descriptor(query) -> dict:
+    """The descriptor this question asks for, rebuilt in full.
+
+    Every field, because the point of rebuilding rather than comparing
+    field by field is that the SET of fields is checked too. A field the
+    producer adds tomorrow is a field this does not produce, and the
+    comparison fails rather than passing in silence — which is what
+    happened to the twelve the bridge channel brought with it.
+    """
+    from ..types import BridgeChannel, DiscreteChannel
+
+    from .rules import _atom_label_verifier as _label
+
+    out: dict = {}
+    for field in ("treatment", "outcome", "latent"):
+        declared = getattr(query, field, None)
+        if declared is not None:
+            out[field] = _label(declared)
+    for field in ("treatment_proxy", "outcome_proxy", "covariates"):
+        declared = getattr(query, field, None)
+        if declared is not None:
+            out[field] = sorted(_label(a) for a in declared)
+
+    # The channel's discriminator is its TYPE, not a field on it — the query
+    # carries a DiscreteChannel or a BridgeChannel — while the envelope
+    # carries the same distinction as a token, because a reader's surface
+    # cannot dispatch on a Python class. So the token is what the type is,
+    # and ``method`` is the same distinction said a second time in the
+    # vocabulary a reader reads.
+    channel = getattr(query, "channel", None)
+    if isinstance(channel, DiscreteChannel):
+        out["channel_kind"] = "discrete_channel"
+        out["method"] = "proximal_matrix"
+        out["latent_cardinality"] = channel.latent_cardinality
+        out["data_conditions"] = ["rank"]
+        return out
+    if not isinstance(channel, BridgeChannel):
+        return out
+
+    out["channel_kind"] = "bridge_channel"
+    out["method"] = "proximal_bridge"
+    out["estimator"] = str(channel.estimator)
+    for side in ("outcome", "treatment"):
+        bridge = getattr(channel, f"{side}_bridge", None)
+        if bridge is None:
+            continue
+        out[f"{side}_bridge_moment_terms"] = _proximal_sieve(
+            bridge.moment_terms)
+        out[f"{side}_bridge_span_terms"] = _proximal_sieve(bridge.span_terms)
+        out[f"{side}_bridge_moment_width"] = _proximal_width(
+            bridge.moment_terms)
+        out[f"{side}_bridge_span_width"] = _proximal_width(bridge.span_terms)
+        out[f"{side}_bridge_ridge"] = bridge.ridge
+    # One pair of conditions per bridge the channel actually carries, and
+    # the second pair is the first read in the other direction. Keyed on
+    # the treatment bridge alone, because an outcome bridge is what makes
+    # this a bridge channel at all. Transcribed rather than imported: a
+    # shared constant is a shared belief.
+    out["data_conditions"] = (
+        ["completeness", "bridge_in_span",
+         "treatment_bridge_completeness", "treatment_bridge_in_span"]
+        if getattr(channel, "treatment_bridge", None) is not None
+        else ["completeness", "bridge_in_span"])
+    return out
+
+
 def verify_proximal_estimand(block: dict, query) -> None:
     """Hold the proximal descriptor to the question it describes.
 
@@ -5447,63 +5561,63 @@ def verify_proximal_estimand(block: dict, query) -> None:
 
     What is checkable here is the whole of it, because every field is the
     query restated: the treatment, the outcome, the latent, the two proxy
-    SETS, the covariates the conditions were read within, and the channel
-    that decides which algebra recovers the effect. Nothing about the graph
-    is re-derived a second time — the criterion rule owns that, and it owns
-    it on the same roles once these are held equal to them.
+    SETS, the covariates the conditions were read within, the channel that
+    decides which algebra recovers the effect, the estimator it names, the
+    two sieves each bridge is built out of with their widths and their
+    ridge, and the conditions the whole thing rests on. Nothing about the
+    graph is re-derived a second time — the criterion rule owns that, and
+    it owns it on the same roles once these are held equal to them.
+
+    THAT SENTENCE WAS PROSE AND THE CODE CHECKED EIGHT FIELDS OF TWENTY.
+    It was true when it was written; the bridge channel then arrived with
+    twelve more, and a claim of totality kept in a docstring cannot
+    notice. 101 declared leaves sat under this block, every one of them a
+    field the sentence covered and nothing asked about. So the shape
+    changed rather than the list growing: the descriptor is REBUILT from
+    the question and compared whole, which makes the totality structural
+    — a field on either side the other does not have is a mismatch, and
+    the next field to arrive cannot arrive unheld.
 
     The proxy roles are compared as SETS and the covariates as a set too:
     the producer sorts them, and which shadow of one confounder is written
     first is not a fact about anything.
     """
-
-    from .rules import _atom_label_verifier as _label
-
     def _err(msg: str) -> "NoReturn":
         raise VerificationError(
             f"proximal_estimand: {msg}", step_index=None,
             rule="proximal_estimand",
         )
 
-    for field, declared in (
-        ("treatment", getattr(query, "treatment", None)),
-        ("outcome", getattr(query, "outcome", None)),
-        ("latent", getattr(query, "latent", None)),
-    ):
-        if declared is None:
+    want = _the_proximal_descriptor(query)
+    unasked = sorted(set(block) - set(want))
+    if unasked:
+        _err(f"carries {unasked}, which the question does not ask for; a "
+             f"field this rule cannot rebuild is a field nobody is holding")
+    missing = sorted(set(want) - set(block))
+    if missing:
+        _err(f"leaves out {missing}; the question declares them and a "
+             f"descriptor that drops one describes a different study")
+
+    for field, declared in want.items():
+        stated = block.get(field)
+        if field in ("treatment_proxy", "outcome_proxy", "covariates"):
+            if frozenset(stated or ()) == frozenset(declared):
+                continue
+            _err(f"names {sorted(stated or ())} as {field} beside a query "
+                 f"that declares {declared}")
+        if stated == declared:
             continue
-        if block.get(field) != _label(declared):
-            _err(f"names {block.get(field)!r} as the {field} beside a query "
-                 f"that asks about {_label(declared)!r}")
-
-    for field in ("treatment_proxy", "outcome_proxy", "covariates"):
-        declared = getattr(query, field, None)
-        if declared is None:
-            continue
-        stated = frozenset(block.get(field) or ())
-        if stated != frozenset(_label(a) for a in declared):
-            _err(f"names {sorted(stated)} as {field} beside a query that "
-                 f"declares {sorted(_label(a) for a in declared)}")
-
-    # The channel's discriminator is its TYPE, not a field on it — the query
-    # carries a DiscreteChannel or a BridgeChannel — while the envelope
-    # carries the same distinction as a token, because a reader's surface
-    # cannot dispatch on a Python class. So the token is what the type is.
-    from ..types import BridgeChannel, DiscreteChannel
-
-    channel = getattr(query, "channel", None)
-    kind = ("discrete_channel" if isinstance(channel, DiscreteChannel)
-            else "bridge_channel" if isinstance(channel, BridgeChannel)
-            else None)
-    if kind is not None and block.get("channel_kind") != kind:
-        _err(f"says the effect is recovered through "
-             f"{block.get('channel_kind')!r} while the query declares "
-             f"{kind!r}")
-    cardinality = getattr(channel, "latent_cardinality", None)
-    if cardinality is not None and block.get("latent_cardinality") != cardinality:
-        _err(f"assumes the unobserved confounder has "
-             f"{block.get('latent_cardinality')!r} states while the query "
-             f"declares {cardinality!r}")
+        if field in ("treatment", "outcome", "latent"):
+            _err(f"names {stated!r} as the {field} beside a query that asks "
+                 f"about {declared!r}")
+        if field == "channel_kind":
+            _err(f"says the effect is recovered through {stated!r} while the "
+                 f"query declares {declared!r}")
+        if field == "latent_cardinality":
+            _err(f"assumes the unobserved confounder has {stated!r} states "
+                 f"while the query declares {declared!r}")
+        _err(f"records {field} as {stated!r}; the question the criterion was "
+             f"re-derived on gives {declared!r}")
 
 
 def verify_longitudinal_identification(

@@ -1940,9 +1940,21 @@ def test_the_declared_remainder_is_what_it_is():
     was already holding all three. These 53 are the first this gate has
     seen spread across three headings rather than one — 41 written a
     second time in the answer, 3 in the program, 9 under another name.
+
+    Then 101 fewer, and nothing was missing but the checking. The rule
+    auditing a proximal estimand says in its own second paragraph that
+    what is checkable there is the whole of it, because every field is
+    the query restated; it compared eight fields of twenty. That was
+    true when it was written, and then a second channel arrived carrying
+    twelve more — the estimator it names, and each bridge's two sieves
+    with their widths and their ridge. A claim of totality kept in prose
+    cannot notice a field arriving. So the descriptor is rebuilt from the
+    question and compared whole: a field on either side the other does
+    not have is a mismatch of its own, and the next twelve cannot arrive
+    unheld.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1485, total
+    assert total == 1384, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

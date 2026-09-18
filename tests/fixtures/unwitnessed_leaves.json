@@ -1378,24 +1378,6 @@
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_moment_width",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_span_width",
   "extensions.type_reconciliation.checks.[].observed_values.[]"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#9c3abe": [
@@ -1408,16 +1390,6 @@
   "derivation.steps.[].inputs.measurement_channel.items.w_basis.items.[].items.[].items.constants.items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
   "extensions.type_reconciliation.checks.[].observed_values.[]"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#b5b779": [
@@ -1440,25 +1412,7 @@
   "derivation.steps.[].inputs.measurement_channel.items.w_basis.items.[].items.[].items.constants.items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_moment_width",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_span_width"
+  "estimation_context.random_state"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#c52905": [
   "data_gap_report.gaps.[].describes.[].said.control",
@@ -1482,25 +1436,7 @@
   "derivation.steps.[].inputs.measurement_channel.items.w_basis.items.[].items.[].items.constants.items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_moment_width",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.treatment_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.treatment_bridge_span_width"
+  "estimation_context.random_state"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate#e2b67a": [
   "derivation.steps.[].inputs.measurement_channel.items.control.items.n",
@@ -1517,16 +1453,6 @@
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].observed_values.[]",
   "numeric_estimate.covariates.[]"
@@ -1543,7 +1469,6 @@
   "derivation.steps.[].inputs.measurement_channel.items.z_levels.items.[]",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.proximal_estimand.method",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].observed_values.[]"
  ],
@@ -1569,24 +1494,13 @@
   "derivation.steps.[].inputs.measurement_channel.items.w_basis.items.[].items.[].items.constants.items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.z_basis.items.[].items.[].items.constants.items.[]",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width"
+  "estimation_context.random_state"
  ],
  "proximal_matrix": [
   "derivation.steps.[].inputs.measurement_channel.items.outcome_success",
   "derivation.steps.[].inputs.measurement_channel.items.w_levels.items.[]",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.proximal_estimand.method"
+  "estimation_context.random_state"
  ],
  "proximal_null_test": [
   "data_gap_report.gaps.[].alternative_paths.[].said.k",
@@ -1600,8 +1514,7 @@
   "derivation.steps.[].inputs.measurement_channel.items.w_levels.items.[]",
   "derivation.steps.[].inputs.measurement_channel.items.z_levels.items.[]",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.proximal_estimand.method"
+  "estimation_context.random_state"
  ],
  "regression_calibration": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
@@ -1857,17 +1770,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.proximal_estimand.estimator",
-  "extensions.proximal_estimand.method",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_moment_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_moment_width",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].basis",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].dimension",
-  "extensions.proximal_estimand.outcome_bridge_span_terms.[].[].variable",
-  "extensions.proximal_estimand.outcome_bridge_span_width"
+  "estimator_failure.estimator"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#146fcc": [
   "derivation.steps.[].inputs.estimand.items.channel_kind",
@@ -1884,8 +1787,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.proximal_estimand.method"
+  "estimator_failure.estimator"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#2777a5": [
   "derivation.steps.[].inputs.estimand.items.channel_kind",
@@ -1902,8 +1804,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.proximal_estimand.method"
+  "estimator_failure.estimator"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#535477": [
   "data_gap_report.gaps.[].alternative_paths.[].said.k",
@@ -1925,8 +1826,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.proximal_estimand.method"
+  "estimator_failure.estimator"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#f57fe5": [
   "derivation.steps.[].inputs.estimand.items.channel_kind",
@@ -1943,8 +1843,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.proximal_estimand.method"
+  "estimator_failure.estimator"
  ],
  "tmle": [
   "bounds_results.[].contrast.reference_value",

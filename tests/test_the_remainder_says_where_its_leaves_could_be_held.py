@@ -208,13 +208,23 @@ def test_the_remainder_split_is_what_it_is():
     three different documents, which is what a spread across headings
     looks like from inside -- and the nine were a printed estimand, whose
     second writing is a step's OUTPUT and so under no name at all.
+
+    Fourth use, and the first to take anything out of the last heading:
+    81 here, 13 from "named otherwise", and 7 from "nothing either
+    document writes". Those seven are what this reading says about itself
+    higher up -- that heading means no COMPARISON can reach the leaf, not
+    that nothing can. A sieve's width is arithmetic on the fields beside
+    it, and a method is the channel the question declares; both are
+    recomputed rather than looked up, and so a leaf nothing writes twice
+    was held anyway. The heading is honest about comparisons. It cannot
+    see a function.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 363,
+        gate._ANSWER_ALIKE: 282,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 308,
+        gate._ANSWER_OTHERWISE: 295,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 674,
+        gate._NOTHING: 667,
         gate._EVERY_READING_MATCHES: 129,
     }
 
