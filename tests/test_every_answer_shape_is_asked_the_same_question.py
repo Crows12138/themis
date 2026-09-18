@@ -1930,9 +1930,19 @@ def test_the_declared_remainder_is_what_it_is():
     tree of frozen dataclasses and none of the three, so an identification
     formula a step was handed named whatever it liked. All 94 come out of
     the same heading again.
+
+    Then 53 fewer, and this time nothing was missing but an argument. The
+    rule auditing a transport block was handed the block and re-derived
+    the verdict from it, which is right for the verdict and wrong for
+    everything beside it: a selection diagram is the program's, a route's
+    adjustment set and printed estimand are the chain's, and which
+    population the answer is for is the question's. The audit calling it
+    was already holding all three. These 53 are the first this gate has
+    seen spread across three headings rather than one — 41 written a
+    second time in the answer, 3 in the program, 9 under another name.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1538, total
+    assert total == 1485, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

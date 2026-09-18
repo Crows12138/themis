@@ -4640,8 +4640,29 @@ _TRANSPORT_BLOCKED_KINDS = frozenset({
 _TRANSPORT_SOURCES_TOL = 1e-9
 
 
-def verify_transport_sources(block: dict) -> None:
-    """Re-derive the multi-source transport verdict from the block itself.
+def _transport_atom_shape(atom):
+    """An atom as predicate and argument names, from either spelling.
+
+    The block writes atoms as JSON and the program is handed to a rule as
+    typed statements, so a copy and its source are never the same object.
+    Both halves, because an atom is its arguments as much as its
+    predicate: ``z1(me)`` and ``z1(nobody)`` are two variables and a
+    reading that compared predicates would call them one.
+    """
+    if isinstance(atom, dict):
+        predicate = atom.get("predicate")
+        args = atom.get("args") or ()
+        names = tuple(a.get("name") for a in args if isinstance(a, dict))
+    else:
+        predicate = getattr(atom, "predicate", None)
+        names = tuple(getattr(a, "name", None)
+                      for a in (getattr(atom, "args", ()) or ()))
+    return (predicate, names) if isinstance(predicate, str) else None
+
+
+def verify_transport_sources(block: dict, selection_nodes, steps,
+                             query) -> None:
+    """Hold the multi-source transport verdict, and every name it shows.
 
     Each declared source domain is its own selection diagram, so a block
     carries one route per domain and — once a route's formula has been
@@ -4660,6 +4681,37 @@ def verify_transport_sources(block: dict) -> None:
     believed. The route bookkeeping is checked alongside, since a number
     attributed to a domain that does not transport is the same defect
     wearing a different shape.
+
+    THE REST OF THE BLOCK IS A COPY, and this used to re-derive the
+    verdict from the block alone — which made the block the authority on
+    what it was a copy OF. Its own roster of selection diagrams came from
+    its own ``s_nodes`` list, so a route was held to a declaration that
+    could be edited in the same breath, and the variables a reader is
+    shown were held by nothing at all: 38 declared leaves, predicate and
+    argument name in equal halves. The twin of this rule, one screen away
+    and about the same kind of block, says the sentence outright — which
+    nodes a verdict is about are read from the PREMISES, not from the
+    block — and the four other block rules in the same table all take
+    theirs. This one now does too, and what it copies says what it must
+    say:
+
+    - a selection diagram is the program's. Its id, the variable it
+      affects and the population it is about are the caller's own words,
+      and both directions are asked, because a diagram the program
+      declared and the block does not show is a source domain silently
+      dropped from the verdict.
+    - a route's adjustment set and the estimand it prints are the chain's.
+      Some ``transport_formula`` step has to have recorded THAT set and
+      produced THAT formula — the pair together, so that swapping two
+      routes' adjustment sets is not two halves that each still match.
+    - which population the answer is for is the question's.
+
+    One route is not held to a step and says so: a program declaring no
+    selection diagram gets the one no-boundary route, whose estimand is
+    the identity and whose chain took an ordinary route with no transport
+    step in it. Holding its printed formula would mean restating a
+    rendering here, which buys a string and costs the independence that
+    makes the rest of this worth reading.
     """
     def _err(msg: str) -> NoReturn:
         raise VerificationError(
@@ -4667,10 +4719,50 @@ def verify_transport_sources(block: dict) -> None:
             step_index=None, rule="transport_identification",
         )
 
-    declared = {
-        str(n.get("id")): str(n.get("source_population"))
-        for n in (block.get("s_nodes") or ())
-    }
+    stated = {str(node.id): node for node in (selection_nodes or ())}
+    declared: dict[str, str] = {}
+    for entry in (block.get("s_nodes") or ()):
+        node_id = str(entry.get("id"))
+        source = stated.get(node_id)
+        if source is None:
+            _err(f"shows a selection diagram {node_id!r}; the program "
+                 f"declares no selection node of that name, and a diagram "
+                 f"nobody declared is one this answer gave itself")
+        shown, said = (_transport_atom_shape(entry.get("affects")),
+                       _transport_atom_shape(source.affects))
+        if shown != said:
+            _err(f"says selection diagram {node_id!r} is about "
+                 f"{entry.get('affects')!r}; the program declares it about "
+                 f"{source.affects!r}, and which variable differs between "
+                 f"the domains is the whole of what transports")
+        if str(entry.get("source_population")) != str(source.source_population):
+            _err(f"says selection diagram {node_id!r} belongs to "
+                 f"{entry.get('source_population')!r}; the program declares "
+                 f"it for {source.source_population!r}")
+        declared[node_id] = str(source.source_population)
+    missing = sorted(set(stated) - set(declared))
+    if missing:
+        _err(f"the program declares selection diagrams {missing} and the "
+             f"block shows none of them; a source domain left out of the "
+             f"roster is one the verdict never had to account for")
+
+    asked = getattr(query, "target_population", None)
+    if block.get("target_population") != asked:
+        _err(f"says the answer is for {block.get('target_population')!r}; the "
+             f"question asks about {asked!r}, and which population a number "
+             f"is about is the question's fact and not the block's")
+
+    recorded = set()
+    for step in (steps or ()):
+        if not isinstance(step, dict) or step.get("rule") != "transport_formula":
+            continue
+        items = ((step.get("inputs") or {}).get("adjustment_set") or {}).get(
+            "items")
+        recorded.add((
+            tuple(_transport_atom_shape(a) for a in (items or ())),
+            step.get("output"),
+        ))
+
     routes = block.get("sources")
     if not isinstance(routes, list) or not routes:
         _err("carries no sources; every declared source domain gets a route, "
@@ -4698,11 +4790,23 @@ def verify_transport_sources(block: dict) -> None:
         for node_id in route.get("s_nodes") or ():
             if str(node_id) not in declared:
                 _err(f"source {source!r} claims selection node {node_id!r}, "
-                     f"which the block does not declare")
+                     f"which the program does not declare")
             if declared[str(node_id)] != str(source):
                 _err(f"selection node {node_id!r} is declared about "
                      f"{declared[str(node_id)]!r} and rides on the route for "
                      f"{source!r}; a diagram belongs to one source domain")
+        if transportable and (route.get("s_nodes") or ()):
+            pair = (
+                tuple(_transport_atom_shape(a)
+                      for a in (route.get("adjustment_set") or ())),
+                route.get("formula_repr"),
+            )
+            if pair not in recorded:
+                _err(f"source {source!r} prints the estimand "
+                     f"{route.get('formula_repr')!r} over "
+                     f"{route.get('adjustment_set')!r}; no transport_formula "
+                     f"step recorded that set and produced that formula, so "
+                     f"what a reader is shown rests on nothing in the chain")
         if isinstance(numeric, dict):
             evaluated.append((source, float(numeric["value"])))
 
@@ -4734,6 +4838,11 @@ def verify_transport_sources(block: dict) -> None:
     if reported.get("source_population") not in {s for s, _v in evaluated}:
         _err(f"attributes the number to {reported.get('source_population')!r}, "
              f"which is not one of the sources that evaluated")
+    if "target_population" in reported \
+            and reported.get("target_population") != asked:
+        _err(f"reports the number for "
+             f"{reported.get('target_population')!r} while the block is for "
+             f"{asked!r}; one answer is about one population")
 
 
 _ACR_TOL = 1e-7

@@ -30,7 +30,9 @@ import pytest
 import themis
 from themis import gaps, language
 from themis.input.semantic_validator import SemanticError
+from themis.kernel import _premises_of
 from themis.output import analysis_report
+from themis.types import SelectionNode
 from themis.verifier import verify_transport_sources
 from themis.verifier.errors import VerificationError
 
@@ -126,6 +128,22 @@ def _run(program: dict) -> dict:
 
 def _block(result: dict) -> dict:
     return result["extensions"]["transport_identification"]
+
+
+def _audit(program: dict, result: dict) -> None:
+    """The rule with the premises the kernel hands it.
+
+    The block is a copy of three documents, so a call that passed it
+    alone would be asking a narrower question than the one that runs —
+    and every forgery below would be held by a rule reading its own
+    subject's word for what it is a copy of.
+    """
+    _ast, prog, query_stmt, _ctx = _premises_of(program, result)
+    verify_transport_sources(
+        _block(result),
+        [s for s in prog.statements if isinstance(s, SelectionNode)],
+        (result.get("derivation") or {}).get("steps") or (),
+        query_stmt.query)
 
 
 def _by_source(result: dict) -> dict[str, dict]:
@@ -343,53 +361,53 @@ def test_the_audit_rejects_a_criterion_step_spanning_two_source_populations():
 
 
 def test_the_audit_rejects_a_number_a_transporting_source_contradicts():
-    result = _run(_two_source_program())
-    block = _block(result)
-    block["sources"][1]["numeric"]["value"] = 0.34
+    program = _two_source_program()
+    result = _run(program)
+    _block(result)["sources"][1]["numeric"]["value"] = 0.34
     with pytest.raises(VerificationError, match="refute"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_rejects_a_withheld_number_the_sources_agree_on():
     """The withholding is a claim too, and this is the one that hides a
     number rather than inventing one."""
-    result = _run(_two_source_program(eu_marginal=_DISAGREEING_EU_MARGINAL))
-    block = _block(result)
-    block["sources"][1]["numeric"]["value"] = 0.5
+    program = _two_source_program(eu_marginal=_DISAGREEING_EU_MARGINAL)
+    result = _run(program)
+    _block(result)["sources"][1]["numeric"]["value"] = 0.5
     with pytest.raises(VerificationError, match="agree"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_rejects_a_miscounted_agreement():
-    result = _run(_two_source_program())
-    block = _block(result)
-    block["numeric"]["agreeing_sources"] = 3
+    program = _two_source_program()
+    result = _run(program)
+    _block(result)["numeric"]["agreeing_sources"] = 3
     with pytest.raises(VerificationError, match="agreeing sources"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_rejects_a_number_credited_to_a_blocked_source():
-    result = _run(_two_source_program(eu_affects="y"))
-    block = _block(result)
-    block["numeric"]["source_population"] = "rct_eu"
+    program = _two_source_program(eu_affects="y")
+    result = _run(program)
+    _block(result)["numeric"]["source_population"] = "rct_eu"
     with pytest.raises(VerificationError, match="not one of the sources"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_rejects_a_node_riding_on_another_domains_route():
-    result = _run(_two_source_program())
-    block = _block(result)
-    block["sources"][0]["s_nodes"] = ["S_us", "S_eu"]
+    program = _two_source_program()
+    result = _run(program)
+    _block(result)["sources"][0]["s_nodes"] = ["S_us", "S_eu"]
     with pytest.raises(VerificationError, match="belongs to one source"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_rejects_a_blocking_reason_outside_the_vocabulary():
-    result = _run(_two_source_program(eu_affects="y"))
-    block = _block(result)
-    block["sources"][1]["blocked_by"] = "the_data_was_sad"
+    program = _two_source_program(eu_affects="y")
+    result = _run(program)
+    _block(result)["sources"][1]["blocked_by"] = "the_data_was_sad"
     with pytest.raises(VerificationError, match="ways a source domain"):
-        verify_transport_sources(block)
+        _audit(program, result)
 
 
 def test_the_audit_does_not_import_the_producer():

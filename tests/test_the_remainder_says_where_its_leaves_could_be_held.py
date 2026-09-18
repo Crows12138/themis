@@ -202,11 +202,17 @@ def test_the_remainder_split_is_what_it_is():
     already existed and was not reaching far enough: once with a subject
     that named the wrong block, once with a walk that could not see into
     a formula.
+
+    Third use, and the first to move three headings at once: 41 here, 3
+    from the program's, 9 from "named otherwise". One block's copy of
+    three different documents, which is what a spread across headings
+    looks like from inside -- and the nine were a printed estimand, whose
+    second writing is a step's OUTPUT and so under no name at all.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 404,
-        gate._PROGRAM_ALIKE: 9,
-        gate._ANSWER_OTHERWISE: 317,
+        gate._ANSWER_ALIKE: 363,
+        gate._PROGRAM_ALIKE: 6,
+        gate._ANSWER_OTHERWISE: 308,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 674,
         gate._EVERY_READING_MATCHES: 129,

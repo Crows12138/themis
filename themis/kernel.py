@@ -294,10 +294,22 @@ def _audit_proximal_estimand(facts: "_RouteFacts") -> None:
 def _audit_transport_identification(facts: "_RouteFacts") -> None:
     """Several transporting domains are several estimands of ONE target
     quantity, so whether they agree — and whether a number was therefore
-    reported or withheld — is a closed form of what the block records."""
+    reported or withheld — is a closed form of what the block records.
+
+    The rest of the block is a copy, so the premises go in with it: the
+    selection diagrams are the program's, the estimand each route prints
+    is the chain's, and which population the answer is for is the
+    question's. These were in hand here and not passed, which is how the
+    variables that block names came to be held by nothing.
+    """
     block = facts.carries("transport_identification")
     if block is not None:
-        verify_transport_sources(block)
+        verify_transport_sources(
+            block,
+            [s for s in facts.program.statements
+             if isinstance(s, SelectionNode)],
+            (facts.result.get("derivation") or {}).get("steps") or (),
+            facts.query)
 
 
 def _audit_selection_recovery(facts: "_RouteFacts") -> None:

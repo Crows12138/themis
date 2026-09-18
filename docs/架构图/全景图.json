@@ -10,7 +10,7 @@
       "url": "https://github.com/Crows12138/themis",
       "provider": "github",
       "link_mode": "local-only",
-      "revision": "a8800540bde5e669d059956c6943631dff8947e5"
+      "revision": "85c686d783d92d231d14b4d7aaca01043a5c4120"
     },
     "views": [
       {
@@ -424,7 +424,7 @@
       "id": "verify",
       "type": "security",
       "label": "复核入口",
-      "sublabel": "verify.py 8157 行",
+      "sublabel": "verify.py 8266 行",
       "row": 1,
       "col": 6,
       "tag": "113 个入口",
