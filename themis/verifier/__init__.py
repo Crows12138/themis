@@ -79,6 +79,12 @@ Public surface (re-exports from sub-modules):
   the producer's path enumeration; and the general solution is held to
   being general, so a back door or a front door that was there to be named
   and was not is rejected) /
+  ``verify_the_conditioning_a_question_asks_is_named`` (the other half of
+  that block, which the criterion cannot supply: a question conditioning on
+  Z is about some of the people, and a sentence naming the criterion and
+  not the conditioning is the sentence for the question about everybody.
+  The variables are owed here; the values beside them are the estimate's to
+  show) /
   ``verify_feedback_loop`` (the reason a reader is given for an answer the
   DAG did not compute — the loop is re-derived from the PROGRAM, since a
   block citing one nobody declared would license the swap of a correct
@@ -827,6 +833,7 @@ from .verify import (
     verify_frontdoor_empirical_numeric,
     verify_feedback_loop,
     verify_identification_pattern,
+    verify_the_conditioning_a_question_asks_is_named,
     verify_iv_surfaces,
     verify_identify,
     verify_iv_overid_numeric,
@@ -986,6 +993,7 @@ __all__ = [
     "verify_balke_pearl_iv_bounds_result",
     "verify_feedback_loop",
     "verify_identification_pattern",
+    "verify_the_conditioning_a_question_asks_is_named",
     "verify_iv_surfaces",
     "verify_identify",
     "verify_joint_identification",

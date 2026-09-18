@@ -138,6 +138,7 @@ from .verifier import (
     verify_proximal_estimand,
     verify_proximal_numeric,
     verify_identification_pattern,
+    verify_the_conditioning_a_question_asks_is_named,
     verify_ambiguity_copy,
     verify_answer_names_its_kind,
     verify_answer_names_its_question,
@@ -222,22 +223,32 @@ class _RouteFacts:
 def _audit_identification(facts: "_RouteFacts") -> None:
     """The one sentence a reader gets about where the answer came from,
     and the second block the IV strategy states it in. Both, together,
-    because passing the criterion is not agreeing."""
+    because passing the criterion is not agreeing.
+
+    The criterion is not the whole sentence either: which people the
+    question is about is the question's fact, not the graph's, so it is
+    asked of the surface here rather than of the re-derivation."""
     surface = facts.carries("identification")
     instrument = facts.carries("iv_identification")
     if surface is not None:
         verify_identification_pattern(
             surface, facts.graph, facts.bidirected, facts.query)
+        verify_the_conditioning_a_question_asks_is_named(
+            surface, facts.query, "identification")
     if surface is not None or instrument is not None:
         verify_iv_surfaces(
             surface, instrument, facts.graph, facts.bidirected, facts.query)
 
 
 def _audit_joint_identification(facts: "_RouteFacts") -> None:
+    """The joint answer's whole sentence: no scalar surface sits beside
+    this one, so which people the question is about is owed here."""
     block = facts.carries("joint_identification")
     if block is not None:
         verify_joint_identification(
             block, facts.graph, facts.bidirected, facts.query)
+        verify_the_conditioning_a_question_asks_is_named(
+            block, facts.query, "joint_identification")
 
 
 def _audit_vector_iv_identification(facts: "_RouteFacts") -> None:

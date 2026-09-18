@@ -322,8 +322,7 @@
  "general_id_idc_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "extensions.identification.conditioned_on.[]"
+  "estimation_context.sample_size"
  ],
  "general_id_plugin": [
   "bounds_results.[].contrast.reference_value",
@@ -726,7 +725,6 @@
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#31c82c": [
-  "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -798,7 +796,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#5ec0c1": [
-  "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -817,7 +814,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#63d205": [
-  "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -837,7 +833,6 @@
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#6b1d33": [
-  "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -877,7 +872,6 @@
   "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#808045": [
-  "extensions.identification.conditioned_on.[]",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
@@ -977,8 +971,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
-  "extensions.identification.conditioned_on.[]"
+  "estimator_failure.estimator"
  ],
  "needs_investigation:effect:none#cdaa7d": [
   "data_gap_report.gaps.[].alternative_paths.[].said.drop",
@@ -1298,8 +1291,7 @@
  "numerically_solved:effect:numeric_general_id_estimate#5414a2": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "extensions.identification.conditioned_on.[]"
+  "estimation_context.sample_size"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
   "bounds_results.[].contrast.reference_value",
@@ -1444,8 +1436,7 @@
   "derivation.steps.[].inputs.formula.body.terms.[].target.atom.predicate",
   "derivation.steps.[].inputs.formula.over.args.[].name",
   "derivation.steps.[].inputs.formula.over.predicate",
-  "derivation.steps.[].inputs.intervention.value",
-  "extensions.identification.conditioned_on.[]"
+  "derivation.steps.[].inputs.intervention.value"
  ],
  "numerically_solved:effect:numeric_result#0a90ee": [
   "derivation.steps.[].step_id"
@@ -1473,8 +1464,7 @@
   "derivation.steps.[].inputs.formula.numerator.body.terms.[].target.atom.predicate",
   "derivation.steps.[].inputs.formula.numerator.over.args.[].name",
   "derivation.steps.[].inputs.formula.numerator.over.predicate",
-  "derivation.steps.[].inputs.intervention.value",
-  "extensions.identification.conditioned_on.[]"
+  "derivation.steps.[].inputs.intervention.value"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
   "data_gap_report.gaps.[].describes.[].said.branch",
@@ -1503,8 +1493,7 @@
   "confidence_sources.[].confidence",
   "confidence_sources.[].is_weakest",
   "confidence_sources.[].slot_label",
-  "derivation.steps.[].step_id",
-  "extensions.identification.conditioned_on.[]"
+  "derivation.steps.[].step_id"
  ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
   "data_gap_report.gaps.[].describes.[].said.formula",
@@ -1588,8 +1577,7 @@
   "derivation.steps.[].inputs.formula.numerator.body.terms.[].target.atom.predicate",
   "derivation.steps.[].inputs.formula.numerator.over.args.[].name",
   "derivation.steps.[].inputs.formula.numerator.over.predicate",
-  "derivation.steps.[].inputs.intervention.value",
-  "extensions.identification.conditioned_on.[]"
+  "derivation.steps.[].inputs.intervention.value"
  ],
  "numerically_solved:effect:numeric_result#a80d58": [
   "derivation.steps.[].step_id"
@@ -2209,24 +2197,6 @@
   "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
- ],
- "structurally_solved:identify:identify_via_idc": [
-  "extensions.identification.conditioned_on.[]"
- ],
- "structurally_solved:identify:identify_via_idc#6d4ecb": [
-  "extensions.identification.conditioned_on.[]"
- ],
- "structurally_solved:identify:identify_via_idc#8365bd": [
-  "extensions.identification.conditioned_on.[]"
- ],
- "structurally_solved:identify:identify_via_idc#9b51d7": [
-  "extensions.identification.conditioned_on.[]"
- ],
- "structurally_solved:identify:identify_via_idc#9fa353": [
-  "extensions.identification.conditioned_on.[]"
- ],
- "structurally_solved:identify:identify_via_idc#fbb987": [
-  "extensions.identification.conditioned_on.[]"
  ],
  "structurally_solved:identify:identify_via_iv": [
   "data_gap_report.gaps.[].describes.[].said.instrument",

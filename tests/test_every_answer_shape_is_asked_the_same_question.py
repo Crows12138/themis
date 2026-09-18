@@ -1723,9 +1723,15 @@ def test_the_declared_remainder_is_what_it_is():
     numeric step records the stratum it conditioned on, which no stored
     step did. The fifteen leaves the row leaves are the ones the same answer
     asked of no stratum already declares, leaf for leaf.
+
+    Then 18 fewer, the first way: closed. The stratum an identification
+    names is the question's, which the criterion cannot check and so
+    nothing checked. It is held now, on every row that names one, and six
+    of those rows -- the identifications of a conditional estimand -- had
+    that leaf and no other, so they leave this list entirely.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1890, total
+    assert total == 1872, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

@@ -4977,6 +4977,78 @@ def verify_acr_decomposition(estimate: dict) -> None:
              f"with {len(expected_refuting)} refuting margins")
 
 
+def _hold_the_conditioning_a_block_names(
+    block: dict,
+    given: frozenset,
+    node: Callable[[str], object],
+    err: Callable[[str], NoReturn],
+) -> None:
+    """A block's copy of what the question conditions on is the question's.
+
+    Every other field of an identification block is re-derived from the
+    graph, and this one cannot be: what a question holds fixed is the
+    question's, not the diagram's. That is why the criterion has nothing to
+    say about it — and why, for as long as the criterion was taken to be
+    the whole audit of the block, nothing said anything about it at all.
+    Two blocks carry the copy, the scalar surface and the joint one, and
+    both read it here, so the fact has one reading rather than one per
+    block that happened to have the query in hand.
+
+    Silence is not refused here. Whether an answer OWES this sentence is
+    the reader's side of the same fact and is held beside the surface a
+    reader is shown, because a block nobody reads owes nobody anything.
+    """
+    stated = block.get("conditioned_on")
+    if stated is None:
+        return
+    if frozenset(node(s) for s in stated) != given:
+        err(f"records conditioned_on={sorted(stated)}, which is not what "
+            f"the question conditions on")
+
+
+def verify_the_conditioning_a_question_asks_is_named(
+    surface: dict, query, where: str
+) -> None:
+    """A conditional question's answer names its stratum where it is read.
+
+    An identification block is the one sentence a reader gets about where a
+    number came from, and a conditional question is a question about some
+    of the people rather than all of them. A sentence that names the
+    criterion and not the conditioning describes the answer to a different
+    question — the unconditional one — which is the misreading this
+    refuses. The values beside those variables are the estimate's to show
+    (``numeric_estimate.given``); what is owed here is the variables.
+
+    The subject is an identification a reader is SHOWN, which is why
+    ``where`` is asked for rather than assumed: a scalar answer's sentence
+    is ``identification`` and a joint answer's is ``joint_identification``,
+    with no scalar one beside it, so a rule that knew only the first name
+    left every joint conditional answer free to say nothing. It is not
+    asked of ``iv_identification``, which appears only beside the scalar
+    surface and is answered there.
+
+    Two of the three producers of the scalar block are instrumental-variable
+    routes that write ``conditioning`` — the set the instrument is valid
+    GIVEN, a different fact — and no ``conditioned_on``. Conditioning
+    defeats identification on that route today, so they never meet a
+    conditional question and this refuses nothing they write; the day one
+    of them answers such a question, the sentence it writes has to name the
+    stratum too, which is what this asks of it.
+    """
+    given = frozenset(
+        getattr(g, "atom", g) for g in (getattr(query, "given", ()) or ()))
+    if not given or surface.get("conditioned_on") is not None:
+        return
+    raise VerificationError(
+        f"{where}: the question conditions on "
+        f"{sorted(getattr(a, 'predicate', a) for a in given)} and the "
+        f"identification a reader is shown names no conditioning set, so "
+        f"the one sentence about where this number came from is the "
+        f"sentence for the question about everybody",
+        step_index=None, rule=where,
+    )
+
+
 def verify_identification_pattern(block: dict, graph, bidirected, query) -> None:
     """Independently re-derive the graph-level identification pattern.
 
@@ -5057,6 +5129,8 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
         if n is None:
             _err(f"names {name!r}, which is not a node in the graph")
         return n
+
+    _hold_the_conditioning_a_block_names(block, given, _node, _err)
 
     cut: dict = {}
 
@@ -5857,10 +5931,7 @@ def verify_joint_identification(block: dict, graph, bidirected, query) -> None:
              f"intervenes on "
              f"{sorted(f'{t.predicate}({chr(44).join(a.name for a in t.args)})' for t in treatments)}")
 
-    stated = block.get("conditioned_on")
-    if stated is not None and frozenset(_node(s) for s in stated) != given:
-        _err(f"records conditioned_on={sorted(stated)}, which is not what "
-             f"the question conditions on")
+    _hold_the_conditioning_a_block_names(block, given, _node, _err)
 
     bidir = frozenset(bidirected or ())
     cut = graph.copy()

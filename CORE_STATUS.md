@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-21720 passed / 534 skipped, warning-clean
+21734 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,44 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #696 识别层说的「这个答案是关于哪群人的」要对得上问题（2026-09-18）
+
+**现象。** `extensions.identification` 是读者拿到的**唯一一句**「这个数是怎么来的」，它的 `conditioned_on` 说的是「问题条件在哪群人上」——这一项谁都没守。
+- 拿一个诚实的带条件后门答案（probe696d），把它改成另一个变量 `['z()']`、多写一个 `['c()','z()']`、清空 `[]`、写成处理 `['x()']`、写成结局 `['y()']`、写成图里没有的名字、整个删掉——**七种伪造 `themis.verify` 与 `verify_answer_claims` 两道门 7/7 全收**。
+- 语料 252 个形状里 18 行带这个字段，**18 行全部把它记在 `unwitnessed_leaves.json` 里当声明未见证的余项**（probe696c 分组后它是第 18 大的一片叶子）。
+- 联合那半更彻底：联合答案的识别面**只有** `joint_identification`（没有标量块并排），把它的 `conditioned_on` 删掉，两道门同样全收（probe696k）。
+
+**根因。** 这个块被整体划归给了**一个真值源：图**。`verify_identification_pattern` 把 `pattern` / `adjustment_set` / `mediator_set` / `covariate_set` 全部从图和 (x, y) 重推一遍，而 `conditioned_on` 的真值源是**问题**不是图。它自己的 docstring 写明了这件事——「`conditioned_on` is what the QUESTION asks about, which the criterion has nothing to say about」——然后就停在那里：那句话解释了「判据管不着它」，没有人接着问「那谁管它」。问题早就在函数手里（5048 行读出 `given`），但只被当作**判据的输入**用（5080 组成 `held`、5157 排除出候选池）。
+
+**为什么是根因不是表象。** 不是漏写一条规则。决定性证据：**同一个字段在另一个块上是被守的**——`verify_joint_identification`（verify.py:5860）拿 `given` 核联合块的同名字段。两处的差别不是重要性也不是难度，是那个函数**本来就要读 query**（它得核 treatments 向量），顺手把条件也核了。所以病灶是「块按真值源分工，跨源的字段无人认领」，只补一条 if 会在下一个跨源字段上再犯。
+
+**结构。**
+- **等号那半**：`_hold_the_conditioning_a_block_names(block, given, node, err)` 提到模块层，两个块共用**一条读法**——任何识别块只要写了条件集，就必须是问题条件的那一组。联合块原来那句自己的读法并进来，两处不会再各自漂移。
+- **在不在那半**：新规则 `verify_the_conditioning_a_question_asks_is_named(surface, query, where)`——问题条件了、而读者看到的那份识别没写，就拒；与 #695 的 `frame_rules._the_stratum_is_written` 同形（**在不在是读者被欠了什么，等不等是有没有说假话**）。
+- **`where` 是主语不是开关**：主语是「读者看到的那份识别」，而那是**哪个块取决于答案**——标量答案是 `identification`，联合答案是 `joint_identification` 且身边没有标量块。第一版只挂标量块，联合的带条件答案照旧可以什么都不说而两道门全收（probe696k 当场量到），所以两个审计点各自把自己的块名传进去，拒答里也说得出是哪一句。
+- **`iv_identification` 不问**：它只与标量面并排出现，那一面已经在问了。另外，`identification` 块的三个生产者里有两个是 IV 路线，写的是 `conditioning`（工具在哪个集合下有效，**另一件事**）而不写 `conditioned_on`；实测四种 c 的接法带条件一律落到 `needs_investigation`（IV 搜索没有 `given` 参数），所以这条规则今天拒不掉它们写的任何东西——将来某条路线让带条件的 IV 可识别，它写的那句话本来就该点名这一层。
+- **值不归这里**：变量归识别层，变量上的**取值**是估计的事（`numeric_estimate.given`，#695 已守）。
+
+**测量。**
+- 改后同一批伪造（probe696d）：七种全被两道门拒，且**各由正确的那一条拒**——五种被等号拒（`records conditioned_on=… , which is not what the question conditions on`）、图里没有的名字被节点读法拒、缺席被在不在那条拒；诚实答案照收。
+- 反向也拒：问题没条件而块写了一个（本轮新测），与写错同样拒。
+- `identify` 查询把条件拼成**裸原子**（effect 是「原子+取值」），同一条规则照读：诚实过、伪造拒。
+- 联合块（probe696k）：带条件的联合问题写出 `conditioned_on=['w()']`、诚实过两道门；伪造与删除都拒。
+- 诚实侧全语料（probe696j）：252 个存档答案原样过两道门，**430 次过门、74 次拒全是既有的「needs_investigation 无推导链，`verify` 不适用」ValueError，新规则产生的 VerificationError 是 0**。
+- 新测试文件放到 HEAD 代码上跑（worktree）：**14 个里 10 个失败**。通过的 4 个里有 3 个是本来就该过的诚实用例，第 4 个是 `test_a_joint_block_naming_another_stratum_is_refused`——**联合块的等号那半在 HEAD 上早就守着**，这就是根因的现场证据：同一个字段，一处守一处不守。
+- 全量：21734 passed / 534 skipped，warning-clean，24 分 48 秒（`-n 6 --dist loadgroup`）。余项闸口单独整跑 **522 passed、66 分 53 秒**——之前用 `-x` 看到的「316 个 / 5 分钟」是在第一个失败处停了，别拿那个数估时间。
+
+**账。**
+- 新文件 `tests/test_the_stratum_an_identification_names_is_the_questions.py`，10 个测试函数、14 个测试。
+- 余项闸口：`extensions.identification.conditioned_on.[]` 从 18 行里移除，声明余项 **1890→1872**；其中 6 行（带条件估计量的 IDC 识别）**这一片是它们唯一声明的叶子**，于是整行退出声明表，250→244 行。提问数 33921 不变——这一轮没动 `_asked`，规则押住叶子不改变问的次数。
+- 语料不动（252 个形状一个没加），所以**没有任何计数钉子跟着动**——与 #695 那种加行的轮次不同，这一轮账只在闸口那一侧。
+- 基线 21720→**21734**，skipped 534→**534**。
+
+**还开着。**
+- 「答案到底欠不欠一份识别块」没人守：在不在那半的前提是「读者看到的那份识别存在」，一个压根不带识别块的答案不会被问到分层。
+- `iv_identification` 自己那份拷贝没被问在不在（它只与标量面并排出现，那一面在问）；IV 路线带条件今天不可识别，所以这条今天是空的。
+- 识别层还有别的跨源字段没人守：`extensions.transport_identification` 的 `target_population` / `s_nodes` / `sources`（约 59 片叶子横跨 10 行）与 `extensions.proximal_estimand.method`（14 行）都还在声明余项里，形状与这一轮同类——真值源不是图，所以按图重推的那套审计够不着。
 
 ### #695 一层里的效应，用这一层的人来估（2026-09-18）
 
