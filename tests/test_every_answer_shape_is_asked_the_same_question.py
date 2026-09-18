@@ -481,6 +481,130 @@ def _asked(result):
         yield shape, shape, path, value
 
 
+#: The places a door has to look, and there is no fourth. A door is handed
+#: the program and the answer; the DATA is not one of them, which is why a
+#: leaf whose truth is a fact about the sample can be shown to a reader and
+#: held by nothing.
+#:
+#: Read from strongest to weakest, because a leaf answering to more than
+#: one is named by the strongest. A second writing under the SAME FIELD
+#: NAME is one fact written twice and a comparison can hold it; the same
+#: value under another name is a coincidence until somebody says which two
+#: fields are one fact — measured, and the reason the distinction is drawn
+#: here: a run that asked for 500 replicates also has 500 sitting in a
+#: graph's edge list, on 73 rows, and no rule follows from that.
+_ANSWER_ALIKE = "another field of the answer, named alike"
+_PROGRAM_ALIKE = "a field of the program, named alike"
+_ANSWER_OTHERWISE = "somewhere in the answer, named otherwise"
+_PROGRAM_OTHERWISE = "somewhere in the program, named otherwise"
+_NOTHING = "nothing either document writes"
+_EVERY_READING_MATCHES = "a flag or an absence, which every reading matches"
+
+#: Ordered as the reading returns them, so a split printed in this order
+#: reads from "a rule could hold this" to "nothing here can".
+_WHERE = (_ANSWER_ALIKE, _PROGRAM_ALIKE, _ANSWER_OTHERWISE,
+          _PROGRAM_OTHERWISE, _NOTHING, _EVERY_READING_MATCHES)
+
+
+def _the_field(shape: str) -> str:
+    """What a leaf is CALLED, which is not where it sits.
+
+    A position in a list is not part of a name — the third gap's severity
+    and the first's are the same field — so the collapsed segments are
+    dropped and the last real one is the name.
+    """
+    parts = [p for p in shape.split(".") if p != "[]"]
+    return parts[-1] if parts else shape
+
+
+def _comparable(value) -> bool:
+    """Whether identity of value says anything about identity of fact.
+
+    A boolean matches every other boolean and an absence matches every
+    other absence, so finding one "elsewhere" is not finding anything.
+    Excluded rather than counted, because counting them would report the
+    weakest possible evidence as the strongest available.
+    """
+    return isinstance(value, (str, int, float)) and not isinstance(value, bool)
+
+
+def _writings(document) -> dict:
+    """Every comparable value a document writes, and the fields it is at."""
+    out: dict = {}
+    for path, value in _leaves(document):
+        if _comparable(value):
+            out.setdefault(value, set()).add(_shape_of(path))
+    return out
+
+
+def _where_the_truth_of(program, result) -> dict:
+    """For each leaf this gate asks about, where a door could find it.
+
+    The gate says WHICH leaves nothing holds and has never said where
+    their truth is, so a leaf that can be held by writing a rule and a
+    leaf that nothing in either document determines read exactly alike in
+    the declaration. A frontier picked off that file cannot tell how far
+    zero is, and a leaf nothing can hold gets revisited until somebody
+    works out again that nothing can hold it.
+
+    WHAT THIS DOES AND DOES NOT SAY. ``_NOTHING`` says no COMPARISON can
+    hold the leaf: there is no second writing to compare it against. It
+    does not say the leaf cannot be held at all — a rule that recomputes a
+    number from sufficient statistics holds it without any second writing
+    — and reading it as "impossible" would retire holes that are merely
+    harder. The other way round is the stronger claim and the one that is
+    safe: a leaf with a second writing under its own name is one a
+    comparison CAN be written for.
+
+    Computed rather than stored. A classification kept in a file beside
+    the thing it classifies is a copy that states no relationship to it,
+    which is the defect this repository keeps finding; re-read every run,
+    it cannot drift from the corpus it is about.
+
+    Keyed by the name ``_asked`` reports under, so the answer lines up
+    with the declaration without anybody parsing the declaration's names.
+    """
+    in_answer = _writings(result)
+    in_program = _writings(program)
+    out: dict = {}
+    for name, shape, _path, value in _asked(result):
+        if not _comparable(value):
+            out[name] = _EVERY_READING_MATCHES
+            continue
+        word = _the_field(shape)
+        answer = in_answer.get(value, set()) - {shape}
+        program_side = in_program.get(value, set())
+        if any(_the_field(s) == word for s in answer):
+            out[name] = _ANSWER_ALIKE
+        elif any(_the_field(s) == word for s in program_side):
+            out[name] = _PROGRAM_ALIKE
+        elif answer:
+            out[name] = _ANSWER_OTHERWISE
+        elif program_side:
+            out[name] = _PROGRAM_OTHERWISE
+        else:
+            out[name] = _NOTHING
+    return out
+
+
+def _the_remainder_by_where_its_truth_is() -> dict:
+    """The whole declaration, split by the reading above.
+
+    Over the corpus rather than per row, because the question it answers
+    is about the remainder and not about any answer: how much of what is
+    left could be held by writing a rule against something already
+    written down, and how much waits on something nobody has written at
+    all.
+    """
+    split: dict = {where: 0 for where in _WHERE}
+    for name, leaves in UNWITNESSED.items():
+        pair = SHAPES[name]
+        where = _where_the_truth_of(pair["program"], pair["result"])
+        for leaf in leaves:
+            split[where[leaf]] += 1
+    return split
+
+
 def _doors() -> tuple[str, ...]:
     """Every public entry point an answer can be held to.
 
