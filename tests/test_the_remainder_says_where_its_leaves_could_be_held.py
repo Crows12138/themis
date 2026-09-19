@@ -283,13 +283,22 @@ def test_the_remainder_split_is_what_it_is():
     declare methods and routes. A leaf under the last heading is one no
     COMPARISON can reach, and a recomputation, a re-derivation and a
     membership check are none of them comparisons.
+
+    Twelfth use, and the last heading again, all thirty at once. The word
+    that stands in an ask's source until a reader writes one is written
+    nowhere else on either document, and the heading is right about that.
+    What held it is a third kind of thing again, and the plainest so far:
+    the record goes OUT on the envelope and comes BACK through the patch
+    door, and the rule for the return trip was written years before this
+    one. A heading here describes where a second writing of a VALUE is.
+    It says nothing about the other direction of the same record.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 245,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 633,
+        gate._NOTHING: 603,
         gate._EVERY_READING_MATCHES: 89,
     }
 

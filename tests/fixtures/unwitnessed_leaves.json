@@ -457,7 +457,6 @@
  ],
  "needs_investigation:counterfactual:none": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:counterfactual:none#308829": [
@@ -496,7 +495,6 @@
   "investigation_requests.[].priority"
  ],
  "needs_investigation:effect:none#03cf75": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#045841": [
@@ -536,7 +534,6 @@
  ],
  "needs_investigation:effect:none#0e36ff": [
   "data_gap_report.gaps.[].describes.[].said.count",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]"
  ],
@@ -556,7 +553,6 @@
   "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.confidence",
   "data_gap_report.gaps.[].describes.[].said.threshold",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#17db0b": [
@@ -573,14 +569,7 @@
   "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#1df86c": [
-  "extensions.missing_data_recovery.search_budget",
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:effect:none#239d98": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:effect:none#249ba4": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.gaps.[].describes.[].words.why.said.detail",
@@ -593,18 +582,12 @@
  ],
  "needs_investigation:effect:none#2dff45": [
   "extensions.missing_data_recovery.search_budget",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
- "needs_investigation:effect:none#30ca3b": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
  "needs_investigation:effect:none#31c82c": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#38993c": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#44412c": [
@@ -641,7 +624,6 @@
  ],
  "needs_investigation:effect:none#515686": [
   "extensions.missing_data_recovery.search_budget",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#5b5a2e": [
@@ -650,7 +632,6 @@
   "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#5ec0c1": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#60ffe9": [
@@ -666,7 +647,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#63d205": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#6898ab": [
@@ -679,11 +659,7 @@
   "estimator_failure.recorded.sparse_points.[].x",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
- "needs_investigation:effect:none#6afcce": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
  "needs_investigation:effect:none#6b1d33": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#6d8fe1": [
@@ -696,7 +672,6 @@
   "structural_result.value"
  ],
  "needs_investigation:effect:none#711239": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#77c113": [
@@ -704,7 +679,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.missing_data_recovery.search_budget",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#7a43ba": [
@@ -714,14 +688,12 @@
   "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#808045": [
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#89bf2f": [
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
   "missing_information.[].priority@gap=missing_distribution,kind=parameter,need=iv_wald_late_needs_entry"
@@ -778,12 +750,8 @@
   "missing_information.[].said.fields",
   "missing_information.[].said.predicate"
  ],
- "needs_investigation:effect:none#b26e61": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
  "needs_investigation:effect:none#b2e77c": [
-  "data_gap_report.gaps.[].describes.[].said.rationale",
-  "investigation_requests.[].items.[].skeleton.annotations.source"
+  "data_gap_report.gaps.[].describes.[].said.rationale"
  ],
  "needs_investigation:effect:none#bb3eb5": [
   "estimation_context.ci_bootstrap",
@@ -829,14 +797,7 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#fe9f0f": [
-  "extensions.missing_data_recovery.search_budget",
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:probability:none": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
- ],
- "needs_investigation:probability:none#6bdf54": [
-  "investigation_requests.[].items.[].skeleton.annotations.source"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:proximal_effect:none": [
   "missing_information.[].name",
@@ -1553,7 +1514,6 @@
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "data_gap_report.gaps.[].describes.[].said.formula",
   "formula.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population",
   "missing_information.[].priority"
  ],
@@ -1568,7 +1528,6 @@
   "estimator_failure.recorded.n_treated",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#c8a187": [
@@ -1580,14 +1539,12 @@
   "estimation_context.sample_size",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#f3260c": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "data_gap_report.gaps.[].describes.[].said.formula",
   "formula.body.body.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#f57dd6": [
@@ -1600,7 +1557,6 @@
   "estimator_failure.recorded.stratum.z",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:identify:identify_via_iv": [

@@ -74,12 +74,34 @@ that field is asked of the report's own list, and the pattern this module
 is built on is stated with its own boundary: two copies check each other
 where there are two, and a reference is checked against its referent.
 
-So this module restates three things: the set of skeleton KINDS, because
+AND ONE RECORD HAS TWO DIRECTIONS, which is where the last unheld field
+of a parameter ask was. A skeleton is the reader's copy of a patch: it
+leaves on the envelope and comes back through ``apply_patch_and_run``
+verbatim. The inbound half is held where it matters most — semantic
+validation refuses an LLM-PROPOSED statement whose source is empty,
+because a number somebody guessed and nobody sourced is one no reader can
+weigh. A stub merged back carries ``provenance="structural"`` unless the
+caller says otherwise, so that guard covers the fabrication case rather
+than every return, which is worth saying exactly: the inbound rule is
+narrower than this one. The outbound half was read for what it says and
+never for what it must not say, and the two halves want opposite things
+in the same two fields. Going out, this system is ASKING:
+the slots a reader fills are the slots it cannot fill, so they leave
+empty. A value already written in one is this system's own figure coming
+back as somebody's measurement, and a source already written beside it is
+a provenance nobody can have for a number nobody has taken. What the
+filled form looks like is written down elsewhere in this repository —
+``themis.kb.translator`` puts a value and a citation in exactly these two
+slots — which is the same record with the reader's half supplied.
+
+So this module restates four things: the set of skeleton KINDS, because
 it decides which question an item can be asked at all; the channel table,
 because a request names its channel twice and the two names must be for
-one channel; and the format of a grouped heading, because that format is
+one channel; the format of a grouped heading, because that format is
 written by two runtime functions from one definition rather than being
-any site's private spelling. Each is compared to its producer by a test.
+any site's private spelling; and the word a source carries until somebody
+measures the number, because that word is the whole of what says the form
+is still blank. Each is compared to its producer by a test.
 Everything else is "do these two records of one fact agree", and the
 record it asks of the program is the strongest, because the program is
 not the answer's to write.
@@ -116,6 +138,18 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _VARIABLE_PATCH = "variable_patch"
 _PROBABILITY = "probability"
 _SKELETON_KINDS: frozenset[str] = frozenset({_VARIABLE_PATCH, _PROBABILITY})
+
+#: What stands in a parameter ask's source until the reader writes one.
+#: The scheduler builds the stub for a missing CPT entry with its value
+#: unset and this word beside it, and those two are the whole of what a
+#: reader supplies — which is why an ask carrying anything else in either
+#: is answering the question it was raised to ask.
+#:
+#: Restated rather than imported, for the reason above ``_SKELETON_KINDS``,
+#: and pinned to the producer by a test: it is that function's single
+#: literal, and a verifier reading it from there would agree with a
+#: producer that started pre-filling the field.
+_A_SOURCE_NOBODY_HAS_YET = "TODO"
 
 #: Which repair channel each action belongs to. One request is one
 #: channel, and the row names that channel twice — once as the group it
@@ -506,6 +540,64 @@ def _check_a_parameter_the_reader_is_asked_for(
             f"conditions on {conditions or 'nothing'}; the parameter a "
             f"reader is sent to measure is only that number under the "
             f"conditions written beside it"
+        )
+
+
+def _check_the_slots_a_reader_fills_leave_here_empty(
+    where: str, skeleton: Mapping,
+) -> None:
+    """The part of a parameter ask that is not a statement but a blank.
+
+    The rule above reads WHICH parameter the ask is about, which is every
+    field of the stub except the two the ask exists for. Those two are
+    read here, and they are read for being empty: this system raised the
+    ask because it does not have the number, and it cannot have a source
+    for a number nobody has taken.
+
+    Both fields are spoken for in the other direction, where the patch
+    comes back. That is what makes the silence here a half rather than an
+    omission — one record, two directions, a rule on one of them. An ask
+    that leaves with a value in it hands a reader a form they return
+    unchanged, and this system's own figure arrives back as their
+    measurement; an ask that leaves with a source in it puts a provenance
+    under that figure that nobody wrote.
+
+    The source is asked once, not twice. Bent, blanked or replaced by a
+    sentence that reads like a real citation are one thing to this rule —
+    not the word that says the field is still blank — and the return
+    door's own rule about the source is narrower than that: it refuses an
+    empty one only where the value is declared an LLM prior. So the
+    sentence a refusal gives is about the ask, which is what this side
+    knows.
+
+    Only the two fields are read, and only for what is in them. Whether
+    the value field is THERE is the contract's question and the contract
+    answers it — the stub's schema requires it — so asking again here
+    would be a branch no door can reach. The source field is the other
+    way round: the schema types the annotations free-form and requires
+    nothing inside them, which is why an absent source is refused here
+    and an absent value is not.
+    """
+    value = skeleton.get("value")
+    if value is not None:
+        _reject(
+            f"{where} hands a reader a stub with {value!r} "
+            f"already written in as the value; this ask exists because "
+            f"nobody has that number, and the stub goes back through the "
+            f"patch door verbatim, so a reader who returns it unchanged "
+            f"returns this system's own figure as their measurement"
+        )
+    annotations = skeleton.get("annotations")
+    source = (annotations.get("source")
+              if isinstance(annotations, Mapping) else None)
+    if source != _A_SOURCE_NOBODY_HAS_YET:
+        _reject(
+            f"{where} hands a reader a stub whose source reads {source!r}; "
+            f"this system is asking for the number rather than reporting "
+            f"it, so the one thing it can write there is the word saying "
+            f"the field is still blank. The stub goes back through the "
+            f"patch door verbatim, so anything else is a provenance the "
+            f"reader did not write, filed under a figure they supplied"
         )
 
 
@@ -1060,6 +1152,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             if kind == _PROBABILITY:
                 _check_a_parameter_the_reader_is_asked_for(
                     where, skeleton, said, target)
+                _check_the_slots_a_reader_fills_leave_here_empty(
+                    where, skeleton)
                 continue
             _check_the_predicate_is_written_once(where, item, said, target)
             if group == "framing" and target not in notes:

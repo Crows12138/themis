@@ -2062,9 +2062,27 @@ def test_the_declared_remainder_is_what_it_is():
     comparison can reach a leaf and warns in its own words that this is
     not the same as nothing being able to hold one. A membership check
     against a declaration is not a comparison.
+
+    Then 30 fewer, off the two slots an ask leaves for its reader. A
+    skeleton goes back through the patch door verbatim, and the rule that
+    read it read which PARAMETER the ask was about — every field of the
+    stub except the number it is short of and where that number came
+    from. Those two are empty going out, because going out this system is
+    asking; the same two filled is what an answer to the ask looks like,
+    which the KB translator writes. Nothing held the outbound copy, so an
+    ask could leave with a sentence that reads like a citation already in
+    it, come back unchanged with a real number beside it, and file a
+    provenance this system wrote under a figure somebody else supplied.
+    The other direction has a rule about that field and it is narrower
+    than it looks: it refuses an empty source only where the value is
+    declared an LLM prior.
+
+    All 30 sat under the last heading, the third frontier running to end
+    there. What closed them is neither a comparison nor a membership
+    check but the other direction of the same record.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1192, total
+    assert total == 1162, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
