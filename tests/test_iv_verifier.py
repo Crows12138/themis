@@ -227,14 +227,14 @@ def test_identify_via_iv_accepts_valid_chain():
         rule="iv_criterion_check",
         inputs={},
         output=True,
-        step_id="s1",
+        label="s1",
     )
     step_by_id = {"s1": criterion_step}
     step_output_by_id = {"s1": True}
 
     _rule_identify_via_iv(
         ctx=None,  # unused
-        inputs={"criterion": StepRef(step_id="s1")},
+        inputs={"criterion": StepRef(label="s1")},
         claimed_output=StructuralResult(value=True),
         step_index=1,
         step_by_id=step_by_id,
@@ -246,7 +246,7 @@ def test_identify_via_iv_rejects_criterion_is_not_iv_check():
     """criterion ref must point to an iv_criterion_check step."""
     wrong_step = DerivationStep(
         rule="front_door_criterion",  # wrong rule
-        inputs={}, output=True, step_id="s1",
+        inputs={}, output=True, label="s1",
     )
     step_by_id = {"s1": wrong_step}
     step_output_by_id = {"s1": True}
@@ -254,7 +254,7 @@ def test_identify_via_iv_rejects_criterion_is_not_iv_check():
     with pytest.raises(VerificationError):
         _rule_identify_via_iv(
             ctx=None,
-            inputs={"criterion": StepRef(step_id="s1")},
+            inputs={"criterion": StepRef(label="s1")},
             claimed_output=StructuralResult(value=True),
             step_index=1,
             step_by_id=step_by_id,
@@ -266,7 +266,7 @@ def test_identify_via_iv_rejects_criterion_output_false():
     """If criterion step output is False, conclusion can't be True."""
     criterion_step = DerivationStep(
         rule="iv_criterion_check",
-        inputs={}, output=False, step_id="s1",
+        inputs={}, output=False, label="s1",
     )
     step_by_id = {"s1": criterion_step}
     step_output_by_id = {"s1": False}
@@ -274,7 +274,7 @@ def test_identify_via_iv_rejects_criterion_output_false():
     with pytest.raises(VerificationError):
         _rule_identify_via_iv(
             ctx=None,
-            inputs={"criterion": StepRef(step_id="s1")},
+            inputs={"criterion": StepRef(label="s1")},
             claimed_output=StructuralResult(value=True),
             step_index=1,
             step_by_id=step_by_id,
@@ -285,7 +285,7 @@ def test_identify_via_iv_rejects_criterion_output_false():
 def test_identify_via_iv_rejects_wrong_output_type():
     criterion_step = DerivationStep(
         rule="iv_criterion_check",
-        inputs={}, output=True, step_id="s1",
+        inputs={}, output=True, label="s1",
     )
     step_by_id = {"s1": criterion_step}
     step_output_by_id = {"s1": True}
@@ -293,7 +293,7 @@ def test_identify_via_iv_rejects_wrong_output_type():
     with pytest.raises(VerificationError):
         _rule_identify_via_iv(
             ctx=None,
-            inputs={"criterion": StepRef(step_id="s1")},
+            inputs={"criterion": StepRef(label="s1")},
             claimed_output="not_a_structural_result",
             step_index=1,
             step_by_id=step_by_id,

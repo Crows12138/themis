@@ -163,6 +163,7 @@ from .verifier import (
     verify_refusal_block,
     verify_required_data,
     verify_gap_subjects,
+    verify_the_chain_names_its_steps,
     verify_declared_types,
     verify_mechanism_target,
     verify_investigation_items,
@@ -1649,6 +1650,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # it. The kind is held to the program, which an answer may not edit;
     # the other two to the envelope's own contents, which is where what
     # they claim can be seen.
+    # What this answer calls the steps of its chain. A name is the one
+    # thing on an envelope whose whole job is to be pointed at, and it was
+    # the one thing nothing recomputed: the chain half refuses a reference
+    # that lands nowhere and two steps that share a name, and a name
+    # nobody points at was therefore free. It is the step's place now, so
+    # every reader can work it out and a forgery has nothing to agree
+    # with. Ahead of the rules that read the chain, because a chain whose
+    # steps are not the ones it says they are is not read further.
+    verify_the_chain_names_its_steps(result)
+
     verify_answer_names_its_kind(result, ast)
     verify_answer_tier(result, ast)
     verify_answer_status(result)

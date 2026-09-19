@@ -420,6 +420,14 @@ Public surface (re-exports from sub-modules):
   do, not about what was asked. The roster is collected from every result
   the suite causes this system to build rather than read off the
   producers, because a roster one entry short refuses an honest answer)
+- What an answer calls the steps of its chain:
+  ``verify_the_chain_names_its_steps`` (a name exists to be pointed at, and
+  the reader of an answer holds no second record of what its producer liked
+  to call things — so the slot took anything, and forging the first step's
+  name left 81 of 178 stored answers accepted at every door. What a reader
+  CAN recompute is where a step sits, so that is the name: the i-th step is
+  ``s{i+1}``, written by the encoder and recomputed here, with a producer's
+  own label stopping at the serialization boundary)
 - Every sentence an envelope carries, against the sentence it names:
   ``verify_statements_carry_their_facts`` (a sentence travels as a token
   and the facts for that token's holes, and nothing had asked whether the
@@ -913,6 +921,7 @@ from .status_rules import (
     verify_answer_status,
     verify_answer_status_fits_its_question,
 )
+from .step_name_rules import verify_the_chain_names_its_steps
 from .gap_claim_rules import (
     verify_gap_names,
     verify_gap_quotes,
@@ -965,6 +974,7 @@ __all__ = [
     "verify_answer_status_fits_its_question",
     "verify_statements_carry_their_facts",
     "verify_statements_repeat_what_decided_them",
+    "verify_the_chain_names_its_steps",
     "verify_confidence_level",
     "verify_envelope_arithmetic",
     "verify_gap_names",

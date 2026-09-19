@@ -114,8 +114,8 @@ def _extract_identify_formula(derivation: tuple[DerivationStep, ...]):
     if isinstance(inline, _FORMULA):
         return inline
     if isinstance(inline, StepRef):
-        by_id = {s.step_id: s.output for s in derivation}
-        candidate = by_id.get(inline.step_id)
+        by_id = {s.label: s.output for s in derivation}
+        candidate = by_id.get(inline.label)
         return candidate if isinstance(candidate, _FORMULA) else None
     return None
 
@@ -450,16 +450,16 @@ def _resolve_formula_input(
     """Resolve a formula input that may be a direct FormulaExpr or a
     StepRef to an earlier formula-producing step."""
     if isinstance(raw_formula, StepRef):
-        source_step = step_by_id.get(raw_formula.step_id)
-        source_out = step_output_by_id.get(raw_formula.step_id)
+        source_step = step_by_id.get(raw_formula.label)
+        source_out = step_output_by_id.get(raw_formula.label)
         if source_step is None or source_out is None:
             raise VerificationError(
-                f"{rule}.formula references unknown step {raw_formula.step_id!r}",
+                f"{rule}.formula references unknown step {raw_formula.label!r}",
                 step_index=step_index, rule=rule,
             )
         if not _is_formula_expr(source_out):
             raise VerificationError(
-                f"{rule}.formula StepRef({raw_formula.step_id!r}) does not point to a FormulaExpr",
+                f"{rule}.formula StepRef({raw_formula.label!r}) does not point to a FormulaExpr",
                 step_index=step_index, rule=rule,
             )
         return source_out
@@ -535,8 +535,8 @@ def _assert_numeric_query_binding(
             )
             matching_witness = any(
                 prev_step.rule in IDENTIFICATION_FORMULA_RULES
-                and step_output_by_id.get(step_id) == formula
-                for step_id, prev_step in step_by_id.items()
+                and step_output_by_id.get(label) == formula
+                for label, prev_step in step_by_id.items()
             )
             if not matching_witness:
                 raise VerificationError(
@@ -631,9 +631,9 @@ def _walk(
 
         for key, value in step.inputs.items():
             if isinstance(value, StepRef):
-                if value.step_id not in step_output_by_id:
+                if value.label not in step_output_by_id:
                     raise StepRefError(
-                        f"{step.rule}.{key} = StepRef({value.step_id!r}) but "
+                        f"{step.rule}.{key} = StepRef({value.label!r}) but "
                         f"no earlier step has that id",
                         step_index=i, rule=step.rule,
                     )
@@ -650,14 +650,14 @@ def _walk(
             step_output_by_id=step_output_by_id,
         )
 
-        if step.step_id is not None:
-            if step.step_id in step_output_by_id:
+        if step.label is not None:
+            if step.label in step_output_by_id:
                 raise VerificationError(
-                    f"duplicate step_id {step.step_id!r}",
+                    f"duplicate label {step.label!r}",
                     step_index=i, rule=step.rule,
                 )
-            step_by_id[step.step_id] = step
-            step_output_by_id[step.step_id] = step.output
+            step_by_id[step.label] = step
+            step_output_by_id[step.label] = step.output
 
     return step_by_id, step_output_by_id
 
@@ -7359,7 +7359,7 @@ def verify_numeric(
                 "effect derivation final numeric_result must reference an evaluation step",
                 step_index=len(derivation) - 1, rule=derivation[-1].rule,
             )
-        evaluation_step = step_by_id.get(evaluation_ref.step_id)
+        evaluation_step = step_by_id.get(evaluation_ref.label)
         if evaluation_step is None or evaluation_step.rule not in (
             "formula_evaluation",
             "mediation_numeric_evaluate",

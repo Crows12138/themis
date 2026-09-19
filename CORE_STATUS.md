@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-24010 passed / 534 skipped, warning-clean
+24742 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,42 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #713 一步叫什么，是它坐在第几位（2026-09-20）
+
+**根因。** `step_id` 的唯一职责是被别处指着，而它被**手写了三遍**：100 个 `DerivationStep(` 站点写一次，39 个 `StepRef(` 站点把同一个字符串再写一次，`data_gap_report.py:2455` 按同一套规则拼第三次，去引用一个它并不持有的步骤。**没有任何规则说「正确的 id 是什么」**，于是验证器只问得出两件事：两步别重名（`verify.py:653`）、引用别落空（`verify.py:634`）——**没被任何 `StepRef` 指着的 id 完全不受约束**。普查量出来正是这一片：弯掉第一步的名字，178 条链里 81 条每一扇门都照收。
+
+**为什么是根因不是表象。** 补一条「id 要长成某个样子」只是给手写加约束，手写还在。两条实测把它顶成结构问题：①**描述性 id 携带的信息和 `rule` 完全重复**——`data_gap_rules._step_id_or_rule` 和 `data_gap_report._step_ref` 都写成 `step.step_id or step.rule`，两者可互换，说明 id 里没有 `rule` 之外的东西；②**第三次手写已经是错的**——报告的 index 跑遍 transport block 的**所有** source，链的 index 只跑**可迁移**的那些，一个被堵住的 source 排在前面就让重建出来的名字对错步。T10-1 一直在查「引用的 step 在不在链里」，它抓不到这一条，只因为重建结果碰巧一致。
+
+**结构。** 把「生产者指链内某一步的把手」和「答案里这一步的公开名字」拆成两样东西：
+
+```text
+内存字段   DerivationStep.label / StepRef.label   手写，永不出现在答案里
+JSON       step_id = step_name(i) == f"s{i+1}"    边界上一处算出
+gap 引用   问链要这一步坐在第几位                  不再重建
+校验       信封门重算每一个名字                    不符即拒
+```
+
+`step_name` 定义在 `themis/types.py` 一处，三个必须一致的读者共用：编码器、gap 报告、新规则 `themis/verifier/step_name_rules.py`。`derivation_to_dict` 在边界上给名字，并把 `inputs`/`output` 里每个 `step_ref` 从 label 改写成目标将得到的名字；**引用了链里没有的 label 在这里就被拒**——写不出名字，也就写不出那条链。改名为 `label` 不是顺手的整洁：`_step_ref(kind, step)` 原来写的是 `step.step_id or step.rule`，字段若还叫 `step_id`，它会**照常编译**并给出一个答案里不存在的名字；改名让这种站点根本写不出来。
+
+**新规则站在信封门，不站在链门。** `verify_identify` 收的是内存链，那里跑的是 label；公开名字是**答案**的属性，所以规则挂在 `_hold_what_the_answer_says`，`verify` 和 `verify_answer_claims` 都会跑，手工造链直接喂 `verify_identify` 的单元测试不受影响。
+
+**语料没有重采，是按同一套算术平移的，并且两侧都证了。** 完整重采按采集器自己的文档是串行、要数小时；而这次变的只有「链里的步骤叫什么」。28 行动了：按 label→位置 改 id、改引用、改 gap 引用；其中 **24 行的程序能单独重放，重放出来的名字与平移结果逐个相同**，其余 4 行落在闸口每次扫描前的重新过门上。写回前先把语料原样 dump 一遍比对字节，确认这支笔和采集器的笔一致。
+
+**闸口跑之前写下的账：374 片名字 × 3 种弯法 = 1122 次，全部被拒，全部是新规则的 `VerificationError`，0 次放行。** 预测「关 81 片、1129 → 1048、行 231 → 177」——**三个数全中，新洞 0**。这次的算术是在声明文件本身上做的（逐行查该叶子在不在、是不是该行唯一一片），不是 #712 那种按路径等值匹配。
+
+**踩到两个真实边界。**（a）**trivial transport**：声明了目标人群但没有 selection node 的那一路，会给出一个 `transportable: true` 而 `adjustment_set` 为空的 source，链走的是 backdoor，一个 `transport_formula` 步都没有——它本来也不提任何数据需求，所以「要步骤」必须晚到「确实要提需求」那一刻；原来那个空集判断在被调函数里，现在上移到调用方，因为调用方无论如何都得数它才能给后面的 source 定位。（b）`test_transport_rules` 那条伪造把 criterion 指向 `s_t9_2_0`，新名字下它指的不再是 formula 步而是不存在的东西；改成**在同一份信封里找到 formula 步再指过去**，测的才还是它想测的。
+
+**账。** 新文件 `tests/test_a_step_is_named_by_the_place_it_sits.py` 730 测；新模块 `themis/verifier/step_name_rules.py`；`step_id=` 关键字改名 270 处（scheduler 99 / dispatch 40 / 15 份测试 131），`.step_id` 属性读改名 71 处（rules 55 / verify 14 / 测试 2）；序列化两端、`data_gap_report` 三处引用站点、`rules.py` 那条 `getattr(ref, ..., None) or ref.get(...)` 逐条手改；`data_gap_rules.py` 读的是 JSON 字典，一个字没动。
+
+**一条留着的边：** gap 的 `derivation_step` 引用现在是位置，而位置在链被换掉之后仍然可解析。语料里 17 条引用全部落在规则正确的那一步上（transport 落 `transport_formula`，反事实落 `counterfactual_cell_bounds`），但**「落在对的步骤上」目前没有任何规则押着**——押它需要一张「物种→可引用的规则」表，那是下一条前沿。
+
+**方法学：**
+- **(A) 一句「没有诚实规则」的判断，先问它问的是哪一版问题。** `test_the_remainder_says_where_its_leaves_could_be_held.py` 开篇把 step_id 记成不可押，四次探针、每个测量都对、结论错：它问的是「什么规则能押住**生产者写的**名字」，而答案是让生产者别写。**可改的不只有验证器那一侧。**
+- **(B) 一个被重建出来的标识符，重建对不对不取决于重建那几行代码，取决于两个 index 跑的是不是同一个集合。** 找法：凡是看到 `f"...{index}"` 去指别处的东西，就去问那个 index 的来源集合和目标的来源集合是不是同一个。
+- **(C) 改名是结构手段，不是整洁。** 判据：改名之后，写错的那种站点还能不能编译过。能，就说明这次改名没买到东西。
+
+**全量**：24742 passed / 534 skipped，warning-clean，24:20（`-n 6 --dist loadgroup`）；声明 1129 → **1048**，行 231 → **177**，全部 81 片出自「两份文档都没写第二遍」那一档。
 
 ### #712 一条短缺归在哪个标题下，是它物种的事（2026-09-20）
 

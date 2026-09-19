@@ -2512,12 +2512,12 @@ def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
             rule="general_id_criterion",
             inputs={"graph": graph, "x": treatments[0], "y": y},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_joint_general_id_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatments": frozenset(treatments),
                 "outcome": y,
                 "corner_estimands": tuple(
@@ -2534,7 +2534,7 @@ def _build_joint_general_id_derivation_dict(*, graph, treatments, y, estimate):
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -2555,12 +2555,12 @@ def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
             rule="general_id_criterion",
             inputs={"graph": graph, "x": x, "y": y},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_general_id_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatment": x,
                 "outcome": y,
                 "method": estimate.method,
@@ -2572,7 +2572,7 @@ def _build_general_id_numeric_derivation_dict(*, graph, x, y, estimate):
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -2728,12 +2728,12 @@ def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
             rule="ctf_conjunction_criterion",
             inputs={"graph": graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_ctf_conjunction_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "method": estimate.method,
                 "data_hash": estimate.data_hash,
                 "sample_size": estimate.sample_size,
@@ -2744,7 +2744,7 @@ def _build_ctf_conjunction_numeric_derivation_dict(*, graph, estimate):
                 "conditional": estimate.conditional,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -2956,7 +2956,7 @@ def _build_scm_counterfactual_numeric_derivation_dict(*, x, y, estimate):
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s1",
+            label="s1",
         ),
     )
     return derivation_to_dict(steps)
@@ -3405,7 +3405,7 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
     from ..verifier.serialization import derivation_to_dict
 
     recorded = {
-        "criterion": StepRef(step_id="s1"),
+        "criterion": StepRef(label="s1"),
         "method": estimate.method,
         "data_hash": estimate.data_hash,
         "sample_size": estimate.sample_size,
@@ -3445,28 +3445,28 @@ def _build_proximal_numeric_derivation_dict(*, graph, estimate):
         rule="proximal_criterion",
         inputs={"graph": graph},
         output=True,
-        step_id="s1",
+        label="s1",
     )
     if estimate.method == "proximal_bridge":
         replay = DerivationStep(
             rule="numeric_proximal_bridge_estimate",
             inputs=recorded,
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         )
     elif estimate.method == "proximal_null_test":
         replay = DerivationStep(
             rule="numeric_proximal_null_test",
             inputs=recorded,
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         )
     else:
         replay = DerivationStep(
             rule="numeric_proximal_estimate",
             inputs=recorded,
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         )
     return derivation_to_dict((criterion, replay))
 
@@ -3796,7 +3796,7 @@ def _build_causation_numeric_derivation_dict(*, q_stmt, estimate):
                 ),
             },
             output=StructuralResult(value=True),
-            step_id="s1",
+            label="s1",
         ),
     )
     return derivation_to_dict(steps)
@@ -4053,7 +4053,7 @@ def _build_counterfactual_cell_numeric_derivation_dict(*, estimate):
                 ),
             },
             output=StructuralResult(value=True),
-            step_id="s1",
+            label="s1",
         ),
     )
     return derivation_to_dict(steps)
@@ -4811,12 +4811,12 @@ def _build_joint_numeric_derivation_dict(
                 "given": given,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_joint_backdoor_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatments": treatments_set,
                 "outcome": y,
                 "adjustment": frozenset(adjustment),
@@ -4830,7 +4830,7 @@ def _build_joint_numeric_derivation_dict(
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -6823,12 +6823,12 @@ def _build_measurement_correction_derivation_dict(
                 "given": given,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_measurement_correction_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatment": x,
                 "outcome": y,
                 "adjustment": frozenset(adjustment),
@@ -6847,7 +6847,7 @@ def _build_measurement_correction_derivation_dict(
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -8506,7 +8506,7 @@ def _build_dr_numeric_derivation_dict(
 
     prop = estimate.propensity
     terminal_inputs = {
-        "criterion": StepRef(step_id="s1"),
+        "criterion": StepRef(label="s1"),
         "treatment": x,
         "outcome": y,
         "adjustment": frozenset(adjustment),
@@ -8539,13 +8539,13 @@ def _build_dr_numeric_derivation_dict(
                 "given": given,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule=terminal_rule,
             inputs=terminal_inputs,
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -8570,12 +8570,12 @@ def _build_numeric_derivation_dict(
                 "given": given,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_backdoor_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatment": x,
                 "outcome": y,
                 "adjustment": frozenset(adjustment),
@@ -8588,7 +8588,7 @@ def _build_numeric_derivation_dict(
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -8619,7 +8619,7 @@ def _build_iv_numeric_derivation_dict(
             inputs={"graph": graph, "x": x, "y": y,
                     "left": loop[0], "right": loop[1]},
             output=True,
-            step_id="s_loop",
+            label="s_loop",
         ),
     )
     steps = withdrawal + (
@@ -8632,12 +8632,12 @@ def _build_iv_numeric_derivation_dict(
                 "conditioning": frozenset(conditioning),
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_iv_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatment": x,
                 "outcome": y,
                 "instrument": instrument,
@@ -8657,7 +8657,7 @@ def _build_iv_numeric_derivation_dict(
                 ),
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)
@@ -9043,7 +9043,7 @@ def _build_vector_iv_derivation_dict(
                 "conditioning": frozenset(conditioning),
             },
             output=True,
-            step_id=f"s_iv_{i}",
+            label=f"s_iv_{i}",
         ))
     steps.append(DerivationStep(
         rule="numeric_anderson_rubin_region",
@@ -9058,7 +9058,7 @@ def _build_vector_iv_derivation_dict(
             "ci_level": estimate.region.ci_level,
         },
         output=StructuralResult(value=True),
-        step_id="s_num",
+        label="s_num",
     ))
     return derivation_to_dict(tuple(steps))
 
@@ -9089,7 +9089,7 @@ def _build_iv_overid_numeric_derivation_dict(
                 "conditioning": frozenset(conditioning),
             },
             output=True,
-            step_id=f"s_iv_{i}",
+            label=f"s_iv_{i}",
         ))
     steps.append(DerivationStep(
         rule="numeric_iv_overid_estimate",
@@ -9107,7 +9107,7 @@ def _build_iv_overid_numeric_derivation_dict(
             "n_instruments": estimate.n_instruments,
         },
         output=StructuralResult(value=True),
-        step_id="s_num",
+        label="s_num",
     ))
     return derivation_to_dict(tuple(steps))
 
@@ -9236,12 +9236,12 @@ def _build_frontdoor_numeric_derivation_dict(
                 "z": frozenset(mediators),
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="numeric_frontdoor_estimate",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
                 "treatment": x,
                 "outcome": y,
                 "mediators": frozenset(mediators),
@@ -9254,7 +9254,7 @@ def _build_frontdoor_numeric_derivation_dict(
                 "ci_level": estimate.ci_level,
             },
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     return derivation_to_dict(steps)

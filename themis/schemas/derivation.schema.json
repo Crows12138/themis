@@ -74,7 +74,10 @@
       "required": ["kind", "step_id"],
       "properties": {
         "kind": { "const": "step_ref" },
-        "step_id": { "type": "string" }
+        "step_id": {
+          "type": "string",
+          "description": "The name of the step being pointed at, which is where that step sits: s1 for the first, s2 for the second."
+        }
       }
     },
     "graph": {
@@ -324,7 +327,10 @@
       "required": ["rule", "inputs", "output"],
       "properties": {
         "rule": { "type": "string" },
-        "step_id": { "type": "string" },
+        "step_id": {
+          "type": "string",
+          "description": "What this answer calls the step: s{index+1}, its place in the chain. Computed rather than chosen, so a reader can recompute every name and a forged one is refusable. A producer's own handle for a step is not this and does not travel."
+        },
         "inputs": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/value" }

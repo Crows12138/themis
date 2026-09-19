@@ -233,11 +233,11 @@ def test_identify_via_mediation_accepts_any_branch_true():
 
     nde_step = DerivationStep(
         rule="mediation_nde_nie_check",
-        inputs={}, output=True, step_id="s1",
+        inputs={}, output=True, label="s1",
     )
     cde_step = DerivationStep(
         rule="mediation_cde_check",
-        inputs={}, output=False, step_id="s2",
+        inputs={}, output=False, label="s2",
     )
     step_by_id = {"s1": nde_step, "s2": cde_step}
     step_output_by_id = {"s1": True, "s2": False}
@@ -246,8 +246,8 @@ def test_identify_via_mediation_accepts_any_branch_true():
     _rule_identify_via_mediation(
         ctx=ctx,
         inputs={
-            "nde_nie": StepRef(step_id="s1"),
-            "cde": StepRef(step_id="s2"),
+            "nde_nie": StepRef(label="s1"),
+            "cde": StepRef(label="s2"),
         },
         claimed_output=StructuralResult(value=True),
         step_index=2,
@@ -263,11 +263,11 @@ def test_identify_via_mediation_rejects_mismatched_aggregation():
 
     nde_step = DerivationStep(
         rule="mediation_nde_nie_check",
-        inputs={}, output=False, step_id="s1",
+        inputs={}, output=False, label="s1",
     )
     cde_step = DerivationStep(
         rule="mediation_cde_check",
-        inputs={}, output=False, step_id="s2",
+        inputs={}, output=False, label="s2",
     )
     step_by_id = {"s1": nde_step, "s2": cde_step}
     step_output_by_id = {"s1": False, "s2": False}
@@ -277,8 +277,8 @@ def test_identify_via_mediation_rejects_mismatched_aggregation():
         _rule_identify_via_mediation(
             ctx=ctx,
             inputs={
-                "nde_nie": StepRef(step_id="s1"),
-                "cde": StepRef(step_id="s2"),
+                "nde_nie": StepRef(label="s1"),
+                "cde": StepRef(label="s2"),
             },
             claimed_output=StructuralResult(value=True),  # Wrong
             step_index=2,
@@ -293,11 +293,11 @@ def test_identify_via_mediation_rejects_wrong_step_rules():
 
     bad_step = DerivationStep(
         rule="graph_is_dag",  # wrong
-        inputs={}, output=True, step_id="s1",
+        inputs={}, output=True, label="s1",
     )
     ok_step = DerivationStep(
         rule="mediation_cde_check",
-        inputs={}, output=True, step_id="s2",
+        inputs={}, output=True, label="s2",
     )
     step_by_id = {"s1": bad_step, "s2": ok_step}
     step_output_by_id = {"s1": True, "s2": True}
@@ -307,8 +307,8 @@ def test_identify_via_mediation_rejects_wrong_step_rules():
         _rule_identify_via_mediation(
             ctx=ctx,
             inputs={
-                "nde_nie": StepRef(step_id="s1"),
-                "cde": StepRef(step_id="s2"),
+                "nde_nie": StepRef(label="s1"),
+                "cde": StepRef(label="s2"),
             },
             claimed_output=StructuralResult(value=True),
             step_index=2,

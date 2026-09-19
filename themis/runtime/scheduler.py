@@ -283,7 +283,7 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
                         "paths": paths,
                     },
                     output=result,
-                    step_id="s1",
+                    label="s1",
                 ),
             )
         else:
@@ -296,7 +296,7 @@ def _dispatch_cause(stmt: QueryStatement, graph: nx.DiGraph) -> QueryResult:
                         "dst": q.to_atom,
                     },
                     output=result,
-                    step_id="s1",
+                    label="s1",
                 ),
             )
     return QueryResult(
@@ -567,7 +567,7 @@ def _build_frontdoor_derivation(
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="front_door_criterion",
@@ -578,7 +578,7 @@ def _build_frontdoor_derivation(
                 "z": frozenset(z),
             },
             output=True,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="front_door_adjustment_formula",
@@ -588,16 +588,16 @@ def _build_frontdoor_derivation(
                 "z": z,
             },
             output=formula,
-            step_id="s3",
+            label="s3",
         ),
         DerivationStep(
             rule="identify_via_front_door",
             inputs={
-                "criterion": StepRef(step_id="s2"),
-                "formula": StepRef(step_id="s3"),
+                "criterion": StepRef(label="s2"),
+                "formula": StepRef(label="s3"),
             },
             output=structural_result,
-            step_id="s4",
+            label="s4",
         ),
     )
 
@@ -677,16 +677,16 @@ def _build_identify_via_tian(
                 "y": y,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="identify_via_tian",
             inputs={
-                "decomposition": StepRef(step_id="s1"),
+                "decomposition": StepRef(label="s1"),
                 "formula": tian.formula,
             },
             output=structural_result,
-            step_id="s2",
+            label="s2",
         ),
     )
     return QueryResult(
@@ -721,15 +721,15 @@ def _build_identify_unidentifiable_via_tian(
                 "y": y,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="tian_hedge_witness",
             inputs={
-                "decomposition": StepRef(step_id="s1"),
+                "decomposition": StepRef(label="s1"),
             },
             output=structural_result,
-            step_id="s2",
+            label="s2",
         ),
     )
     return QueryResult(
@@ -767,16 +767,16 @@ def _build_identify_via_idc(
             rule="idc_rule2_exchange",
             inputs={"graph": graph, "x": x, "y": y},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="identify_via_idc",
             inputs={
-                "exchange": StepRef(step_id="s1"),
+                "exchange": StepRef(label="s1"),
                 "formula": idc.formula,
             },
             output=structural_result,
-            step_id="s2",
+            label="s2",
         ),
     )
     return QueryResult(
@@ -837,15 +837,15 @@ def _build_identify_via_iv(
                 "conditioning": chosen.conditioning,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="identify_via_iv",
             inputs={
-                "criterion": StepRef(step_id="s1"),
+                "criterion": StepRef(label="s1"),
             },
             output=structural_result,
-            step_id="s2",
+            label="s2",
         ),
     )
 
@@ -1029,7 +1029,7 @@ def _dispatch_mediation(
                 "adjustment": mediation.nde_nie.adjustment,
             },
             output=mediation.nde_nie.identifiable,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="mediation_cde_check",
@@ -1041,18 +1041,18 @@ def _dispatch_mediation(
                 "adjustment": mediation.cde.adjustment,
             },
             output=mediation.cde.identifiable,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="identify_via_mediation",
             inputs={
-                "nde_nie": StepRef(step_id="s1"),
-                "cde": StepRef(step_id="s2"),
+                "nde_nie": StepRef(label="s1"),
+                "cde": StepRef(label="s2"),
             },
             output=StructuralResult(
                 value=mediation.nde_nie.identifiable or mediation.cde.identifiable
             ),
-            step_id="s3",
+            label="s3",
         ),
     )
 
@@ -1094,7 +1094,7 @@ def _dispatch_mediation(
             tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
             if mediation.cde.identifiable else None
         )
-        evaluation_step_id = "s4"
+        evaluation_label = "s4"
         numeric_block, numeric_step = _evaluate_mediation_numerically(
             target=q.target,
             x_atom=x,
@@ -1105,7 +1105,7 @@ def _dispatch_mediation(
             nde_nie_adj=nde_nie_adj,
             cde_adj=cde_adj,
             observed=q.given,
-            step_id=evaluation_step_id,
+            label=evaluation_label,
             graph=graph,
             bidirected=bidirected,
         )
@@ -1127,9 +1127,9 @@ def _dispatch_mediation(
                     numeric_step,
                     DerivationStep(
                         rule="numeric_result",
-                        inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
+                        inputs={"evaluation": StepRef(label=evaluation_label)},
                         output=numeric_result,
-                        step_id="s5",
+                        label="s5",
                     ),
                 )
 
@@ -1253,7 +1253,7 @@ def _dispatch_mediation_joint(
                 "adjustment": mediation.nde_nie.adjustment,
             },
             output=mediation.nde_nie.identifiable,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="mediation_cde_joint_check",
@@ -1265,16 +1265,16 @@ def _dispatch_mediation_joint(
                 "adjustment": mediation.cde.adjustment,
             },
             output=mediation.cde.identifiable,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="identify_via_mediation_joint",
             inputs={
-                "nde_nie": StepRef(step_id="s1"),
-                "cde": StepRef(step_id="s2"),
+                "nde_nie": StepRef(label="s1"),
+                "cde": StepRef(label="s2"),
             },
             output=StructuralResult(value=any_identifiable),
-            step_id="s3",
+            label="s3",
         ),
     )
 
@@ -1313,7 +1313,7 @@ def _dispatch_mediation_joint(
             tuple(sorted(mediation.cde.adjustment, key=_atom_to_str))
             if mediation.cde.identifiable else None
         )
-        evaluation_step_id = "s4"
+        evaluation_label = "s4"
         numeric_block, numeric_step = _evaluate_mediation_numerically(
             target=q.target,
             x_atom=x,
@@ -1324,7 +1324,7 @@ def _dispatch_mediation_joint(
             nde_nie_adj=nde_nie_adj,
             cde_adj=cde_adj,
             observed=q.given,
-            step_id=evaluation_step_id,
+            label=evaluation_label,
             graph=graph,
             bidirected=bidirected,
         )
@@ -1344,9 +1344,9 @@ def _dispatch_mediation_joint(
                     numeric_step,
                     DerivationStep(
                         rule="numeric_result",
-                        inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
+                        inputs={"evaluation": StepRef(label=evaluation_label)},
                         output=numeric_result,
-                        step_id="s5",
+                        label="s5",
                     ),
                 )
 
@@ -1429,7 +1429,7 @@ def _evaluate_mediation_numerically(
     nde_nie_adj: "tuple[Atom, ...] | None",
     cde_adj: "tuple[Atom, ...] | None",
     observed: tuple[ValuedAtom, ...],
-    step_id: str,
+    label: str,
     graph: nx.DiGraph,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
 ) -> "tuple[dict | None, DerivationStep | None]":
@@ -1648,7 +1648,7 @@ def _evaluate_mediation_numerically(
         rule="mediation_numeric_evaluate",
         inputs=inputs,
         output=numeric,
-        step_id=step_id,
+        label=label,
     )
     return numeric, step
 
@@ -1699,7 +1699,7 @@ def _build_identify_derivation(
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="backdoor_criterion",
@@ -1711,7 +1711,7 @@ def _build_identify_derivation(
                 "given": given_set,
             },
             output=True,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="backdoor_adjustment_formula",
@@ -1722,16 +1722,16 @@ def _build_identify_derivation(
                 "given": observed_vas,
             },
             output=formula,
-            step_id="s3",
+            label="s3",
         ),
         DerivationStep(
             rule="identify_via_backdoor",
             inputs={
-                "criterion": StepRef(step_id="s2"),
-                "formula": StepRef(step_id="s3"),
+                "criterion": StepRef(label="s2"),
+                "formula": StepRef(label="s3"),
             },
             output=structural_result,
-            step_id="s4",
+            label="s4",
         ),
     )
 
@@ -1762,7 +1762,7 @@ def _dispatch_assoc(
                         "z": frozenset(q.given),
                     },
                     output=result,
-                    step_id="s1",
+                    label="s1",
                 ),
             )
         return QueryResult(
@@ -1795,7 +1795,7 @@ def _dispatch_assoc(
                         "paths": paths,
                     },
                     output=result,
-                    step_id="s1",
+                    label="s1",
                 ),
             )
         else:
@@ -1809,7 +1809,7 @@ def _dispatch_assoc(
                         "conditioning": frozenset(q.given),
                     },
                     output=result,
-                    step_id="s1",
+                    label="s1",
                 ),
             )
     return QueryResult(
@@ -2545,7 +2545,7 @@ def _dispatch_counterfactual(
             rule="counterfactual_cell_bounds",
             inputs=step_inputs,
             output=derivation_output,
-            step_id="s1",
+            label="s1",
         ),
     )
 
@@ -3059,7 +3059,7 @@ def _causation_over_the_instrument(
                     "p_z": route.table.p_z,
                 },
                 output=envelope,
-                step_id="s1",
+                label="s1",
             ),
         ),
         extensions={blocks.Block.CAUSATION: envelope},
@@ -3290,7 +3290,7 @@ def _dispatch_causation(
                 "interventional_risk_provenance": licence,
             },
             output=envelope,
-            step_id="s1",
+            label="s1",
         ),
     )
 
@@ -3471,7 +3471,7 @@ def _dispatch_scm_counterfactual(
                 "intervention_value": float(q.intervention.value),
             },
             output=numeric_result,
-            step_id="s1",
+            label="s1",
         ),
     )
     return QueryResult(
@@ -3593,7 +3593,7 @@ def _dispatch_counterfactual_conjunction(
             rule="id_star_identification",
             inputs={"graph": graph, "formula": formula},
             output=structural_result,
-            step_id="s1",
+            label="s1",
         ),
     )
     return QueryResult(
@@ -3713,7 +3713,7 @@ def _dispatch_proximal_effect(
             rule="proximal_criterion",
             inputs={"graph": graph, "estimand": descriptor},
             output=structural_result,
-            step_id="s1",
+            label="s1",
         ),
     )
     return QueryResult(
@@ -3733,7 +3733,7 @@ def _try_numeric(
     kind: QueryKind,
     *,
     structural_prefix: tuple[DerivationStep, ...] = (),
-    evaluation_step_id: str = "s_eval",
+    evaluation_label: str = "s_eval",
     graph=None,
     bidirected=None,
 ) -> QueryResult:
@@ -3807,13 +3807,13 @@ def _try_numeric(
             rule="formula_evaluation",
             inputs={"formula": formula},
             output=value,
-            step_id=evaluation_step_id,
+            label=evaluation_label,
         ),
         DerivationStep(
             rule="numeric_result",
-            inputs={"evaluation": StepRef(step_id=evaluation_step_id)},
+            inputs={"evaluation": StepRef(label=evaluation_label)},
             output=numeric_result,
-            step_id="s_final",
+            label="s_final",
         ),
     )
     return QueryResult(
@@ -3931,7 +3931,7 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
                     "adjustment_set": route.adjustment_set,
                 },
                 output=True,
-                step_id=f"s_t9_1_{i}",
+                label=f"s_t9_1_{i}",
             ),
             DerivationStep(
                 rule="transport_formula",
@@ -3943,7 +3943,7 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
                     "target_population": q.target_population,
                 },
                 output=route.formula_repr,
-                step_id=f"s_t9_2_{i}",
+                label=f"s_t9_2_{i}",
             ),
         )
 
@@ -3990,11 +3990,11 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
         DerivationStep(
             rule="identify_via_transport",
             inputs={
-                "criterion": StepRef(step_id=f"s_t9_1_{witness}"),
-                "formula": StepRef(step_id=f"s_t9_2_{witness}"),
+                "criterion": StepRef(label=f"s_t9_1_{witness}"),
+                "formula": StepRef(label=f"s_t9_2_{witness}"),
             },
             output=StructuralResult(value=True),
-            step_id="s_t9_final",
+            label="s_t9_final",
         ),
     )
 
@@ -4055,8 +4055,8 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
     # transport_formula step with the string output stays — the repr is
     # human-readable extension metadata; the AST is the machine-verifiable
     # derivation witness.
-    ast_step_id = "s_t9_ast"
-    eval_step_id = "s_t9_eval"
+    ast_label = "s_t9_ast"
+    eval_label = "s_t9_eval"
     numeric_result_obj = NumericResult(value=value)
     route = working[witness]
     derivation_steps = derivation_steps + (
@@ -4071,19 +4071,19 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
                 "observed": q.given,
             },
             output=witness_expr,
-            step_id=ast_step_id,
+            label=ast_label,
         ),
         DerivationStep(
             rule="formula_evaluation",
             inputs={"formula": witness_expr},
             output=value,
-            step_id=eval_step_id,
+            label=eval_label,
         ),
         DerivationStep(
             rule="numeric_result",
-            inputs={"evaluation": StepRef(step_id=eval_step_id)},
+            inputs={"evaluation": StepRef(label=eval_label)},
             output=numeric_result_obj,
-            step_id="s_t9_final_num",
+            label="s_t9_final_num",
         ),
     )
     transport_block["numeric"] = {
@@ -4483,13 +4483,13 @@ def _build_iv_wald_effect_result(
             "conditioning": frozenset(conditioning),
         },
         output=True,
-        step_id="s_iv_check",
+        label="s_iv_check",
     )
     iv_choose_step = DerivationStep(
         rule="identify_via_iv",
-        inputs={"criterion": StepRef(step_id="s_iv_check")},
+        inputs={"criterion": StepRef(label="s_iv_check")},
         output=StructuralResult(value=True),
-        step_id="s_iv_id",
+        label="s_iv_id",
     )
     iv_numeric_step = DerivationStep(
         rule="iv_wald_numeric_evaluate",
@@ -4502,14 +4502,14 @@ def _build_iv_wald_effect_result(
             "monotonicity": monotonicity,
         },
         output=table,
-        step_id="s_iv_numeric",
+        label="s_iv_numeric",
     )
     numeric_result_obj = NumericResult(value=table["late"])
     final_step = DerivationStep(
         rule="numeric_result",
-        inputs={"evaluation": StepRef(step_id="s_iv_numeric")},
+        inputs={"evaluation": StepRef(label="s_iv_numeric")},
         output=numeric_result_obj,
-        step_id="s_iv_final",
+        label="s_iv_final",
     )
 
     # Two statements rather than one paragraph built by ``+=``. The
@@ -4679,13 +4679,13 @@ def _dispatch_joint_effect(
                         rule="general_id_criterion",
                         inputs={"graph": graph, "x": x, "y": y_atom},
                         output=True,
-                        step_id="s1",
+                        label="s1",
                     ),
                     DerivationStep(
                         rule="identify_via_general_id",
-                        inputs={"criterion": StepRef(step_id="s1")},
+                        inputs={"criterion": StepRef(label="s1")},
                         output=structural_result,
-                        step_id="s2",
+                        label="s2",
                     ),
                 )
                 # No ``note``: it said in English prose what ``pattern``
@@ -4730,7 +4730,7 @@ def _dispatch_joint_effect(
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="joint_backdoor_criterion",
@@ -4742,13 +4742,13 @@ def _dispatch_joint_effect(
                 "given": given_set,
             },
             output=True,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="identify_via_joint_backdoor",
-            inputs={"criterion": StepRef(step_id="s2")},
+            inputs={"criterion": StepRef(label="s2")},
             output=structural_result,
-            step_id="s3",
+            label="s3",
         ),
     )
 
@@ -4961,7 +4961,7 @@ def _dispatch_longitudinal(
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s0",
+            label="s0",
         ),
         DerivationStep(
             rule="longitudinal_sequential_exchangeability_check",
@@ -4972,17 +4972,17 @@ def _dispatch_longitudinal(
                 "y": y,
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="identify_via_gformula",
             inputs={
-                "check": StepRef(step_id="s1"),
+                "check": StepRef(label="s1"),
                 "y": y,
                 "treatments": treatments,
             },
             output=structural_result,
-            step_id="s2",
+            label="s2",
         ),
     )
 
@@ -5154,16 +5154,16 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
                 rule="tian_c_decomposition",
                 inputs={"graph": graph, "x": x, "y": y_atom},
                 output=True,
-                step_id="s_tian_decomp",
+                label="s_tian_decomp",
             ),
             DerivationStep(
                 rule="identify_via_tian",
                 inputs={
-                    "decomposition": StepRef(step_id="s_tian_decomp"),
+                    "decomposition": StepRef(label="s_tian_decomp"),
                     "formula": tian.formula,
                 },
                 output=StructuralResult(value=True),
-                step_id="s_tian_id",
+                label="s_tian_id",
             ),
             DerivationStep(
                 rule="tian_formula_ast",
@@ -5175,7 +5175,7 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
                     "unbound_formula": tian.formula,
                 },
                 output=bound_formula,
-                step_id="s_tian_ast",
+                label="s_tian_ast",
             ),
         )
         return _Attempt(_try_numeric(
@@ -5203,16 +5203,16 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
             rule="idc_rule2_exchange",
             inputs={"graph": graph, "x": x, "y": y_atom},
             output=True,
-            step_id="s_idc_exchange",
+            label="s_idc_exchange",
         ),
         DerivationStep(
             rule="identify_via_idc",
             inputs={
-                "exchange": StepRef(step_id="s_idc_exchange"),
+                "exchange": StepRef(label="s_idc_exchange"),
                 "formula": idc.formula,
             },
             output=StructuralResult(value=True),
-            step_id="s_idc_id",
+            label="s_idc_id",
         ),
         DerivationStep(
             rule="idc_formula_ast",
@@ -5225,7 +5225,7 @@ def _identify_general(facts: _EffectFacts) -> _Attempt:
                 "unbound_formula": idc.formula,
             },
             output=bound_formula,
-            step_id="s_idc_ast",
+            label="s_idc_ast",
         ),
     )
     return _Attempt(_try_numeric(
@@ -5358,7 +5358,7 @@ def _build_feedback_loop_effect_result(
             inputs={"graph": facts.graph, "x": x, "y": y,
                     "left": left, "right": right},
             output=True,
-            step_id="s_loop",
+            label="s_loop",
         ),
         DerivationStep(
             rule="iv_criterion_check",
@@ -5370,13 +5370,13 @@ def _build_feedback_loop_effect_result(
                 "conditioning": chosen.conditioning,
             },
             output=True,
-            step_id="s_iv_check",
+            label="s_iv_check",
         ),
         DerivationStep(
             rule="identify_via_iv",
-            inputs={"criterion": StepRef(step_id="s_iv_check")},
+            inputs={"criterion": StepRef(label="s_iv_check")},
             output=structural_result,
-            step_id="s_iv_id",
+            label="s_iv_id",
         ),
     )
 
@@ -5670,7 +5670,7 @@ def _build_effect_structural_prefix(
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="backdoor_criterion",
@@ -5682,7 +5682,7 @@ def _build_effect_structural_prefix(
                 "given": given_set,
             },
             output=True,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="backdoor_adjustment_formula",
@@ -5693,16 +5693,16 @@ def _build_effect_structural_prefix(
                 "given": observed_vas,
             },
             output=formula,
-            step_id="s3",
+            label="s3",
         ),
         DerivationStep(
             rule="identify_via_backdoor",
             inputs={
-                "criterion": StepRef(step_id="s2"),
-                "formula": StepRef(step_id="s3"),
+                "criterion": StepRef(label="s2"),
+                "formula": StepRef(label="s3"),
             },
             output=StructuralResult(value=True),
-            step_id="s4",
+            label="s4",
         ),
     )
 

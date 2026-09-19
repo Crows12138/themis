@@ -118,13 +118,36 @@ def _assumption_request(
     )
 
 
-def _hedge_step(step_id: str = "step_x") -> DerivationStep:
+def _transport_steps(sources: int = 1) -> tuple[DerivationStep, ...]:
+    """The chain a transporting answer carries: an admissibility check and
+    a formula step per transporting source, in source order.
+
+    The two data needs a transport block raises are grounded in the
+    formula step — they say "that is what asks this of you" — so a block
+    handed over without a chain is a block whose gaps have nothing to
+    point at. That was survivable while a citation was a string rebuilt
+    from the block's own index; it is not survivable now, and it was
+    never what the kernel produces.
+    """
+    steps: tuple[DerivationStep, ...] = ()
+    for index in range(sources):
+        steps += (
+            DerivationStep(rule="s_admissibility_check", inputs={},
+                           output=True, label=f"check_{index}"),
+            DerivationStep(rule="transport_formula", inputs={},
+                           output="P*(y | do(x)) = ...",
+                           label=f"formula_{index}"),
+        )
+    return steps
+
+
+def _hedge_step(label: str = "step_x") -> DerivationStep:
     """The way the kernel says "not identifiable": a step that SUCCEEDED,
     naming the c-component hedge that proves it. There is no failed step
     to build here — no producer writes one, and the report stopped
     reading for one."""
     return DerivationStep(
-        rule="tian_hedge_witness", inputs={}, output=False, step_id=step_id
+        rule="tian_hedge_witness", inputs={}, output=False, label=label
     )
 
 
@@ -189,7 +212,9 @@ def test_a_hedge_witness_emits_blocking_gap():
     assert g.severity == GapSeverity.BLOCKING
     assert g.blocks == GapBlocks.IDENTIFICATION
     assert g.provenance[0].ref_kind == GapRefKind.DERIVATION_STEP
-    assert g.provenance[0].ref_id == "step_3"
+    # By the place it sits, which is what the answer will call it. The
+    # label above is the producer's own handle and stops at the boundary.
+    assert g.provenance[0].ref_id == "s1"
 
 
 def test_a_step_claiming_it_failed_raises_nothing_here():
@@ -209,7 +234,7 @@ def test_a_step_claiming_it_failed_raises_nothing_here():
             rule="some_future_rule",
             inputs={},
             output=False,
-            step_id="step_99",
+            label="step_99",
             success=False,
         ),
     )
@@ -544,6 +569,7 @@ def test_transport_block_with_nonempty_z_emits_both_transport_gaps():
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.STRUCTURALLY_SOLVED,
+        derivation=_transport_steps(),
         extensions=extensions,
     )
     target_gaps = [
@@ -743,6 +769,7 @@ def test_multiple_gap_kinds_sorted_blocking_first():
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.NEEDS_ASSUMPTION,
         framing_notes=(FramingNote(predicate="x", missing=("time_window",)),),
+        derivation=_transport_steps(),
         extensions=extensions,
     )
     severities = [g.severity for g in report.gaps]
@@ -782,6 +809,7 @@ def test_actionable_steps_skip_informational_gaps():
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.STRUCTURALLY_SOLVED,
+        derivation=_transport_steps(),
         extensions={
             "transport_identification": {
                 "kind": "transport_identification",
@@ -835,6 +863,7 @@ def test_actionable_steps_use_short_label_for_transport():
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.STRUCTURALLY_SOLVED,
+        derivation=_transport_steps(),
         extensions=extensions,
     )
     fix_steps = [

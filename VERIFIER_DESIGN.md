@@ -75,8 +75,12 @@ class DerivationStep:
     rule: str                           # 命名规则的 id，如 "backdoor_criterion"
     inputs: dict[str, Any]              # 该规则的输入
     output: Any                         # 该规则的输出
-    step_id: str | None = None          # 可选：供后续步骤引用
+    label: str | None = None            # 生产者自己的把手，供同链后续步骤引用
 ```
+
+`label` 只活到序列化边界。答案里这一步**叫什么**是它坐在第几位——
+`themis.types.step_name(i) == f"s{i+1}"`——由编码器一处写出，读者可以
+重算，所以伪造的名字拒得掉。生产者写的把手不出现在答案里。
 
 ### 整体结构
 
@@ -85,7 +89,7 @@ class DerivationStep:
 - 有序列表
 - 每步 `inputs` 只能引用：
   - **上下文对象**：graph / Theta / 原始 query / variable declarations
-  - **之前某一步的 output**（通过 step_id）
+  - **之前某一步的 output**（通过 label；出门时改写成那一步的名字）
 - 最后一步的 output 必须等于 QueryResult 声明的 structural / numeric 结果
 - 禁止引用 elaborator 的内部中间状态（例如 scheduler 的局部变量）
 
@@ -185,10 +189,10 @@ Verifier **不**依赖：
 
 ```
 [
-  step_id="s1", rule="graph_is_dag",    output=True
-  step_id="s2", rule="backdoor_criterion", inputs={X, Y, Z, graph}, output=True
-  step_id="s3", rule="backdoor_adjustment_formula", inputs={X, Y, Z}, output=<formula>
-  step_id="s4", rule="identify_via_backdoor", inputs={s2, s3}, output=StructuralResult(True, ...)
+  s1  rule="graph_is_dag",                  output=True
+  s2  rule="backdoor_criterion",            inputs={X, Y, Z, graph}, output=True
+  s3  rule="backdoor_adjustment_formula",   inputs={X, Y, Z}, output=<formula>
+  s4  rule="identify_via_backdoor",         inputs={s2, s3}, output=StructuralResult(True, ...)
 ]
 ```
 

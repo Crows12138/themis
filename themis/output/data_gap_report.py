@@ -224,6 +224,7 @@ from ..types import (
     atoms_held_by,
     cites,
     raised_by_ref,
+    step_name,
 )
 
 # ============================================ what a step can say
@@ -380,7 +381,7 @@ def compute_data_gap_report(
     gaps.extend(_classify_missing_mediator(
         extensions, investigation_requests))
     gaps.extend(
-        _classify_transport_target_distribution(extensions))
+        _classify_transport_target_distribution(extensions, derivation))
     gaps.extend(_classify_ambiguous_variable(framing_notes, stmt))
     gaps.extend(
         _classify_dose_response_data(program, stmt, derivation))
@@ -1143,11 +1144,9 @@ def _classify_front_door_assumptions(
         yield DataGap(
             kind=GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
             describes=said,
-            provenance=cites(
+            provenance=_step_ref(
                 GapKind.FRONT_DOOR_IDENTIFICATION_ASSUMPTION_REQUIRED,
-                triggering.step_id or triggering.rule,
-                ref_kind=GapRefKind.DERIVATION_STEP,
-            ),
+                derivation, triggering),
         )
         return
     if _has_front_door_pattern(program, stmt):
@@ -1261,7 +1260,7 @@ def _classify_counterfactual_assumptions(
         provenance=(
             _step_ref(
                 GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
-                triggering)
+                derivation, triggering)
             if triggering
             # The common counterfactual case is NEEDS_ASSUMPTION /
             # counterfactual-query-kind, which carries no derivation
@@ -1875,7 +1874,7 @@ def _classify_unidentifiable(
             kind=GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
             describes=(_sentence(Sentence.TIAN_FOUND_A_HEDGE),),
             provenance=_step_ref(
-                GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET, step),
+                GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET, derivation, step),
             alternative_paths=(
                 _route(Route.MEASURE_THE_CONFOUNDER_TO_BREAK_THE_HEDGE),
                 _route(Route.RUN_AN_RCT_PAST_THE_HEDGE),
@@ -2411,7 +2410,7 @@ def _classify_missing_mediator(
 
 
 def _classify_transport_target_distribution(
-    extensions: dict,
+    extensions: dict, derivation: tuple[DerivationStep, ...],
 ) -> Iterable[DataGap]:
     """Bareinboim transport formula:
 
@@ -2435,24 +2434,52 @@ def _classify_transport_target_distribution(
     if not block:
         return
     target_pop = block.get("target_population")
-    for index, route in enumerate(block.get("sources") or ()):
+    # The chain carries one transport_formula step per TRANSPORTING
+    # source, in source order; the block lists every source, transporting
+    # or not. So the k-th such step belongs to the k-th transporting
+    # source, and that correspondence is the one this pairs them by. The
+    # position in the block is not it: a blocked source ahead of a
+    # transporting one shifts every later index, and the name this used
+    # to rebuild from the block's index then named a step that was not
+    # there — or, once names are places, one belonging to another route.
+    formulas = [s for s in derivation if s.rule == "transport_formula"]
+    transporting = 0
+    for route in block.get("sources") or ():
         if not isinstance(route, dict) or not route.get("transportable"):
             continue
+        place = transporting
+        transporting += 1
+        # A route with nothing to stratify on asks for nothing, and the
+        # trivial case is exactly that: a target population declared with
+        # no selection node transports by doing nothing, so the chain took
+        # another route entirely and carries no transport step. Counted
+        # anyway — the place a later route's step sits depends on this one
+        # having been here, not on whether it raised anything.
+        if not (route.get("adjustment_set") or []):
+            continue
+        if place >= len(formulas):
+            raise ValueError(
+                f"a transporting source is about to ask for data and the "
+                f"chain has no transport_formula step at place {place} to "
+                f"ground the ask in (it has {len(formulas)})")
         yield from _transport_source_data_needs(
-            route, index, target_pop=target_pop)
+            route, derivation, formulas[place], target_pop=target_pop)
 
 
 def _transport_source_data_needs(
-    route: dict, index: int, *, target_pop,
+    route: dict, derivation: tuple[DerivationStep, ...],
+    step: DerivationStep, *, target_pop,
 ) -> Iterable[DataGap]:
-    """The two asks one transporting source domain leaves open."""
+    """The two asks one transporting source domain leaves open.
+
+    Reached only for a route that has something to stratify on; the caller
+    decides that, because it also has to keep counting the routes that do
+    not, and one condition read in two places is one condition too many.
+    """
     adjustment_set = route.get("adjustment_set", []) or []
-    if not adjustment_set:
-        return
     source_pop = route.get("source_population")
     z_names = ", ".join(_atom_label(a) for a in adjustment_set)
     treatment, outcome = _transport_treatment_outcome(route)
-    step_id = f"s_t9_2_{index}"
 
     # Heuristic strata count: assume each adjustment-set predicate is
     # binary. Phase 12 is binary-only; revise when non-binary lands.
@@ -2481,11 +2508,8 @@ def _transport_source_data_needs(
         alternative_paths=(
             _route(Route.ACCEPT_THE_SOURCE_ATE),
         ),
-        provenance=cites(
-            GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN,
-            step_id,
-            ref_kind=GapRefKind.DERIVATION_STEP,
-        ),
+        provenance=_step_ref(
+            GapKind.TRANSPORT_TARGET_DISTRIBUTION_UNKNOWN, derivation, step),
     )
 
     # 2. Source-side P(Y|do(X), Z) — stratified conditional.
@@ -2515,11 +2539,8 @@ def _transport_source_data_needs(
             _route(Route.FIND_A_SUBGROUP_ANALYSIS),
             _route(Route.FIND_A_MATCHED_RCT),
         ),
-        provenance=cites(
-            GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN,
-            step_id,
-            ref_kind=GapRefKind.DERIVATION_STEP,
-        ),
+        provenance=_step_ref(
+            GapKind.TRANSPORT_SOURCE_CONDITIONAL_UNKNOWN, derivation, step),
     )
 
 
@@ -3384,11 +3405,25 @@ def _estimate_sample_size_for_distribution(
 
 
 def _step_ref(
-    kind: GapKind, step: DerivationStep,
+    kind: GapKind, derivation: tuple[DerivationStep, ...],
+    step: DerivationStep,
 ) -> tuple[GapProvenanceRef, ...]:
-    """Grounded in the chain — the other answer to the same question."""
-    return cites(kind, step.step_id or step.rule,
-                 ref_kind=GapRefKind.DERIVATION_STEP)
+    """Grounded in the chain — the other answer to the same question.
+
+    A step is cited by the name the ANSWER gives it, and that name is
+    where the step sits, so this has to be handed the chain as well as
+    the step. Naming it any other way means writing down a second copy of
+    something the answer computes, and the copy then has to keep agreeing
+    with the original for as long as both exist.
+    """
+    for index, other in enumerate(derivation):
+        if other is step:
+            return cites(kind, step_name(index),
+                         ref_kind=GapRefKind.DERIVATION_STEP)
+    raise ValueError(
+        f"a gap cites a {step.rule!r} step that is not in the chain this "
+        f"report was built from; a citation names a place, and there is "
+        f"no place to name")
 
 
 def _atom_label(atom_dict: dict) -> str:

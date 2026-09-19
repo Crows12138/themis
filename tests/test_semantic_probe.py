@@ -227,10 +227,10 @@ def test_verify_identify_rejects_numerically_wrong_idc_fraction():
     derivation = (
         DerivationStep(rule="idc_rule2_exchange",
                        inputs={"graph": g, "x": x, "y": y},
-                       output=True, step_id="s1"),
+                       output=True, label="s1"),
         DerivationStep(rule="identify_via_idc",
-                       inputs={"exchange": StepRef(step_id="s1"), "formula": wrong},
-                       output=StructuralResult(value=True), step_id="s2"),
+                       inputs={"exchange": StepRef(label="s1"), "formula": wrong},
+                       output=StructuralResult(value=True), label="s2"),
     )
     ctx = VerificationContext(graph=g, query=q, bidirected=bi)
     with pytest.raises(VerificationError):
@@ -253,11 +253,11 @@ def test_verify_identify_accepts_correct_idc_fraction():
     derivation = (
         DerivationStep(rule="idc_rule2_exchange",
                        inputs={"graph": g, "x": x, "y": y},
-                       output=True, step_id="s1"),
+                       output=True, label="s1"),
         DerivationStep(rule="identify_via_idc",
-                       inputs={"exchange": StepRef(step_id="s1"),
+                       inputs={"exchange": StepRef(label="s1"),
                                "formula": idc.formula},
-                       output=StructuralResult(value=True), step_id="s2"),
+                       output=StructuralResult(value=True), label="s2"),
     )
     ctx = VerificationContext(graph=g, query=q, bidirected=bi)
     verify_identify(derivation, ctx, StructuralResult(value=True))  # no raise

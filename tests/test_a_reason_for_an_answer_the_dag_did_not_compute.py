@@ -41,6 +41,10 @@ import themis
 from themis.kernel import _refusal_facts
 from themis.runtime.iv_words import Premise
 from themis.verifier.errors import VerificationError
+from themis.verifier.serialization import (
+    derivation_from_dict,
+    derivation_to_dict,
+)
 from themis.verifier.verify import verify_feedback_loop
 
 BETA, GAMMA, DELTA = 1.5, 0.4, 0.8
@@ -145,6 +149,12 @@ def test_an_instrument_with_no_withdrawal_behind_it_is_refused():
     result["derivation"]["steps"] = [
         s for s in steps if s["rule"] != "feedback_loop_withdraws_adjustment"]
     assert len(result["derivation"]["steps"]) == len(steps) - 1
+    # Taking a step out renames every step after it, because a step is
+    # called by the place it sits. Renamed through the producer's own
+    # boundary, so that what this forgery is is a chain missing a licence
+    # rather than a chain whose steps are not the ones it says they are.
+    result["derivation"] = derivation_to_dict(
+        derivation_from_dict(result["derivation"]))
     _refuses(result, "the derivation it ran settles")
 
     premise = result["extensions"]["iv_identification"]["required_assumption"]

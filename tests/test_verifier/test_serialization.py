@@ -133,7 +133,7 @@ def test_identify_derivation_round_trips_and_verifies():
     assert len(back) == len(r.derivation)
     # Step ids and rules preserved exactly.
     for a, b in zip(r.derivation, back):
-        assert a.step_id == b.step_id
+        assert a.label == b.label
         assert a.rule == b.rule
     # And the verifier still accepts the deserialized derivation.
     ctx = VerificationContext(graph=graph, query=stmt_by_id[r.query_id].query)

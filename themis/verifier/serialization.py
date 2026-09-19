@@ -58,6 +58,7 @@ from ..types import (
     ValuedAtom,
     VarRef,
     VarTerm,
+    step_name,
 )
 
 DERIVATION_VERSION = "0.1"
@@ -76,22 +77,77 @@ def derivation_to_dict(
     derivation: tuple[DerivationStep, ...],
 ) -> dict:
     """Serialize a derivation to a JSON-ready dict matching
-    ``derivation.schema.json``."""
+    ``derivation.schema.json``.
+
+    This is where the steps get their names. A producer works in labels —
+    its own handles, chosen for whoever reads the producer — and a label
+    is not a name a reader of the ANSWER could ever check, because the
+    answer carries no second record of what its author liked to call
+    things. So the boundary that writes the answer writes the names too:
+    :func:`themis.types.step_name` of each step's place, and every
+    reference rewritten to the name its target is about to be given.
+    """
+    steps = [
+        _step_to_dict(step, step_name(index))
+        for index, step in enumerate(derivation)
+    ]
+    _point_refs_at_the_names(steps, _names_by_label(derivation))
     return {
         "version": DERIVATION_VERSION,
         "kind": DERIVATION_KIND,
-        "steps": [_step_to_dict(s) for s in derivation],
+        "steps": steps,
     }
 
 
-def _step_to_dict(step: DerivationStep) -> dict:
+def _names_by_label(derivation: tuple[DerivationStep, ...]) -> dict[str, str]:
+    """What each producer label is about to be called in the answer."""
+    names: dict[str, str] = {}
+    for index, step in enumerate(derivation):
+        if step.label is None:
+            continue
+        if step.label in names:
+            raise DerivationSerializationError(
+                f"steps[{index}] is labelled {step.label!r} and so is an "
+                f"earlier step; a label is how one step of a chain points "
+                f"at another, so a chain cannot spend one twice"
+            )
+        names[step.label] = step_name(index)
+    return names
+
+
+def _point_refs_at_the_names(node: object, names: dict[str, str]) -> None:
+    """Rewrite each encoded reference from its label to the step's name.
+
+    A reference to a label no step of this chain carries is refused here
+    rather than written out. There is no name to put, and what would
+    reach a reader is a chain pointing at nothing. The verifier refuses
+    that too, from the far side; this is the side where the refusal can
+    still be about the producer that wrote it.
+    """
+    if isinstance(node, dict):
+        if node.get("kind") == "step_ref":
+            label = node.get("step_id")
+            if label not in names:
+                raise DerivationSerializationError(
+                    f"a step points at label {label!r}, which no step of "
+                    f"this chain carries"
+                )
+            node["step_id"] = names[label]
+            return
+        for value in node.values():
+            _point_refs_at_the_names(value, names)
+    elif isinstance(node, list):
+        for value in node:
+            _point_refs_at_the_names(value, names)
+
+
+def _step_to_dict(step: DerivationStep, name: str) -> dict:
     d: dict = {
         "rule": step.rule,
         "inputs": {k: _value_to_json(v) for k, v in step.inputs.items()},
         "output": _value_to_json(step.output),
+        "step_id": name,
     }
-    if step.step_id is not None:
-        d["step_id"] = step.step_id
     # Phase 10: only emit success when False (back-compat — default True
     # means existing fixtures and rule emitters need not change).
     if not step.success:
@@ -111,7 +167,10 @@ def _value_to_json(v: Any) -> Any:
     if isinstance(v, VarRef):
         return {"kind": "var_ref", "name": v.name}
     if isinstance(v, StepRef):
-        return {"kind": "step_ref", "step_id": v.step_id}
+        # The label, not the name. Nothing here knows the chain this step
+        # belongs to, so nothing here can know where its target sits;
+        # ``_point_refs_at_the_names`` owns that and runs over the result.
+        return {"kind": "step_ref", "step_id": v.label}
     if isinstance(v, nx.DiGraph):
         return _graph_to_dict(v)
     if isinstance(v, StructuralResult):
@@ -360,8 +419,11 @@ def _step_from_dict(d: dict, step_index: int) -> DerivationStep:
             f"steps[{step_index}] missing output"
         )
     output = _value_from_json(d["output"])
-    step_id = d.get("step_id")
-    if step_id is not None and not isinstance(step_id, str):
+    # The name the answer gave this step becomes the label a decoded
+    # chain works in. That is the same round trip a name has always made
+    # — what changed is who chose it on the way out.
+    label = d.get("step_id")
+    if label is not None and not isinstance(label, str):
         raise DerivationSerializationError(
             f"steps[{step_index}].step_id must be a string or null"
         )
@@ -375,7 +437,7 @@ def _step_from_dict(d: dict, step_index: int) -> DerivationStep:
             f"steps[{step_index}].success must be a boolean"
         )
     return DerivationStep(
-        rule=rule, inputs=inputs, output=output, step_id=step_id, success=success
+        rule=rule, inputs=inputs, output=output, label=label, success=success
     )
 
 
@@ -488,7 +550,7 @@ def _decode_step_ref(d: dict) -> StepRef:
     sid = d.get("step_id")
     if not isinstance(sid, str):
         raise DerivationSerializationError("step_ref.step_id must be a string")
-    return StepRef(step_id=sid)
+    return StepRef(label=sid)
 
 
 def _decode_graph(d: dict) -> nx.DiGraph:

@@ -54,7 +54,7 @@ def test_cause_via_directed_path_accepts_one_witness():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": ((a, b, c),)},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -76,7 +76,7 @@ def test_cause_via_directed_path_accepts_multiple_witnesses():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": paths},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -101,7 +101,7 @@ def test_cause_via_directed_path_rejects_underreported_directed_path_set():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": partial},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -130,7 +130,7 @@ def test_cause_via_directed_path_rejects_missing_edge():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": ((a, b, c),)},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -154,7 +154,7 @@ def test_cause_via_directed_path_rejects_reversed_edge():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": b, "paths": ((a, b),)},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -177,7 +177,7 @@ def test_cause_via_directed_path_rejects_path_not_starting_at_src():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": ((b, c),)},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -196,7 +196,7 @@ def test_cause_via_directed_path_rejects_empty_paths():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": b, "paths": ()},
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -221,7 +221,7 @@ def test_cause_via_directed_path_rejects_supporting_paths_mismatch():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": ((a, b, c),)},
             output=wrong_result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -245,7 +245,7 @@ def test_verify_cause_rejects_witness_for_wrong_query():
             rule="cause_via_directed_path",
             inputs={"graph": g, "src": a, "dst": c, "paths": ((a, b, c),)},
             output=result_for_a_to_c,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -274,7 +274,7 @@ def test_d_connected_accepts_chain_open_without_conditioning():
                 "paths": ((a, b, c),),
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -301,7 +301,7 @@ def test_d_connected_rejects_blocked_chain_witness():
                 "paths": ((a, b, c),),
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -328,7 +328,7 @@ def test_d_connected_accepts_collider_path_opened_by_conditioning():
                 "paths": ((a, b, c),),
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -355,7 +355,7 @@ def test_d_connected_rejects_collider_path_not_opened():
                 "paths": ((a, b, c),),
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -382,7 +382,7 @@ def test_d_connected_rejects_missing_edge_in_undirected_path():
                 "paths": ((a, b, c),),
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -409,7 +409,7 @@ def test_verify_assoc_rejects_positive_witness_for_wrong_pair():
                 "paths": ((a, b, c),),
             },
             output=result_for_ac,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -439,7 +439,7 @@ def test_d_connected_rejects_underreported_open_path_set():
                 "paths": partial,
             },
             output=result,
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)

@@ -93,13 +93,13 @@ def test_r6_accepts_correct_lookup():
                 "given": (),
             },
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.7),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     verify_numeric(deriv, _ctx(theta, query), NumericResult(value=0.7))
@@ -122,13 +122,13 @@ def test_r6_rejects_lookup_disagreeing_with_theta():
                 "given": (),
             },
             output=0.99,  # disagrees with theta's 0.7
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.99),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="probability_ref_lookup"):
@@ -146,13 +146,13 @@ def test_r6_rejects_missing_key():
             rule="probability_ref_lookup",
             inputs={"target": ValuedAtom(atom=coin, value=True), "given": ()},
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.7),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="no entry"):
@@ -175,13 +175,13 @@ def test_r6_rejects_varref_value():
                 "given": (),
             },
             output=0.5,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.5),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(VerificationError, match="probability query"):
@@ -209,13 +209,13 @@ def test_r6_rejects_lookup_for_different_probability_query():
             rule="probability_ref_lookup",
             inputs={"target": ValuedAtom(atom=other, value=True), "given": ()},
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.7),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(VerificationError, match="probability query"):
@@ -241,13 +241,13 @@ def test_r7_accepts_flat_probability_ref():
             rule="formula_evaluation",
             inputs={"formula": formula},
             output=0.42,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.42),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     verify_numeric(deriv, _ctx(theta, query), NumericResult(value=0.42))
@@ -295,7 +295,7 @@ def test_r7_accepts_backdoor_sum_formula():
             rule="graph_is_dag",
             inputs={"graph": ctx.graph},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="backdoor_criterion",
@@ -307,7 +307,7 @@ def test_r7_accepts_backdoor_sum_formula():
                 "given": frozenset(),
             },
             output=True,
-            step_id="s2",
+            label="s2",
         ),
         DerivationStep(
             rule="backdoor_adjustment_formula",
@@ -318,7 +318,7 @@ def test_r7_accepts_backdoor_sum_formula():
                 "given": (),
             },
             output=formula,
-            step_id="s3",
+            label="s3",
         ),
         DerivationStep(
             rule="identify_via_backdoor",
@@ -327,19 +327,19 @@ def test_r7_accepts_backdoor_sum_formula():
                 "formula": StepRef("s3"),
             },
             output=StructuralResult(value=True),
-            step_id="s4",
+            label="s4",
         ),
         DerivationStep(
             rule="formula_evaluation",
             inputs={"formula": formula},
             output=0.38,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.38),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     verify_numeric(deriv, ctx, NumericResult(value=0.38))
@@ -362,13 +362,13 @@ def test_r7_rejects_wrong_claimed_value():
             rule="formula_evaluation",
             inputs={"formula": formula},
             output=0.99,  # wrong
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.99),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="formula_evaluation"):
@@ -389,13 +389,13 @@ def test_r7_rejects_missing_theta_entry():
             rule="formula_evaluation",
             inputs={"formula": formula},
             output=0.5,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.5),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="no entry"):
@@ -420,13 +420,13 @@ def test_r8_rejects_when_evaluation_value_disagrees():
             rule="probability_ref_lookup",
             inputs={"target": ValuedAtom(atom=coin, value=True), "given": ()},
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.99),  # doesn't match 0.7
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="numeric_result"):
@@ -453,13 +453,13 @@ def test_r8_rejects_reference_to_non_evaluation_step():
             rule="graph_is_dag",
             inputs={"graph": graph},
             output=True,
-            step_id="s_bogus",
+            label="s_bogus",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_bogus")},
             output=NumericResult(value=1.0),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     ctx = VerificationContext(graph=graph, query=query, theta=theta)
@@ -486,7 +486,7 @@ def test_verify_numeric_rejects_when_last_step_is_not_numeric_result():
             rule="probability_ref_lookup",
             inputs={"target": ValuedAtom(atom=coin, value=True), "given": ()},
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
     )
     with pytest.raises(VerificationError, match="numeric_result"):
@@ -505,13 +505,13 @@ def test_verify_numeric_requires_theta():
             rule="probability_ref_lookup",
             inputs={"target": ValuedAtom(atom=coin, value=True), "given": ()},
             output=0.7,
-            step_id="s_eval",
+            label="s_eval",
         ),
         DerivationStep(
             rule="numeric_result",
             inputs={"evaluation": StepRef("s_eval")},
             output=NumericResult(value=0.7),
-            step_id="s_final",
+            label="s_final",
         ),
     )
     with pytest.raises(VerificationError, match="theta"):

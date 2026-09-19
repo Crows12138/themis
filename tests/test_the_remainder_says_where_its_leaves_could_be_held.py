@@ -9,8 +9,8 @@ nothing can hold is revisited until they work out, again, that nothing can
 hold it.
 
 Measured, and this file exists because of it: a derivation step's
-``step_id`` is held on exactly the steps another step names, and on the
-103 steps nothing names it can be rewritten freely. There is no honest
+``step_id`` was held on exactly the steps another step names, and on the
+103 steps nothing names it could be rewritten freely. There is no honest
 rule for those. It is not a position (97 of 374 stored ids are
 producer-chosen handles -- ``s_loop``, ``s_iv_0``, ``s_t9_1_0``), it is
 not a function of the step's rule (0 of 374), and recomputing it would
@@ -18,6 +18,17 @@ mean copying each producer's naming habit into the verifier, which is the
 second document about the first that this repository keeps finding to be
 the defect. That judgement took four probes, and before this file there
 was nowhere to put it.
+
+Every measurement in that paragraph was right and its conclusion was
+wrong, which is why it is still written out above rather than corrected
+away. It asked which rule could hold the name a PRODUCER writes, and the
+answer was that the producers should stop writing one: a name whose only
+job is to be pointed at can be the place the step sits, and the handle a
+producer needs while it is still building a chain does not have to be the
+name the answer carries. #713 closed the leaf on all 81 rows that
+declared it, and every one of the 374 stored names is refusable now. A
+heading here says where a second writing could be FOUND. It never says a
+leaf is out of reach -- not even when the thing saying so is this file.
 
 A door has three places to look and no fourth: the program it was handed,
 the rest of the answer, and this system's own constants. THE DATA IS NOT
@@ -305,13 +316,25 @@ def test_the_remainder_split_is_what_it_is():
     The thirty-third is the framing channel's, whose ask carries the
     subject without the channel, so no second writing of the NAME exists
     and the last heading had it right too.
+
+    Fourteenth use, and the frontier was this file's own opening example.
+    All 81 came out of the last heading, which is where the paragraph at
+    the top put them and for the reason it gives: a step's name is written
+    nowhere else on either document, so no comparison reaches it. What
+    closed them is not a comparison, not a membership check and not the
+    other direction of a record. It is that the name stopped being
+    something anybody writes -- a producer keeps a private handle, and
+    what the answer calls a step is computed from the chain it is in. The
+    fourth time in six rounds that this heading gave up leaves to a
+    recomputation, and the first time the recomputation was of the field
+    itself rather than of something it had to agree with.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 213,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 602,
+        gate._NOTHING: 521,
         gate._EVERY_READING_MATCHES: 89,
     }
 

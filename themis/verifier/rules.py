@@ -399,20 +399,20 @@ def _rule_identify_via_backdoor(
             step_index=step_index, rule="identify_via_backdoor",
         )
 
-    criterion_out = step_output_by_id.get(criterion_ref.step_id)
-    formula_out = step_output_by_id.get(formula_ref.step_id)
-    criterion_step = step_by_id.get(criterion_ref.step_id)
-    formula_step = step_by_id.get(formula_ref.step_id)
+    criterion_out = step_output_by_id.get(criterion_ref.label)
+    formula_out = step_output_by_id.get(formula_ref.label)
+    criterion_step = step_by_id.get(criterion_ref.label)
+    formula_step = step_by_id.get(formula_ref.label)
     if criterion_out is None or formula_out is None:
         raise RuleCheckFailed(
             f"identify_via_backdoor: referenced step output missing "
-            f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
+            f"(criterion={criterion_ref.label}, formula={formula_ref.label})",
             step_index=step_index, rule="identify_via_backdoor",
         )
     if criterion_step is None or formula_step is None:
         raise RuleCheckFailed(
             f"identify_via_backdoor: referenced step metadata missing "
-            f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
+            f"(criterion={criterion_ref.label}, formula={formula_ref.label})",
             step_index=step_index, rule="identify_via_backdoor",
         )
     if criterion_step.rule != "backdoor_criterion":
@@ -614,12 +614,12 @@ def _rule_identify_via_joint_backdoor(
             "identify_via_joint_backdoor.criterion must be a StepRef",
             step_index=step_index, rule="identify_via_joint_backdoor",
         )
-    criterion_out = step_output_by_id.get(criterion_ref.step_id)
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_out = step_output_by_id.get(criterion_ref.label)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_out is None or criterion_step is None:
         raise RuleCheckFailed(
             "identify_via_joint_backdoor: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="identify_via_joint_backdoor",
         )
     if criterion_step.rule != "joint_backdoor_criterion":
@@ -668,12 +668,12 @@ def _rule_identify_via_general_id(
             "identify_via_general_id.criterion must be a StepRef",
             step_index=step_index, rule="identify_via_general_id",
         )
-    criterion_out = step_output_by_id.get(criterion_ref.step_id)
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_out = step_output_by_id.get(criterion_ref.label)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_out is None or criterion_step is None:
         raise RuleCheckFailed(
             "identify_via_general_id: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="identify_via_general_id",
         )
     if criterion_step.rule != "general_id_criterion":
@@ -843,7 +843,7 @@ def _rule_numeric_joint_backdoor_estimate(
             step_index=step_index, rule="numeric_joint_backdoor_estimate",
         )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None or criterion_step.rule != "joint_backdoor_criterion":
         raise RuleCheckFailed(
             "numeric_joint_backdoor_estimate.criterion must reference a "
@@ -1139,14 +1139,14 @@ def _rule_identify_via_front_door(
             step_index=step_index, rule="identify_via_front_door",
         )
 
-    criterion_out = step_output_by_id.get(criterion_ref.step_id)
-    formula_out = step_output_by_id.get(formula_ref.step_id)
-    criterion_step = step_by_id.get(criterion_ref.step_id)
-    formula_step = step_by_id.get(formula_ref.step_id)
+    criterion_out = step_output_by_id.get(criterion_ref.label)
+    formula_out = step_output_by_id.get(formula_ref.label)
+    criterion_step = step_by_id.get(criterion_ref.label)
+    formula_step = step_by_id.get(formula_ref.label)
     if criterion_out is None or formula_out is None:
         raise RuleCheckFailed(
             f"identify_via_front_door: referenced step output missing "
-            f"(criterion={criterion_ref.step_id}, formula={formula_ref.step_id})",
+            f"(criterion={criterion_ref.label}, formula={formula_ref.label})",
             step_index=step_index, rule="identify_via_front_door",
         )
     if criterion_step is None or formula_step is None:
@@ -2134,11 +2134,11 @@ def _rule_identify_via_iv(
             step_index=step_index, rule="identify_via_iv",
         )
 
-    criterion_out = step_output_by_id.get(criterion_ref.step_id)
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_out = step_output_by_id.get(criterion_ref.label)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_out is None or criterion_step is None:
         raise RuleCheckFailed(
-            f"identify_via_iv: referenced step {criterion_ref.step_id!r} missing",
+            f"identify_via_iv: referenced step {criterion_ref.label!r} missing",
             step_index=step_index, rule="identify_via_iv",
         )
     if criterion_step.rule != "iv_criterion_check":
@@ -2376,10 +2376,10 @@ def _rule_identify_via_mediation(
             step_index=step_index, rule="identify_via_mediation",
         )
 
-    nde_step = step_by_id.get(nde_ref.step_id)
-    cde_step = step_by_id.get(cde_ref.step_id)
-    nde_out = step_output_by_id.get(nde_ref.step_id)
-    cde_out = step_output_by_id.get(cde_ref.step_id)
+    nde_step = step_by_id.get(nde_ref.label)
+    cde_step = step_by_id.get(cde_ref.label)
+    nde_out = step_output_by_id.get(nde_ref.label)
+    cde_out = step_output_by_id.get(cde_ref.label)
 
     if nde_step is None or cde_step is None:
         raise RuleCheckFailed(
@@ -2622,10 +2622,10 @@ def _rule_identify_via_mediation_joint(
             f"{rule} nde_nie and cde inputs must be StepRef",
             step_index=step_index, rule=rule,
         )
-    nde_step = step_by_id.get(nde_ref.step_id)
-    cde_step = step_by_id.get(cde_ref.step_id)
-    nde_out = step_output_by_id.get(nde_ref.step_id)
-    cde_out = step_output_by_id.get(cde_ref.step_id)
+    nde_step = step_by_id.get(nde_ref.label)
+    cde_step = step_by_id.get(cde_ref.label)
+    nde_out = step_output_by_id.get(nde_ref.label)
+    cde_out = step_output_by_id.get(cde_ref.label)
     if nde_step is None or cde_step is None:
         raise RuleCheckFailed(
             f"{rule}: referenced step missing",
@@ -2786,8 +2786,8 @@ def _rule_identify_via_gformula(
             step_index=step_index, rule=rule,
         )
 
-    check_step = step_by_id.get(check_ref.step_id)
-    check_out = step_output_by_id.get(check_ref.step_id)
+    check_step = step_by_id.get(check_ref.label)
+    check_out = step_output_by_id.get(check_ref.label)
     if check_step is None:
         raise RuleCheckFailed(
             f"{rule}: referenced check step missing",
@@ -3410,11 +3410,11 @@ def _rule_numeric_backdoor_estimate(
             step_index=step_index, rule="numeric_backdoor_estimate",
         )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_backdoor_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="numeric_backdoor_estimate",
         )
     if criterion_step.rule != "backdoor_criterion":
@@ -3609,10 +3609,10 @@ def _audit_dr_numeric_estimate(
                 )
 
     # --- criterion linkage (same backdoor witness as the g-formula path) ---
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
-            f"{rule}: referenced criterion step {criterion_ref.step_id!r} "
+            f"{rule}: referenced criterion step {criterion_ref.label!r} "
             f"missing",
             step_index=step_index, rule=rule,
         )
@@ -3811,11 +3811,11 @@ def _rule_numeric_frontdoor_estimate(
             step_index=step_index, rule="numeric_frontdoor_estimate",
         )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_frontdoor_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="numeric_frontdoor_estimate",
         )
     if criterion_step.rule != "front_door_criterion":
@@ -4087,11 +4087,11 @@ def _rule_numeric_iv_estimate(
             step_index=step_index, rule="numeric_iv_estimate",
         )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_iv_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="numeric_iv_estimate",
         )
     if criterion_step.rule != "iv_criterion_check":
@@ -4852,11 +4852,11 @@ def _rule_numeric_general_id_estimate(
             step_index=step_index, rule="numeric_general_id_estimate",
         )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_general_id_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule="numeric_general_id_estimate",
         )
     if criterion_step.rule != "general_id_criterion":
@@ -4979,7 +4979,7 @@ def _rule_numeric_joint_general_id_estimate(
     _check_joint_answer(inputs, step_index, rule)
 
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None or criterion_step.rule != "general_id_criterion":
         raise RuleCheckFailed(
             f"{rule}.criterion must reference a general_id_criterion step",
@@ -5307,11 +5307,11 @@ def _rule_numeric_ctf_conjunction_estimate(
                 step_index=step_index, rule=rule,
             )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_ctf_conjunction_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule=rule,
         )
     if criterion_step.rule != "ctf_conjunction_criterion":
@@ -7415,11 +7415,11 @@ def _rule_numeric_measurement_correction_estimate(
                 step_index=step_index, rule=rule,
             )
 
-    criterion_step = step_by_id.get(criterion_ref.step_id)
+    criterion_step = step_by_id.get(criterion_ref.label)
     if criterion_step is None:
         raise RuleCheckFailed(
             f"numeric_measurement_correction_estimate: referenced criterion step "
-            f"{criterion_ref.step_id!r} missing",
+            f"{criterion_ref.label!r} missing",
             step_index=step_index, rule=rule,
         )
     if criterion_step.rule != "backdoor_criterion":
@@ -8336,11 +8336,11 @@ def _rule_numeric_result(
             "numeric_result.evaluation must be a StepRef",
             step_index=step_index, rule="numeric_result",
         )
-    eval_step = step_by_id.get(evaluation_ref.step_id)
-    eval_out = step_output_by_id.get(evaluation_ref.step_id)
+    eval_step = step_by_id.get(evaluation_ref.label)
+    eval_out = step_output_by_id.get(evaluation_ref.label)
     if eval_step is None or eval_out is None:
         raise RuleCheckFailed(
-            f"numeric_result: referenced step {evaluation_ref.step_id!r} missing",
+            f"numeric_result: referenced step {evaluation_ref.label!r} missing",
             step_index=step_index, rule="numeric_result",
         )
     if eval_step.rule not in (
@@ -12240,8 +12240,10 @@ def _rule_identify_via_transport(
             "identify_via_transport requires inputs.criterion and inputs.formula step refs",
             step_index=step_index, rule="identify_via_transport",
         )
-    criterion_id = getattr(criterion_ref, "step_id", None) or criterion_ref.get("step_id")
-    formula_id = getattr(formula_ref, "step_id", None) or formula_ref.get("step_id")
+    # Either half may arrive decoded or raw: a decoded reference carries
+    # the producer's label, a raw one carries the name the answer gave.
+    criterion_id = getattr(criterion_ref, "label", None) or criterion_ref.get("step_id")
+    formula_id = getattr(formula_ref, "label", None) or formula_ref.get("step_id")
 
     criterion_step = step_by_id.get(criterion_id)
     formula_step = step_by_id.get(formula_id)
@@ -12370,7 +12372,7 @@ def _rule_identify_via_tian(
             "identify_via_tian.decomposition must be a StepRef",
             step_index=step_index, rule="identify_via_tian",
         )
-    decomp_step = step_by_id.get(decomp_ref.step_id)
+    decomp_step = step_by_id.get(decomp_ref.label)
     if decomp_step is None or decomp_step.rule != "tian_c_decomposition":
         raise RuleCheckFailed(
             "identify_via_tian.decomposition must reference a "
@@ -12541,7 +12543,7 @@ def _rule_tian_hedge_witness(
             "tian_hedge_witness.decomposition must be a StepRef",
             step_index=step_index, rule="tian_hedge_witness",
         )
-    decomp_step = step_by_id.get(decomp_ref.step_id)
+    decomp_step = step_by_id.get(decomp_ref.label)
     if decomp_step is None or decomp_step.rule != "tian_c_decomposition":
         raise RuleCheckFailed(
             "tian_hedge_witness.decomposition must reference a "
@@ -12695,7 +12697,7 @@ def _rule_identify_via_idc(
             "identify_via_idc.exchange must be a StepRef",
             step_index=step_index, rule="identify_via_idc",
         )
-    exchange_step = step_by_id.get(exchange_ref.step_id)
+    exchange_step = step_by_id.get(exchange_ref.label)
     if exchange_step is None or exchange_step.rule != "idc_rule2_exchange":
         raise RuleCheckFailed(
             "identify_via_idc.exchange must reference an idc_rule2_exchange "

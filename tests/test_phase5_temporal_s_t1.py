@@ -203,7 +203,7 @@ def test_derivation_round_trip_preserves_time_index():
     x = _typed_atom("x", -1)
     y = _typed_atom("y", 0)
     derivation = (
-        DerivationStep(rule="debug_rule", inputs={"src": x}, output=y, step_id="s1"),
+        DerivationStep(rule="debug_rule", inputs={"src": x}, output=y, label="s1"),
     )
     payload = derivation_to_dict(derivation)
     _validate_schema(payload, DERIVATION_SCHEMA_PATH)

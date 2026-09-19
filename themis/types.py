@@ -1683,8 +1683,16 @@ class InvestigationRequest:
 
 @dataclass(frozen=True)
 class StepRef:
-    """Reference to a prior DerivationStep's output by step_id."""
-    step_id: str
+    """Points at the output of another step in the chain being built.
+
+    It points by LABEL, and a label is private to one chain: it is how
+    the producer that wrote both steps says which one it means. It stops
+    at the serialization boundary. What an answer calls a step is
+    :func:`step_name` of the step's place, and that is what a reference
+    travels as, so nothing outside a producer ever has to agree with a
+    string a producer chose.
+    """
+    label: str
 
 
 @dataclass(frozen=True)
@@ -1703,6 +1711,16 @@ class DerivationStep:
     ``inputs`` uses a ``dict`` for ergonomics — the dataclass itself is
     frozen, but callers should treat the dict as read-only.
 
+    ``label`` is the producer's own handle on this step, so that a later
+    step of the same chain can point at it with a :class:`StepRef`. It is
+    not what the answer calls the step: an identifier whose only job is
+    to be pointed at has to be checkable by whoever reads it, and the
+    only thing about a step that an answer already states is where it
+    sits. So the answer's name is the place — :func:`step_name` — and the
+    label never leaves the producer. Labels may be anything a producer
+    finds readable; two steps of one chain may not share one, because
+    then a reference means two things.
+
     ``success`` is false on a step that ran and produced a structural
     failure. No producer in this tree writes one: the kernel's derivations
     carry only steps that succeeded, and it says "not identifiable" with a
@@ -1715,8 +1733,26 @@ class DerivationStep:
     rule: str
     inputs: dict
     output: object
-    step_id: str | None = None
+    label: str | None = None
     success: bool = True
+
+
+def step_name(index: int) -> str:
+    """What an answer calls the step sitting at ``index`` of its chain.
+
+    A name exists to be pointed at, and a name nobody can recompute is a
+    name nobody can check: the reader of an answer has no second record
+    of what its third step was called, so any string in that slot is as
+    good as any other. This one is computed from the one thing an answer
+    already states about a step — the place it sits — which is what makes
+    a forged one refusable rather than merely unusual.
+
+    Defined here, once, and read by everyone who has to agree: the
+    encoder that writes the answer, the report that cites a step as the
+    provenance of a gap, and the rule that recomputes every name at the
+    door.
+    """
+    return f"s{index + 1}"
 
 
 @dataclass(frozen=True)

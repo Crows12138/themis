@@ -103,7 +103,7 @@ def test_unidentifiable_rule_rejects_when_a_valid_adjustment_exists():
                 "given": frozenset(),
             },
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -136,7 +136,7 @@ def test_unidentifiable_rule_rejects_when_claim_is_positive_result():
                 "given": frozenset(),
             },
             output=StructuralResult(value=True),  # wrong claim
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -160,7 +160,7 @@ def test_d_separated_accepts_conditioned_chain():
                 "conditioning": frozenset({b}),
             },
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -182,7 +182,7 @@ def test_d_separated_rejects_when_path_is_open():
                 "conditioning": frozenset(),
             },
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -203,7 +203,7 @@ def test_d_separated_rejects_positive_claim():
                 "conditioning": frozenset({b}),
             },
             output=StructuralResult(value=True),  # wrong claim
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -223,7 +223,7 @@ def test_no_directed_path_accepts_disconnected_pair():
             rule="no_directed_path",
             inputs={"graph": g, "src": a, "dst": b},
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -241,7 +241,7 @@ def test_no_directed_path_accepts_reverse_direction_only():
             rule="no_directed_path",
             inputs={"graph": g, "src": a, "dst": b},
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -258,7 +258,7 @@ def test_no_directed_path_rejects_when_path_exists():
             rule="no_directed_path",
             inputs={"graph": g, "src": a, "dst": b},
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -286,7 +286,7 @@ def test_verify_assoc_rejects_derivation_for_different_pair():
                 "conditioning": frozenset({b}),
             },
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -304,7 +304,7 @@ def test_verify_cause_rejects_derivation_for_different_pair():
             rule="no_directed_path",
             inputs={"graph": g, "src": a, "dst": c},  # wrong dst
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -328,7 +328,7 @@ def test_verify_identify_rejects_wrong_negative_theorem_family():
             rule="no_directed_path",
             inputs={"graph": g, "src": x, "dst": y},
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -346,7 +346,7 @@ def test_verify_assoc_rejects_cause_style_negative_witness():
             rule="no_directed_path",
             inputs={"graph": g, "src": a, "dst": b},
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)
@@ -369,7 +369,7 @@ def test_verify_cause_rejects_assoc_style_negative_witness():
                 "conditioning": frozenset(),
             },
             output=StructuralResult(value=False),
-            step_id="s1",
+            label="s1",
         ),
     )
     ctx = VerificationContext(graph=g, query=query)

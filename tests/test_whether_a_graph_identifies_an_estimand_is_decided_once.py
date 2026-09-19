@@ -193,10 +193,10 @@ def _hedge_chain(graph, x, y):
     return (
         DerivationStep(rule="tian_c_decomposition",
                        inputs={"graph": graph, "x": x, "y": y},
-                       output=True, step_id="s1"),
+                       output=True, label="s1"),
         DerivationStep(rule="tian_hedge_witness",
-                       inputs={"decomposition": StepRef(step_id="s1")},
-                       output=StructuralResult(value=False), step_id="s2"),
+                       inputs={"decomposition": StepRef(label="s1")},
+                       output=StructuralResult(value=False), label="s2"),
     )
 
 

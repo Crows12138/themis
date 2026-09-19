@@ -58,12 +58,12 @@ def _valid_criterion_step(graph, z_set):
             "graph": graph, "x": _atom("x"), "y": _atom("y"),
             "z": frozenset(z_set), "given": frozenset(),
         },
-        output=True, step_id="s1",
+        output=True, label="s1",
     )
 
 
 _OK_INPUTS = {
-    "criterion": StepRef(step_id="s1"),
+    "criterion": StepRef(label="s1"),
     "treatment": None,        # filled per-test
     "outcome": None,
     "adjustment": None,
@@ -257,7 +257,7 @@ def test_rejects_criterion_referencing_wrong_rule():
     wrong_step = DerivationStep(
         rule="graph_is_dag",
         inputs={"graph": g},
-        output=True, step_id="s1",
+        output=True, label="s1",
     )
 
     with pytest.raises(VerificationError, match="backdoor_criterion"):

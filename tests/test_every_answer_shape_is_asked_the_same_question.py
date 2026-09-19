@@ -2095,9 +2095,35 @@ def test_the_declared_remainder_is_what_it_is():
     the shape by equality counted the bare one and missed seven siblings
     spelled ``shape@k=v,...``. The row count was predicted exactly, because
     a row leaves on its whole leaf set rather than on one path.
+
+    Then 81 fewer, off what a step of a chain is CALLED. That name exists
+    to be pointed at and nothing said what one had to be: a hundred step
+    sites wrote one, thirty-nine reference sites wrote the same string a
+    second time, and the gap report rebuilt a third copy from an index of
+    its own to cite a step it was not holding. So the only two things ever
+    asked of a name were that two steps did not share one and that a
+    reference landed somewhere -- and a name nobody pointed at was bound
+    by neither. The name is the step's PLACE now, written by the encoder
+    and recomputed at the door, and a producer keeps a private label that
+    stops at the boundary.
+
+    The third copy was not only fragile. The report's index ran over every
+    source of a transport block and the chain's over the transporting ones
+    only, so a blocked source ahead of a transporting one moved the name
+    it rebuilt off the step it meant. T10-1 has always refused a citation
+    that lands on no step; it never saw this one, because the rebuild
+    happened to agree wherever the corpus could ask.
+
+    81 and 1048 and 177 were all three predicted before the gate ran, and
+    this time the arithmetic was done on the declaration itself rather
+    than on a path matched by equality -- every row carrying the leaf,
+    counted, and every row for which it was the only one. The corpus was
+    NOT re-collected: what moved in it is what a step is called, 28 rows
+    of it, and 24 of those were re-run from their own stored program and
+    compared name for name against the renumbering.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1129, total
+    assert total == 1048, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

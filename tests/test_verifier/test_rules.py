@@ -79,7 +79,7 @@ def test_r1_accepts_dag():
             rule="graph_is_dag",
             inputs={"graph": g},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(VerificationError, match="last derivation step"):
@@ -98,7 +98,7 @@ def test_r1_rejects_cycle():
             rule="graph_is_dag",
             inputs={"graph": g},
             output=True,  # claim it's a DAG
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="graph_is_dag"):
@@ -118,7 +118,7 @@ def test_r1_rejects_graph_mismatch_with_context():
             rule="graph_is_dag",
             inputs={"graph": g_deriv},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="differs from context"):
@@ -143,7 +143,7 @@ def test_r2_accepts_true_d_separation():
             rule="d_separation_check",
             inputs={"graph": g, "x": a, "y": c, "z": frozenset({b})},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(VerificationError, match="last derivation step"):
@@ -164,7 +164,7 @@ def test_r2_rejects_false_claim_of_d_separation():
             rule="d_separation_check",
             inputs={"graph": g, "x": a, "y": c, "z": frozenset()},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="d_separation_check"):
@@ -186,7 +186,7 @@ def test_r3_accepts_valid_backdoor_set():
                 "z": frozenset({stress}), "given": frozenset(),
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(VerificationError, match="last derivation step"):
@@ -205,7 +205,7 @@ def test_r3_rejects_descendant_in_adjustment_set():
                 "given": frozenset(),
             },
             output=True,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="backdoor_criterion"):
@@ -223,7 +223,7 @@ def test_r3_rejects_empty_set_when_confounder_exists():
                 "given": frozenset(),
             },
             output=True,  # claiming ∅ blocks — wrong
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="backdoor_criterion"):
@@ -253,7 +253,7 @@ def test_r4_accepts_correct_backdoor_formula():
                 "z": (stress,), "given": (),
             },
             output=expected,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(VerificationError, match="last derivation step"):
@@ -275,7 +275,7 @@ def test_r4_rejects_wrong_formula_shape():
                 "z": (stress,), "given": (),
             },
             output=wrong,
-            step_id="s1",
+            label="s1",
         ),
     )
     with pytest.raises(RuleCheckFailed, match="backdoor_adjustment_formula"):
@@ -312,24 +312,24 @@ def _full_confounded_derivation():
     deriv = (
         DerivationStep(
             rule="graph_is_dag",
-            inputs={"graph": g}, output=True, step_id="s1",
+            inputs={"graph": g}, output=True, label="s1",
         ),
         DerivationStep(
             rule="backdoor_criterion",
             inputs={"graph": g, "x": smokes, "y": cancer,
                     "z": frozenset({stress}), "given": frozenset()},
-            output=True, step_id="s2",
+            output=True, label="s2",
         ),
         DerivationStep(
             rule="backdoor_adjustment_formula",
             inputs={"target": target, "intervention": intervention,
                     "z": (stress,), "given": ()},
-            output=formula, step_id="s3",
+            output=formula, label="s3",
         ),
         DerivationStep(
             rule="identify_via_backdoor",
             inputs={"criterion": StepRef("s2"), "formula": StepRef("s3")},
-            output=result, step_id="s4",
+            output=result, label="s4",
         ),
     )
     return g, smokes, cancer, deriv, result
@@ -350,7 +350,7 @@ def test_r5_rejects_when_criterion_step_claims_false():
         rule="backdoor_criterion",
         inputs={"graph": g, "x": smokes, "y": cancer,
                 "z": frozenset(), "given": frozenset()},
-        output=False, step_id="s2",
+        output=False, label="s2",
     )
     bad = (deriv[0], new_s2, deriv[2], deriv[3])
     with pytest.raises(RuleCheckFailed, match="criterion step did not prove True"):
@@ -362,7 +362,7 @@ def test_r5_rejects_step_ref_to_missing_id():
     bad_s4 = DerivationStep(
         rule="identify_via_backdoor",
         inputs={"criterion": StepRef("nope"), "formula": StepRef("s3")},
-        output=result, step_id="s4",
+        output=result, label="s4",
     )
     bad = (deriv[0], deriv[1], deriv[2], bad_s4)
     with pytest.raises(StepRefError, match="no earlier step"):
@@ -377,7 +377,7 @@ def test_r5_rejects_formula_ref_to_non_formula_rule():
         rule="identify_via_backdoor",
         inputs={"criterion": StepRef("s2"), "formula": StepRef("s1")},
         output=result,
-        step_id="s4",
+        label="s4",
     )
     bad = (deriv[0], deriv[1], deriv[2], bad_s4)
     with pytest.raises(RuleCheckFailed, match="formula must reference a backdoor_adjustment_formula step"):
@@ -389,7 +389,7 @@ def test_r5_rejects_formula_ref_to_non_formula_rule():
 def test_unknown_rule_is_rejected():
     g, _, x, y = _confounded_graph()
     deriv = (
-        DerivationStep(rule="frobnicate", inputs={}, output=True, step_id="s1"),
+        DerivationStep(rule="frobnicate", inputs={}, output=True, label="s1"),
     )
     with pytest.raises(RuleNotFoundError, match="frobnicate"):
         verify_identify(deriv, _ctx(g, x, y), StructuralResult(value=True))
@@ -401,7 +401,7 @@ def test_missing_required_input_is_rejected():
         DerivationStep(
             rule="d_separation_check",
             inputs={"graph": g, "x": x, "y": y},  # missing "z"
-            output=True, step_id="s1",
+            output=True, label="s1",
         ),
     )
     with pytest.raises(UnknownRuleInputError, match="z"):
@@ -494,13 +494,13 @@ def _effect_backdoor_estimate(pick_formula_target=None):
             rule="backdoor_criterion",
             inputs={"graph": g, "x": smokes, "y": cancer,
                     "z": frozenset({stress}), "given": frozenset()},
-            output=True, step_id="s1",
+            output=True, label="s1",
         ),
         DerivationStep(
             rule="backdoor_adjustment_formula",
             inputs={"target": target, "intervention": intervention,
                     "z": (stress,), "given": ()},
-            output=formula, step_id="s2",
+            output=formula, label="s2",
         ),
         DerivationStep(
             rule="numeric_backdoor_estimate",
@@ -514,7 +514,7 @@ def _effect_backdoor_estimate(pick_formula_target=None):
                 "point": 0.3, "ci_lower": 0.1, "ci_upper": 0.5,
                 "ci_level": 0.95,
             },
-            output=StructuralResult(value=True), step_id="s3",
+            output=StructuralResult(value=True), label="s3",
         ),
     )
     ctx = VerificationContext(graph=g, query=_effect_query(smokes, cancer))
@@ -605,12 +605,12 @@ def _effect_frontdoor_estimate(pick_formula_target=None):
         DerivationStep(
             rule="front_door_criterion",
             inputs={"graph": g, "x": x, "y": y, "z": frozenset({m})},
-            output=True, step_id="s1",
+            output=True, label="s1",
         ),
         DerivationStep(
             rule="front_door_adjustment_formula",
             inputs={"target": target, "intervention": intervention, "z": (m,)},
-            output=formula, step_id="s2",
+            output=formula, label="s2",
         ),
         DerivationStep(
             rule="numeric_frontdoor_estimate",
@@ -624,7 +624,7 @@ def _effect_frontdoor_estimate(pick_formula_target=None):
                 "point": 0.3, "ci_lower": 0.1, "ci_upper": 0.5,
                 "ci_level": 0.95,
             },
-            output=StructuralResult(value=True), step_id="s3",
+            output=StructuralResult(value=True), label="s3",
         ),
     )
     ctx = VerificationContext(graph=g, query=_effect_query(x, y))
@@ -670,7 +670,7 @@ def _bind_unidentifiable_step(*, ctx_query, step_y, step_given):
         rule="unidentifiable_via_backdoor",
         inputs={"graph": g, "x": smokes, "y": step_y(stress, smokes, cancer),
                 "given": frozenset(step_given)},
-        output=False, step_id="s1",
+        output=False, label="s1",
     )
     ctx = VerificationContext(graph=g, query=ctx_query(smokes, cancer))
     _assert_query_binding(step, ctx, 0, {}, {})
@@ -727,7 +727,7 @@ def test_unidentifiable_via_backdoor_binds_the_effect_query_given_as_atoms():
         rule="unidentifiable_via_backdoor",
         inputs={"graph": g, "x": smokes, "y": cancer,
                 "given": frozenset({stress})},
-        output=False, step_id="s1",
+        output=False, label="s1",
     )
     _assert_query_binding(
         ok, VerificationContext(graph=g, query=conditioned), 0, {}, {},
@@ -736,7 +736,7 @@ def test_unidentifiable_via_backdoor_binds_the_effect_query_given_as_atoms():
     unconditioned = DerivationStep(
         rule="unidentifiable_via_backdoor",
         inputs={"graph": g, "x": smokes, "y": cancer, "given": frozenset()},
-        output=False, step_id="s1",
+        output=False, label="s1",
     )
     with pytest.raises(
         VerificationError,

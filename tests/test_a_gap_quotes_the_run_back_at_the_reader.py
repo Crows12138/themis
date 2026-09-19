@@ -55,7 +55,7 @@ from themis.kernel import _premises_of
 from themis.verifier import VerificationError
 from themis import gaps, language
 from themis.output import data_gap_report
-from themis.types import Atom, ConstTerm
+from themis.types import Atom, ConstTerm, DerivationStep
 from themis.verifier.gap_claim_rules import (
     _ABOUT_WHAT_IT_NAMES,
     _COPIED_FROM,
@@ -558,11 +558,15 @@ def test_a_stand_in_is_the_word_its_producer_writes_when_nothing_names_the_hole(
         extensions={"ambiguities": [{"kind": "dose_response_query"}]})
     route = {"transportable": True,
              "adjustment_set": [{"predicate": "z", "args": []}]}
+    # The two asks are grounded in the formula step, so the chain that
+    # carries one comes with the route.
+    chain = (DerivationStep(rule="transport_formula", inputs={},
+                            output="P*(y | do(x)) = ...", label="formula_0"),)
     written = {
         **_stand_ins_written(data_gap_report._classify_transport_assumptions(
             {"transport_identification": {"sources": [route]}})),
         **_stand_ins_written(data_gap_report._transport_source_data_needs(
-            route, 0, target_pop=None)),
+            route, chain, chain[0], target_pop=None)),
         **_stand_ins_written(data_gap_report._classify_dose_response_data(
             asks_a_curve, SimpleNamespace(query=None), ())),
     }

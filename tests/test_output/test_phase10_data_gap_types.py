@@ -77,7 +77,7 @@ def test_derivation_step_serializes_success_false():
             rule="iv_invalid",
             inputs={},
             output=False,
-            step_id="step_2",
+            label="step_2",
             success=False,
         ),
     )
@@ -103,7 +103,7 @@ def test_derivation_step_round_trip_success_false():
             rule="frontdoor_failed",
             inputs={},
             output=False,
-            step_id="step_3",
+            label="step_3",
             success=False,
         ),
     )

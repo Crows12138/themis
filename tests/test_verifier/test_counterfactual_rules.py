@@ -253,7 +253,7 @@ def _step(output, *, risk=None, provenance=None, graph=None):
             rule="counterfactual_cell_bounds",
             inputs=inputs,
             output=output,
-            step_id="s1",
+            label="s1",
         ),
     )
 
@@ -393,7 +393,7 @@ def test_counterfactual_rule_rejects_a_derivation_ending_in_the_old_rule():
             rule="counterfactual_bounds_binary_monotone",
             inputs={"graph": ctx.graph},
             output=claimed,
-            step_id="s1",
+            label="s1",
         ),
     )
 

@@ -25361,7 +25361,7 @@ false
 },
 "output": true,
 "rule": "feedback_loop_withdraws_adjustment",
-"step_id": "s_loop"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -25447,7 +25447,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s1"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -25474,7 +25474,7 @@ false
 },
 "criterion": {
 "kind": "step_ref",
-"step_id": "s1"
+"step_id": "s2"
 },
 "data_hash": "73ca37e673934fb653eda886cecfaef3b5e5c9e81cd3977fa9c938e9c1329920",
 "first_stage_f_stat": 871.3786732246999,
@@ -25522,7 +25522,7 @@ false
 "value": true
 },
 "rule": "numeric_iv_estimate",
-"step_id": "s2"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -26457,7 +26457,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -26557,7 +26557,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_1"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -26624,7 +26624,7 @@ false
 "value": true
 },
 "rule": "numeric_iv_overid_estimate",
-"step_id": "s_num"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -34279,7 +34279,7 @@ false
 },
 "output": true,
 "rule": "graph_is_dag",
-"step_id": "s0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -34435,13 +34435,13 @@ false
 },
 "output": true,
 "rule": "longitudinal_sequential_exchangeability_check",
-"step_id": "s1"
+"step_id": "s2"
 },
 {
 "inputs": {
 "check": {
 "kind": "step_ref",
-"step_id": "s1"
+"step_id": "s2"
 },
 "treatments": {
 "items": [
@@ -34484,7 +34484,7 @@ false
 "value": true
 },
 "rule": "identify_via_gformula",
-"step_id": "s2"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -35227,7 +35227,7 @@ false
 },
 "output": true,
 "rule": "graph_is_dag",
-"step_id": "s0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -35383,13 +35383,13 @@ false
 },
 "output": true,
 "rule": "longitudinal_sequential_exchangeability_check",
-"step_id": "s1"
+"step_id": "s2"
 },
 {
 "inputs": {
 "check": {
 "kind": "step_ref",
-"step_id": "s1"
+"step_id": "s2"
 },
 "treatments": {
 "items": [
@@ -35432,7 +35432,7 @@ false
 "value": true
 },
 "rule": "identify_via_gformula",
-"step_id": "s2"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -48492,7 +48492,7 @@ false
 },
 "output": true,
 "rule": "vector_iv_criterion_check",
-"step_id": "s_iv_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -48621,7 +48621,7 @@ false
 },
 "output": true,
 "rule": "vector_iv_criterion_check",
-"step_id": "s_iv_1"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -48700,7 +48700,7 @@ false
 "value": true
 },
 "rule": "numeric_anderson_rubin_region",
-"step_id": "s_num"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -95132,7 +95132,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -95186,17 +95186,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z1, z2} P(y | do(x), z1, z2) · P*(z1, z2)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -95204,7 +95204,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -109208,7 +109208,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -109322,7 +109322,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_1"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -109436,7 +109436,7 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_2"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -109513,7 +109513,7 @@ false
 "value": true
 },
 "rule": "numeric_iv_overid_estimate",
-"step_id": "s_num"
+"step_id": "s4"
 }
 ],
 "version": "0.1"
@@ -119635,13 +119635,13 @@ false
 },
 "output": true,
 "rule": "tian_c_decomposition",
-"step_id": "s_tian_decomp"
+"step_id": "s1"
 },
 {
 "inputs": {
 "decomposition": {
 "kind": "step_ref",
-"step_id": "s_tian_decomp"
+"step_id": "s1"
 },
 "formula": {
 "bind": {
@@ -119890,7 +119890,7 @@ false
 "value": true
 },
 "rule": "identify_via_tian",
-"step_id": "s_tian_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -120406,7 +120406,7 @@ false
 }
 },
 "rule": "tian_formula_ast",
-"step_id": "s_tian_ast"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -120654,13 +120654,13 @@ false
 },
 "output": 0.548,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s4"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s4"
 }
 },
 "output": {
@@ -120668,7 +120668,7 @@ false
 "value": 0.548
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -122438,13 +122438,13 @@ false
 },
 "output": true,
 "rule": "idc_rule2_exchange",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 {
 "inputs": {
 "exchange": {
 "kind": "step_ref",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 "formula": {
 "bind": {
@@ -122618,7 +122618,7 @@ false
 "value": true
 },
 "rule": "identify_via_idc",
-"step_id": "s_idc_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -123003,7 +123003,7 @@ false
 }
 },
 "rule": "idc_formula_ast",
-"step_id": "s_idc_ast"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -123176,13 +123176,13 @@ false
 },
 "output": 0.6000000000000001,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s4"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s4"
 }
 },
 "output": {
@@ -123190,7 +123190,7 @@ false
 "value": 0.6000000000000001
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -123965,13 +123965,13 @@ false
 },
 "output": 0.42,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -123979,7 +123979,7 @@ false
 "value": 0.42
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -125116,13 +125116,13 @@ false
 },
 "output": 0.68,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -125130,7 +125130,7 @@ false
 "value": 0.68
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -127097,13 +127097,13 @@ false
 },
 "output": 0.5199999999999999,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -127111,7 +127111,7 @@ false
 "value": 0.5199999999999999
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -128539,13 +128539,13 @@ false
 },
 "output": true,
 "rule": "idc_rule2_exchange",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 {
 "inputs": {
 "exchange": {
 "kind": "step_ref",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 "formula": {
 "denominator": {
@@ -128856,7 +128856,7 @@ false
 "value": true
 },
 "rule": "identify_via_idc",
-"step_id": "s_idc_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -129515,7 +129515,7 @@ false
 }
 },
 "rule": "idc_formula_ast",
-"step_id": "s_idc_ast"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -129825,13 +129825,13 @@ false
 },
 "output": 0.8507462686567164,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s4"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s4"
 }
 },
 "output": {
@@ -129839,7 +129839,7 @@ false
 "value": 0.8507462686567164
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -135036,13 +135036,13 @@ false
 },
 "output": 0.5,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -135050,7 +135050,7 @@ false
 "value": 0.5
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -135693,7 +135693,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -135734,7 +135734,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -135932,7 +135932,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -135976,17 +135976,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z1} P(y | do(x), z1) · P*(z1)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -135994,7 +135994,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -136143,7 +136143,7 @@ false
 }
 },
 "rule": "transport_formula_ast",
-"step_id": "s_t9_ast"
+"step_id": "s4"
 },
 {
 "inputs": {
@@ -136244,13 +136244,13 @@ false
 },
 "output": 0.5,
 "rule": "formula_evaluation",
-"step_id": "s_t9_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_t9_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -136258,7 +136258,7 @@ false
 "value": 0.5
 },
 "rule": "numeric_result",
-"step_id": "s_t9_final_num"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -137312,13 +137312,13 @@ false
 },
 "output": true,
 "rule": "iv_criterion_check",
-"step_id": "s_iv_check"
+"step_id": "s1"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_iv_check"
+"step_id": "s1"
 }
 },
 "output": {
@@ -137326,7 +137326,7 @@ false
 "value": true
 },
 "rule": "identify_via_iv",
-"step_id": "s_iv_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -137449,13 +137449,13 @@ false
 "kind": "dict"
 },
 "rule": "iv_wald_numeric_evaluate",
-"step_id": "s_iv_numeric"
+"step_id": "s3"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_iv_numeric"
+"step_id": "s3"
 }
 },
 "output": {
@@ -137463,7 +137463,7 @@ false
 "value": 0.625
 },
 "rule": "numeric_result",
-"step_id": "s_iv_final"
+"step_id": "s4"
 }
 ],
 "version": "0.1"
@@ -139032,7 +139032,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -139073,7 +139073,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -139271,7 +139271,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -139315,17 +139315,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -139333,7 +139333,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -139482,7 +139482,7 @@ false
 }
 },
 "rule": "transport_formula_ast",
-"step_id": "s_t9_ast"
+"step_id": "s4"
 },
 {
 "inputs": {
@@ -139583,13 +139583,13 @@ false
 },
 "output": 0.505,
 "rule": "formula_evaluation",
-"step_id": "s_t9_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_t9_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -139597,7 +139597,7 @@ false
 "value": 0.505
 },
 "rule": "numeric_result",
-"step_id": "s_t9_final_num"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -141355,13 +141355,13 @@ false
 },
 "output": true,
 "rule": "idc_rule2_exchange",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 {
 "inputs": {
 "exchange": {
 "kind": "step_ref",
-"step_id": "s_idc_exchange"
+"step_id": "s1"
 },
 "formula": {
 "denominator": {
@@ -141589,7 +141589,7 @@ false
 "value": true
 },
 "rule": "identify_via_idc",
-"step_id": "s_idc_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -142082,7 +142082,7 @@ false
 }
 },
 "rule": "idc_formula_ast",
-"step_id": "s_idc_ast"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -142309,13 +142309,13 @@ false
 },
 "output": 0.7807142857142854,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s4"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s4"
 }
 },
 "output": {
@@ -142323,7 +142323,7 @@ false
 "value": 0.7807142857142854
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -143795,13 +143795,13 @@ false
 },
 "output": 0.28,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -143809,7 +143809,7 @@ false
 "value": 0.28
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -144474,13 +144474,13 @@ false
 },
 "output": 0.4,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s5"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s5"
 }
 },
 "output": {
@@ -144488,7 +144488,7 @@ false
 "value": 0.4
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s6"
 }
 ],
 "version": "0.1"
@@ -148638,13 +148638,13 @@ false
 },
 "output": true,
 "rule": "tian_c_decomposition",
-"step_id": "s_tian_decomp"
+"step_id": "s1"
 },
 {
 "inputs": {
 "decomposition": {
 "kind": "step_ref",
-"step_id": "s_tian_decomp"
+"step_id": "s1"
 },
 "formula": {
 "bind": {
@@ -149040,7 +149040,7 @@ false
 "value": true
 },
 "rule": "identify_via_tian",
-"step_id": "s_tian_id"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -149850,7 +149850,7 @@ false
 }
 },
 "rule": "tian_formula_ast",
-"step_id": "s_tian_ast"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -150245,13 +150245,13 @@ false
 },
 "output": 0.5475485396002601,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s4"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s4"
 }
 },
 "output": {
@@ -150259,7 +150259,7 @@ false
 "value": 0.5475485396002601
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -157086,13 +157086,13 @@ false
 },
 "output": 0.92,
 "rule": "formula_evaluation",
-"step_id": "s_eval"
+"step_id": "s1"
 },
 {
 "inputs": {
 "evaluation": {
 "kind": "step_ref",
-"step_id": "s_eval"
+"step_id": "s1"
 }
 },
 "output": {
@@ -157100,7 +157100,7 @@ false
 "value": 0.92
 },
 "rule": "numeric_result",
-"step_id": "s_final"
+"step_id": "s2"
 }
 ],
 "version": "0.1"
@@ -206646,7 +206646,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -206693,7 +206693,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_1",
+"ref_id": "s4",
 "ref_kind": "derivation_step"
 }
 ],
@@ -206734,7 +206734,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -206776,7 +206776,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_1",
+"ref_id": "s4",
 "ref_kind": "derivation_step"
 }
 ],
@@ -206994,7 +206994,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -207038,7 +207038,7 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z1} P(y | do(x), z1) · P*(z1)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
@@ -207081,7 +207081,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_1"
+"step_id": "s3"
 },
 {
 "inputs": {
@@ -207125,17 +207125,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z2} P(y | do(x), z2) · P*(z2)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_1"
+"step_id": "s4"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -207143,7 +207143,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s5"
 }
 ],
 "version": "0.1"
@@ -207783,7 +207783,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -207824,7 +207824,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -208063,7 +208063,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -208107,17 +208107,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -208125,7 +208125,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -208721,7 +208721,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -208762,7 +208762,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -209001,7 +209001,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -209045,17 +209045,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -209063,7 +209063,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -209709,7 +209709,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -209752,7 +209752,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -209945,7 +209945,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -210009,17 +210009,17 @@ false
 },
 "output": "P*(belly_fat_loss | do(running)) = Σ_{age, sex, bmi} P(belly_fat_loss | do(running), age, sex, bmi) · P*(age, sex, bmi)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -210027,7 +210027,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -210789,7 +210789,7 @@ false
 "kind": "transport_source_conditional_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -210830,7 +210830,7 @@ false
 "kind": "transport_target_distribution_unknown",
 "provenance": [
 {
-"ref_id": "s_t9_2_0",
+"ref_id": "s2",
 "ref_kind": "derivation_step"
 }
 ],
@@ -211069,7 +211069,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -211113,17 +211113,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -211131,7 +211131,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"
@@ -221472,7 +221472,7 @@ false
 },
 "output": true,
 "rule": "s_admissibility_check",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 {
 "inputs": {
@@ -221516,17 +221516,17 @@ false
 },
 "output": "P*(y | do(x)) = Σ_{z} P(y | do(x), z) · P*(z)",
 "rule": "transport_formula",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 },
 {
 "inputs": {
 "criterion": {
 "kind": "step_ref",
-"step_id": "s_t9_1_0"
+"step_id": "s1"
 },
 "formula": {
 "kind": "step_ref",
-"step_id": "s_t9_2_0"
+"step_id": "s2"
 }
 },
 "output": {
@@ -221534,7 +221534,7 @@ false
 "value": true
 },
 "rule": "identify_via_transport",
-"step_id": "s_t9_final"
+"step_id": "s3"
 }
 ],
 "version": "0.1"

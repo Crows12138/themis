@@ -694,13 +694,13 @@ def test_verifier_rejects_idc_fraction_when_exchange_consumes_all_z():
             rule="idc_rule2_exchange",
             inputs={"graph": g, "x": x, "y": yy},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="identify_via_idc",
-            inputs={"exchange": StepRef(step_id="s1"), "formula": forged},
+            inputs={"exchange": StepRef(label="s1"), "formula": forged},
             output=StructuralResult(value=True),
-            step_id="s2",
+            label="s2",
         ),
     )
     ctx = VerificationContext(graph=g, query=q, bidirected=bi)
@@ -734,13 +734,13 @@ def test_verifier_rejects_hedge_claim_without_actual_hedge():
             rule="tian_c_decomposition",
             inputs={"graph": g, "x": x, "y": y},
             output=True,
-            step_id="s1",
+            label="s1",
         ),
         DerivationStep(
             rule="tian_hedge_witness",
-            inputs={"decomposition": StepRef(step_id="s1")},
+            inputs={"decomposition": StepRef(label="s1")},
             output=StructuralResult(value=False),
-            step_id="s2",
+            label="s2",
         ),
     )
     # No bidirected → no actual hedge. Verifier must reject.

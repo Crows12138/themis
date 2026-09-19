@@ -482,7 +482,7 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
     → 2 strata. Source gap gets 800 (=2×400), target gap gets 2200
     (=2×1100)."""
     from themis.output.data_gap_report import compute_data_gap_report
-    from themis.types import QueryKind, ResultStatus
+    from themis.types import DerivationStep, QueryKind, ResultStatus
 
     extensions = {
         "transport_identification": {
@@ -502,7 +502,13 @@ def test_gap_report_fills_min_sample_size_for_transport_gaps():
     report = compute_data_gap_report(
         query_kind=QueryKind.EFFECT,
         status=ResultStatus.STRUCTURALLY_SOLVED,
-        derivation=(),
+        # The gaps below are grounded in the formula step, so the chain
+        # that carries one is part of the fixture.
+        derivation=(
+            DerivationStep(rule="transport_formula", inputs={},
+                           output="P*(recovery|do(drug)) = ...",
+                           label="formula_0"),
+        ),
         investigation_requests=(),
         framing_notes=(),
         extensions=extensions,
