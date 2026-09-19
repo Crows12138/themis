@@ -54,8 +54,10 @@ from .errors import (
     VerificationError,
 )
 from .rules import (
-    Counterfactual, _numeric_result_matches, _the_proximal_descriptor,
-    abduct_act_predict, dispatch_rule, known_rule,
+    Counterfactual, _literals_a_formula_takes_against_the_question,
+    _numeric_result_matches, _the_proximal_descriptor,
+    _what_the_question_takes_a_variable_at, abduct_act_predict,
+    dispatch_rule, known_rule,
 )
 from .semantic_probe import (
     formula_fits,
@@ -1017,8 +1019,31 @@ def verify_identification_formula(result: dict,
 
     query = context.query
     if isinstance(query, ProbabilityQuery):
+        # A probability question identifies nothing: its estimand IS the
+        # conditional it names, so the two are compared WHOLE and that
+        # comparison subsumes every literal in it. It speaks first for
+        # that reason — a reader told which one value disagrees has been
+        # told less than a reader told the two quantities are different.
         _hold_the_question_itself(formula, query)
         return
+
+    # The estimand a reader is shown says which VALUE it is about, and
+    # that is half the question. The probes below ask whether it computes
+    # the right quantity in sampled models, which is a different claim and
+    # one a formula can pass while naming another literal: the models are
+    # sampled to make the numbers agree, not to make the words agree. The
+    # chain's copy is held to the same question by the walk over a step's
+    # inputs; this is the copy the report prints.
+    for atom, shown, asked in _literals_a_formula_takes_against_the_question(
+            formula,
+            _what_the_question_takes_a_variable_at(context.query)):
+        raise VerificationError(
+            f"the estimand shown to a reader takes {atom.predicate} at "
+            f"{shown!r} where the question takes it at {asked!r}; a quantity "
+            f"at one value is not the quantity at another",
+            step_index=None, rule="identification_formula",
+        )
+
 
     if isinstance(query, CounterfactualConjunctionQuery):
         probe, quantity = _probe_the_conjunction(formula, query, context)

@@ -991,7 +991,6 @@
   "derivation.steps.[].inputs.source_population",
   "estimation_context.random_state",
   "formula.body.body.terms.[].given.[].value",
-  "formula.body.body.terms.[].target.value",
   "numeric_estimate.method"
  ],
  "numerically_solved:effect:none": [
@@ -1296,7 +1295,6 @@
   "derivation.steps.[].inputs.target_population",
   "extensions.transport_identification.sources.[].blocked_by",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
@@ -1318,7 +1316,6 @@
   "derivation.steps.[].inputs.source_population",
   "derivation.steps.[].inputs.target_population",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#a2f124": [
@@ -1655,7 +1652,6 @@
   "derivation.steps.[].inputs.source_population",
   "derivation.steps.[].inputs.target_population",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population",
   "missing_information.[].priority"
@@ -1674,7 +1670,6 @@
   "estimator_failure.recorded.n_treated",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
@@ -1690,7 +1685,6 @@
   "estimator_failure.estimator",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
@@ -1700,7 +1694,6 @@
   "derivation.steps.[].inputs.selection_nodes_ids",
   "derivation.steps.[].inputs.source_population",
   "formula.body.body.body.terms.[].given.[].value",
-  "formula.body.body.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
@@ -1717,7 +1710,6 @@
   "estimator_failure.recorded.stratum.z",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].observable.population"
  ],
@@ -1797,7 +1789,6 @@
   "derivation.steps.[].inputs.source_population",
   "estimation_context.random_state",
   "formula.body.terms.[].given.[].value",
-  "formula.body.terms.[].target.value",
   "numeric_estimate.method"
  ]
 }

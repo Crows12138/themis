@@ -12995,6 +12995,89 @@ def _names_a_formula_uses(node: Any) -> Iterator[str]:
             yield from _names_a_formula_uses(getattr(node, declared.name, None))
 
 
+def _what_the_question_takes_a_variable_at(query: Any) -> dict:
+    """The literal the question names for each variable it names.
+
+    Two roles: the variable asked about, and each one conditioned on.
+    Read by ``getattr`` because the query types spell these differently
+    and a shape that has none of them should contribute nothing rather
+    than raise — a transport question passes through this with an empty
+    answer and the check below then makes no claim at all.
+
+    THE INTERVENED VARIABLE IS NOT HERE, and that is measured rather than
+    forgotten. An effect is a difference between two arms, and a question
+    names one of them: ``do(x=True)`` is the question, and the formula
+    for the other arm honestly takes x at False. Six stored answers say
+    so — a mediation evaluation carries both arms as separate inputs of
+    one step. What could hold the intervention is that the two arms
+    differ and one of them is the question's, which is a claim about a
+    STEP rather than about a literal, and nothing here is in a position
+    to make it. The target and the conditions are different: both arms
+    share them, so a formula taking them anywhere else is about another
+    quantity.
+    """
+    taken: dict = {}
+    target = getattr(query, "target", None)
+    if target is not None:
+        taken.setdefault(getattr(target, "atom", target),
+                         getattr(target, "value", None))
+    for conditioned in (getattr(query, "given", None) or ()):
+        taken.setdefault(getattr(conditioned, "atom", conditioned),
+                         getattr(conditioned, "value", None))
+    return taken
+
+
+def _literals_a_formula_takes_against_the_question(
+    node: Any, taken: dict,
+) -> Iterator[tuple]:
+    """A formula says which VALUE it is about, and that is half the
+    question.
+
+    ``P(y=1|do(x=1))`` and ``P(y=1|do(x=0))`` are two different
+    quantities on one graph. The roster check holds the variables a step
+    names, and the scope check holds the names a formula binds; between
+    them every predicate, every argument and every bound index is held.
+    The literal each term is TAKEN AT was held by neither, because a
+    graph has no opinion about a value and a scope has none either.
+
+    What holds it is the question, which named the variable asked about
+    and each variable conditioned on before any of this ran. So for a
+    variable the question names, a formula may write the literal the
+    question named, or leave it OPEN.
+    Open is not a weaker claim, it is a different one: an identification
+    formula for a whole distribution writes ``None`` where an effect
+    question writes ``True``, and the sub-formulas of one estimand do the
+    same inside a larger one.
+
+    For a variable the question does NOT name this says nothing, and that
+    is a limit rather than an oversight: a mediator or a covariate is
+    taken at a value the question never mentions, and measured, 17 terms
+    in the stored answers are exactly that. Holding them needs a second
+    reader nobody has yet.
+    """
+    if isinstance(node, ValuedAtom) and not isinstance(node.value, VarRef):
+        if node.atom in taken:
+            asked = taken[node.atom]
+            if node.value is not None and node.value != asked:
+                yield node.atom, node.value, asked
+    if isinstance(node, (str, bytes)):
+        return
+    if isinstance(node, Mapping):
+        for value in node.values():
+            yield from _literals_a_formula_takes_against_the_question(
+                value, taken)
+        return
+    if isinstance(node, (list, tuple, set, frozenset)):
+        for value in node:
+            yield from _literals_a_formula_takes_against_the_question(
+                value, taken)
+        return
+    if dataclasses.is_dataclass(node) and not isinstance(node, type):
+        for declared in dataclasses.fields(node):
+            yield from _literals_a_formula_takes_against_the_question(
+                getattr(node, declared.name, None), taken)
+
+
 def _every_name_a_formula_uses_is_one_it_binds(
     node: Any, bound: frozenset[str], step_index: int, rule_name: str,
 ) -> None:
@@ -13228,6 +13311,16 @@ def dispatch_rule(
         ctx, inputs, step_index, rule_name)
     _every_name_a_formula_uses_is_one_it_binds(
         inputs, frozenset(), step_index, rule_name)
+    for atom, shown, asked in _literals_a_formula_takes_against_the_question(
+            inputs, _what_the_question_takes_a_variable_at(
+                getattr(ctx, "query", None))):
+        raise RuleCheckFailed(
+            f"{rule_name} takes {atom.predicate} at {shown!r} in a formula "
+            f"where the question takes it at {asked!r}; a quantity at one "
+            f"value is not the quantity at another, whatever the graph says "
+            f"about either",
+            step_index=step_index, rule=rule_name,
+        )
     asked = _WhatTheRuleAskedFor(inputs)
     _dispatch_to_the_rule(
         rule_name, ctx, asked, claimed_output, step_index,

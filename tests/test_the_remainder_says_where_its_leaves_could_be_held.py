@@ -234,6 +234,14 @@ def test_the_remainder_split_is_what_it_is():
     here — the binder and its references ARE the same word. It read the
     evidence correctly and called it a coincidence; the frontier turned
     the coincidence into the reason.
+
+    Seventh use, and the last heading gave up its first 9. A boolean
+    literal IS matched by every reading of the two documents, so filing
+    it here was right; what holds it is a third thing neither document
+    is — the QUESTION. That is a limit of this reading rather than an
+    error in it, and it is worth saying plainly: the headings describe
+    where a SECOND WRITING could be found, and two of the frontiers so
+    far were held by something that is not a second writing at all.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 226,
@@ -241,7 +249,7 @@ def test_the_remainder_split_is_what_it_is():
         gate._ANSWER_OTHERWISE: 280,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 667,
-        gate._EVERY_READING_MATCHES: 129,
+        gate._EVERY_READING_MATCHES: 120,
     }
 
 

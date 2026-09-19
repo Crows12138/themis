@@ -1980,9 +1980,27 @@ def test_the_declared_remainder_is_what_it_is():
     binds, and every name bound is one the body under it uses. The second
     direction is what makes the binder itself holdable, since a name
     nothing refers to could be rewritten freely.
+
+    Then 9 fewer, and they are the last part of a formula nothing was
+    reading: the LITERAL each term is taken at. A graph has no opinion
+    about a value and a scope has none either, so between the roster
+    check and the check above, every predicate, every argument and every
+    bound index was held while ``P(y=1|...)`` and ``P(y=0|...)`` were the
+    same to every reader. The question holds it: for the variable asked
+    about and each one conditioned on, a formula may write the literal
+    the question named or leave it OPEN. Not for the INTERVENED variable,
+    which six stored answers refused outright and rightly — an effect is
+    a difference between two arms and a question names one of them.
+
+    All 9 come out of the heading the reading beside this one calls "a
+    flag or an absence, which every reading matches", which is the first
+    time that heading has given anything up. It was not wrong: a boolean
+    IS matched by every reading of the documents. It is held anyway,
+    because the question named it and the question is not one of the two
+    documents that reading compares.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1313, total
+    assert total == 1304, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
