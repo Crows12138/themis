@@ -815,8 +815,9 @@ Public surface (re-exports from sub-modules):
     is by definition the no-assumption baseline).
   * ``verify_balke_pearl_iv_bounds_result`` audits the row's facts —
     estimand, the named instrument against what the graph offers, the
-    iv1/iv2/iv3 assumption tag set — and holds the lower/upper
-    expressions only to naming what they render.
+    iv1/iv2/iv3 assumption tag set — and rebuilds the lower/upper
+    expressions from the query, the instrument and the cardinalities the
+    program declares, the way the two closed-form methods' are rebuilt.
 - ``VerificationContext`` — the (graph, query, theta) bundle that
   every verifier reads
 - Serialization round-trip: ``derivation_to_dict`` /

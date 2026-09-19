@@ -3698,7 +3698,10 @@ class BoundsResult:
     honest is carrying a FACT in one — the instrument the programme is
     fitted around lived only inside that sentence, so the audit that had
     to confirm it read the sentence with a regular expression, and the
-    row's own rendering became something a rewording could break.
+    row's own rendering became something a rewording could break. It is
+    a field now, and both renderings are rebuilt from the query, that
+    field and the cardinalities the program declares: printing the
+    programme in words is not a reason for the words to be undetermined.
 
     `width_when_uninformative` flag is True when the bounds reduce to
     the trivial [-1, 1] / [0, 1] range — the answer is honest but
@@ -3742,8 +3745,14 @@ class BoundsResult:
     notes: tuple[dict, ...] = ()
     #: The instrument the bound is taken around, where the method uses
     #: one. A fact rather than a phrase, so the audit can check it
-    #: against the graph instead of parsing the sentence that names it —
-    #: and so the sentence can be reworded without breaking the audit.
+    #: against the graph instead of parsing the sentence that names it.
+    #: It read for a while as licensing the sentence too — nothing is
+    #: learnt from the wording, so the wording looked free — and what
+    #: free left behind was a rendering nothing re-derived: a partition
+    #: printed at a size the note beside it contradicts, a lower bound
+    #: called a maximum. The expressions are rebuilt from this field and
+    #: the program now, all three methods alike, so rewording them means
+    #: rewording the rule beside them.
     #: ``None`` for the methods that need no instrument.
     #:
     #: Not a new key on the row: the numeric end has always written this

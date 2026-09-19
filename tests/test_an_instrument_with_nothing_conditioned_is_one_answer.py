@@ -153,8 +153,14 @@ def _bp_row(program, instrument):
     row = {
         "method": "balke_pearl_iv", "estimand": "arm_probability",
         "tightness": "sharp", "instrument": instrument,
-        "lower_expression": f"min of P(y=true | do(x=true)) over P(y, x | {instrument})",
-        "upper_expression": f"max of P(y=true | do(x=true)) over P(y, x | {instrument})",
+        "lower_expression":
+            f"min of P(y=true | do(x=true)) over the response-function "
+            f"polytope fitted to P(y, x | {instrument}) "
+            f"(Balke-Pearl LP, 16 response types)",
+        "upper_expression":
+            f"max of P(y=true | do(x=true)) over the response-function "
+            f"polytope fitted to P(y, x | {instrument}) "
+            f"(same polytope, same observables as lower)",
         "assumptions": [
             "iv1_relevance",
             "iv2_exclusion_instrument_affects_outcome_only_via_treatment",

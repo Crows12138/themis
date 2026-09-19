@@ -11,8 +11,18 @@ A producer that reworded its sentence broke the audit, because the audit
 was reading the wording. And a producer that fitted around the wrong
 variable did not break it, because a sentence saying the right thing
 about the wrong variable has the right shape. The row carries the
-instrument as a field now: wording is free, and the name is checked
-against what the graph can offer.
+instrument as a field now, so the name is checked against what the graph
+can offer.
+
+Which settled the first half and, for a while, read as settling the
+second: a sentence carrying no fact of its own looked like the
+producer's to write. It is not, and the reason is that nothing else
+re-derived it -- so the size of the partition could be printed as any
+number, a lower bound could be called a maximum, and the words of these
+two strings are what a rendered claim elsewhere on the row is allowed to
+draw on. The sentence is rebuilt here now, out of the query, that field
+and the cardinalities the program declares, the way both closed-form
+methods' expressions always were.
 """
 from __future__ import annotations
 
@@ -122,12 +132,15 @@ def test_the_envelope_carries_it(shipped):
     validator_for("query_result.schema.json").validate(envelope["results"][0])
 
 
-# --------------------------------------------------- wording is the producer's
+# ------------------------------------------------- and the wording is rebuilt
 
 #: Same arm, same observables, same instrument; nothing else preserved.
-#: The first of these is what the old rule refused — it opened on
+#: The first of these is what the ORIGINAL rule refused — it opened on
 #: "the smallest value" rather than on "min of P(", and the row was
-#: rejected for how it read.
+#: rejected for how it read. Then all four were accepted, on the grounds
+#: that a sentence carrying no fact of its own is the producer's. They
+#: are the price of the rebuild, and they are here to be paid in the
+#: open rather than discovered.
 REWORDINGS = [
     pytest.param(
         "the smallest value P(y=true | do(x=true)) takes over the "
@@ -147,14 +160,31 @@ REWORDINGS = [
 
 
 @pytest.mark.parametrize("sentence", REWORDINGS)
-def test_the_same_bound_said_differently_is_the_same_bound(shipped, sentence):
-    # Each of these fails the check that used to stand here, which is what
-    # makes them counterexamples rather than cosmetic edits.
+def test_a_rewording_is_refused_along_with_the_forgeries(shipped, sentence):
+    """What a rule that owns the sentence cannot do.
+
+    Each of these says the bound the row says. A rule rebuilding the
+    sentence cannot tell them from one that says a different bound, and
+    saying a different bound is what the leaves this closes were: a
+    partition of another size, a lower bound called a maximum, a word
+    appended to license a data request beside it. Telling the two apart
+    is what the producer's own rendering decides, and a verifier that
+    could tell them apart would be holding an opinion about wording.
+
+    The last of them is the cost in its sharp form. No reader is shown
+    this sentence in that language today -- it is one f-string, in one
+    language, in the producer -- and the move that would show them is
+    the one the prose beside it on this row already made: a token, a
+    vocabulary and this occasion's facts, assembled where the reader's
+    language is known. An equality is what puts that in front of someone
+    rather than letting a localised producer diverge quietly.
+    """
     assert not sentence.startswith("min of P(")
     program, bounds = shipped
     reworded = copy.deepcopy(bounds)
     reworded["lower_expression"] = sentence
-    _audit(program, reworded)
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
+        _audit(program, reworded)
 
 
 # ------------------------------------------------------- the name is checked
@@ -216,12 +246,14 @@ def test_a_sentence_that_drops_the_instrument_is_refused(shipped):
 
     Not the other way round: this is refused because the reader would be
     shown a bound and not what it rests on, not because the rule needs
-    the sentence in order to know.
+    the sentence in order to know — it reads the field. What refuses it
+    is no longer a search for the name in the sentence but the sentence
+    the field builds, which contains the name in one place.
     """
     program, bounds = shipped
     tampered = copy.deepcopy(bounds)
     tampered["lower_expression"] = "min of P(y=true | do(x=true))"
-    with pytest.raises(VerificationError, match="must name the instrument"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _audit(program, tampered)
 
 
@@ -261,9 +293,13 @@ def test_the_graph_condition_is_necessary_and_not_the_producers_choice():
             "tightness": "sharp",
             "instrument": named,
             "lower_expression":
-                f"min of P(y=true | do(x=true)) over P(y, x | {named})",
+                f"min of P(y=true | do(x=true)) over the response-function "
+                f"polytope fitted to P(y, x | {named}) "
+                f"(Balke-Pearl LP, 16 response types)",
             "upper_expression":
-                f"max of P(y=true | do(x=true)) over P(y, x | {named})",
+                f"max of P(y=true | do(x=true)) over the response-function "
+                f"polytope fitted to P(y, x | {named}) "
+                f"(same polytope, same observables as lower)",
             "assumptions": [
                 "iv1_relevance",
                 "iv2_exclusion_instrument_affects_outcome_only_via_treatment",

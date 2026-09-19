@@ -196,7 +196,7 @@ def test_rejects_tampered_bp_bounds():
     out = themis.run(program)
     result = out["results"][0]
     row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="reference target predicate"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         themis.verify_bounds_results(program, result)
 
 

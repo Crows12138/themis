@@ -12,10 +12,11 @@ a sentence, and the audit reads the row's FACTS rather than the sentence:
 - the named instrument, against what the graph offers for X → Y
 - the iv1/iv2/iv3 assumption tag set, exactly
 
-The expressions are held to one thing, which is what a rendering owes:
-naming what it renders — the target, the arm, the instrument, and the
-arm exactly once. Wording is the producer's. What that costs, and why
-it is worth it, is in ``test_a_bound_names_its_instrument_as_a_fact``.
+The expressions are rebuilt from the query, the instrument field and the
+cardinalities the program declares, and compared — the treatment the two
+closed-form methods' expressions always had. What holding them to naming
+their facts instead left open, and what the rebuild costs, is in
+``test_a_bound_names_its_instrument_as_a_fact``.
 """
 from __future__ import annotations
 
@@ -173,26 +174,29 @@ def test_rejects_wrong_method_field():
         _verify(bounds, query_dict=_query_dict())
 
 
-def test_accepts_the_same_bound_said_differently():
-    """The phrase was the only place the instrument was written down.
+def test_refuses_the_same_bound_said_differently():
+    """The facts are all still here; the sentence is not this one.
 
-    So the rule had to read the phrase, and reading it made the phrase
-    unchangeable: this rewording used to be rejected. The facts are all
-    still here — same arm, same instrument, same estimand — and the row
-    now carries them as fields, so what is left of the sentence is the
-    producer's to write.
+    The phrase was once the only place the instrument was written down,
+    so the rule read the phrase and the phrase became unchangeable. The
+    instrument is a field now and the phrase carries no fact of its own
+    — which made it look free, and what free left behind is a sentence
+    nothing re-derives. It is re-derived now, so a rewording is refused
+    for saying something other than what this program renders, and the
+    whole case for paying that is in the file this one points at.
     """
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = bounds["lower_expression"].replace(
         "min of P(", "smallest plausible value of P(",
     )
-    _verify(bounds, query_dict=_query_dict())
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
+        _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_upper_with_wrong_phrase():
     bounds = _expected_bp_bounds()
     bounds["upper_expression"] = "garbage upper expression"
-    with pytest.raises(VerificationError, match="reference target predicate"):
+    with pytest.raises(VerificationError, match="upper_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
@@ -212,7 +216,7 @@ def test_rejects_an_expression_that_does_not_name_the_arm():
             "P(y=true | do(x=true))",
             "ACE = P(y=true|do(x=1)) - P(y=true|do(x=0))",
         )
-    with pytest.raises(VerificationError, match="brackets a difference"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
@@ -220,24 +224,21 @@ def test_rejects_an_expression_whose_arm_is_a_different_treatment():
     bounds = _expected_bp_bounds()
     for key in ("lower_expression", "upper_expression"):
         bounds[key] = bounds[key].replace("do(x=true)", "do(other=true)")
-    with pytest.raises(VerificationError, match="do\\(x="):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
 def test_a_predicate_that_contains_the_other_operator_is_not_refused():
-    """Which end of the interval a rendering is, is not audited here.
+    """Which end of the interval a rendering is, is audited — by building.
 
-    It used to be, by the opening phrase, which also caught a swapped
-    pair. The direction is the SLOT — that is what ``lower_expression``
-    means — and the operator word in the sentence renders it. Auditing
-    that word by looking for it refuses any programme whose predicates
-    contain it, and ``vitamin`` contains ``min``: a real exposure would
-    have had its upper bound rejected for being spelled.
-
-    So the swapped pair is no longer this rule's to catch, and this
-    test pins what was chosen instead of leaving it as an omission.
-    Making it auditable means the operator becoming a token in the
-    vocabulary registry with a rendering per language.
+    It was audited once by the opening phrase, which also caught a
+    swapped pair, and then not at all, because auditing the operator by
+    LOOKING FOR it refuses any programme whose predicates contain it and
+    ``vitamin`` contains ``min``: a real exposure would have had its
+    upper bound rejected for being spelled. A sentence built out of this
+    programme's own predicates carries the word where the producer put
+    it, so the swapped pair is caught and the exposure is not — which is
+    what this case is here to show.
     """
     bounds = _expected_bp_bounds(target_pred="cancer",
                                  treatment_pred="vitamin", z="lottery")
@@ -252,17 +253,19 @@ def test_rejects_lower_missing_target_predicate():
     bounds["lower_expression"] = (
         "min of P(something | do(x=true)) over some other content"
     )
-    with pytest.raises(VerificationError, match="reference target predicate"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
 def test_rejects_lower_naming_a_different_treatment():
-    """The treatment side is checked by the do(...) clause, once.
+    """The treatment side used to be checked by the do(...) clause, once.
 
-    There used to be a second check for the bare predicate here. Once the
-    expression has to name the intervened ARM, that check can never fire on
-    its own — an expression carrying 'do(x=' carries 'x' — so it went, and
-    this test now asserts the message that actually guards the case.
+    There used to be a second check for the bare predicate beside it, and
+    then neither: an expression built from the query names the treatment
+    wherever the query's treatment goes, so naming another one is a
+    mismatch like any other. What the case is about survives the change
+    — a bound on a different variable than the one asked about — and it
+    is the message that moved.
     """
     bounds = _expected_bp_bounds()
     bounds["lower_expression"] = (
@@ -271,7 +274,7 @@ def test_rejects_lower_naming_a_different_treatment():
     bounds["upper_expression"] = (
         "max of P(y=true | do(other=true)) over P(y, other | z)"
     )
-    with pytest.raises(VerificationError, match="do\\(x="):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
@@ -283,7 +286,7 @@ def test_rejects_lower_missing_instrument_conditioning():
     bounds["lower_expression"] = (
         "min of P(y=true | do(x=true)) over the polytope fitted to P(y, x)"
     )
-    with pytest.raises(VerificationError, match="must name the instrument"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(bounds, query_dict=_query_dict())
 
 
@@ -388,7 +391,7 @@ def test_real_bp_program_tampered_phrase_caught_e2e():
     out = themis.run(program)
     result = out["results"][0]
     row(result, "balke_pearl_iv")["lower_expression"] = "fake lower"
-    with pytest.raises(VerificationError, match="reference target predicate"):
+    with pytest.raises(VerificationError, match="lower_expression mismatch"):
         _verify(
             row(result, "balke_pearl_iv"),
             program=program,

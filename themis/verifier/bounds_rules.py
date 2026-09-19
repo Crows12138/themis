@@ -23,8 +23,9 @@ aspirational with no producer yet):
 - ``verify_balke_pearl_iv_bounds_result`` — reads the row's facts
   (estimand, instrument, iv1/iv2/iv3 tag set) and checks the instrument
   against what the graph offers, rather than recovering it out of the
-  expression with a regular expression; the expressions are then held
-  only to naming what they render. For the NUMERIC end (when data was
+  expression with a regular expression; the expressions are then rebuilt
+  from the query, the instrument and the cardinalities the program
+  declares, and compared. For the NUMERIC end (when data was
   supplied), it additionally RE-DERIVES the ACE interval: the producer
   records the empirical P(X=x, Y=y | Z=z) table under
   ``sufficient_statistics.P_xyz`` and this module re-runs an
@@ -869,6 +870,67 @@ def _graph_instrument_candidates(
     }
 
 
+def _verifier_declared_level_count(
+    program: dict, predicate: str, value: object,
+) -> int | None:
+    """How many levels this program declares that variable to have, or
+    ``None`` when it declares none — which is what "continuous" looks
+    like here.
+
+    A bool ``value`` answers 2 on its own: a boolean predicate has two
+    states whether or not anybody wrote the domain down. Read off the
+    program's statements here rather than imported, like every other
+    re-derivation in this module, which is what makes it a SECOND reader
+    of the program and not a copy of the producer's answer.
+    """
+    if isinstance(value, bool):
+        return 2
+    for stmt in program.get("statements", []):
+        if not isinstance(stmt, dict) or stmt.get("kind") != "variable":
+            continue
+        if stmt.get("predicate") != predicate:
+            continue
+        domain = stmt.get("domain")
+        if not isinstance(domain, list):
+            return None
+        try:
+            levels = len(set(domain))
+        except TypeError:          # a domain of unhashable literals
+            return None
+        return levels if levels >= 2 else None
+    return None
+
+
+def _verifier_response_type_count(
+    nx: int, ny: int, nz: int, *, digits: int,
+) -> int | None:
+    """The size of the canonical response-function partition,
+    ``|X|^|Z| · |Y|^|X|``, or ``None`` once it is longer than any number
+    the expression being audited could be printing.
+
+    Multiplied out step by step with that exit rather than raised as a
+    power: a program is free to declare thousands of levels, and the
+    exact integer for those is one Python spends real time computing and
+    then declines to render. The bound is the length of the expressions
+    on the row — a count with more digits than the sentence has
+    characters is not the count that sentence prints — so nothing here
+    is a size this module chose. In particular it is not the producer's
+    cap, which decides whether a row is OFFERED at all and would be a
+    build's number with no second witness on the row.
+    """
+    limit = 10 ** digits
+    total = 1
+    for _ in range(nz):
+        total *= nx
+        if total >= limit:
+            return None
+    for _ in range(nx):
+        total *= ny
+        if total >= limit:
+            return None
+    return total
+
+
 def verify_balke_pearl_iv_bounds_result(
     bounds_result: dict,
     *,
@@ -888,9 +950,9 @@ def verify_balke_pearl_iv_bounds_result(
                  response types)"
         upper = "max of ... (same polytope, same observables as lower)"
 
-    Which is a sentence, and a sentence is a rendering. This rule used to
-    recover the instrument out of it with a regular expression, because
-    the row named the instrument nowhere else: the audit of WHICH
+    Which is a sentence, and a sentence was for a while the only place
+    this row wrote some of its facts down. This rule used to recover the
+    instrument out of it with a regular expression: the audit of WHICH
     variable the polytope was fitted around was a search for a bracket in
     a sentence. So a producer that reworded the sentence broke the audit,
     and a producer that fitted around the wrong variable did not. The
@@ -908,23 +970,40 @@ def verify_balke_pearl_iv_bounds_result(
     - the assumption tag set is exactly iv1/iv2/iv3.
     - the numbers, when the producer recorded the table its LP consumed —
       see :func:`_rederive_balke_pearl_numeric`.
+    - both expressions, rebuilt here and compared. Everything the
+      sentence renders is something this rule holds anyway: the arm from
+      the query, the observables from the query and the instrument
+      field, and the size of the partition from the cardinalities the
+      PROGRAM declares. So the rebuild takes no premise the audit did
+      not already have, and the comparison is an equality.
 
-    Checked as renderings, and only that: each expression names the facts
-    it renders — the target, the intervened arm, the instrument. Wording
-    and order are the producer's. One arm is named once: an expression
-    carrying two ``do(X=…)`` clauses brackets a difference, whatever the
-    estimand field says.
+    That last one used to be a mention-check, and the field used to have
+    one treatment per method — rebuilt for the two with a closed form,
+    held to naming its facts for this one, on the grounds that a
+    programme printed in words is a rendering and wording is the
+    producer's. What it left is a sentence a reader is shown that
+    nothing re-derives: it may put a number of response types other than
+    the one the note beside it carries, and it may call a lower bound a
+    maximum. The freedom was not free in one more place —
+    :mod:`bounds_account_rules` builds the vocabulary a rendered claim
+    may draw on out of these two strings, BECAUSE they are re-derived,
+    which was true of two methods out of three.
 
-    Which end of the interval a rendering is, is not audited, and the
-    reason is worth writing down rather than leaving as an omission. The
-    direction is carried by the slot — that is what ``lower_expression``
-    means — and the operator word in the sentence is a rendering of it.
-    Auditing that word by looking for it refuses any programme whose
-    predicates happen to contain it: ``vitamin`` contains ``min``. What
-    would make it auditable is the operator becoming a token in the
-    vocabulary registry with a rendering per language — the machinery
-    the closed vocabularies already go through, rather than something
-    for one rule to invent one slot at a time.
+    Which end of the interval a rendering is, is therefore audited now,
+    and by rebuilding rather than by looking for the operator word.
+    Looking for it is what could not be done: it refuses any programme
+    whose predicates contain it, and ``vitamin`` contains ``min``. A
+    sentence built out of that programme's own predicates carries the
+    word where the producer put it and nowhere else.
+
+    What it costs is that the producer cannot reword without this rule
+    being rewritten beside it — the cost the other two methods already
+    pay. Should this sentence ever need to reach a reader in another
+    language, the move is the one the prose beside it on the same row
+    already made: a token, a vocabulary and this occasion's facts,
+    assembled where the reader's language is known. An equality is what
+    puts that conversation in front of someone rather than letting a
+    localised producer diverge quietly.
     """
     if bounds_result.get("method") != "balke_pearl_iv":
         raise VerificationError(
@@ -981,42 +1060,68 @@ def verify_balke_pearl_iv_bounds_result(
     actual_lower = bounds_result.get("lower_expression") or ""
     actual_upper = bounds_result.get("upper_expression") or ""
 
-    # What is left on the expressions is a rendering obligation: a
-    # sentence shown to a reader as this bound has to name what it is a
-    # bound on. Nothing here constrains how it says so.
-    for expr_name, expr in (("lower", actual_lower), ("upper", actual_upper)):
-        if target_pred not in expr:
+    # The three cardinalities the partition is counted off. A row exists
+    # only where the producer read all three off the program, so a
+    # program that declares none of them is one this row cannot have
+    # come from — a refusal rather than a reason to check less.
+    roles = (
+        ("outcome", target_pred, target.get("value")),
+        ("treatment", treatment_pred, intervention.get("value")),
+        ("instrument", instrument, None),
+    )
+    counted = {}
+    for role, pred, value in roles:
+        n = _verifier_declared_level_count(program, pred, value)
+        if not isinstance(n, int) or n < 2:
             raise VerificationError(
-                f"Balke-Pearl IV {expr_name}_expression must reference "
-                f"target predicate {target_pred!r}; got: {expr!r}",
+                f"Balke-Pearl IV bounds name {pred!r} as the {role}, which "
+                f"this program gives no domain of at least two levels. The "
+                f"response-function partition is counted off those domains, "
+                f"so a row bounding this arm could not have been built from "
+                f"this program",
                 step_index=None, rule="bounds_balke_pearl_iv",
             )
-        arms = expr.count(f"do({treatment_pred}=")
-        if arms == 0:
-            raise VerificationError(
-                f"Balke-Pearl IV {expr_name}_expression must name the "
-                f"intervened arm as 'do({treatment_pred}=<level>)' — the "
-                f"bound is on one arm, and an expression that does not say "
-                f"which arm does not identify what it brackets; got: "
-                f"{expr!r}",
-                step_index=None, rule="bounds_balke_pearl_iv",
-            )
-        if arms > 1:
-            raise VerificationError(
-                f"Balke-Pearl IV {expr_name}_expression names "
-                f"{arms} levels of {treatment_pred!r}, so it brackets a "
-                f"difference between arms; the row declares the estimand "
-                f"'arm_probability', which is one arm. got: {expr!r}",
-                step_index=None, rule="bounds_balke_pearl_iv",
-            )
-        if instrument not in expr:
-            raise VerificationError(
-                f"Balke-Pearl IV {expr_name}_expression must name the "
-                f"instrument it was fitted around, {instrument!r} — a "
-                f"reader shown the bound and not the instrument cannot "
-                f"tell what it rests on; got: {expr!r}",
-                step_index=None, rule="bounds_balke_pearl_iv",
-            )
+        counted[role] = n
+    n_types = _verifier_response_type_count(
+        counted["treatment"], counted["outcome"], counted["instrument"],
+        digits=max(len(actual_lower), len(actual_upper)),
+    )
+    if n_types is None:
+        raise VerificationError(
+            f"Balke-Pearl IV bounds on a program declaring "
+            f"|{treatment_pred}|={counted['treatment']}, "
+            f"|{target_pred}|={counted['outcome']}, "
+            f"|{instrument}|={counted['instrument']} have a partition of "
+            f"more response types than either expression on this row has "
+            f"characters, so neither is a rendering of this program's bound",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+
+    arm = (f"P({target_pred}={_fmt_value(target.get('value'))} | "
+           f"do({treatment_pred}={_fmt_value(intervention.get('value'))}))")
+    observables = f"P({target_pred}, {treatment_pred} | {instrument})"
+    expected_lower = (
+        f"min of {arm} over the response-function polytope fitted to "
+        f"{observables} (Balke-Pearl LP, {n_types} response types)"
+    )
+    expected_upper = (
+        f"max of {arm} over the response-function polytope fitted to "
+        f"{observables} (same polytope, same observables as lower)"
+    )
+    if actual_lower != expected_lower:
+        raise VerificationError(
+            f"Balke-Pearl IV lower_expression mismatch.\n"
+            f"  expected: {expected_lower!r}\n"
+            f"  actual:   {actual_lower!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
+    if actual_upper != expected_upper:
+        raise VerificationError(
+            f"Balke-Pearl IV upper_expression mismatch.\n"
+            f"  expected: {expected_upper!r}\n"
+            f"  actual:   {actual_upper!r}",
+            step_index=None, rule="bounds_balke_pearl_iv",
+        )
 
     actual_assumptions = frozenset(bounds_result.get("assumptions") or [])
     if actual_assumptions != _BP_EXPECTED_ASSUMPTIONS:

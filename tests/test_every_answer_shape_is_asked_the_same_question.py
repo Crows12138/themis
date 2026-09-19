@@ -2189,9 +2189,22 @@ def test_the_declared_remainder_is_what_it_is():
     second witness anywhere in this package, and ``failed_condition``,
     whose own audit argues against re-deriving it on grounds this
     frontier's measurement puts in doubt.
+
+    Then 18 came off one field that had one treatment per method. A
+    bounds row's ``lower_expression`` is rebuilt from the query and
+    compared where the method has a closed form, and was held only to
+    naming its facts where it does not -- Balke-Pearl's bound is the
+    optimum of a linear programme, so that branch prints the programme in
+    words. Everything those words render is a fact the rule holds anyway,
+    the size of the response-function partition included: it is counted
+    off the cardinalities the PROGRAM declares. So the sentence is a
+    rendering this program determines, and it is rebuilt now. 18 and 930
+    were predicted exactly, and so was the row count this time -- the
+    leanest of the nine went from three declared leaves to one and
+    stayed, which is what the paragraph above says a row does.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 948, total
+    assert total == 930, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

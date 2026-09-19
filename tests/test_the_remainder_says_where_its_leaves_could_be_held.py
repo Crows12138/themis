@@ -367,13 +367,33 @@ def test_the_remainder_split_is_what_it_is():
     put it: which reference point the walk stopped at is written nowhere
     else on either document. What closed those is a recomputation, the
     fifth time in seven rounds that this heading gave up leaves to one.
+
+    Seventeenth use, all 18 out of the last heading again, and the first
+    time the heading was right about the VALUE while a fact INSIDE that
+    value was written twice. A Balke-Pearl row prints its bound as a
+    sentence, and the size of the partition is a number in that sentence
+    and again a slot of the note beside it. The sentence as a whole
+    appears nowhere else in either document, which is what this reading
+    compares, so "nothing either document writes" is exactly right --
+    and it is right about a leaf one of whose SUBSTRINGS is written a
+    second time three fields away. The headings read values whole. A
+    leaf whose value contains another field's value is a second writing
+    this reading cannot see, and that is worth saying once rather than
+    leaving for the next frontier to rediscover.
+
+    What closed them is a recomputation, which is the sixth time in
+    eight rounds. The sentence is rebuilt out of the query, the
+    instrument field and the cardinalities the program declares -- so
+    the two places the count appears were never independent, and the
+    frontier was not the second writing but the fact that one of the two
+    was determined and unchecked.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 152,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 200,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 496,
+        gate._NOTHING: 478,
         gate._EVERY_READING_MATCHES: 89,
     }
 
