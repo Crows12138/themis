@@ -180,6 +180,7 @@ from .verifier import (
     verify_joint_identification,
     verify_longitudinal_identification,
     verify_mediation_decomposition,
+    verify_mediation_decomposition_numeric,
     verify_selection_recovery,
     verify_transport_sources,
     verify_vector_iv_identification,
@@ -202,6 +203,13 @@ class _RouteFacts:
     licensed — so an audit that could see only "its own" block would be
     unable to ask the question that matters about them, which is whether
     the copies agree.
+
+    ``theta`` is in here for the same reason one route block turned out to
+    carry numbers: a block saying which route was taken can go on to say
+    what the route produced, and what it produced is re-derivable only
+    against the parameters the program declared. It was in hand at the
+    call site and not passed, so the audit that had it ran on a derivation
+    step most of those answers do not carry.
     """
 
     result: dict
@@ -210,6 +218,7 @@ class _RouteFacts:
     query: object
     program: Program
     feedback: frozenset
+    theta: object
 
     def carries(self, name: str) -> "dict | None":
         """One block of this envelope, or None where it is absent.
@@ -262,12 +271,22 @@ def _audit_vector_iv_identification(facts: "_RouteFacts") -> None:
 
 def _audit_mediation(facts: "_RouteFacts") -> None:
     """One criterion, two blocks: Pearl's conditions over a mediator SET
-    reduce to his own at a singleton."""
+    reduce to his own at a singleton.
+
+    Two questions of each block, because the block answers two. Whether
+    the decomposition is identified is about the graph; what was then
+    computed from it is about theta, and an answer that reports no number
+    says so HERE and nowhere else — it carries no evaluation step for a
+    step rule to read.
+    """
     for name in ("mediation_decomposition", "mediation_joint_decomposition"):
         block = facts.carries(name)
         if block is not None:
             verify_mediation_decomposition(
                 block, facts.graph, facts.bidirected, facts.query)
+            verify_mediation_decomposition_numeric(
+                block, facts.graph, facts.bidirected, facts.query,
+                facts.theta)
 
 
 def _audit_feedback_loop(facts: "_RouteFacts") -> None:
@@ -1845,7 +1864,8 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # or claims none.
     _route_facts = _RouteFacts(
         result=result, graph=ctx.graph, bidirected=ctx.bidirected,
-        query=ctx.query, program=prog, feedback=ctx.feedback)
+        query=ctx.query, program=prog, feedback=ctx.feedback,
+        theta=ctx.theta)
     for _audit in dict.fromkeys(_ROUTE_AUDITS.values()):
         _audit(_route_facts)
 

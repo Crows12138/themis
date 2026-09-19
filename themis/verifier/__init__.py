@@ -137,6 +137,16 @@ Public surface (re-exports from sub-modules):
   which condition is named is the label of the candidate that got
   furthest along a fixed order, which is a property of that search and not
   of the graph) /
+  ``verify_mediation_decomposition_numeric`` (what was then computed from
+  that decomposition, which is the same block's other half and needs
+  theta: the four potential outcomes and the ten numbers read off them,
+  the controlled direct effect at every reference point, and — for the
+  arms that produced no number at all — the account of why, since which
+  probability theta lacked, which reference point the walk stopped at and
+  which species of shortfall it was are facts about this graph and this
+  theta. Shares its re-derivation with the evaluation step's own rule,
+  because the block reaches a reader in two copies, and most answers
+  carrying one of these blocks carry no evaluation step at all) /
   ``verify_vector_iv_identification`` (the variables the Anderson-Rubin
   region was built from. The region verifier re-derives exact arithmetic
   on recorded second moments, which arrive already built from whichever
@@ -862,6 +872,7 @@ from .verify import (
     verify_longitudinal_identification,
     verify_longitudinal_numeric,
     verify_mediation_decomposition,
+    verify_mediation_decomposition_numeric,
     verify_measurement_correction_numeric,
     verify_mediation_numeric,
     verify_missing_data_recovery,
@@ -1041,6 +1052,7 @@ __all__ = [
     "verify_treatment_box",
     "verify_measurement_correction_numeric",
     "verify_mediation_decomposition",
+    "verify_mediation_decomposition_numeric",
     "verify_mediation_numeric",
     "verify_numeric",
     "verify_numeric_estimate",

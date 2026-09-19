@@ -5884,6 +5884,99 @@ def verify_mediation_decomposition(
                  f"reports identifiable make it {expected!r}")
 
 
+def verify_mediation_decomposition_numeric(
+    block: dict, graph, bidirected, query, theta,
+) -> None:
+    """The numbers a mediation block reports, and its account of the ones
+    it does not.
+
+    The sibling above re-derives whether the decomposition is IDENTIFIED,
+    which is a question about the graph alone; this one re-derives what
+    was then computed from it, which needs theta. Two questions, two
+    audits, one route — an audit given more premises than its question
+    needs is an audit whose reader cannot tell which premise a refusal
+    came from.
+
+    The re-derivation itself is ``_verifier_hold_mediation_numeric``,
+    shared with the evaluation step's own rule, because the block reaches
+    a reader in two copies and a rule holding one of them leaves the other
+    saying whatever it likes. Most answers here have only this copy: a
+    mediation answer that reports no number carries no evaluation step at
+    all, and the account it gives of the shortfall — which probability,
+    which reference point, which species — was until now read by
+    nothing.
+
+    An arm the block does not claim identifiable produced no number, so
+    it is not asked for one. Which arm ran is exactly what the block
+    says, and whether that claim is true is the sibling's question.
+    """
+    from .rules import (
+        _verifier_hold_mediation_numeric,
+        _verifier_nodes_by_label,
+    )
+
+    def _err(msg: str) -> "NoReturn":
+        raise VerificationError(
+            f"mediation_numeric: {msg}", step_index=None,
+            rule="mediation_numeric",
+        )
+
+    numeric = block.get("numeric")
+    if not isinstance(numeric, dict) or theta is None:
+        return
+
+    label = _verifier_nodes_by_label(graph)
+
+    def _node(name: str):
+        found = label.get(name)
+        if found is None:
+            _err(f"names {name!r}, which is not a node in the graph")
+        return found
+
+    stated = block.get("mediators")
+    if stated is None:
+        one = block.get("mediator")
+        stated = [one] if one is not None else []
+    mediators = tuple(_node(s) for s in stated)
+    if not mediators:
+        _err("carries numeric results and names no mediator")
+
+    target = getattr(query, "target", None)
+    intervention = getattr(query, "intervention", None)
+    treated = getattr(intervention, "value", None)
+    # Both arms contrast the treatment with its other value and both name
+    # an outcome VALUE, so a question carrying neither has no g-formula to
+    # rebuild — and the producer, which builds the same formulas from the
+    # same two things, reported no number for it either.
+    if not isinstance(target, ValuedAtom) or intervention is None \
+            or not isinstance(treated, bool):
+        return
+    treated_va = ValuedAtom(atom=intervention.atom, value=treated)
+    control_va = ValuedAtom(atom=intervention.atom, value=not treated)
+    observed = tuple(getattr(query, "given", ()) or ())
+
+    def _ran(arm: str):
+        attempt = block.get(arm)
+        if not isinstance(attempt, dict) or not attempt.get("identifiable"):
+            return None
+        return tuple(_node(s) for s in (attempt.get("adjustment") or ()))
+
+    _verifier_hold_mediation_numeric(
+        numeric,
+        target=target,
+        treated=treated_va,
+        control=control_va,
+        mediators=mediators,
+        nde_adjustment=_ran("nde_nie"),
+        cde_adjustment=_ran("cde"),
+        observed=observed,
+        theta=theta,
+        graph=graph,
+        bidirected=bidirected,
+        refuse=_err,
+    )
+
+
 def verify_vector_iv_identification(
     block: dict, graph, bidirected, query,
 ) -> None:

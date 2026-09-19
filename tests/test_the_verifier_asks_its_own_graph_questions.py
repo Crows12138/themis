@@ -223,7 +223,12 @@ def test_a_marginal_the_graph_refuses_is_explained_without_the_producer_s_search
     said = _verifier_diagnose_marginal_independence_refusal(
         missing, theta, graph=nx.DiGraph([(x, m1), (m1, m2)]),
         bidirected=frozenset())
-    assert said is not None and "d-separation refused" in said
+    assert said == {
+        "have": "P(m2=True|x=True)",
+        "variable": "m2",
+        "extras": "m1",
+        "conditioning": "x",
+    }
 
 
 def _standardized_over_nothing(result):

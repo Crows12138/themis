@@ -677,12 +677,15 @@ def test_evaluate_raises_with_the_enriched_reason():
 
 def test_runtime_and_verifier_diagnostics_agree_on_a_refusal():
     """A sync pin, the diagnostic twin of the others in this file:
-    runtime
-    and verifier diagnostic helpers must agree on whether a refusal
-    fired. The exact message text differs (Chinese vs English by
-    historical convention of each layer) but presence/absence must
-    match — V0-V5 independence requires both layers reach the same
-    structural conclusion about the same theta + graph."""
+    runtime and verifier diagnostic helpers must agree about the same
+    theta + graph — V0-V5 independence requires both layers reach the
+    same structural conclusion, and each reaches it by its own walk.
+
+    Held to agreeing on the FACTS and not merely on whether a refusal
+    fired. Presence was all this could ask while one of the two joined
+    its four facts into a sentence on the spot and the other handed them
+    over, and two helpers agreeing that something happened are two
+    helpers that can disagree about what."""
     from themis.runtime.numeric_estimator import (
         _diagnose_marginal_independence_refusal,
     )
@@ -709,6 +712,7 @@ def test_runtime_and_verifier_diagnostics_agree_on_a_refusal():
         missing, theta, graph=g_chain, bidirected=bi,
     )
     assert (rt_chain is not None) and (vf_chain is not None)
+    assert rt_chain == vf_chain
 
     # Parallel DAG: both ALLOW (no refusal) → both return None.
     g_par = nx.DiGraph()

@@ -347,13 +347,33 @@ def test_the_remainder_split_is_what_it_is():
     What holds both is a declaration beside the species: not a second
     writing in either document, which is the limit this file states about
     itself at the top, met here from both sides at once.
+
+    Sixteenth use, and the largest share went to the heading that was
+    right about the leaf and wrong about what its reading implied. 44 of
+    the 68 sat under "another field of the answer, named alike", because
+    the derivation step that evaluated a mediation block carries the same
+    numbers under the same names -- which is true, and is exactly where
+    the second writing is. But a rule DID read that second writing, and
+    read it INSTEAD of the envelope's copy. So this heading was pointing
+    at a copy that was already held while the leaf it was filed against
+    went unread. That a second writing exists is not the same fact as the
+    rule reading it reading the copy in front of a reader, and this file
+    has not had to say that before.
+
+    13 more came from "somewhere in the answer, named otherwise" -- every
+    single leaf of these blocks filed there -- and 11 from "nothing
+    either document writes", which is where an arm's account of running
+    out of theta belongs and where the paragraph at the top would have
+    put it: which reference point the walk stopped at is written nowhere
+    else on either document. What closed those is a recomputation, the
+    fifth time in seven rounds that this heading gave up leaves to one.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 196,
+        gate._ANSWER_ALIKE: 152,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 213,
+        gate._ANSWER_OTHERWISE: 200,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 507,
+        gate._NOTHING: 496,
         gate._EVERY_READING_MATCHES: 89,
     }
 

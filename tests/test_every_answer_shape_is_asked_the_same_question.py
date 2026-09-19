@@ -2155,9 +2155,43 @@ def test_the_declared_remainder_is_what_it_is():
     exactly -- two framing rows filed at ``high`` beside their own ask at
     ``medium``, re-run from their own stored program, with nothing else
     in the corpus moving.
+
+    Then 68 came off a block that reports numbers -- off the half of it
+    that reports none. A mediation decomposition says which route was
+    taken and then says what was computed along it, and the second half
+    had one auditor: a rule hanging off the derivation step that did the
+    evaluating. It read the STEP's copy of the block and never the
+    envelope's, which is the copy a report is rendered from -- one dict
+    at production, two independent documents after serialisation. And
+    eight of the thirteen answers carrying such a block carry no
+    evaluation step at all: no arm of them produced a number -- one that
+    ran out of theta, or one the graph never identified -- so the step
+    that would have recorded one was never built.
+
+    That rule also excluded the abort by construction, in two lines
+    saying an arm that aborted has nothing to check -- the abort "a valid
+    outcome", its message "metadata for downstream consumers". So the one
+    answer that both carried the step and aborted had its account held in
+    neither copy. An abort is a claim and a specific one: THIS
+    probability was the one theta did not have, THIS reference point is
+    where the walk stopped, and it was THIS species of shortfall. Three
+    different things for a reader to go and do, each a fact about the
+    graph and the theta in front of the door.
+
+    68 and 948 were predicted exactly. The ROW count was predicted
+    wrong and the correction is the more useful half: four of those rows
+    have no mediation leaf left and none of them leaves, because each
+    carries leaves of four other frontiers. A row leaves on its whole
+    leaf set, and arithmetic on one frontier's share of a row is
+    arithmetic about something else. What stays is four leaves, both
+    kinds registered with their reason in the new file rather than
+    skipped: a build ceiling in each of its two copies, which has no
+    second witness anywhere in this package, and ``failed_condition``,
+    whose own audit argues against re-deriving it on grounds this
+    frontier's measurement puts in doubt.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1016, total
+    assert total == 948, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

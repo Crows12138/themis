@@ -26,11 +26,16 @@ from __future__ import annotations
 import dataclasses
 import math
 from itertools import combinations, product
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping, NoReturn
 
 import networkx as nx
 
-from ..runtime.numeric_estimator import ProbabilityKey, Theta
+from .. import gaps as _gaps
+from ..runtime.numeric_estimator import (
+    ProbabilityKey,
+    Theta,
+    format_probability_key,
+)
 from ..types import (
     Atom,
     AtomValue,
@@ -2961,6 +2966,327 @@ def _verifier_build_mediation_controlled_outcome_formula(
     return body
 
 
+_MEDIATION_NATURAL_ARMS = (
+    "e_y_treated", "e_y_control",
+    "e_y_cross_treated_outer", "e_y_cross_control_outer",
+)
+
+_MEDIATION_DERIVED = (
+    "e_y_cross_world", "te", "nde_at_control", "nie_at_treated",
+    "nde_at_treated", "nie_at_control",
+)
+
+
+def _verifier_hold_mediation_numeric(
+    numeric: Mapping,
+    *,
+    target: ValuedAtom,
+    treated: ValuedAtom,
+    control: ValuedAtom,
+    mediators: "tuple[Atom, ...]",
+    nde_adjustment: "tuple[Atom, ...] | None",
+    cde_adjustment: "tuple[Atom, ...] | None",
+    observed: "tuple[ValuedAtom, ...]",
+    theta,
+    graph,
+    bidirected,
+    refuse: "Callable[[str], NoReturn]",
+) -> None:
+    """Everything one mediation numeric block claims, re-derived.
+
+    One function because there is one block. The producer writes it once
+    and it reaches a reader twice — inside the step that evaluated it and
+    again on the envelope, which is what the report is rendered from —
+    and for most answers only the second copy exists at all: a mediation
+    answer with no number to report carries no evaluation step, and eight
+    of the thirteen such answers this repository has collected are that
+    shape. An auditor attached to the step therefore audits the copy that
+    is sometimes there, and the leaves of the copy that is always there
+    were held by nothing.
+
+    So what this block claims is known here, and both altitudes call it:
+    the evaluation step rule for the step's copy,
+    ``verify_mediation_decomposition_numeric`` for the envelope's. ``refuse`` names
+    which, because a step failure carries a step index and an envelope
+    failure does not.
+
+    ABORTING IS A CLAIM. The arm that ran out of theta says which
+    probability it was short of, which reference point it stopped at and
+    which species of shortfall it was — each a fact about this graph and
+    this theta, re-derivable here exactly as the numbers are. They were
+    read as metadata and passed over, which is how the block reporting NO
+    number came to be the one least was said about.
+
+    Which arm ran is the caller's to say: the step reads it off the
+    adjustment sets the producer shipped, the envelope off the arms it
+    claims identifiable. ``None`` means that arm never ran.
+    """
+    if nde_adjustment is not None:
+        _verifier_hold_mediation_natural(
+            numeric, target=target, treated=treated, control=control,
+            mediators=mediators, adjustment=nde_adjustment,
+            observed=observed, theta=theta, graph=graph,
+            bidirected=bidirected, refuse=refuse)
+    if cde_adjustment is not None:
+        _verifier_hold_mediation_controlled(
+            numeric, target=target, treated=treated, control=control,
+            mediators=mediators, adjustment=cde_adjustment,
+            observed=observed, theta=theta, graph=graph,
+            bidirected=bidirected, refuse=refuse)
+
+
+def _verifier_hold_mediation_natural(
+    numeric, *, target, treated, control, mediators, adjustment, observed,
+    theta, graph, bidirected, refuse: "Callable[[str], NoReturn]",
+) -> None:
+    """The four potential outcomes, and the ten numbers read off them.
+
+    Evaluated in the order the producer evaluates them, because for an
+    arm that STOPS the order decides which probability is named as the
+    one theta did not have. For an arm that finishes the order is
+    immaterial, so one order serves both and it is the producer's.
+    """
+    pairs = ((treated, treated), (control, control),
+             (treated, control), (control, treated))
+    values: "dict[str, float]" = {}
+    stopped: "_NonConcreteValue | None" = None
+    for name, (outer, inner) in zip(_MEDIATION_NATURAL_ARMS, pairs):
+        formula = _verifier_build_mediation_potential_outcome_formula(
+            target, outer, inner, mediators, adjustment, observed,
+        )
+        try:
+            values[name] = _evaluate_formula(
+                formula, theta, {}, graph=graph, bidirected=bidirected,
+            )
+        except _NonConcreteValue as exc:
+            stopped = exc
+            break
+
+    claim = numeric.get("nde_nie_status")
+    if claim is not None and not isinstance(claim, Mapping):
+        refuse(f"nde_nie_status is not a block; it is {claim!r}")
+    if claim is None:
+        if stopped is not None:
+            refuse(
+                f"reports the natural effects, and the g-formula for "
+                f"{_MEDIATION_NATURAL_ARMS[len(values)]} runs out of theta: "
+                f"{stopped}")
+        e_t = values["e_y_treated"]
+        e_c = values["e_y_control"]
+        cross_to = values["e_y_cross_treated_outer"]
+        cross_co = values["e_y_cross_control_outer"]
+        for name, expected in (
+            ("e_y_treated", e_t),
+            ("e_y_control", e_c),
+            # The back-compat alias is the treated-outer form and is held
+            # to being it, so a renderer reading either reads one number.
+            ("e_y_cross_world", cross_to),
+            ("e_y_cross_treated_outer", cross_to),
+            ("e_y_cross_control_outer", cross_co),
+            ("te", e_t - e_c),
+            ("nde_at_control", cross_to - e_c),
+            ("nie_at_treated", e_t - cross_to),
+            ("nde_at_treated", e_t - cross_co),
+            ("nie_at_control", cross_co - e_c),
+        ):
+            _verifier_hold_mediation_number(numeric, name, expected, refuse)
+        return
+
+    if stopped is None:
+        refuse("nde_nie_status says the natural arm ran out of theta; every "
+               "potential outcome the answer identifies evaluates")
+    for name in (*_MEDIATION_NATURAL_ARMS, *_MEDIATION_DERIVED):
+        if name in numeric:
+            refuse(f"says the natural arm ran out of theta and reports "
+                   f"{name} beside it")
+    _verifier_hold_mediation_shortfall(
+        claim, stopped, "nde_nie_status", refuse=refuse)
+
+
+def _verifier_hold_mediation_controlled(
+    numeric, *, target, treated, control, mediators, adjustment, observed,
+    theta, graph, bidirected, refuse: "Callable[[str], NoReturn]",
+) -> None:
+    """The controlled direct effect at every reference point, or the
+    account of why there is none.
+
+    The grid is this verifier's own transcription — the Cartesian product
+    of the block's theta domains — so a producer that enumerated a
+    different set is caught by the table it produced rather than by
+    agreeing with its own policy.
+
+    The CEILING the grid-cap shape reports is the one thing here held
+    only to the answer's own arithmetic: it is a build policy with no
+    second witness anywhere in this package, and a verifier inventing one
+    would be reading the producer's constant back. What IS checkable is
+    that the count is the real grid, that the grid is past the ceiling
+    the answer names, and that no table stands beside an abandoned grid.
+    """
+    grid = tuple(product(*(theta.domain_of(m) for m in mediators)))
+    claim = numeric.get("cde_status")
+    table = numeric.get("cde")
+    # Both are blocks or absent. Settled here rather than at each reading,
+    # so that what a door hands back for a malformed one is a sentence
+    # about it and not an error from inside a message being written.
+    for name, part in (("cde_status", claim), ("cde", table)):
+        if part is not None and not isinstance(part, Mapping):
+            refuse(f"{name} is not a block; it is {part!r}")
+
+    if claim is not None \
+            and claim.get("status") == "too_many_reference_points":
+        count, cap = claim.get("reference_point_count"), claim.get("cap")
+        if count != len(grid):
+            refuse(f"cde_status reports {count!r} reference points; the "
+                   f"mediators this answer names have {len(grid)} between "
+                   f"them")
+        if not isinstance(cap, int) or isinstance(cap, bool) \
+                or len(grid) <= cap:
+            refuse(f"cde_status abandoned a grid of {len(grid)} as past a "
+                   f"ceiling of {cap!r}, which it is not past")
+        if table is not None:
+            refuse("cde_status says the grid was abandoned and a table of "
+                   "controlled effects stands beside it")
+        return
+
+    stopped: "tuple[str, _NonConcreteValue] | None" = None
+    reached: "list[str]" = []
+    for combo in grid:
+        m_vas = tuple(ValuedAtom(atom=m_atom, value=m_val)
+                      for m_atom, m_val in zip(mediators, combo))
+        m_key = "|".join(str(v) for v in combo)
+        try:
+            v_t = _evaluate_formula(
+                _verifier_build_mediation_controlled_outcome_formula(
+                    target, treated, m_vas, adjustment, observed),
+                theta, {}, graph=graph, bidirected=bidirected)
+            v_c = _evaluate_formula(
+                _verifier_build_mediation_controlled_outcome_formula(
+                    target, control, m_vas, adjustment, observed),
+                theta, {}, graph=graph, bidirected=bidirected)
+        except _NonConcreteValue as exc:
+            stopped = (m_key, exc)
+            break
+        reached.append(m_key)
+        if table is None or m_key not in table:
+            refuse(f"identifies a controlled direct effect holding the "
+                   f"mediators at {m_key!r} and reports none")
+        _verifier_hold_mediation_number(
+            table, m_key, v_t - v_c, refuse, where=f"cde[{m_key!r}]")
+
+    if claim is None:
+        if stopped is not None:
+            refuse(f"reports a controlled direct effect at every reference "
+                   f"point, and the g-formula at {stopped[0]!r} runs out of "
+                   f"theta: {stopped[1]}")
+    else:
+        if stopped is None:
+            refuse("cde_status says the controlled arm ran out of theta; "
+                   "every reference point evaluates")
+        stopped_at, shortfall = stopped
+        if claim.get("mediator_value") != stopped_at:
+            refuse(f"cde_status says it stopped holding the mediators at "
+                   f"{claim.get('mediator_value')!r}; the first reference "
+                   f"point theta cannot answer is {stopped_at!r}")
+        _verifier_hold_mediation_shortfall(
+            claim, shortfall, "cde_status", refuse=refuse)
+
+    unasked = sorted(set(table or ()) - set(reached))
+    if unasked:
+        refuse(f"reports a controlled direct effect at {unasked}, which the "
+               f"mediators it names have no reference point for")
+
+
+def _verifier_hold_mediation_number(
+    carrier, name, expected, refuse: "Callable[[str], NoReturn]",
+    where=None,
+) -> None:
+    where = where or name
+    if not isinstance(carrier, Mapping) or name not in carrier:
+        refuse(f"reports no {where}")
+    claimed = carrier[name]
+    if isinstance(claimed, bool) or not isinstance(claimed, (int, float)):
+        refuse(f"{where} must be a number, and is {claimed!r}")
+    if abs(float(claimed) - expected) > _NUMERIC_TOL:
+        refuse(f"{where} is {claimed!r}; the formula this answer identifies "
+               f"gives {expected!r}")
+
+
+def _verifier_hold_mediation_shortfall(
+    claim, exc, where, *, refuse: "Callable[[str], NoReturn]",
+) -> None:
+    """An arm's account of what it was short of, held to what theta is
+    short of.
+
+    Three claims, one per thing a reader could act on: the probability to
+    go and supply, the species of the shortfall — a theta holding nothing
+    and a theta holding a marginal the declared graph refuses are
+    different problems with different fixes — and, for the second
+    species, which marginal and which independence.
+
+    All three come off the refusal the evaluator raised rather than being
+    searched for again: it did that search to write its message, and a
+    second search here would be this file agreeing with itself.
+    """
+    if not isinstance(claim, Mapping):
+        refuse(f"{where} is not a block")
+    if claim.get("status") != "insufficient_theta":
+        refuse(f"{where} reports {claim.get('status')!r} beside a g-formula "
+               f"that ran out of theta")
+    spelt = (format_probability_key(exc.key)
+             if getattr(exc, "key", None) is not None else None)
+    if claim.get("missing_key") != spelt:
+        refuse(f"{where} says it lacked {claim.get('missing_key')!r}; what "
+               f"the formula asks for and theta has not is {spelt!r}")
+    said = claim.get("said")
+    if not isinstance(said, Mapping):
+        refuse(f"{where} carries no account of the occasion")
+    if said.get("key") != spelt:
+        refuse(f"{where} quotes {said.get('key')!r} back at the reader and "
+               f"says it lacked {spelt!r}")
+
+    facts = getattr(exc, "refusal", None)
+    if facts is None:
+        if claim.get("need") != str(_gaps.Need.THETA_ENTRY_MISSING):
+            refuse(f"{where} files this shortfall as {claim.get('need')!r}; "
+                   f"theta holds no marginal the declared graph refused, so "
+                   f"it is a plain missing entry")
+        loose = sorted(set(said) - {"key"})
+        if loose:
+            refuse(f"{where} says {loose} about a marginal the graph "
+                   f"refused, and theta holds no such marginal")
+        return
+
+    if claim.get("need") != str(
+            _gaps.Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL):
+        refuse(f"{where} files this shortfall as {claim.get('need')!r}; "
+               f"theta holds {facts['have']}, which the declared graph "
+               f"refuses to let stand in for the conditional demanded")
+    for slot in ("variable", "have"):
+        if said.get(slot) != facts[slot]:
+            refuse(f"{where} says {slot}={said.get(slot)!r}; the marginal "
+                   f"the graph refused makes it {facts[slot]!r}")
+    for slot in ("extras", "conditioning"):
+        if (_verifier_names_in(said.get(slot))
+                != _verifier_names_in(facts[slot])):
+            refuse(f"{where} says {slot}={said.get(slot)!r}; the marginal "
+                   f"the graph refused makes it {facts[slot]!r}")
+
+
+def _verifier_names_in(rendered) -> "frozenset[str] | None":
+    """A slot naming a set of variables, read as the set it names.
+
+    Both layers join a frozenset with commas, so which order two atoms
+    come out in is whatever that run's hashing gave. What the slot
+    asserts is membership, and membership is what a comparison of two
+    independent derivations can be about.
+    """
+    if not isinstance(rendered, str):
+        return None
+    if rendered == "\u2205":
+        return frozenset()
+    return frozenset(part for part in rendered.split(",") if part)
+
+
 def _rule_mediation_numeric_evaluate(
     ctx: VerificationContext,
     inputs: Mapping,
@@ -2979,9 +3305,16 @@ def _rule_mediation_numeric_evaluate(
     ``nde_nie_adjustment`` and ``cde_adjustment`` are optional inputs —
     their presence signals which branch the runtime ran. A
     ``nde_nie_status`` / ``cde_status`` entry in ``claimed_output``
-    signals the runtime aborted that branch with InsufficientTheta; the
-    verifier accepts the abort without recomputing (the abort itself is
-    a valid outcome; the message is metadata for downstream consumers).
+    signals the runtime aborted that branch, and the abort is re-derived
+    like everything else: which probability theta did not have, which
+    reference point the walk stopped at and which species of shortfall it
+    was are facts about this graph and this theta. They were read as
+    metadata and passed over, which is how the block reporting NO number
+    came to be the one this rule said least about.
+
+    What the block claims and how it is re-derived lives in
+    ``_verifier_hold_mediation_numeric``, beside the envelope audit that
+    reads the same block for the answers carrying no step at all.
     """
     target = _require(inputs, "target", step_index, "mediation_numeric_evaluate")
     if not isinstance(target, ValuedAtom):
@@ -3071,140 +3404,26 @@ def _rule_mediation_numeric_evaluate(
             step_index=step_index, rule="mediation_numeric_evaluate",
         )
 
-    graph = getattr(ctx, "graph", None)
-    bidirected = getattr(ctx, "bidirected", None)
+    def _refuse(message: str) -> NoReturn:
+        raise RuleCheckFailed(
+            f"mediation_numeric_evaluate: {message}",
+            step_index=step_index, rule="mediation_numeric_evaluate",
+        )
 
-    # ---- NDE/NIE branch ----
-    if nde_nie_adj is not None and "nde_nie_status" not in claimed_output:
-        nde_w = tuple(nde_nie_adj)
-        f_treated = _verifier_build_mediation_potential_outcome_formula(
-            target, treated_va, treated_va, mediators, nde_w, observed,
-        )
-        f_control = _verifier_build_mediation_potential_outcome_formula(
-            target, control_va, control_va, mediators, nde_w, observed,
-        )
-        # Both cross-world potentials — one per Pearl decomposition.
-        f_cross_to = _verifier_build_mediation_potential_outcome_formula(
-            target, treated_va, control_va, mediators, nde_w, observed,
-        )
-        f_cross_co = _verifier_build_mediation_potential_outcome_formula(
-            target, control_va, treated_va, mediators, nde_w, observed,
-        )
-        try:
-            e_y_treated = _evaluate_formula(
-                f_treated, theta, {}, graph=graph, bidirected=bidirected
-            )
-            e_y_control = _evaluate_formula(
-                f_control, theta, {}, graph=graph, bidirected=bidirected
-            )
-            e_y_cross_to = _evaluate_formula(
-                f_cross_to, theta, {}, graph=graph, bidirected=bidirected
-            )
-            e_y_cross_co = _evaluate_formula(
-                f_cross_co, theta, {}, graph=graph, bidirected=bidirected
-            )
-        except _NonConcreteValue as e:
-            raise RuleCheckFailed(
-                f"mediation_numeric_evaluate: NDE/NIE re-evaluation failed: {e}",
-                step_index=step_index, rule="mediation_numeric_evaluate",
-            )
-
-        recomputed = {
-            "e_y_treated":             e_y_treated,
-            "e_y_control":             e_y_control,
-            "e_y_cross_world":         e_y_cross_to,   # back-compat alias
-            "e_y_cross_treated_outer": e_y_cross_to,
-            "e_y_cross_control_outer": e_y_cross_co,
-            "te":                      e_y_treated - e_y_control,
-            "nde_at_control":          e_y_cross_to - e_y_control,
-            "nie_at_treated":          e_y_treated - e_y_cross_to,
-            "nde_at_treated":          e_y_treated - e_y_cross_co,
-            "nie_at_control":          e_y_cross_co - e_y_control,
-        }
-        for key, expected in recomputed.items():
-            if key not in claimed_output:
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: claimed_output missing {key!r}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-            claimed = claimed_output[key]
-            if not isinstance(claimed, (int, float)):
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: {key} must be numeric, "
-                    f"got {type(claimed).__name__}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-            if abs(float(claimed) - expected) > _NUMERIC_TOL:
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: {key} mismatch — claimed "
-                    f"{claimed!r}, recomputed {expected!r}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-
-    # ---- CDE branch ----
-    if cde_adj is not None and "cde_status" not in claimed_output:
-        if "cde" not in claimed_output:
-            raise RuleCheckFailed(
-                "mediation_numeric_evaluate: cde_adjustment supplied but no "
-                "'cde' block in output",
-                step_index=step_index, rule="mediation_numeric_evaluate",
-            )
-        claimed_cde = claimed_output["cde"]
-        if not isinstance(claimed_cde, dict):
-            raise RuleCheckFailed(
-                "mediation_numeric_evaluate: 'cde' must be a dict",
-                step_index=step_index, rule="mediation_numeric_evaluate",
-            )
-        cde_w = tuple(cde_adj)
-        # Independent transcription of the reference grid: the Cartesian
-        # product of the block's theta domains, keyed by the values joined
-        # with '|' in block order (a bare str(value) when k == 1).
-        from itertools import product as _product
-        for combo in _product(*(theta.domain_of(m) for m in mediators)):
-            m_vas = tuple(
-                ValuedAtom(atom=m_atom, value=m_val)
-                for m_atom, m_val in zip(mediators, combo)
-            )
-            f_t = _verifier_build_mediation_controlled_outcome_formula(
-                target, treated_va, m_vas, cde_w, observed,
-            )
-            f_c = _verifier_build_mediation_controlled_outcome_formula(
-                target, control_va, m_vas, cde_w, observed,
-            )
-            try:
-                v_t = _evaluate_formula(
-                    f_t, theta, {}, graph=graph, bidirected=bidirected
-                )
-                v_c = _evaluate_formula(
-                    f_c, theta, {}, graph=graph, bidirected=bidirected
-                )
-            except _NonConcreteValue as e:
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: CDE re-evaluation failed "
-                    f"for mediator reference={combo!r}: {e}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-            recomputed_cde = v_t - v_c
-            m_key = "|".join(str(v) for v in combo)
-            if m_key not in claimed_cde:
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: cde missing mediator value "
-                    f"{m_key!r}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-            claimed_v = claimed_cde[m_key]
-            if not isinstance(claimed_v, (int, float)):
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: cde[{m_key!r}] must be "
-                    f"numeric, got {type(claimed_v).__name__}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
-            if abs(float(claimed_v) - recomputed_cde) > _NUMERIC_TOL:
-                raise RuleCheckFailed(
-                    f"mediation_numeric_evaluate: cde[{m_key!r}] mismatch — "
-                    f"claimed {claimed_v!r}, recomputed {recomputed_cde!r}",
-                    step_index=step_index, rule="mediation_numeric_evaluate",
-                )
+    _verifier_hold_mediation_numeric(
+        claimed_output,
+        target=target,
+        treated=treated_va,
+        control=control_va,
+        mediators=mediators,
+        nde_adjustment=None if nde_nie_adj is None else tuple(nde_nie_adj),
+        cde_adjustment=None if cde_adj is None else tuple(cde_adj),
+        observed=observed,
+        theta=theta,
+        graph=getattr(ctx, "graph", None),
+        bidirected=getattr(ctx, "bidirected", None),
+        refuse=_refuse,
+    )
 
 
 def _verifier_directed_descendants(graph, node) -> frozenset:
@@ -7809,8 +8028,30 @@ def _rule_probability_ref_lookup(
 
 
 class _NonConcreteValue(Exception):
-    """Internal: raised by the key-builder when a ValuedAtom still
-    carries a VarRef / None. Callers translate to RuleCheckFailed."""
+    """Internal: the evaluator could not put a number here.
+
+    Two things reach it. A ValuedAtom still carrying a VarRef or a None
+    has no key to name; a theta with no entry for a lookup the formula
+    demands has exactly one, and it is the key rather than the sentence
+    about it that an auditor needs — an answer saying which probability
+    it was short of is a claim, and comparing a claim with a rendered
+    message means parsing the message back. So the key rides here where
+    there is one, and callers translating to RuleCheckFailed go on using
+    the message alone.
+
+    ``refusal`` rides for the same reason and is the same fact one level
+    up: the species of the shortfall. A theta that holds a marginal the
+    declared graph will not let stand in for the demanded conditional is
+    a different thing to tell a reader than a theta that holds nothing,
+    and an answer files it as a different species. The raise site has
+    already searched for that marginal, so what it found comes with it
+    rather than being searched for a second time.
+    """
+
+    def __init__(self, message: str, *, key=None, refusal=None) -> None:
+        super().__init__(message)
+        self.key = key
+        self.refusal = refusal
 
 
 def _concrete_value(v):
@@ -7903,8 +8144,10 @@ def _evaluate_formula(
                 key, theta, graph=graph, bidirected=bidirected,
             )
             if refusal is not None:
-                base_msg = f"{base_msg}; {refusal}"
-            raise _NonConcreteValue(base_msg)
+                base_msg = (
+                    f"{base_msg}; "
+                    f"{_verifier_marginal_refusal_sentence(refusal)}")
+            raise _NonConcreteValue(base_msg, key=key, refusal=refusal)
         return float(value)
     if isinstance(expr, ProductExpr):
         result = 1.0
@@ -8128,12 +8371,22 @@ def _verifier_diagnose_marginal_independence_refusal(
     *,
     graph,
     bidirected,
-) -> str | None:
+) -> "dict[str, str] | None":
     """Verifier mirror of the runtime's
-    ``_diagnose_marginal_independence_refusal``. Returns a structured
-    explanation when the d-sep guard refused an existing-but-graph-
-    incompatible marginal candidate; None otherwise. Preserves V0-V5
-    independence (this is its own re-derivation, not a runtime call).
+    ``_diagnose_marginal_independence_refusal``. Returns the facts that
+    tell a refused-by-the-graph marginal apart from a plain missing entry
+    when the d-sep guard refused an existing candidate; None otherwise.
+    Preserves V0-V5 independence (this is its own re-derivation, not a
+    runtime call).
+
+    The four facts and not a sentence about them, which is what a mirror
+    of that helper means: the runtime returns these same four, hands them
+    to the surface that renders them, and an answer carries them one per
+    slot. This one used to join them on the spot, and the join is not
+    reversible — an auditor holding an answer's account of the occasion
+    to what the graph says would have had to parse the verifier's own
+    prose back apart. The one caller renders; every other reader
+    compares.
     """
     if graph is None or bidirected is None:
         return None
@@ -8175,21 +8428,26 @@ def _verifier_diagnose_marginal_independence_refusal(
                 for extra in extras_atoms
             )
             if not all_separated:
-                extras_repr = ",".join(a.predicate for a in extras_atoms)
-                conditioning_repr = (
-                    ",".join(a.predicate for a, _ in reduced) or "∅"
-                )
-                target_pred = target_atom.predicate
-                return (
-                    f"verifier: theta has marginal "
-                    f"P({target_pred}={target_value}|"
-                    f"{conditioning_repr}) but declared graph implies "
-                    f"{target_pred} ⊥ {{{extras_repr}}} | "
-                    f"{{{conditioning_repr}}} does NOT hold "
-                    f"(d-separation refused); marginal cannot stand in "
-                    f"for the demanded conditional"
-                )
+                return {
+                    "have": format_probability_key(reduced_key),
+                    # "variable" and not "target", as the runtime spells
+                    # it: a slot named like one of the door's own
+                    # parameters would arrive as that parameter instead.
+                    "variable": target_atom.predicate,
+                    "extras": ",".join(a.predicate for a in extras_atoms),
+                    "conditioning": ",".join(
+                        a.predicate for a, _ in reduced) or "∅",
+                }
     return None
+
+
+def _verifier_marginal_refusal_sentence(facts: "dict[str, str]") -> str:
+    """The one place the four facts above are joined into prose."""
+    return (
+        f"verifier: theta has marginal {facts['have']} but declared graph "
+        f"implies {facts['variable']} ⊥ {{{facts['extras']}}} | "
+        f"{{{facts['conditioning']}}} does NOT hold (d-separation "
+        f"refused); marginal cannot stand in for the demanded conditional")
 
 
 def _verifier_derive_via_bayes_inversion(

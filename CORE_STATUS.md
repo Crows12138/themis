@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-26081 passed / 534 skipped, warning-clean
+26359 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,116 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #715 报不出数的那一半，仍然在提出主张（2026-09-20）
+
+**根因。** 中介分解 block 说走了哪条路，然后说沿这条路算出了什么。第二半只有一个
+审计器 `_rule_mediation_numeric_evaluate`，而它**挂在做这次求值的那个派生步**上。
+于是三件事同时成立：
+
+- 它读的是**步骤自己那份 `output`**，从不读信封里的 `extensions.…numeric`。生产时
+  这两者是同一个 dict 对象（`DerivationStep(output=numeric)`），序列化之后是两份
+  独立文档——弯信封那一份，步骤规则完全看不见；
+- 带这种 block 的 13 个答案里，**8 个根本没有这一步**：没有一条臂给出数——要么缺
+  theta，要么图上就不可识别，同一个"没有"的两种理由——那个本来会记下数的步骤就没被
+  建出来。它们的数值和中止交代，无人看过；
+- 规则自己用两行把中止排除在职责之外——`if nde_nie_adj is not None and
+  "nde_nie_status" not in claimed_output` 和它的孪生兄弟。docstring 写着中止"本身
+  就是一个有效结局，消息是给下游消费者的元数据"。
+
+而 route 表上那个每个答案都跑的 `verify_mediation_decomposition` 是**纯结构**的：
+`_RouteFacts` 里没有 theta，它连一个数字都看不了。**有 theta 的审计器挂在大多数答案
+没有的那一步上；每个答案都跑的审计器没有 theta。**
+
+**中止是一个主张，而且是很具体的主张。** 缺的是**这一个**概率、走到**这一个**参考点
+停的、而且是**这一个**物种的短缺——theta 里什么都没有，和 theta 里有一个边缘量但
+声明的图不允许它替代被要求的条件量，是读者要做的两件完全不同的事。三件事，每一件都
+是关于门前这张图和这份 theta 的事实。
+
+**为什么是根因不是表象。** 给步骤规则补上 status 分支只救得了 5 个有链答案里的 1 个；
+「把两份拷贝对齐」是转录检查，对没有步骤的 8 个答案无话可说。错位的是**高度**。
+
+**结构。**
+
+```text
+一个审计器  _verifier_hold_mediation_numeric        知道这个 block 宣称了什么
+步骤那侧    _rule_mediation_numeric_evaluate 委托给它（152 行两个分支 → 37 行委托）
+信封那侧    verify_mediation_decomposition_numeric  新 route 审计，需要 theta
+route       _RouteFacts 加 theta；_audit_mediation 对同一 block 问两个问题
+```
+
+**两个审计而不是把一个拓宽。** 分解是否**可识别**是只关于图的问题；拿到比问题所需
+更多前提的审计，读者分不清一次拒绝是哪个前提给的。
+
+**同一根因的第二个站点。** 验证器那份「d-分离守卫为什么拒了一个 theta 里确实有的
+边缘量」的诊断，算出四个事实之后**当场拼成句子**返回——而它镜像的运行时函数返回的
+正是那四个事实、交给渲染层。答案按 slot 各记一个，所以押它们的审计器本来得把验证器
+自己的散文**反解回去**。改成返回事实、由唯一的调用点渲染；`_NonConcreteValue` 同时
+带上 `key` 和 `refusal`（抛出点已经搜过一遍，不必再搜第二遍）。两份镜像现在可以直接
+比，`test_runtime_and_verifier_diagnostics_agree_on_a_refusal` 从「都不为 None」升级
+成 `rt_chain == vf_chain`。
+
+**闸口跑之前写下的账：草稿对 13 个 block 排练，322 次弯被拒、2 次放行**（其中 1 次是
+排练脚本自己的非实质弯——把 `"x"` 换成 `"x"`，另 1 次是 `cap`）。**真门口重排：这 13
+个答案上声明 123 → 55，关掉 68 片，NEW 洞 0。预测「68 片、1016 → 948」——中。**
+标题分档 ALIKE −44 / OTHERWISE −13 / NOTHING −11。
+
+**拒绝是谁给的，也要分档。** 真门口对两个中介 block 的 `numeric` 子树逐叶弯 260 次：
+**233 次 `VerificationError`、`rule` 记 `mediation_numeric`**——本档这个审计器自己的
+拒绝；**26 次 `SyntacticError`**，schema 在任何规则看见之前就拒了，那是契约的功劳；
+1 次放行，就是上面那片 `cde_status.cap → 0`。只记总数的文件会把别人的接杀记在自己
+账上。
+
+**一条预测错了，错在把一个前沿的份额当成整行。** 我预测行 169 → 165，理由是那四行
+（`mediation_joint_logit` 和三行 `numeric_result#…`）在中介 block 下**只有**
+`numeric.cde.*` 这几片。实际 169 不变：**一行是按它的整个叶子集离开的**，那四行同时
+带着 `random_state` / `ci_bootstrap` / `data_gap_report` /
+`numeric_estimate.decomposition.*` 四条别的前沿的叶子。
+
+**留下的 4 片，理由写在新测试文件的名册里（不是 skip）。**
+
+- **`cap`（信封 + 步骤两份）** ＝ build 的天花板。天花板是「这个 build 会枚举到多少」，
+  不是「这个答案发现了什么」，所以答案里没有任何东西和一个更小的伪造天花板矛盾，包内
+  也没有第二见证。押它要把天花板声明到两层共读的地方（就是 `gaps.WORTH` 那一手）——
+  **而那会立刻让一行语料被闸口自己的第一条测试判死，判得对**：本轮核实（不是推测），
+  `numerically_solved:effect:numeric_result#2c4d0f` 的存储程序与
+  `tests/test_mediation_joint.py::_joint_theta_ast()` **逐字节相同**、`cap` 记 2，而
+  `_CDE_REFERENCE_POINT_CAP` 是 **16**——它是在 `test_cde_reference_grid_capped` 把
+  天花板 monkeypatch 到 2 的那次运行里采到的，**任何未打补丁的 build 都不会给出它**。
+  修它要换成真的超过 16 的场景（5 个二值中介 = 32），那会改掉存储程序，`--only` 按
+  设计拒绝，只能全量串行重采。单独立项，别折进别的前沿。
+- **`failed_condition`（2 片）** 归下一条。那条「不重算」的论证写在
+  `verify_mediation_decomposition` 和 `verifier/__init__.py` 两处 docstring 里：
+  「哪个条件被点名取决于走得最远的候选，是那次搜索的性质不是图的性质」。**读产生它
+  的代码，这条不成立**：`structural_solver._search_mediation_adjustment` 算的是
+  `max_W first(W)`，对候选**集合**取 max，走的顺序改不了 max；docstring 说的"固定
+  顺序"指的是**条件**的顺序 M1<M2<M3<M4，schema 自己就枚举了。本轮实测语料里那两行
+  的候选**池是空的**，唯一候选是空集，结果恒为 M1，与任何 size cap 无关。
+
+**仍然挂着、报给用户定的产品面取舍。** 这 9 个答案的 `missing_information` **全空**，
+也没有任何 gap 提到那个缺失的 key——「CDE 因为缺 P(…) 算不出来」只经由 `extensions`
+到达读者。把它变成真正的短缺行是产品面改动：语料里 98/98 个 `numerically_solved` 的
+`missing_information` 都是空的，从没有过这种组合。**本档没有动它。**
+
+**账。** 新文件 `tests/test_a_block_reporting_no_number_is_still_making_a_claim.py`
+278 测 0 skip；`rules.py` 新增共用审计器四函数、步骤规则的 152 行两个分支换成 37 行
+委托、诊断改返回事实；`verify.py` 新增 `verify_mediation_decomposition_numeric`；`kernel.py`
+`_RouteFacts` 加 `theta`；`verifier/__init__.py` 三处（import / `__all__` /
+docstring）。
+
+**全量**：26359 passed / 534 skipped，warning-clean，24:35（`-n 6 --dist loadgroup`）；
+声明 1016 → **948**，行 169 不变。
+
+**方法学：**
+- **(A) 「这片叶子归谁管」要问到高度，不只问名字。** 一个审计器存在、而且确实重算了
+  这个数，不等于它读的是读者看到的那一份。判据：这个字段在答案 JSON 里出现几次？每
+  一次分别被谁读？**生产时是同一个对象，序列化之后就是两份独立文档。**
+- **(B) 一段写下来的「这里不押，因为……」，要当成待核实的主张而不是结论。** 这一轮
+  推翻了一条（中止是"元数据"）、动摇了一条（`failed_condition` 是搜索的性质）；两条
+  都是去读产生它的代码读出来的，不是想出来的。
+- **(C) 行数算术只能在整行的叶子集上做。** 一条前沿关掉某行的一部分叶子，那行通常
+  不会离开——它带着别的前沿的叶子。这是 #714「叶子形状按结构拆、不按字符串匹配」的
+  行版本。
 
 ### #714 一条短缺有多急，是它物种的事（2026-09-20）
 
