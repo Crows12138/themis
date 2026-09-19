@@ -264,6 +264,16 @@ def test_the_remainder_split_is_what_it_is():
     leaf closed; where it leaves a range the leaf stayed, and the reading
     says the same thing about both. A heading names where a second
     writing IS, never how tightly it decides.
+
+    Tenth use, and the first time the LAST heading was the one pointed
+    at. The arm a contrast is reported against was filed under "a flag
+    or an absence, which every reading matches", because it is a boolean
+    and both of its values sit everywhere in both documents. That is a
+    fact about comparison, and what closed the leaf was not a comparison
+    but a recomputation -- from the question, which is neither of the two
+    documents this reading reads. The caveat the docstring above makes
+    about `_NOTHING` holds of this heading too, and all thirty-one went
+    at once.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
@@ -271,7 +281,7 @@ def test_the_remainder_split_is_what_it_is():
         gate._ANSWER_OTHERWISE: 250,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 665,
-        gate._EVERY_READING_MATCHES: 120,
+        gate._EVERY_READING_MATCHES: 89,
     }
 
 

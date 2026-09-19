@@ -413,7 +413,15 @@ def test_counts_that_do_not_add_up_to_the_sample_are_refused():
     _refused(program, result, "counts total")
 
 
-def test_a_baseline_arm_the_recorded_levels_do_not_name_is_refused():
+def test_a_baseline_arm_that_is_not_the_one_the_question_leaves_is_refused():
+    """Same forgery, and it now meets an earlier no with different words.
+
+    Which arm a contrast is reported against was asked in this method's
+    branch, against the levels the row itself recorded. It is the same
+    fact on every method that reports a contrast, and two of the three
+    never asked it, so it moved to the rule every method passes through
+    and is read off the question instead.
+    """
     program, result, _ = _verifiable()
     _row_of(result)["contrast"]["reference_value"] = True
-    _refused(program, result, "as the baseline arm")
+    _refused(program, result, "the only other arm the treatment has")

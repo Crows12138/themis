@@ -35,6 +35,24 @@ are already determined by something beside them:
   domains. They are asked here rather than left for later because the
   counts above are counts OF them: holding a rendering while leaving the
   thing it renders free is the shape the previous frontier removed.
+- A contrast's reference arm is the one other arm the QUESTION leaves.
+  Everything else on a contrast is a quantity :mod:`bounds_rules`
+  re-derives, and re-deriving a number says nothing about who the number
+  is reported against — the arm is not a quantity but a reference, and
+  the document it refers to is the question. It is asked here, before
+  the dispatch, because it is the same fact on every method that reports
+  a contrast: one of the three branches asked it, against its own
+  recorded levels, and the other two did not ask it at all.
+
+  And it is asked only where both documents name the arms in the same
+  words, which is the silence beside it. Measured on a run whose
+  treatment column holds 0 and 1: the program declares ``[0, 1]``, the
+  question intervenes at ``1``, and the envelope reports the arm as
+  ``False``, because the estimator works on a boolean column and spells
+  the arm it found. Nothing here can tell that apart from a forgery, so
+  where the reported arm is none of the arms the program declares this
+  asks nothing. An envelope that spells an arm in words its own program
+  does not use is a finding, and it is a different one.
 
 WHAT IS NOT ASKED HERE. ``token`` and ``vocabulary`` — the glossary key
 and the glossary it belongs to — have no authority on this side. The
@@ -138,6 +156,49 @@ def _roles(row: Mapping, query_dict: Mapping) -> dict[str, str | None]:
         "outcome": (target.get("atom") or {}).get("predicate"),
         "instrument": row.get("instrument"),
     }
+
+
+def _the_arm_a_contrast_should_be_against(predicate, declared: Mapping,
+                                          asked, shown) -> Any:
+    """The one other value the treatment could have taken, when both the
+    question and the row are talking about the same set of arms.
+
+    A contrast states which arm its interval is relative TO. The effect
+    was asked for at ``do(x = v)``, so the arm it is against is whatever
+    else ``x`` could have been, and what ``x`` could have been has two
+    writings. They are asked in order: the levels the PROGRAM declares
+    for it, and, where it declares none, the type of the value asked for
+    — a boolean has exactly two values, which is a fact about the type
+    and not about the data.
+
+    ``None`` where that leaves no single other value, and ``None`` where
+    the arm the row SHOWS is none of them. The first is a three-arm
+    treatment, which has no baseline a difference could be against. The
+    second is two documents using different words for the same two arms:
+    measured on a run whose treatment column holds 0 and 1, the program
+    declares ``[0, 1]``, the question intervenes at ``1``, and the
+    envelope reports ``False`` — the estimator works on a boolean column
+    and spells the arm it found there. A rule cannot tell that from a
+    forgery, and guessing which it is would either refuse an honest
+    answer or accept a false one, so it asks nothing and the case is
+    named instead.
+
+    Levels are compared with :func:`_same_level`, which this module
+    already had to decide: a boolean arm is not the number beside it,
+    and answering that question twice in one module is how the two
+    answers start to differ.
+    """
+    levels = declared.get(predicate)
+    if not isinstance(levels, list) or not levels:
+        levels = [False, True] if isinstance(asked, bool) else None
+    if levels is None:
+        return None
+    if not any(_same_level(asked, value) for value in levels):
+        return None
+    if not any(_same_level(shown, value) for value in levels):
+        return None
+    others = [value for value in levels if not _same_level(asked, value)]
+    return others[0] if len(others) == 1 else None
 
 
 def _words_this_row_already_uses(row: Mapping,
@@ -318,6 +379,22 @@ def verify_bounds_account(row: Mapping, *, program: Mapping,
                     f"{predicate!r}; the program declares "
                     f"{declared[predicate]!r}"
                 )
+
+    contrast = row.get("contrast")
+    if isinstance(contrast, Mapping) and "reference_value" in contrast:
+        asked = (query_dict.get("intervention") or {}).get("value")
+        against = _the_arm_a_contrast_should_be_against(
+            roles.get("treatment"), declared, asked,
+            contrast["reference_value"])
+        if against is not None and not _same_level(
+                contrast["reference_value"], against):
+            _reject(
+                f"bounds_results[{row.get('method')!r}].contrast tells a "
+                f"reader the interval is reported against the arm "
+                f"{contrast['reference_value']!r}; this question "
+                f"intervenes at {asked!r}, and the only other arm the "
+                f"treatment has is {against!r}"
+            )
 
 
 def verify_the_mass_a_width_is_laid_to(row: Mapping, *, mass: str) -> None:

@@ -419,13 +419,14 @@ def _rederive_manski_tamer_numeric(
             step_index=None, rule=rule,
         )
     other_index = 1 - xi
-    if contrast.get("reference_value") != x_levels[other_index]:
-        raise VerificationError(
-            f"Manski-Tamer contrast names {contrast.get('reference_value')!r} "
-            f"as the baseline arm; the recorded levels make it "
-            f"{x_levels[other_index]!r}",
-            step_index=None, rule=rule,
-        )
+    # Which arm the contrast is reported against is not asked here. It is
+    # the same fact on every method that reports a contrast, so it is
+    # asked of all of them before this dispatch (`bounds_account_rules`),
+    # and asked of the QUESTION rather than of this row's own recorded
+    # levels — a row that is wrong about the arm consistently agrees with
+    # itself, and agreeing with itself is what the second derivation
+    # checked.
+    #
     # The other arm's interval is this same bound with the push reversed —
     # intervening there moves Y the other way for the units observed here.
     # Subtracting is sharp because the two arms' unknowns live in DISJOINT

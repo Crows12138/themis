@@ -2026,9 +2026,30 @@ def test_the_declared_remainder_is_what_it_is():
     pinned; on the two rows where it is not they leave a range, and an
     edit inside the range still passes. Those two are held by nothing
     else on their envelope and stay declared here.
+
+    Then 31 fewer, off the arm a bounds row's contrast is reported
+    against. Four of a contrast's five fields are quantities and the
+    deepest re-derivation in this repository checks every one of them.
+    The fifth is not a quantity but a reference: it says who the four
+    numbers are about, and re-deriving a number says nothing about who
+    it is reported against. One of the three methods asked it, against
+    the levels the row itself recorded; the other two did not ask at
+    all, and thirty-one of the thirty-three stored contrasts are on one
+    of those two. It is the same fact on every method that reports a
+    contrast, so it moved to the rule they all pass through, and it is
+    read off the question rather than off the row.
+
+    It asks only where both documents name the arms in the same words.
+    A run whose treatment column holds 0 and 1 declares ``[0, 1]``, is
+    asked at ``1``, and reports its reference arm as ``False``, because
+    the estimator works on a boolean column and spells the arm it found
+    there. That is an honest answer today and nothing can tell it from a
+    forgery, so the rule says nothing about either. All 31 stored
+    contrasts name their arms in the program's own words and closed; an
+    envelope that does not is a finding of its own.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1260, total
+    assert total == 1229, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
