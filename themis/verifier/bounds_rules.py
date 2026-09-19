@@ -604,8 +604,24 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
     ``{"n", "n_joint_target_arm", "n_other_arm", "n_joint_other_arm"}`` — the
     counts the closed form consumes: ``lower = n_joint/n``, ``upper =
     (n_joint + n_other)/n``, ``width = n_other/n``, and the fourth one the
-    contrast needs (:func:`_rederive_manski_natural_contrast`). This
-    verifier re-derives the
+    contrast needs (:func:`_rederive_manski_natural_contrast`).
+
+    ALL FOUR ARE HELD HERE, and the fourth used not to be. Its two checks
+    — a count is a non-negative int, and the off-arm's joint count is a
+    subset of the off-arm — sat inside the contrast branch, because the
+    contrast formula is the only place the number is spent. That made a
+    fact about the DATA conditional on a fact about the REPORT: twenty-five
+    stored answers record the count and report no contrast, and on every
+    one of them nothing ever read it. Checks organised by who spends a
+    number go quiet exactly when nobody does.
+
+    Where the off-arm is empty the two checks together pin the count to 0
+    outright, which is twenty-three of those twenty-five. Where it is not,
+    they leave a range and a small edit inside it still passes — written
+    down rather than papered over, because what would close it is a second
+    record of the same count and these rows have none.
+
+    This verifier re-derives the
     interval from those counts alone (no DataFrame, no producer import) and
     rejects a reported bound that doesn't match, plus the partition
     invariant ``n_joint + n_other ≤ n`` (the target arm and the off-arm are
@@ -673,6 +689,23 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
             "the joint count is a subset of the target arm",
             step_index=None, rule=rule,
         )
+    # Asked of the count because it is a count, not because something
+    # downstream happens to want it. A row that records the number and
+    # reports no contrast is the case this used to skip entirely.
+    n_joint_other: int | None = None
+    if "n_joint_other_arm" in stats:
+        n_joint_other = _require_nonneg_int(
+            stats.get("n_joint_other_arm"),
+            label="Manski natural sufficient_statistics.n_joint_other_arm",
+            rule=rule,
+        )
+        if n_joint_other > n_other:
+            raise VerificationError(
+                f"Manski natural counts violate the off-arm partition: "
+                f"n_joint_other_arm ({n_joint_other}) exceeds n_other_arm "
+                f"({n_other}); the off-arm's joint count is a subset of it",
+                step_index=None, rule=rule,
+            )
 
     exp_lower = n_joint / n
     exp_upper = (n_joint + n_other) / n
@@ -702,13 +735,14 @@ def _rederive_manski_natural_numeric(bounds_result: dict) -> None:
         )
     if contrast is not None:
         _rederive_manski_natural_contrast(
-            contrast, stats, n=n, n_joint=n_joint, n_other=n_other, rule=rule,
+            contrast, n=n, n_joint=n_joint, n_other=n_other,
+            n_joint_other=n_joint_other, rule=rule,
         )
 
 
 def _rederive_manski_natural_contrast(
-    contrast: dict, stats: dict, *,
-    n: int, n_joint: int, n_other: int, rule: str,
+    contrast: dict, *,
+    n: int, n_joint: int, n_other: int, n_joint_other: int | None, rule: str,
 ) -> None:
     """Re-derive the ACE interval an ``effect`` query asked for, from the
     same counts, and reject a reported one that does not match.
@@ -723,22 +757,23 @@ def _rederive_manski_natural_contrast(
     with ``n_arm = n − n_other``. Re-derived here rather than read from the
     producer, which this module must not import.
 
+    The counts arrive checked, from the caller that owns them. They used
+    to arrive as the raw ``stats`` mapping so that this function could
+    pull the fourth one out and validate it, which is how the validation
+    came to happen only where a contrast does.
+
     The width follows from the same two counts and is ``(n_arm + n_other)/n
     = 1`` on every dataset — checked separately from the endpoints because it
     is a theorem about the model rather than an identity in the recorded
     numbers: a producer that arrives at this interval some other way and gets
     a width other than 1 has not bounded a Manski ACE, whatever it recorded.
     """
-    n_joint_other = _require_nonneg_int(
-        stats.get("n_joint_other_arm"),
-        label="Manski natural sufficient_statistics.n_joint_other_arm",
-        rule=rule,
-    )
-    if n_joint_other > n_other:
+    if n_joint_other is None:
         raise VerificationError(
-            f"Manski natural counts violate the off-arm partition: "
-            f"n_joint_other_arm ({n_joint_other}) exceeds n_other_arm "
-            f"({n_other}); the off-arm's joint count is a subset of it",
+            "Manski natural sufficient_statistics.n_joint_other_arm must be "
+            "a non-negative int; the row records none and reports a contrast "
+            "derived from it, so the interval a reader is shown for the "
+            "quantity they asked about rests on a number nobody wrote down",
             step_index=None, rule=rule,
         )
     n_arm = n - n_other

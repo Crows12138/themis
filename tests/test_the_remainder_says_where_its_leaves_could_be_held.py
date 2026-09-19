@@ -255,11 +255,20 @@ def test_the_remainder_split_is_what_it_is():
     sentence being used rather than contradicted: the headings say where
     a second WRITING is, and a value that is computed from several is
     held by recomputing it.
+
+    Ninth use, and the first frontier this reading pointed AT rather than
+    explained afterwards: the off-arm's joint count was filed under "in
+    the answer, named otherwise" and the second writing turned out to be
+    the other three counts of its own row, which bound it by arithmetic
+    rather than repeat it. Where that arithmetic leaves one value the
+    leaf closed; where it leaves a range the leaf stayed, and the reading
+    says the same thing about both. A heading names where a second
+    writing IS, never how tightly it decides.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 273,
+        gate._ANSWER_OTHERWISE: 250,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 665,
         gate._EVERY_READING_MATCHES: 120,

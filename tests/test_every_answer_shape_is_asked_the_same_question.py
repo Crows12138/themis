@@ -2011,9 +2011,24 @@ def test_the_declared_remainder_is_what_it_is():
     was accepted on all nine stored transport answers. The populations
     were held to being non-empty strings, which holds a label to being a
     label and never to being the right one.
+
+    Then 23 fewer, off a bounds row's fourth count. Three of a Manski
+    row's counts were checked where the row is read; the fourth had its
+    two checks inside the branch that re-derives the CONTRAST, because
+    that formula is the only place the number is spent. A fact about the
+    data was therefore conditional on a fact about the report, and on the
+    25 stored rows that report no contrast nothing read the number at
+    all. Checks organised by who spends a number go quiet exactly when
+    nobody does.
+
+    23 and not 25, which is the honest half of it. Where the off-arm is
+    empty the two checks leave one possible value and the count is
+    pinned; on the two rows where it is not they leave a range, and an
+    edit inside the range still passes. Those two are held by nothing
+    else on their envelope and stay declared here.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1283, total
+    assert total == 1260, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

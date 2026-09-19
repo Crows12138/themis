@@ -18,7 +18,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "backdoor_linear": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
@@ -219,7 +218,6 @@
   "extensions.mechanism_audit.mechanisms.[].target"
  ],
  "differential_outcome_correction": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -227,7 +225,6 @@
   "outcome_error.sufficient_statistics.n"
  ],
  "differential_regression_calibration": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target"
@@ -311,7 +308,6 @@
   "extensions.iv_identification.alternatives_count"
  ],
  "iv_2sls_overid": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "data_gap_report.gaps.[].describes.[].said.df",
   "data_gap_report.gaps.[].describes.[].said.j",
   "data_gap_report.gaps.[].describes.[].said.j@blocks=interpretation,kind=overidentification_rejected,severity=important,sentence=the_homoskedastic_sargan_says_the_same",
@@ -507,7 +503,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "derivation.steps.[].step_id",
   "estimation_context.random_state",
@@ -521,7 +516,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#045841": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -530,7 +524,6 @@
   "estimator_failure.remedies.[].subject"
  ],
  "needs_investigation:effect:none#055e4a": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -586,7 +579,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#17db0b": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -596,7 +588,6 @@
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#1be52a": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -651,7 +642,6 @@
   "missing_information.[].name"
  ],
  "needs_investigation:effect:none#4beb47": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -683,7 +673,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:effect:none#5b5a2e": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -755,7 +744,6 @@
  "needs_investigation:effect:none#7a43ba": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.estimator"
@@ -774,7 +762,6 @@
   "missing_information.[].priority@gap=missing_distribution,kind=parameter,need=iv_wald_late_needs_entry"
  ],
  "needs_investigation:effect:none#8f6d34": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -784,7 +771,6 @@
   "estimator_failure.remedies.[].subject"
  ],
  "needs_investigation:effect:none#96f4c8": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -803,7 +789,6 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
   "estimation_context.random_state",
@@ -838,7 +823,6 @@
   "investigation_requests.[].items.[].skeleton.annotations.source"
  ],
  "needs_investigation:effect:none#bb3eb5": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -1122,7 +1106,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#958dab": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "estimator_failure.estimator",
@@ -1158,7 +1141,6 @@
   "investigation_requests.[].priority"
  ],
  "numerically_solved:effect:numeric_iv_estimate#70a0ba": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "investigation_requests.[].priority",
@@ -1198,21 +1180,18 @@
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y",
   "numeric_estimate.regression_calibration.validation_df.w"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#15550d": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#3d858a": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -1506,7 +1485,6 @@
   "estimation_context.random_state"
  ],
  "regression_calibration": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -1530,7 +1508,6 @@
   "investigation_requests.[].priority"
  ],
  "simex": [
-  "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
   "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.simex.error_variance"
