@@ -328,13 +328,32 @@ def test_the_remainder_split_is_what_it_is():
     fourth time in six rounds that this heading gave up leaves to a
     recomputation, and the first time the recomputation was of the field
     itself rather than of something it had to agree with.
+
+    Fifteenth use, and the two halves of ONE fact were filed under two
+    different headings, which is most of why they looked like two
+    frontiers. A shortfall's priority sat under "another field of the
+    answer, named alike" on eighteen leaves -- the ask above it says the
+    same word -- and the ask's own priority sat under "nothing either
+    document writes" on thirteen, an ask being the only place its word
+    appears. The fourteenth leaf of the last heading is the one this
+    frontier had to refresh the corpus for: two framing rows filed at
+    ``high`` beside an ask at ``medium``, so no second writing agreed
+    with them and the reading quite correctly put that leaf here rather
+    than in the first heading. Refreshed, the two agree and the leaf
+    moves up a heading; closed, all 32 leave.
+
+    So this reading was right about each half and would have sent a
+    reader to two different places, and neither is where the work was.
+    What holds both is a declaration beside the species: not a second
+    writing in either document, which is the limit this file states about
+    itself at the top, met here from both sides at once.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 214,
+        gate._ANSWER_ALIKE: 196,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 213,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 521,
+        gate._NOTHING: 507,
         gate._EVERY_READING_MATCHES: 89,
     }
 

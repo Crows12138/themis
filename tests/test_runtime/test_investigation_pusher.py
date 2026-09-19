@@ -44,7 +44,7 @@ def _mk(kind: MissingKind, subject: str = "x", **occasion) -> MissingItem:
             gap=GapKind.MISSING_DISTRIBUTION,
         )
     return gaps.missing(
-        kind=kind, priority=Priority.MEDIUM,
+        kind=kind,
         **({"subject": subject} if need in gaps.FILED_UNDER else {}),
         **occasion)
 

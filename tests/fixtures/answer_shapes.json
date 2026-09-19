@@ -84435,7 +84435,7 @@ false
 "kind": "framing",
 "name": "framing:belly_fat_loss",
 "need": "framing_fields_unfilled",
-"priority": "high",
+"priority": "medium",
 "said": {
 "count": "6",
 "fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
@@ -84447,7 +84447,7 @@ false
 "kind": "framing",
 "name": "framing:running",
 "need": "framing_fields_unfilled",
-"priority": "high",
+"priority": "medium",
 "said": {
 "count": "6",
 "fields": "time_window, measurement, observability, direction, baseline, state_vs_event",

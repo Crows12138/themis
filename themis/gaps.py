@@ -5405,6 +5405,116 @@ def _bind_filings() -> None:
 _bind_filings()
 
 
+WORTH: dict[Need, Priority] = {
+    Need.ATOM_NOT_IN_GRAPH: Priority.HIGH,
+    Need.NAME_HOLDS_SEVERAL_NODES: Priority.HIGH,
+    Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME: Priority.HIGH,
+    Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: Priority.HIGH,
+    Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS: Priority.HIGH,
+    Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES: Priority.HIGH,
+    Need.PATH_COEFFICIENT_UNDECLARED: Priority.HIGH,
+    Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO: Priority.HIGH,
+    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT: Priority.HIGH,
+    Need.DUPLICATE_TREATMENT_ATOM: Priority.HIGH,
+    Need.NO_C_FACTOR_WITNESS: Priority.HIGH,
+    Need.NO_BACKDOOR_OR_FRONTDOOR: Priority.HIGH,
+    Need.COUNTERFACTUAL_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: Priority.HIGH,
+    Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT: Priority.HIGH,
+    Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE: Priority.HIGH,
+    Need.ADMG_EFFECT_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT: Priority.HIGH,
+    Need.PROXIMAL_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.TRANSPORT_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.TRANSPORT_SOURCES_DISAGREE: Priority.HIGH,
+    Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE: Priority.HIGH,
+    Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS: Priority.HIGH,
+    Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL: Priority.HIGH,
+    Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT: Priority.HIGH,
+    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED: Priority.HIGH,
+    Need.IV_FIRST_STAGE_DEGENERATE: Priority.HIGH,
+    Need.IV_MONOTONICITY_UNDECLARED: Priority.HIGH,
+    Need.THETA_ENTRY_MISSING: Priority.HIGH,
+    Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL: Priority.HIGH,
+    Need.QUERY_BOUND_ATOM_UNRESOLVED: Priority.HIGH,
+    Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY: Priority.HIGH,
+    Need.IV_WALD_LATE_NEEDS_ENTRY: Priority.HIGH,
+    Need.IV_WALD_LATE_NEEDS_ENTRY_IN_STRATUM: Priority.HIGH,
+    Need.UNIT_OBSERVATION_MISSING: Priority.HIGH,
+    Need.FRAMING_FIELDS_UNFILLED: Priority.MEDIUM,
+}
+"""How urgent a shortfall of this species is, and the ask that carries it.
+
+A reader works down a list by this word, so it decides what they do next.
+It was typed at every one of the thirty-seven sites that raise a
+shortfall — always ``HIGH`` — and declared nowhere, which is the shape
+this package has now unmade five times. A value every site writes is a
+value no rule can hold: there is nothing to hold it against but the
+producer's own layout.
+
+That blanket was not a judgement. It was the default nobody chose, and it
+already contradicted the one place where somebody did: the framing
+channel builds its ask at ``MEDIUM``, with the reason written down beside
+it — a reader working down by priority meets a request to finish DEFINING
+a variable out of turn, because it is something they do while reading
+rather than instead of reading. The same species reached the envelope as
+a ROW at ``HIGH`` and as an ASK at ``MEDIUM``, which is one fact written
+twice with two different values and no declaration between them.
+
+So the distinction is the species', and it is stated here once. Thirty-
+seven of the thirty-eight are ``HIGH``, and that is one sentence rather
+than thirty-seven judgements: a shortfall this system reports is
+something the reader has to settle before the answer is usable. The day a
+second species earns a different word, this is where it is said, and
+:func:`_bind_worth` is what makes a new species say something.
+"""
+
+
+def _bind_worth() -> None:
+    """Every species that files a row says what that row is worth.
+
+    Total over the roster, and the species that files no row has no entry:
+    a word about how urgently to act on a row that does not exist would be
+    a word about nothing, and the binder says which of the two a species is
+    rather than letting an absence stand for either.
+    """
+    unpriced = sorted(
+        str(n) for n in Need if n not in WORTH and n not in FILES_NO_ROW)
+    if unpriced:
+        raise ValueError(
+            f"no urgency declared for {unpriced}; a species that files a "
+            f"row says what the row is worth in themis.gaps.WORTH, beside "
+            f"the species, because a reader works their list down by it"
+        )
+    priced_and_rowless = sorted(
+        str(n) for n in Need if n in WORTH and n in FILES_NO_ROW)
+    if priced_and_rowless:
+        raise ValueError(
+            f"{priced_and_rowless} file no row and still declare an "
+            f"urgency; there is no row for a reader to reach in any order"
+        )
+
+
+_bind_worth()
+
+
+def worth(need) -> Priority:
+    """What a shortfall of this species is worth to the reader.
+
+    The one reading, used by the producer that builds the row, by the pass
+    that groups rows into an ask, and by the door that recomputes both.
+    """
+    species = registered(need)
+    if species in FILES_NO_ROW:
+        raise ValueError(
+            f"{species} files no missing_information row: "
+            f"{FILES_NO_ROW[species]}"
+        )
+    return WORTH[species]
+
+
 def filed(need, *, channel: str | None = None,
           subject: str | None = None) -> str:
     """The name a shortfall of this species is filed under.
@@ -5457,7 +5567,7 @@ def _unspelt(species: Need, **given) -> None:
             )
 
 
-def missing(*, kind: MissingKind, priority: Priority, need: Need,
+def missing(*, kind: MissingKind, need: Need,
             channel: str | None = None, subject: str | None = None,
             observable: Observable | None = None,
             skeleton: dict | None = None,
@@ -5478,6 +5588,13 @@ def missing(*, kind: MissingKind, priority: Priority, need: Need,
     facts are flattened for the envelope: after that a word is a bare
     token and which set it came from is exactly what the flattening loses.
     """
+    if "priority" in details:
+        raise ValueError(
+            f"missing() was passed priority={details['priority']!r}; how "
+            f"urgent a shortfall is belongs to its species and is declared "
+            f"in gaps.WORTH, so a site passing one would be a second "
+            f"author of the word a reader sorts their list by"
+        )
     if "name" in details:
         raise ValueError(
             f"missing() was passed name={details['name']!r}; the name is "
@@ -5487,6 +5604,7 @@ def missing(*, kind: MissingKind, priority: Priority, need: Need,
         )
     species = registered(need)
     name = filed(species, channel=channel, subject=subject)
+    priority = worth(species)
     if str(species) not in SAYS:
         raise ValueError(
             f"{species} has no sentence in themis.gaps.SAYS; declare it "

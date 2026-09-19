@@ -168,17 +168,39 @@ _ACTION_FOR_GROUP: dict[str, str] = {
     "framing":     "define_variable",
 }
 
-#: What the framing channel puts in a heading it writes by hand. Every
-#: other channel's priority is the strongest among its items, and those
-#: items are rows of ``missing_information``; framing items are not, so
-#: this constant is the answer's only record of it. A constant a reader is
-#: shown with no second copy is restated and pinned, as a diagnostic band
-#: is.
+#: The channel that asks a reader to finish DEFINING a variable, named
+#: here because two rules ask which channel a row is in. What its asks are
+#: worth is no longer a constant of this module: how urgent a shortfall is
+#: belongs to its species and is declared in ``themis.gaps.WORTH``, which
+#: both the producer and the rule below read.
 _FRAMING_GROUP = "framing"
-_FRAMING_PRIORITY = "medium"
 
 #: Strongest last. A group speaks with the loudest voice among its items.
+#:
+#: Which words exist is the contract's; which is louder is nobody else's,
+#: so this module states the ranking rather than importing one. It has to
+#: be total over the vocabulary all the same. The rule below used to read
+#: an ask's worth off the rows beneath it and drop any word not found
+#: here; it reads the worth off the species' own declaration now, so a
+#: word the contract allows and this tuple has never heard of would reach
+#: ``max`` as a lookup that fails inside a rule -- a verifier crashing
+#: where it meant to hold something.
 _PRIORITY_ORDER: tuple[str, ...] = ("low", "medium", "high")
+
+
+def _bind_the_ranking() -> None:
+    """Every word a shortfall can be worth has a place in the order."""
+    unranked = sorted(set(_gaps.Priority) - set(_PRIORITY_ORDER))
+    if unranked:
+        raise ValueError(
+            f"{[str(word) for word in unranked]} can be written on an ask "
+            f"and are nowhere in _PRIORITY_ORDER; a group is as urgent as "
+            f"the most urgent thing in it, and which that is cannot be "
+            f"decided among words this module has no order for"
+        )
+
+
+_bind_the_ranking()
 
 
 class _Absent:
@@ -709,24 +731,28 @@ def _check_the_heading_describes_the_items(
     priority = request.get("priority")
     if not isinstance(priority, str):
         return
-    if group == _FRAMING_GROUP:
-        if priority != _FRAMING_PRIORITY:
-            _reject(
-                f"{where} is a framing ask filed as {priority!r}; framing "
-                f"asks are filed at {_FRAMING_PRIORITY!r}, and a reader "
-                f"working down by priority meets this one out of turn"
-            )
-        return
-    graded = [rank for row in theirs
-              if isinstance(rank := row.get("priority"), str)
-              and rank in _PRIORITY_ORDER]
-    if not graded or len(graded) != len(items):
-        return          # no second record of what these items are worth
+    # Read off the species each ask names, and not off the rows they point
+    # at. The rows say the same thing — their own word is recomputed from
+    # the same declaration two rules above — but an ask can hold an item
+    # whose row is not on this envelope at all: the framing channel's items
+    # are predicates rather than shortfalls, and elsewhere the estimate
+    # settled the row and pruned it. Resolving targets made those asks the
+    # ones nothing asked about, which was every framing ask and thirteen
+    # others.
+    graded = []
+    for item in items:
+        need = item.get("need") if isinstance(item, Mapping) else None
+        species = _gaps.BY_NAME.get(need) if isinstance(need, str) else None
+        if species is not None and species in _gaps.WORTH:
+            graded.append(_gaps.WORTH[species])
+    if len(graded) != len(items):
+        return          # an ask naming a species this build does not raise
     strongest = max(graded, key=_PRIORITY_ORDER.index)
     if priority != strongest:
         _reject(
             f"{where} is filed at {priority!r} and the asks under it are "
-            f"{sorted(set(graded))}; a group is as urgent as the most "
+            f"worth {sorted(set(graded))}; how urgent a shortfall is "
+            f"belongs to its species, and a group is as urgent as the most "
             f"urgent thing in it"
         )
 
@@ -1013,6 +1039,37 @@ def _check_the_name_this_row_is_filed_under(
         )
 
 
+def _check_the_row_is_worth_what_its_species_is(
+    where: str, row: Mapping,
+) -> None:
+    """How urgent this shortfall is, against the species that raised it.
+
+    A reader works their list down by this word, so it decides what they
+    do next — and it was typed at every one of the thirty-seven sites that
+    raise a shortfall and declared nowhere, which left nothing to hold it
+    against but the producer's layout. It is the species' now
+    (``themis.gaps.WORTH``), recomputed here.
+
+    Silent where the row names no species, for the reason its sibling
+    above is: what a row with no species is worth is not a question this
+    declaration answers.
+    """
+    need = row.get("need")
+    if not isinstance(need, str):
+        return
+    species = _gaps.BY_NAME.get(need)
+    if species is None or species not in _gaps.WORTH:
+        return
+    owed = _gaps.WORTH[species]
+    priority = row.get("priority")
+    if priority != owed:
+        _reject(
+            f"{where} is a {need!r} shortfall filed at {priority!r}; that "
+            f"species is worth {str(owed)!r} to a reader, and a list worked "
+            f"down by this word is worked down in the wrong order"
+        )
+
+
 def _check_every_row_is_named_by_an_ask(
     result: Mapping, asked: frozenset,
 ) -> None:
@@ -1212,6 +1269,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             _check_the_row_says_one_thing_three_times(
                 f"missing_information[{mi}]", row)
             _check_the_name_this_row_is_filed_under(
+                f"missing_information[{mi}]", row)
+            _check_the_row_is_worth_what_its_species_is(
                 f"missing_information[{mi}]", row)
     #: The species this answer's own report says it found. ``None`` where
     #: there is no report to ask — an answer that reported nothing is not

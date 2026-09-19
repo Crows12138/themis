@@ -2121,9 +2121,43 @@ def test_the_declared_remainder_is_what_it_is():
     NOT re-collected: what moved in it is what a step is called, 28 rows
     of it, and 24 of those were re-run from their own stored program and
     compared name for name against the renumbering.
+
+    Then 32 came off the word a reader sorts their list by, and it is the
+    sixth time this file has watched that shape close. A shortfall's
+    ``priority`` and the ask's above it were typed at every one of the
+    thirty-seven sites that raise one -- always ``HIGH`` -- and declared
+    nowhere, so a rule holding either could only restate the producer's
+    layout. The blanket was not a judgement. It was the default nobody
+    chose, and it already contradicted the one place where somebody did:
+    the framing channel built its ask at ``MEDIUM``, with the reason
+    written beside it. One fact was reaching the envelope as a row at
+    ``high`` and as an ask at ``medium``, with nothing between them
+    saying which was meant.
+
+    The ask's half had to change its AUTHORITY and not just its address,
+    which is the part worth keeping. The rule there read an ask's worth
+    off the missing_information rows its items point at, and stepped
+    aside where any item had no row -- so it stood beside 145 framing
+    asks and thirteen others saying nothing at all, because a framing
+    item is a predicate rather than a shortfall and an estimate that
+    settles a row prunes it. An ask carries the species of each item on
+    itself. Reading it there is what makes the rule speak on every ask
+    this corpus has.
+
+    32 and not 29, and the three missing are the arithmetic this file
+    already records once, eight paragraphs up. A leaf shape stands here
+    once bare and once per record species that carries it, because that
+    is how the sweep asks; matching the shape by its ending counted every
+    bare one and missed three siblings spelled
+    ``missing_information.[].priority@gap=...,need=...``. The prediction
+    named 29 and 1019; what came back is 32 and 1016. The heading split
+    and the one corpus row that had to be refreshed were both predicted
+    exactly -- two framing rows filed at ``high`` beside their own ask at
+    ``medium``, re-run from their own stored program, with nothing else
+    in the corpus moving.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1048, total
+    assert total == 1016, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

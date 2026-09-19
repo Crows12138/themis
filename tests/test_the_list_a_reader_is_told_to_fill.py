@@ -65,8 +65,9 @@ from themis.input.semantic_validator import validate_program
 from themis.input.syntactic_validator import validate_ast
 from themis.types import GapKind
 from themis.verifier.errors import VerificationError
+from themis import gaps
 from themis.verifier.investigation_rules import (
-    _ACTION_FOR_GROUP, _FRAMING_PRIORITY, _SKELETON_KINDS, declarations_of,
+    _ACTION_FOR_GROUP, _SKELETON_KINDS, declarations_of,
     predicates_of, verify_investigation_items,
 )
 
@@ -516,6 +517,15 @@ def test_the_heading_over_the_list_is_held_to_the_list():
     door refuses it, and this rule is the one that refuses it. The first
     is what a caller gets and the second is what this test is entitled to
     say.
+
+    Thirteen headings survived one of the four, and it was the priority:
+    a group is as urgent as the most urgent thing in it, and those
+    thirteen ask about items whose rows the envelope does not render, so
+    the second record this rule read was not there to read. It reads the
+    species each ITEM names now -- how urgent a shortfall is belongs to
+    its species -- and an ask carries that on itself whether or not its
+    rows survived. The survivors are none, and the number below went up
+    by exactly the thirteen.
     """
     assert len([n for n in CARRIERS if n in CHAINLESS]) == 70
     survived, by_this_rule = [], 0
@@ -533,25 +543,28 @@ def test_the_heading_over_the_list_is_held_to_the_list():
                     by_this_rule += 1
                     continue
                 survived.append((name, ri, path))
-    assert by_this_rule == 1414
-    assert {p for _, _, p in survived} == {"priority"}
-    assert len(survived) == 13
+    assert by_this_rule == 1427
+    assert survived == []
 
 
-def test_the_thirteen_priorities_with_no_second_record():
-    """What is left, and the fact that leaves it rather than a story.
+def test_thirteen_asks_have_no_row_of_their_own_to_be_read_off():
+    """The fact that used to leave a leaf open, kept now that it does not.
 
-    A group is as urgent as the most urgent thing in it, and how urgent
-    each of those things is, is a row of ``missing_information``. Thirteen
-    requests have no such rows: their items were pushed from missing items
-    the envelope does not render. That is a fact about those envelopes,
-    checkable here, and not a reason anybody wrote down — which is what
-    the four reasons on this list that later turned out to be holes all
-    had in common.
+    Thirteen requests ask about items whose rows the envelope does not
+    render: they were pushed from missing items an estimate later settled
+    and pruned. While an ask's urgency was read off those rows, this was
+    the whole reason thirteen headings could say anything they liked —
+    a fact about these envelopes rather than a reason anybody wrote down,
+    which is what the four entries on this list that later turned out to
+    be holes all had in common.
 
-    Framing is not among them although it has no rows either: the priority
-    it is filed at is a constant its own pass writes, so there IS a second
-    copy to restate, the way a diagnostic band is restated.
+    It is no longer a reason for anything, and the measurement is kept
+    because the premise is what changed rather than the arithmetic: an
+    ask's worth is read off the species each of its ITEMS names, which is
+    on the ask itself, so these thirteen are held exactly like the rest.
+    Framing's 145 were never on this list and had no rows either; they
+    were held by a constant that pass wrote by hand, and that constant is
+    gone into the same declaration.
     """
     without = []
     for name in CARRIERS:
@@ -778,7 +791,11 @@ def test_the_channel_table_is_the_one_the_runtime_writes():
                if request.get("group") == "framing"]
     assert framing
     assert {r["action"] for r in framing} == {"define_variable"}
-    assert {r["priority"] for r in framing} == {_FRAMING_PRIORITY}
+    # Read off the species rather than off a constant of the verifier.
+    # How urgent a shortfall is belongs to the species that raised it, and
+    # the framing channel is where this package first said so by hand.
+    assert {r["priority"] for r in framing} == {
+        str(gaps.worth(gaps.Need.FRAMING_FIELDS_UNFILLED))}
 
 
 def test_a_grouped_heading_is_spelled_the_way_the_runtime_spells_it():

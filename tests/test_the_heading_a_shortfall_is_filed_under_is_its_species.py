@@ -163,7 +163,6 @@ def test_a_stray_name_does_not_ride_in_as_a_fact():
     with pytest.raises(ValueError, match="was passed name="):
         gaps.missing(
             kind=gaps.MissingKind.STRUCTURE,
-            priority=gaps.Priority.HIGH,
             need=gaps.Need.NO_BACKDOOR_OR_FRONTDOOR,
             name="identification:not_identifiable",
         )
