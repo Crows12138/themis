@@ -13205,6 +13205,115 @@ def _every_atom_a_step_names_is_one_the_graph_has(
     return frozenset(named)
 
 
+def _the_domains_the_program_declares(ctx: VerificationContext) -> dict:
+    """Every source domain a program introduces, and what marks each one.
+
+    A domain is a PAIR. A selection node says "this variable is
+    distributed differently between here and there", so it names both
+    ends, and the set of nodes that mark one pair is the selection
+    diagram for transporting across it. Keyed by the pair rather than by
+    the source alone, because one source may be transported to more than
+    one target and the diagrams are then different diagrams.
+    """
+    domains: dict = {}
+    for node in getattr(ctx, "selection_nodes", ()) or ():
+        key = (getattr(node, "source_population", None),
+               getattr(node, "target_population", None))
+        domains.setdefault(key, set()).add(getattr(node, "id", None))
+    return {key: frozenset(ids) for key, ids in domains.items()}
+
+
+def _every_domain_a_step_names_is_one_the_program_declares(
+    ctx: VerificationContext, inputs: Mapping, step_index: int, rule_name: str,
+) -> None:
+    """A step's transport premises are not free text.
+
+    Three names decide what a transport step is even about: the source it
+    reasons from, the target it reasons to, and the selection nodes it
+    takes its diagram over. All three were written down by somebody else
+    first -- the question names the target it asks about, and the
+    program's selection nodes name the pairs and the nodes that mark
+    them -- and the step restates them. A restatement is held to what it
+    restates, which is the same sentence the envelope's transport block
+    is already held to; the CHAIN's copy of it was held to nothing.
+
+    What each half was doing instead, measured:
+
+    - The ids were checked for existence and for belonging to one source.
+      Both are about what the list CONTAINS. Bareinboim's Theorem 1 is
+      about what it OMITS: Z is S-admissible when every selection node of
+      the domain is d-separated from the outcome given Z, so dropping one
+      drops a d-separation the formula is licensed by. The empty list is
+      that taken to its end -- no S node, a selection diagram equal to
+      the causal graph, and every adjustment set admissible for free. It
+      was accepted on all nine stored transport answers.
+    - The populations were checked for being non-empty strings. That
+      holds a label to being a label and never to being the right one,
+      and a renamed source or target was accepted wherever a second copy
+      of the name did not happen to sit in the same chain.
+
+    Silent where a named id is not declared, because the rule that
+    resolves the ids says which one and this cannot. Silent, too, where
+    the program declares no selection node at all: a membership question
+    with nothing to be a member of has no content, the same way the atom
+    roster declines on a problem with no graph.
+    """
+    domains = _the_domains_the_program_declares(ctx)
+    if not domains:
+        return
+
+    stated_source = inputs.get("source_population")
+    stated_target = inputs.get("target_population")
+
+    asked_target = getattr(getattr(ctx, "query", None),
+                           "target_population", None)
+    if (isinstance(stated_target, str) and isinstance(asked_target, str)
+            and stated_target != asked_target):
+        raise RuleCheckFailed(
+            f"{rule_name} transports to {stated_target!r} and the question "
+            f"asks about {asked_target!r}; an effect in one population is "
+            f"not the effect in another, and a step that answers for the "
+            f"wrong one has answered a question nobody asked",
+            step_index=step_index, rule=rule_name,
+        )
+
+    if isinstance(stated_source, str) or isinstance(stated_target, str):
+        fits = [key for key in domains
+                if (not isinstance(stated_source, str)
+                    or key[0] == stated_source)
+                and (not isinstance(stated_target, str)
+                     or key[1] == stated_target)]
+        if not fits:
+            raise RuleCheckFailed(
+                f"{rule_name} transports from {stated_source!r} to "
+                f"{stated_target!r} and the program declares no selection "
+                f"node between them; it declares "
+                f"{sorted(f'{s}->{t}' for s, t in domains)}. A population "
+                f"name is introduced by the node that says what differs "
+                f"there, so a name no node introduces refers to nothing",
+                step_index=step_index, rule=rule_name,
+            )
+
+    named = inputs.get("selection_nodes_ids")
+    if isinstance(named, str):
+        wanted = frozenset(part for part in named.split(",") if part)
+        declared_here = {ids for ids in domains.values()}
+        known = {nid for ids in domains.values() for nid in ids}
+        if wanted <= known and wanted not in declared_here:
+            raise RuleCheckFailed(
+                f"{rule_name} takes its selection diagram over "
+                f"{sorted(wanted)} and the program declares "
+                + "; ".join(f"{s}->{t}: {sorted(ids)}"
+                            for (s, t), ids in sorted(
+                                domains.items(),
+                                key=lambda kv: (str(kv[0][0]), str(kv[0][1]))))
+                + ". S-admissibility holds of EVERY selection node of one "
+                "domain, so a set that is not one of those is a weaker "
+                "claim than the one a transport formula rests on",
+                step_index=step_index, rule=rule_name,
+            )
+
+
 #: Inputs a rule may record without reading, by the NAME of the input.
 #:
 #: The excuse is about the VALUE and not about the rule that carries it:
@@ -13311,6 +13420,8 @@ def dispatch_rule(
         ctx, inputs, step_index, rule_name)
     _every_name_a_formula_uses_is_one_it_binds(
         inputs, frozenset(), step_index, rule_name)
+    _every_domain_a_step_names_is_one_the_program_declares(
+        ctx, inputs, step_index, rule_name)
     for atom, shown, asked in _literals_a_formula_takes_against_the_question(
             inputs, _what_the_question_takes_a_variable_at(
                 getattr(ctx, "query", None))):

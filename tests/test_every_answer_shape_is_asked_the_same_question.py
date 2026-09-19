@@ -1998,9 +1998,22 @@ def test_the_declared_remainder_is_what_it_is():
     IS matched by every reading of the documents. It is held anyway,
     because the question named it and the question is not one of the two
     documents that reading compares.
+
+    Then 21 fewer, and they are a transport step's own premises: which
+    source it reasons from, which target it reasons to, and which
+    selection nodes its diagram is taken over. All three were written
+    down by the question and the program before the chain ran, and the
+    step's restatement of them was held to nothing. The two halves failed
+    differently and that is the diagnosis: the ids were held to what the
+    list CONTAINS and never to what it OMITS, while Bareinboim's Theorem
+    1 is about the omission — so the EMPTY list, which is a selection
+    diagram with no S node and every adjustment set admissible for free,
+    was accepted on all nine stored transport answers. The populations
+    were held to being non-empty strings, which holds a label to being a
+    label and never to being the right one.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1304, total
+    assert total == 1283, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

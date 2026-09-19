@@ -4725,10 +4725,16 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
       and both directions are asked, because a diagram the program
       declared and the block does not show is a source domain silently
       dropped from the verdict.
-    - a route's adjustment set and the estimand it prints are the chain's.
-      Some ``transport_formula`` step has to have recorded THAT set and
-      produced THAT formula — the pair together, so that swapping two
-      routes' adjustment sets is not two halves that each still match.
+    - a route's source, its adjustment set and the estimand it prints are
+      the chain's. Some ``transport_formula`` step has to have recorded
+      THAT source, THAT set and produced THAT formula — the three
+      together, so that swapping two routes' adjustment sets is not two
+      halves that each still match. The source was outside the tuple and
+      the omission had a shape: with two declared domains, a step could
+      say it transported from the other one and each end still lined up,
+      because the domain a step names and the domain a route claims were
+      only ever compared through a formula string that the two domains
+      share whenever their adjustment sets agree.
     - which population the answer is for is the question's.
 
     One route is not held to a step and says so: a program declaring no
@@ -4784,6 +4790,7 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
         items = ((step.get("inputs") or {}).get("adjustment_set") or {}).get(
             "items")
         recorded.add((
+            (step.get("inputs") or {}).get("source_population"),
             tuple(_transport_atom_shape(a) for a in (items or ())),
             step.get("output"),
         ))
@@ -4822,6 +4829,7 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
                      f"{source!r}; a diagram belongs to one source domain")
         if transportable and (route.get("s_nodes") or ()):
             pair = (
+                source,
                 tuple(_transport_atom_shape(a)
                       for a in (route.get("adjustment_set") or ())),
                 route.get("formula_repr"),
@@ -4830,8 +4838,9 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
                 _err(f"source {source!r} prints the estimand "
                      f"{route.get('formula_repr')!r} over "
                      f"{route.get('adjustment_set')!r}; no transport_formula "
-                     f"step recorded that set and produced that formula, so "
-                     f"what a reader is shown rests on nothing in the chain")
+                     f"step transported from that source, recorded that set "
+                     f"and produced that formula, so what a reader is shown "
+                     f"rests on nothing in the chain")
         if isinstance(numeric, dict):
             evaluated.append((source, float(numeric["value"])))
 

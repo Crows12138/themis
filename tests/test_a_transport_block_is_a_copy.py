@@ -159,7 +159,7 @@ def test_an_adjustment_set_the_chain_never_recorded_is_refused(name):
         if not route.get("adjustment_set"):
             pytest.skip("this route adjusts for nothing")
         route["adjustment_set"][0]["predicate"] += "_forged"
-    _refused(name, edit, "no transport_formula step recorded that set")
+    _refused(name, edit, "recorded that set and produced that formula")
 
 
 @pytest.mark.parametrize("name", WITH_ROUTE)
@@ -168,7 +168,7 @@ def test_an_estimand_the_chain_never_produced_is_refused(name):
         route = next(r for r in block["sources"]
                      if r.get("transportable") and r.get("s_nodes"))
         route["formula_repr"] = "P*(y | do(x)) = 1"
-    _refused(name, edit, "no transport_formula step recorded that set")
+    _refused(name, edit, "recorded that set and produced that formula")
 
 
 @pytest.mark.parametrize("name", TWO_ROUTES)
@@ -184,7 +184,7 @@ def test_two_routes_with_their_adjustment_sets_swapped_are_refused(name):
             pytest.skip("both routes adjust for the same variables")
         a["adjustment_set"], b["adjustment_set"] = (
             b["adjustment_set"], a["adjustment_set"])
-    _refused(name, edit, "no transport_formula step recorded that set")
+    _refused(name, edit, "recorded that set and produced that formula")
 
 
 # ------------------------------------ the population is the question's

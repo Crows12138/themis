@@ -242,13 +242,26 @@ def test_the_remainder_split_is_what_it_is():
     error in it, and it is worth saying plainly: the headings describe
     where a SECOND WRITING could be found, and two of the frontiers so
     far were held by something that is not a second writing at all.
+
+    Eighth use, and it split a frontier three ways rather than one: of
+    twenty-one transport premises, twelve sat under a name the answer
+    also uses, seven under another name it uses, and two under "nothing
+    either document writes". The two are the sharpest. A step names its
+    selection nodes as one comma-joined string, and that string appears
+    verbatim in neither document, because the program declares the nodes
+    ONE AT A TIME. So the heading was right — no comparison of values
+    reaches it — and the leaf is held anyway, by rebuilding the joined
+    string from the declarations it renders. Which is this reading's own
+    sentence being used rather than contradicted: the headings say where
+    a second WRITING is, and a value that is computed from several is
+    held by recomputing it.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 226,
+        gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 280,
+        gate._ANSWER_OTHERWISE: 273,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 667,
+        gate._NOTHING: 665,
         gate._EVERY_READING_MATCHES: 120,
     }
 
