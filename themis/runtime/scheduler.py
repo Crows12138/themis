@@ -328,7 +328,7 @@ def _a_given_holding_an_end(
         missing_information=(
             gaps.missing(
                 kind=MissingKind.STRUCTURE,
-                name=f"query:{kind.value}_given",
+                subject=f"{kind.value}_given",
                 priority=Priority.HIGH,
                 need=gaps.Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME,
                 atoms=", ".join(_atom_to_str(atom) for atom in held),
@@ -358,7 +358,7 @@ def _dispatch_identify(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(atom)}",
+                    subject=_atom_to_str(atom),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.QUERY,
@@ -431,7 +431,6 @@ def _dispatch_identify(
         missing_information=(
             gaps.missing(
                 kind=MissingKind.STRUCTURE,
-                name="query:identify_unreachable",
                 priority=Priority.HIGH,
                 need=gaps.Need.NO_C_FACTOR_WITNESS,
             ),
@@ -887,7 +886,8 @@ def _build_identify_via_iv(
 
 
 def _a_decomposition_within_a_moved_stratum(
-    stmt: QueryStatement, q: EffectQuery, moved: "frozenset[Atom]", name: str,
+    stmt: QueryStatement, q: EffectQuery, moved: "frozenset[Atom]",
+    channel: str,
 ) -> QueryResult:
     """The refusal of direct and indirect effects asked within a stratum
     the treatment moves (``stratum_moved`` on the identifier's result).
@@ -904,7 +904,7 @@ def _a_decomposition_within_a_moved_stratum(
         missing_information=(
             gaps.missing(
                 kind=MissingKind.STRUCTURE,
-                name=f"{name}:stratum_moved_by_the_treatment",
+                channel=channel,
                 priority=Priority.HIGH,
                 need=gaps.Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES,
                 atoms=", ".join(dict.fromkeys(
@@ -997,7 +997,6 @@ def _dispatch_mediation(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="mediation:invalid_mediator",
                     priority=Priority.HIGH,
                     need=gaps.Need.MEDIATOR_OFF_THE_DIRECTED_PATHS,
                 ),
@@ -1217,7 +1216,6 @@ def _dispatch_mediation_joint(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="mediation_joint:invalid_mediator_set",
                     priority=Priority.HIGH,
                     need=gaps.Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS,
                 ),
@@ -1857,14 +1855,13 @@ def _missing_parameter_from_key(
     if key is None:
         return gaps.missing(
             kind=MissingKind.PARAMETER,
-            name="numeric:unresolved_query_bound",
             priority=Priority.HIGH,
             need=need,
             **details,
         )
     return gaps.missing(
         kind=MissingKind.PARAMETER,
-        name=f"parameter:{format_probability_key(key)}",
+        subject=format_probability_key(key),
         priority=Priority.HIGH,
         need=need,
         observable=Observable(
@@ -2485,7 +2482,6 @@ def _dispatch_counterfactual(
             # [0, 1] that would look like an answer.
             escape = gaps.missing(
                 kind=MissingKind.ASSUMPTION,
-                name="counterfactual:interventional_risk_unavailable",
                 priority=Priority.HIGH,
                 need=gaps.Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL,
                 arm=need.needed_x_value,
@@ -2884,7 +2880,6 @@ def _derive_interventional_risks(
     )
     escape = gaps.missing(
         kind=MissingKind.ASSUMPTION,
-        name=CAUSATION_RISK_ESCAPE,
         priority=Priority.HIGH,
         need=(gaps.Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE if unidentifiable
               else gaps.Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS),
@@ -2902,13 +2897,20 @@ def _derive_interventional_risks(
 
 
 
-CAUSATION_RISK_ESCAPE = "causation:interventional_risk_unavailable"
+CAUSATION_RISK_ESCAPE = gaps.filed(
+    gaps.Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE)
 """The gap that stands when no interventional risk is obtainable.
 
 Named because two places need to agree about it: the one that raises it, and
 the one that appends what the instrument route found when it was asked
 instead. A reader deciding what to go and get needs both sentences, and they
 belong on one item rather than two.
+
+Read off the species rather than spelled here, because the site that
+raises it no longer spells one either: this is the name that row comes
+back with, and a second constant for it is a second thing to keep in
+agreement. The other species that site's conditional can pick is filed
+under the same name, so either of them names it.
 """
 
 
@@ -3099,7 +3101,7 @@ def _dispatch_causation(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
+                    subject=_atom_to_str(a),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.CAUSATION_QUERY,
@@ -3219,7 +3221,6 @@ def _dispatch_causation(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.ASSUMPTION,
-                    name="causation:interventional_risks_infeasible",
                     priority=Priority.HIGH,
                     need=gaps.Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT,
                     # A list, joined where the reader is. A Chinese
@@ -3350,7 +3351,7 @@ def _dispatch_scm_counterfactual(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
+                    subject=_atom_to_str(a),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.SCM_COUNTERFACTUAL_QUERY,
@@ -3393,7 +3394,7 @@ def _dispatch_scm_counterfactual(
             if coef is None:
                 missing.append(gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"coefficient:{_atom_to_str(p)}->{_atom_to_str(v)}",
+                    subject=f"{_atom_to_str(p)}->{_atom_to_str(v)}",
                     priority=Priority.HIGH,
                     need=gaps.Need.PATH_COEFFICIENT_UNDECLARED,
                     parent=_atom_to_str(p),
@@ -3408,7 +3409,7 @@ def _dispatch_scm_counterfactual(
         if v not in obs_map:
             missing.append(gaps.missing(
                 kind=MissingKind.OBSERVATION,
-                name=f"observation:{_atom_to_str(v)}",
+                subject=_atom_to_str(v),
                 priority=Priority.HIGH,
                 need=gaps.Need.UNIT_OBSERVATION_MISSING,
             ))
@@ -3524,7 +3525,7 @@ def _dispatch_counterfactual_conjunction(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
+                    subject=_atom_to_str(a),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.COUNTERFACTUAL_EVENT,
@@ -3560,7 +3561,6 @@ def _dispatch_counterfactual_conjunction(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="query:conditioning_event_probability_zero",
                     priority=Priority.HIGH,
                     need=gaps.Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO,
                 ),
@@ -3575,7 +3575,6 @@ def _dispatch_counterfactual_conjunction(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="query:counterfactual_unidentifiable",
                     priority=Priority.HIGH,
                     need=gaps.Need.COUNTERFACTUAL_NOT_IDENTIFIABLE,
                 ),
@@ -3644,7 +3643,7 @@ def _dispatch_proximal_effect(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
+                    subject=_atom_to_str(a),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.PROXIMAL_ROLE,
@@ -3669,7 +3668,6 @@ def _dispatch_proximal_effect(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="query:proximal_not_identifiable",
                     priority=Priority.HIGH,
                     need=gaps.Need.PROXIMAL_NOT_IDENTIFIABLE,
                     # The statement, not a rendered sentence and not the
@@ -3902,8 +3900,8 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"transport:{r.source_population}"
-                         f"->{q.target_population}",
+                    subject=f"{r.source_population}"
+                            f"->{q.target_population}",
                     priority=Priority.HIGH,
                     need=gaps.Need.TRANSPORT_NOT_IDENTIFIABLE,
                     # The sentence names the source domain; which of the two
@@ -4032,7 +4030,7 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
         # number would be picking which declaration to believe.
         disagreement = gaps.missing(
             kind=MissingKind.ASSUMPTION,
-            name=f"transport_sources:{q.target_population}",
+            subject=f"{q.target_population}",
             priority=Priority.HIGH,
             need=gaps.Need.TRANSPORT_SOURCES_DISAGREE,
             detail=f"{spread:.6g}",
@@ -4325,7 +4323,6 @@ def _iv_stratum_table(
         return None, (
             gaps.missing(
                 kind=MissingKind.ASSUMPTION,
-                name="effect:iv_stratum_weights_not_normalized",
                 priority=Priority.HIGH,
                 need=gaps.Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED,
                 total=total_weight,
@@ -4344,7 +4341,6 @@ def _iv_stratum_table(
         return None, (
             gaps.missing(
                 kind=MissingKind.ASSUMPTION,
-                name="effect:iv_first_stage_degenerate",
                 priority=Priority.HIGH,
                 need=gaps.Need.IV_FIRST_STAGE_DEGENERATE,
                 instrument=_atom_to_str(instrument),
@@ -4401,7 +4397,6 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
         return _Attempt(missing=(
             gaps.missing(
                 kind=MissingKind.ASSUMPTION,
-                name="effect:iv_monotonicity_undeclared",
                 priority=Priority.HIGH,
                 need=gaps.Need.IV_MONOTONICITY_UNDECLARED,
                 count=len(iv_candidates),
@@ -4628,7 +4623,6 @@ def _dispatch_joint_effect(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="joint:unsupported_layer_combination",
                     priority=Priority.HIGH,
                     need=gaps.Need.JOINT_WITH_MEDIATION_OR_TRANSPORT,
                     drop=f"`{other.triggered_by}`",
@@ -4647,7 +4641,6 @@ def _dispatch_joint_effect(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="joint:duplicate_treatment",
                     priority=Priority.HIGH,
                     need=gaps.Need.DUPLICATE_TREATMENT_ATOM,
                 ),
@@ -4722,7 +4715,6 @@ def _dispatch_joint_effect(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="identification:joint_not_identifiable",
                     priority=Priority.HIGH,
                     need=gaps.Need.JOINT_EFFECT_NOT_IDENTIFIABLE,
                 ),
@@ -4871,7 +4863,7 @@ def _dispatch_longitudinal(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"longitudinal:atom_not_in_graph:{nm}",
+                    subject=nm,
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.LONGITUDINAL_SPEC,
@@ -4891,7 +4883,7 @@ def _dispatch_longitudinal(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"longitudinal:name_holds_several_nodes:{nm}",
+                    subject=nm,
                     priority=Priority.HIGH,
                     need=gaps.Need.NAME_HOLDS_SEVERAL_NODES,
                     part=gaps.QueryPart.LONGITUDINAL_SPEC,
@@ -4952,7 +4944,7 @@ def _dispatch_longitudinal(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"longitudinal:sequential_exchangeability_fails:{_atom_to_str(a_k)}",
+                    subject=_atom_to_str(a_k),
                     priority=Priority.HIGH,
                     need=gaps.Need.SEQUENTIAL_EXCHANGEABILITY_FAILS,
                     treatment=_atom_to_str(a_k),
@@ -5301,19 +5293,17 @@ def _identify_feedback_loop(facts: _EffectFacts) -> _Attempt:
         return _Attempt(result=_feedback_loop_refusal(
             facts, labels,
             need=gaps.Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE,
-            name="effect:feedback_loop_reaches_the_estimand",
         ))
     if not facts.iv_candidates_under_the_loop:
         return _Attempt(result=_feedback_loop_refusal(
             facts, labels,
             need=gaps.Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT,
-            name="effect:feedback_loop_needs_an_instrument",
         ))
     return _Attempt(result=_build_feedback_loop_effect_result(facts, labels))
 
 
 def _feedback_loop_refusal(
-    facts: _EffectFacts, labels: dict, *, need, name: str,
+    facts: _EffectFacts, labels: dict, *, need,
 ) -> QueryResult:
     """No answer, and the cascade stops here.
 
@@ -5330,7 +5320,6 @@ def _feedback_loop_refusal(
         missing_information=(
             gaps.missing(
                 kind=MissingKind.STRUCTURE,
-                name=name,
                 priority=Priority.HIGH,
                 need=need,
                 **labels,
@@ -5489,7 +5478,6 @@ def _effect_refusal(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="query:effect_admg_conditional",
                     priority=Priority.HIGH,
                     need=gaps.Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE,
                 ),
@@ -5524,7 +5512,6 @@ def _effect_refusal(
             missing_information=(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name="query:effect_admg",
                     priority=Priority.HIGH,
                     need=(gaps.Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT
                       if facts.iv_candidates
@@ -5541,7 +5528,6 @@ def _effect_refusal(
         missing_information=(
             gaps.missing(
                 kind=MissingKind.STRUCTURE,
-                name="identification:not_identifiable",
                 priority=Priority.HIGH,
                 need=gaps.Need.NO_BACKDOOR_OR_FRONTDOOR,
             ),
@@ -5587,7 +5573,7 @@ def _dispatch_effect(
             missing_information=tuple(
                 gaps.missing(
                     kind=MissingKind.STRUCTURE,
-                    name=f"atom:{_atom_to_str(a)}",
+                    subject=_atom_to_str(a),
                     priority=Priority.HIGH,
                     need=gaps.Need.ATOM_NOT_IN_GRAPH,
                     part=gaps.QueryPart.QUERY,
@@ -5889,7 +5875,7 @@ def _check_strict_framing(
     return tuple(
         gaps.missing(
             kind=MissingKind.FRAMING,
-            name=f"framing:{note.predicate}",
+            subject=note.predicate,
             priority=Priority.HIGH,
             need=gaps.Need.FRAMING_FIELDS_UNFILLED,
             predicate=note.predicate,

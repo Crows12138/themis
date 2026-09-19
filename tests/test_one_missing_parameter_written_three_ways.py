@@ -174,9 +174,16 @@ def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
     ]
     assert len(keyless) == 43, len(keyless)
 
-    # And their names really are free: nothing on such a row settles one,
-    # so this rule stays silent there rather than inventing an anchor.
+    # Nothing on such a row settles a name, so this rule stays silent
+    # there rather than inventing an anchor. It used to be the only rule
+    # that could have, and the line below accepted a moved name to say so.
+    # What speaks instead is the row's species, which declares the channel
+    # it is filed under, and the ask the row was pushed into, which
+    # carries the whole name back as its target — neither of them a key,
+    # which is why this rule is still the wrong one to ask.
     n, i = keyless[0]
     forged = copy.deepcopy(SHAPES[n]["result"])
     forged["missing_information"][i]["name"] = "query:something_else_entirely"
-    the_door_for(SHAPES[n]["result"])(SHAPES[n]["program"], forged)
+    with pytest.raises(VerificationError) as refusal:
+        the_door_for(SHAPES[n]["result"])(SHAPES[n]["program"], forged)
+    assert "is filed under the name" not in str(refusal.value), refusal.value

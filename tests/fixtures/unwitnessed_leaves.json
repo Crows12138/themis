@@ -443,8 +443,6 @@
   "estimation_context.sample_size",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=interventional_risk_not_identifiable,priority=high",
   "status"
  ],
  "needs_investigation:causation:none#4f0014": [
@@ -452,8 +450,7 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.lower",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.quantity",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.upper",
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.value",
-  "missing_information.[].name"
+  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.value"
  ],
  "needs_investigation:counterfactual:none": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
@@ -466,8 +463,6 @@
  "needs_investigation:counterfactual:none#3e4e9e": [
   "data_gap_report.gaps.[].describes.[].words.why.said.arm",
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=interventional_risk_unavailable_for_cell,priority=high",
   "status"
  ],
  "needs_investigation:counterfactual:none#7e6ebf": [
@@ -475,9 +470,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.said.count",
   "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.level_index",
   "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.statistic",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=interventional_risk_unavailable_for_cell,priority=high",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_monotonicity_undeclared,priority=high",
   "missing_information.[].priority@gap=missing_assumption,kind=assumption,need=interventional_risk_unavailable_for_cell",
   "missing_information.[].priority@gap=missing_assumption,kind=assumption,need=iv_monotonicity_undeclared",
   "status"
@@ -508,8 +500,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.feedback_loop.withdrew.[]",
-  "missing_information.[].name"
+  "extensions.feedback_loop.withdrew.[]"
  ],
  "needs_investigation:effect:none#06d3b8": [
   "estimation_context.ci_bootstrap",
@@ -529,21 +520,17 @@
   "estimation_context.random_state",
   "estimator_failure.recorded.e_treatment_high",
   "estimator_failure.recorded.e_treatment_low",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "missing_information.[].name"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#0e36ff": [
   "data_gap_report.gaps.[].describes.[].said.count",
-  "missing_information.[].name",
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#11ec26": [
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
-  "data_gap_report.gaps.[].describes.[].words.why.said.count",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_monotonicity_undeclared,priority=high"
+  "data_gap_report.gaps.[].describes.[].words.why.said.count"
  ],
  "needs_investigation:effect:none#17bf1c": [
   "confidence",
@@ -574,11 +561,7 @@
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.gaps.[].describes.[].words.why.said.detail",
   "extensions.transport_identification.sources.[].blocked_by",
-  "missing_information.[].name",
   "status"
- ],
- "needs_investigation:effect:none#2beaf3": [
-  "missing_information.[].name"
  ],
  "needs_investigation:effect:none#2dff45": [
   "extensions.missing_data_recovery.search_budget",
@@ -598,8 +581,7 @@
   "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#451831": [
-  "extensions.feedback_loop.withdrew.[]",
-  "missing_information.[].name"
+  "extensions.feedback_loop.withdrew.[]"
  ],
  "needs_investigation:effect:none#4beb47": [
   "estimation_context.ci_bootstrap",
@@ -643,9 +625,6 @@
   "estimator_failure.recorded.outcome_relative_std",
   "estimator_failure.recorded.outcome_scale"
  ],
- "needs_investigation:effect:none#614789": [
-  "missing_information.[].name"
- ],
  "needs_investigation:effect:none#63d205": [
   "missing_information.[].priority"
  ],
@@ -667,7 +646,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "missing_information.[].name",
   "status",
   "structural_result.value"
  ],
@@ -694,7 +672,6 @@
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
   "data_gap_report.gaps.[].describes.[].said.count",
-  "missing_information.[].name",
   "missing_information.[].observable.variables.[]",
   "missing_information.[].priority@gap=missing_distribution,kind=parameter,need=iv_wald_late_needs_entry"
  ],
@@ -716,9 +693,7 @@
  ],
  "needs_investigation:effect:none#a58bcc": [
   "data_gap_report.gaps.[].describes.[].said.count",
-  "data_gap_report.gaps.[].describes.[].words.why.said.total",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_stratum_weights_not_normalized,priority=high"
+  "data_gap_report.gaps.[].describes.[].words.why.said.total"
  ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].bootstrap.kind",
@@ -730,21 +705,17 @@
   "extensions.anderson_rubin_region.instruments.[]",
   "extensions.anderson_rubin_region.outcome",
   "extensions.type_reconciliation.checks.[].dtype_kind",
-  "missing_information.[].name",
   "status",
   "structural_result.value"
  ],
  "needs_investigation:effect:none#ae3c9c": [
   "bounds_results.[].lower_expression@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].upper_expression@method=balke_pearl_iv,tightness=sharp",
-  "data_gap_report.gaps.[].describes.[].said.count",
-  "missing_information.[].name",
-  "missing_information.[].name@gap=missing_assumption,kind=assumption,need=iv_first_stage_degenerate,priority=high"
+  "data_gap_report.gaps.[].describes.[].said.count"
  ],
  "needs_investigation:effect:none#af79f6": [
   "missing_information.[].gap",
   "missing_information.[].kind",
-  "missing_information.[].name",
   "missing_information.[].priority",
   "missing_information.[].said.count",
   "missing_information.[].said.fields",
@@ -777,8 +748,7 @@
   "data_gap_report.gaps.[].describes.[].said.won",
   "data_gap_report.gaps.[].provenance.[].ref_id@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,ref_kind=program_site",
   "data_gap_report.gaps.[].said.lost",
-  "data_gap_report.gaps.[].said.won",
-  "missing_information.[].name"
+  "data_gap_report.gaps.[].said.won"
  ],
  "needs_investigation:effect:none#cf69fc": [
   "estimation_context.ci_bootstrap",
@@ -793,22 +763,18 @@
   "estimator_failure.recorded.t_range"
  ],
  "needs_investigation:effect:none#f57a55": [
-  "bounds_results.[].notes.[].said.cap",
-  "missing_information.[].name"
+  "bounds_results.[].notes.[].said.cap"
  ],
  "needs_investigation:effect:none#fe9f0f": [
   "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:proximal_effect:none": [
-  "missing_information.[].name",
   "status"
  ],
  "needs_investigation:proximal_effect:none#51f497": [
-  "missing_information.[].name",
   "status"
  ],
  "needs_investigation:proximal_effect:none#a04ee4": [
-  "missing_information.[].name",
   "status"
  ],
  "needs_investigation:proximal_effect:none#edc983": [
@@ -816,18 +782,13 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "missing_information.[].name",
   "status"
- ],
- "needs_investigation:scm_counterfactual:none": [
-  "missing_information.[].name"
  ],
  "needs_investigation:scm_counterfactual:none#f2b812": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "missing_information.[].name",
   "missing_information.[].priority"
  ],
  "numerically_solved:causation:numeric_causation_estimate": [

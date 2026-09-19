@@ -292,13 +292,26 @@ def test_the_remainder_split_is_what_it_is():
     door, and the rule for the return trip was written years before this
     one. A heading here describes where a second writing of a VALUE is.
     It says nothing about the other direction of the same record.
+
+    Thirteenth use, and the first time the pointed-at heading was NOT the
+    last one. Thirty-two of the thirty-three leaves were filed under
+    "somewhere in the answer, named otherwise", and the heading was exactly
+    right: the name a shortfall is filed under is written a second time on
+    the same envelope, as the target of the ask it was pushed into. That
+    second writing is what holds the half no declaration can -- the subject
+    is the occasion's -- while the channel half is recomputed from the
+    species instead. So one leaf was closed by two different kinds of
+    thing at once, and only one of them is what this heading describes.
+    The thirty-third is the framing channel's, whose ask carries the
+    subject without the channel, so no second writing of the NAME exists
+    and the last heading had it right too.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 245,
+        gate._ANSWER_OTHERWISE: 213,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 603,
+        gate._NOTHING: 602,
         gate._EVERY_READING_MATCHES: 89,
     }
 

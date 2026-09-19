@@ -123,6 +123,16 @@ structural row's name carries a digest of the shapes that earned it its
 place, and which candidate in a run wears the bare name depends on what
 else that run collected.
 
+Which rows those are is asked of the row and answered against the run, and
+the answer was being used for one decision too many. A row with no chain
+that loses shapes to its own program is not program-alone — that much the
+measurement says — and the refusal said so and stopped, including when the
+caller had already named the file that produced it. The sentence it stops
+on is the instruction it refuses to carry out. So the measurement decides
+which ROUTE a named row takes and not whether it may be refreshed at all:
+with no files named there is nowhere else for it to come from and the
+refusal stands, and with files named it goes through them like any other.
+
 Which rows those are is NOT "the ones with no chain". ``estimate`` writes
 into the very dicts ``run`` hands back, so a row can be numerically solved
 and carry no chain, and re-running its program alone would answer a
@@ -170,6 +180,12 @@ def _parse(argv: list[str]) -> tuple[str, set[str], list[str]]:
     full re-collection must not be asked to do — re-running every numeric
     row would move the declared remainder because the sample moved rather
     than because a hole opened or closed.
+
+    ``--only`` hands back the files as given, empty included, because a
+    row that its own program does not reproduce is refused where there is
+    nowhere else to look and refreshed from the named files where there
+    is. The suite-wide default is applied at the one place that runs
+    pytest.
     """
     if argv and argv[0] == "--structural":
         paths = [str(ROOT / p) for p in argv[1:]] or [str(ROOT / "tests")]
@@ -177,8 +193,10 @@ def _parse(argv: list[str]) -> tuple[str, set[str], list[str]]:
     if not argv or argv[0] != "--only":
         return "all", set(), [str(ROOT / "tests")]
     wanted = {name for name in argv[1].split(",") if name}
-    paths = [str(ROOT / p) for p in argv[2:]] or [str(ROOT / "tests")]
-    return "only", wanted, paths
+    # Not defaulted here, unlike the other two modes: whether the caller
+    # named files is a question the refresh below has to ask, and a default
+    # filled in at the door is the answer already lost.
+    return "only", wanted, [str(ROOT / p) for p in argv[2:]]
 
 
 def _leaf_shapes(node, path=(), out=None) -> set[str]:
@@ -296,12 +314,18 @@ if __name__ == "__main__":
             again = json.loads(json.dumps(fresh[0], ensure_ascii=False))
             was, now = _leaf_shapes(row["result"]), _leaf_shapes(again)
             if was - now:
-                raise SystemExit(
-                    f"\n{name}: its program alone answers with "
-                    f"{len(was - now)} of this row's shapes missing, so the "
-                    f"program is not the whole of what produced it — name "
-                    f"the test that did, and it refreshes through the suite "
-                    f"like any other row; snapshot untouched")
+                if not paths:
+                    raise SystemExit(
+                        f"\n{name}: its program alone answers with "
+                        f"{len(was - now)} of this row's shapes missing, so "
+                        f"the program is not the whole of what produced it "
+                        f"— name the test that did, and it refreshes "
+                        f"through the suite like any other row; snapshot "
+                        f"untouched")
+                print(f"{name}: {len(was - now)} of its shapes are ones its "
+                      f"program alone does not bring back, so it refreshes "
+                      f"from the named files rather than from itself")
+                continue
             refreshed[name] = {"program": row["program"], "result": again}
         wanted = wanted - set(refreshed)
 
@@ -438,7 +462,7 @@ if __name__ == "__main__":
     # nothing left to find.
     if mode != "only" or wanted:
         pytest.main(["-q", "--no-header", "-p", "no:cacheprovider", "--tb=no",
-                     *paths])
+                     *(paths or [str(ROOT / "tests")])])
 
     #: Which public door reads an answer: ``verify`` re-runs the chain and
     #: needs one, ``verify_answer_claims`` holds what the answer says. Two

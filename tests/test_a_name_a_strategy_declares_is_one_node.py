@@ -105,8 +105,7 @@ def test_a_name_the_graph_holds_at_several_steps_is_asked_about(name):
     result = _run(program)
     assert result["status"] == "needs_investigation"
     assert "longitudinal_identification" not in (result.get("extensions") or {})
-    assert _asks(result) == ["longitudinal:name_holds_several_nodes:A",
-                             "longitudinal:name_holds_several_nodes:L"]
+    assert _asks(result) == ["longitudinal:A", "longitudinal:L"]
     themis.verify_answer_claims(program, result)
     themis.verify_refusal(program, result)
 

@@ -163,7 +163,22 @@ def _answered_as(monkeypatch, program, old, new):
     real = gaps.missing
 
     def missing(*, need, **rest):
-        return real(need=gaps.Need(new) if str(need) == old else need, **rest)
+        if str(need) != old:
+            return real(need=need, **rest)
+        swapped = gaps.Need(new)
+        # The name a row is filed under follows its species, so the half a
+        # site supplies follows it too. This forgery is of a kernel that
+        # raised the OTHER species, and such a kernel would have handed
+        # over that species' half; keeping this call's is forging a
+        # producer that cannot exist, which gaps.filed says rather than
+        # building a name for it.
+        rest.pop("channel", None)
+        rest.pop("subject", None)
+        if swapped in gaps.FILED_UNDER:
+            rest["subject"] = "the_forged_occasion"
+        elif swapped in gaps.FILED_ABOUT:
+            rest["channel"] = "mediation"
+        return real(need=swapped, **rest)
 
     monkeypatch.setattr(gaps, "missing", missing)
     result = _answer(program)

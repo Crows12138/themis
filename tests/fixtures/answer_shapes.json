@@ -58003,7 +58003,7 @@ false
 "kind": "missing_structural_input",
 "provenance": [
 {
-"ref_id": "longitudinal:atom_not_in_graph:NOPE",
+"ref_id": "atom:NOPE",
 "ref_kind": "investigation_request"
 }
 ],
@@ -58151,7 +58151,7 @@ false
 "said": {
 "atom": "NOPE"
 },
-"target": "longitudinal:atom_not_in_graph:NOPE",
+"target": "atom:NOPE",
 "words": {
 "part": {
 "token": "longitudinal_spec",
@@ -58173,7 +58173,7 @@ false
 }
 },
 "priority": "high",
-"target": "longitudinal:atom_not_in_graph:NOPE"
+"target": "atom:NOPE"
 },
 {
 "action": "define_variable",
@@ -58240,7 +58240,7 @@ false
 {
 "gap": "missing_structural_input",
 "kind": "structure",
-"name": "longitudinal:atom_not_in_graph:NOPE",
+"name": "atom:NOPE",
 "need": "atom_not_in_graph",
 "priority": "high",
 "said": {
@@ -74770,7 +74770,7 @@ false
 "kind": "unidentifiable_no_admissible_set",
 "provenance": [
 {
-"ref_id": "longitudinal:sequential_exchangeability_fails:A1(subj)",
+"ref_id": "longitudinal:A1(subj)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -75008,7 +75008,7 @@ false
 "time": "1",
 "treatment": "A1(subj)"
 },
-"target": "longitudinal:sequential_exchangeability_fails:A1(subj)"
+"target": "longitudinal:A1(subj)"
 }
 ],
 "note": {
@@ -75020,7 +75020,7 @@ false
 }
 },
 "priority": "high",
-"target": "longitudinal:sequential_exchangeability_fails:A1(subj)"
+"target": "longitudinal:A1(subj)"
 },
 {
 "action": "define_variable",
@@ -75087,7 +75087,7 @@ false
 {
 "gap": "unidentifiable_no_admissible_set",
 "kind": "structure",
-"name": "longitudinal:sequential_exchangeability_fails:A1(subj)",
+"name": "longitudinal:A1(subj)",
 "need": "sequential_exchangeability_fails",
 "priority": "high",
 "said": {

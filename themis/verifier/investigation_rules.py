@@ -941,6 +941,122 @@ def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
         )
 
 
+def _check_the_name_this_row_is_filed_under(
+    where: str, row: Mapping,
+) -> None:
+    """The heading a shortfall is filed under, and what it says there.
+
+    A name is a pair: the channel that repairs the shortfall, and what in
+    particular is short. Which half the species settles and which the
+    occasion does is declared beside the species in ``themis.gaps``, and
+    the channel is recomputed from there rather than read off the row —
+    because a channel the row carries for itself can disagree with the
+    species in the field beside it, and one species was filed under two
+    channels across seven sites without a stored answer able to show it.
+
+    The subject half is the occasion's, so there is nothing here to
+    rebuild it from. What holds that half is
+    :func:`_check_every_row_is_named_by_an_ask`, below and last, because
+    it is a fact about both lists rather than about this row.
+
+    Silent where the row names no species: what a row with no species is
+    filed under is not a question this declaration answers.
+    """
+    need = row.get("need")
+    if not isinstance(need, str):
+        return
+    species = _gaps.BY_NAME.get(need)
+    if species is None:
+        # As for an ask's species: a word outside the vocabulary is
+        # refused by the schema the door validates against, before this.
+        return
+    name = row.get("name")
+    if not isinstance(name, str) or not name:
+        _reject(
+            f"{where} is a shortfall filed under {name!r}; the name is the "
+            f"key this row is indexed by and the target an ask resolves "
+            f"against, so a row without one is a row nothing on the "
+            f"reader's list can be pointed at"
+        )
+    if species in _gaps.FILES_NO_ROW:
+        _reject(
+            f"{where} files a {need!r} shortfall and that species files "
+            f"none: {_gaps.FILES_NO_ROW[species]}"
+        )
+    head, colon, subject = name.partition(":")
+    whole = _gaps.FILED_WHOLE.get(species)
+    if whole is not None and name != whole:
+        _reject(
+            f"{where} files a {need!r} shortfall under {name!r}, and that "
+            f"species is filed whole under {whole!r}; it carries nothing "
+            f"of the occasion that raised it, so every raising is the same "
+            f"row and there is no second name for one of them to be under"
+        )
+    channel = _gaps.FILED_UNDER.get(species)
+    if channel is not None and (head != channel or not subject):
+        _reject(
+            f"{where} files a {need!r} shortfall under {name!r}; that "
+            f"species is repaired through the {channel!r} channel, and "
+            f"what follows it is what in particular is short. A name "
+            f"shaped otherwise files this row under a heading nothing "
+            f"else on the envelope uses, and the ask pointing at it "
+            f"resolves against nothing"
+        )
+    about = _gaps.FILED_ABOUT.get(species)
+    if about is not None and (not head or not colon or subject != about):
+        _reject(
+            f"{where} files a {need!r} shortfall under {name!r}; the "
+            f"caller names the channel for this species and what it is "
+            f"about is the species' own, {about!r}. A subject that is not "
+            f"that one is this row claiming to be about something the "
+            f"species it names cannot be about"
+        )
+
+
+def _check_every_row_is_named_by_an_ask(
+    result: Mapping, asked: frozenset,
+) -> None:
+    """The two lists a reader is handed, against each other.
+
+    ``missing_information`` says what is short and
+    ``investigation_requests`` says what to go and do about it, and the
+    second is pushed from the first: an ask carries the row's name over as
+    its target. So every row is named by an ask, and one that is not is a
+    row the reader's list does not reach — a name that moved after the ask
+    was built, which also switches off the checks on that ask, or a
+    shortfall nobody is ever told about. That second failure is the one
+    :func:`_check_the_row_says_one_thing_three_times` describes in its own
+    docstring and could only see where a parameter key stood beside it.
+
+    Last, after every rule that reads a single ask. Those say what one
+    item is wrong about; this can only say the two lists no longer line
+    up, and a reader shown the narrower sentence does not have to work out
+    which of the two moved.
+
+    Two spellings answer, because two producers write asks: the pusher
+    carries the whole name, and the framing channel writes its item
+    directly and puts the subject there without the channel. Narrowing
+    that to one would be a decision about what a framing ask's target is,
+    which is the ask's field and not the row's.
+    """
+    for mi, row in enumerate(result.get("missing_information") or ()):
+        if not isinstance(row, Mapping):
+            continue
+        name = row.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        if name in asked or name.partition(":")[2] in asked:
+            continue
+        _reject(
+            f"missing_information[{mi}] is filed under {name!r} and no ask "
+            f"on this envelope names it; every row is pushed into an ask "
+            f"that carries this name over as its target, so a row no ask "
+            f"reaches is either a name that moved after the ask was built "
+            f"— which silently switches off the checks on that ask — or a "
+            f"shortfall the reader is never told about"
+        )
+
+
 def _skeleton_atoms(node: Any, out: list) -> list:
     """Every atom in a skeleton, as the envelope spells them.
 
@@ -1076,9 +1192,26 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         for row in result.get("missing_information") or ()
         if isinstance(row, Mapping)
     }
+    #: What the asks name. A row's name is the key those asks resolve
+    #: against, so this is the other side of the dict above: the one that
+    #: says whether anything on the reader's list reaches a given row.
+    asked = frozenset(
+        target
+        for request in requests if isinstance(request, Mapping)
+        for item in request.get("items") or ()
+        if isinstance(item, Mapping)
+        and isinstance(target := item.get("target"), str)
+    )
     for mi, row in enumerate(result.get("missing_information") or ()):
         if isinstance(row, Mapping):
+            # The narrower one first. Both hold the name, and where a
+            # parameter key stands beside it that rule can name the
+            # record the name disagrees with; this one can only say the
+            # heading is wrong. A reader who is told which parameter is
+            # under which heading does not have to go and diff the row.
             _check_the_row_says_one_thing_three_times(
+                f"missing_information[{mi}]", row)
+            _check_the_name_this_row_is_filed_under(
                 f"missing_information[{mi}]", row)
     #: The species this answer's own report says it found. ``None`` where
     #: there is no report to ask — an answer that reported nothing is not
@@ -1181,3 +1314,7 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         _check_the_note_is_what_the_items_share(
             f"investigation_requests[{ri}]", request,
             [i for i in request.get("items") or () if isinstance(i, Mapping)])
+    # After every ask has been read, for the reason that rule gives: it is
+    # the widest thing that can be wrong here, and standing in front of the
+    # narrower ones it would answer a question nobody asked.
+    _check_every_row_is_named_by_an_ask(result, asked)

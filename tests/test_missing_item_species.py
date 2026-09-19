@@ -221,7 +221,7 @@ def test_a_longitudinal_spec_naming_an_undeclared_variable_is_a_defect():
         ],
     })
     _assert_declared_species_reaches_the_report(
-        result, "longitudinal:atom_not_in_graph:NOPE",
+        result, "atom:NOPE",
         "missing_structural_input",
     )
 

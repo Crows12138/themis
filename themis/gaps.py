@@ -5223,7 +5223,242 @@ def registered(need) -> Need:
     return found
 
 
-def missing(*, kind: MissingKind, name: str, priority: Priority, need: Need,
+
+FILED_WHOLE: dict[Need, str] = {
+    # --- no estimand exists, and the row says only that -------------------
+    Need.NO_C_FACTOR_WITNESS: "query:identify_unreachable",
+    Need.NO_BACKDOOR_OR_FRONTDOOR: "identification:not_identifiable",
+    Need.CONDITIONAL_ADMG_NOT_IDENTIFIABLE: "query:effect_admg_conditional",
+    # The pair a conditional at one site picks between. They share a name
+    # because the reader is being told the same thing is unavailable; the
+    # species is where they differ, and that is the field carrying it.
+    Need.ADMG_EFFECT_NOT_IDENTIFIABLE: "query:effect_admg",
+    Need.ADMG_EFFECT_REACHABLE_ONLY_BY_INSTRUMENT: "query:effect_admg",
+    Need.PROXIMAL_NOT_IDENTIFIABLE: "query:proximal_not_identifiable",
+    Need.COUNTERFACTUAL_NOT_IDENTIFIABLE: "query:counterfactual_unidentifiable",
+    Need.CONDITIONING_EVENT_HAS_PROBABILITY_ZERO:
+        "query:conditioning_event_probability_zero",
+    # --- the question itself is malformed, in a way with one shape --------
+    Need.JOINT_EFFECT_NOT_IDENTIFIABLE: "identification:joint_not_identifiable",
+    Need.JOINT_WITH_MEDIATION_OR_TRANSPORT: "joint:unsupported_layer_combination",
+    Need.DUPLICATE_TREATMENT_ATOM: "joint:duplicate_treatment",
+    Need.MEDIATOR_OFF_THE_DIRECTED_PATHS: "mediation:invalid_mediator",
+    Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS:
+        "mediation_joint:invalid_mediator_set",
+    # --- the instrument route, and what it is short of --------------------
+    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED:
+        "effect:iv_stratum_weights_not_normalized",
+    Need.IV_FIRST_STAGE_DEGENERATE: "effect:iv_first_stage_degenerate",
+    Need.IV_MONOTONICITY_UNDECLARED: "effect:iv_monotonicity_undeclared",
+    Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE:
+        "effect:feedback_loop_reaches_the_estimand",
+    Need.FEEDBACK_LOOP_NEEDS_AN_INSTRUMENT:
+        "effect:feedback_loop_needs_an_instrument",
+    # --- the attribution layer, where the risks come from -----------------
+    Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL:
+        "counterfactual:interventional_risk_unavailable",
+    Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT:
+        "causation:interventional_risks_infeasible",
+    # The second pair sharing a name, for the same reason as the first.
+    Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE:
+        "causation:interventional_risk_unavailable",
+    Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS:
+        "causation:interventional_risk_unavailable",
+    # --- and the bound the evaluator could not resolve --------------------
+    Need.QUERY_BOUND_ATOM_UNRESOLVED: "numeric:unresolved_query_bound",
+}
+"""Where a shortfall of this species is filed, whole.
+
+The name on a ``missing_information`` row is a pair: which channel
+repairs it, and what in particular. For these species there is no what in
+particular — the row says the same thing every time one is raised — so a
+site that spelled the name could only spell it differently. Two of them
+are raised from a conditional that picks the species, which would have
+had to pick a matching spelling beside it.
+"""
+
+
+FILED_UNDER: dict[Need, str] = {
+    # --- the question names something the graph does not ------------------
+    Need.ATOM_NOT_IN_GRAPH: "atom",
+    Need.NAME_HOLDS_SEVERAL_NODES: "longitudinal",
+    Need.SEQUENTIAL_EXCHANGEABILITY_FAILS: "longitudinal",
+    Need.GIVEN_HOLDS_THE_TREATMENT_OR_OUTCOME: "query",
+    # --- a number, an edge or a unit that has to be supplied --------------
+    Need.PATH_COEFFICIENT_UNDECLARED: "coefficient",
+    Need.UNIT_OBSERVATION_MISSING: "observation",
+    Need.THETA_ENTRY_MISSING: "parameter",
+    Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL: "parameter",
+    Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY: "parameter",
+    Need.IV_WALD_LATE_NEEDS_ENTRY: "parameter",
+    Need.IV_WALD_LATE_NEEDS_ENTRY_IN_STRATUM: "parameter",
+    # --- and the two channels that name a population or a declaration -----
+    Need.TRANSPORT_NOT_IDENTIFIABLE: "transport",
+    Need.TRANSPORT_SOURCES_DISAGREE: "transport_sources",
+    Need.FRAMING_FIELDS_UNFILLED: "framing",
+}
+"""The channel, for the species whose rows differ by what they are about.
+
+The site names the subject and nothing else, so the channel cannot drift
+between two sites raising the same species. It had drifted:
+``ATOM_NOT_IN_GRAPH`` was filed under ``atom`` at six sites and under
+``longitudinal`` at a seventh. No stored answer could show it, because
+the seventh is the only one a stored answer reaches — which is the
+argument for settling it here rather than in a test over the corpus.
+
+That seventh site also wrote the species' own token into the subject, as
+two of its neighbours still did. The ``need`` field beside the name
+already carries the species, and a second copy is a second thing to keep
+in agreement, so the subject is what the row is about and nothing else.
+"""
+
+
+FILED_ABOUT: dict[Need, str] = {
+    Need.DECOMPOSITION_WITHIN_A_STRATUM_THE_TREATMENT_MOVES:
+        "stratum_moved_by_the_treatment",
+}
+"""The subject, for the species whose CHANNEL is the occasion's.
+
+One member, and the asymmetry is the fact rather than an exception made
+to fit it: the channel says which decomposition asked — mediation, or the
+joint one — and that is the dispatcher's fact, not the species'. What the
+row is about is the species' own, and is the same either way.
+"""
+
+
+FILES_NO_ROW: dict[Need, str] = {
+    Need.THE_PENALTY_IS_DOING_THE_WORK: (
+        "raised beside a number rather than as a shortfall: nothing is "
+        "missing, and what the reader is told is that the penalty which "
+        "made the bridge equation solvable is also moving the answer"
+    ),
+}
+"""And the species that reaches :func:`missing` on no path, with the why.
+
+Declared rather than omitted, for the reason :data:`NO_SPECIES_ESCAPE`
+gives: an entry saying "no row, and here is why" is checkable and an
+absent one cannot be told from an oversight.
+"""
+
+
+def _bind_filings() -> None:
+    """Every species says where its rows are filed, in exactly one way.
+
+    The name is two halves, and each half is either the species' or the
+    occasion's. Three of the four combinations are above. The fourth —
+    both halves the site's — is the state this table replaces, and it is
+    not a table you can be on: a site that names the channel as well as
+    the subject is a site that can file one species under two headings,
+    which is what six sites and a seventh were doing.
+
+    A species is allowed to share a whole name with another, and two
+    pairs do. Sharing is not a clash: those pairs are raised from one
+    conditional apiece, the reader is told the same thing is unavailable
+    either way, and the species is the field that says which it was.
+    """
+    tables = (FILED_WHOLE, FILED_UNDER, FILED_ABOUT, FILES_NO_ROW)
+    unplaced = sorted(
+        str(n) for n in Need if not any(n in t for t in tables))
+    if unplaced:
+        raise ValueError(
+            f"no filing declared for {unplaced}; a species that reaches "
+            f"gaps.missing says where its rows go, and one that does not "
+            f"says so in gaps.FILES_NO_ROW"
+        )
+    twice = sorted(
+        str(n) for n in Need if sum(n in t for t in tables) > 1)
+    if twice:
+        raise ValueError(
+            f"{twice} declare their filing two ways; which one a row got "
+            f"would depend on lookup order"
+        )
+    unpaired = sorted(
+        f"{n}:{whole!r}" for n, whole in FILED_WHOLE.items()
+        if whole.count(":") != 1 or not all(whole.split(":"))
+    )
+    if unpaired:
+        raise ValueError(
+            f"{unpaired} are filed whole under a name that is not a "
+            f"channel and a subject; the reader's index is split on that "
+            f"colon and a name without one lands under nothing"
+        )
+    halves = sorted(
+        f"{n}:{half!r}"
+        for table in (FILED_UNDER, FILED_ABOUT)
+        for n, half in table.items()
+        if not half or ":" in half
+    )
+    if halves:
+        raise ValueError(
+            f"{halves} declare a half that is empty or carries the "
+            f"separator; the other half comes from the site, and a half "
+            f"with a colon in it would decide where the split falls"
+        )
+    silent = sorted(str(n) for n, why in FILES_NO_ROW.items() if not why)
+    if silent:
+        raise ValueError(
+            f"{silent} file no row and give no reason; an absence that "
+            f"says nothing is indistinguishable from an oversight"
+        )
+
+
+_bind_filings()
+
+
+def filed(need, *, channel: str | None = None,
+          subject: str | None = None) -> str:
+    """The name a shortfall of this species is filed under.
+
+    One author for the string, and the tables above say which half the
+    site is allowed to supply. A site handing over the half its species
+    already settles is refused rather than obeyed: the two would be
+    authorities for one field, and a reader following the one that lost
+    lands on a heading nothing else on the envelope uses.
+
+    The name is also the key the envelope indexes rows by, and an ask
+    resolves its target against it. So the halves are not decoration —
+    a channel that moved would quietly unhook the ask pointing at it.
+    """
+    species = registered(need)
+    if species in FILES_NO_ROW:
+        raise ValueError(
+            f"{species} files no missing_information row: "
+            f"{FILES_NO_ROW[species]}"
+        )
+    if species in FILED_WHOLE:
+        _unspelt(species, channel=channel, subject=subject)
+        return FILED_WHOLE[species]
+    if species in FILED_UNDER:
+        _unspelt(species, channel=channel)
+        return f"{FILED_UNDER[species]}:{_spelt(species, 'subject', subject)}"
+    _unspelt(species, subject=subject)
+    return f"{_spelt(species, 'channel', channel)}:{FILED_ABOUT[species]}"
+
+
+def _spelt(species: Need, half: str, given) -> str:
+    """The half this occasion owes, or a refusal to name the row without it."""
+    if not isinstance(given, str) or not given:
+        raise ValueError(
+            f"{species} is filed with the {half} named by the site and "
+            f"this one passed {given!r}; the species settles the other "
+            f"half only, so there is nothing to file this row under"
+        )
+    return given
+
+
+def _unspelt(species: Need, **given) -> None:
+    """Refuse a half the species has already settled."""
+    for half, value in given.items():
+        if value is not None:
+            raise ValueError(
+                f"{species} settles its own {half} and this site passed "
+                f"{value!r}; whichever of the two won, the other is an "
+                f"author of a field it does not own"
+            )
+
+
+def missing(*, kind: MissingKind, priority: Priority, need: Need,
+            channel: str | None = None, subject: str | None = None,
             observable: Observable | None = None,
             skeleton: dict | None = None,
             superseded_by_estimation: bool = False,
@@ -5233,13 +5468,25 @@ def missing(*, kind: MissingKind, name: str, priority: Priority, need: Need,
     The door. A site hands over a species and this occasion's facts and
     writes no sentence, which is what makes the sentence one author's; the
     ``gap`` is read off the species here rather than passed, so the two
-    cannot contradict each other.
+    cannot contradict each other. The ``name`` is read the same way, for
+    the same reason and one more: it is the key rows are indexed by, so a
+    site free to spell it was free to file two raisings of one species
+    under two headings, and free to file one under a heading no ask on
+    the envelope points at.
 
     The split into value slots and word slots happens now, before the
     facts are flattened for the envelope: after that a word is a bare
     token and which set it came from is exactly what the flattening loses.
     """
+    if "name" in details:
+        raise ValueError(
+            f"missing() was passed name={details['name']!r}; the name is "
+            f"built from the species and the half gaps.FILED_UNDER or "
+            f"gaps.FILED_ABOUT leaves to the site, and a stray one here "
+            f"would ride onto the envelope as a rendered fact instead"
+        )
     species = registered(need)
+    name = filed(species, channel=channel, subject=subject)
     if str(species) not in SAYS:
         raise ValueError(
             f"{species} has no sentence in themis.gaps.SAYS; declare it "

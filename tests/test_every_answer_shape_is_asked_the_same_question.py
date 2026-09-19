@@ -2080,9 +2080,24 @@ def test_the_declared_remainder_is_what_it_is():
     All 30 sat under the last heading, the third frontier running to end
     there. What closed them is neither a comparison nor a membership
     check but the other direction of the same record.
+
+    Then 33 fewer, off the heading a shortfall is filed under. 37 sites
+    spelled that name and nothing said what it had to be, so one species
+    was filed under two channels across seven of them and three wrote the
+    species' own token into the subject the field beside it already
+    carries. The name is a channel and a subject; which half the species
+    settles and which the occasion does is now declared beside the
+    species, and the door builds the name rather than taking one.
+
+    33 and not 26, which is the count this frontier predicted before the
+    gate ran. A leaf shape appears here once bare and once per record
+    species that carries it, since that is how the sweep asks; matching
+    the shape by equality counted the bare one and missed seven siblings
+    spelled ``shape@k=v,...``. The row count was predicted exactly, because
+    a row leaves on its whole leaf set rather than on one path.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1162, total
+    assert total == 1129, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

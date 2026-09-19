@@ -1000,6 +1000,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "reason, or its routes name variables only the site knows. The "
         "reader is handed neither sentence, only the routes the species "
         "DOES settle, each a ``Route`` with its bilingual line beside it"),
+    "themis/gaps.py::FILES_NO_ROW[]": (
+        Wrote.UNREAD,
+        "why a species files no shortfall row at all — the same note as "
+        "``NO_SPECIES_ESCAPE`` above, one field along: that table says "
+        "why a species settles no route, this one why it reaches the "
+        "door that builds a row on no path. Whoever adds the next "
+        "species reads it; a reader is never handed it, because there is "
+        "no row for it to be written on"),
     "themis/gaps.py::NO_WAY_PAST[]": (
         Wrote.UNREAD,
         "the same note one grain coarser — why a SPECIES has no way past "

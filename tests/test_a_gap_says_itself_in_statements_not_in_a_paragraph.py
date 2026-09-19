@@ -610,7 +610,7 @@ def test_the_browser_is_handed_the_table_and_not_the_paragraph():
 def test_a_shortfall_in_a_hole_travels_as_a_statement():
     """Which sentence and this occasion's facts, not the sentence."""
     item = gaps.missing(
-        kind=gaps.MissingKind.STRUCTURE, name="x",
+        kind=gaps.MissingKind.STRUCTURE, subject="x",
         priority=gaps.Priority.HIGH, need=gaps.Need.ATOM_NOT_IN_GRAPH,
         part=gaps.QueryPart.QUERY, atom="x")
     one = gaps.shortfall(item)

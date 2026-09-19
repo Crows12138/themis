@@ -3442,7 +3442,9 @@
           ]
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "Which heading this shortfall is filed under: a channel, a colon, and what in particular is short. The channel is a function of 'need' alone — themis.gaps declares it beside the species — and the subject belongs to the occasion, so two rows of one species agree on the first half and differ, where they differ at all, in the second. This is also the key the envelope indexes rows by: an investigation item's 'target' is this string, carried over when the ask was built from the row, and a consumer joining the two sides joins on it."
         },
         "priority": {
           "enum": [

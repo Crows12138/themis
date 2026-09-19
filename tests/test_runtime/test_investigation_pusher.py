@@ -17,16 +17,36 @@ from themis.types import (
 #: "these two have the same thing to say" without saying it twice.
 _NAMED = gaps.Need.THETA_ENTRY_MISSING
 _UNSLOTTED = gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED
+#: A second species of the same sort, for the one test that needs two
+#: items whose notes carry no value slots and whose names differ. They
+#: differ by species and not by spelling: a species that says nothing
+#: about its occasion is filed under one name every time it is raised,
+#: so there is no second spelling of it to hand out.
+_UNSLOTTED_TOO = gaps.Need.NO_BACKDOOR_OR_FRONTDOOR
 
 
-def _mk(kind: MissingKind, name: str = "x", **occasion) -> MissingItem:
-    if not occasion:
+def _mk(kind: MissingKind, subject: str = "x", **occasion) -> MissingItem:
+    """An item, built the way the channel that raises one would.
+
+    With a species, through the door — so the name is the one that
+    species is filed under, and ``subject`` is the half a site
+    supplies where there is one to supply. Where the species settles
+    the whole name there is nothing to pass and nothing is passed.
+
+    Without one, the record straight: most of these tests are about
+    the pusher's mapping from kind to action, and a species would
+    only add a sentence none of them read.
+    """
+    need = occasion.get("need")
+    if need is None:
         return MissingItem(
-            kind=kind, name=name, priority=Priority.MEDIUM,
+            kind=kind, name=subject, priority=Priority.MEDIUM,
             gap=GapKind.MISSING_DISTRIBUTION,
         )
     return gaps.missing(
-        kind=kind, name=name, priority=Priority.MEDIUM, **occasion)
+        kind=kind, priority=Priority.MEDIUM,
+        **({"subject": subject} if need in gaps.FILED_UNDER else {}),
+        **occasion)
 
 
 def test_parameter_becomes_validate_parameter():
@@ -132,13 +152,13 @@ def test_group_priority_is_max_across_items():
 def test_single_item_group_still_looks_like_before():
     """One-item groups preserve the pre-9.x-B target/note surface so
     existing callers don't have to care about groups."""
-    reqs = push((_mk(MissingKind.PARAMETER, "p", need=_UNSLOTTED),))
+    reqs = push((_mk(MissingKind.PARAMETER, need=_UNSLOTTED),))
     r = reqs[0]
-    assert r.target == "p"
+    assert r.target == "numeric:unresolved_query_bound"
     assert r.note == {"need": "query_bound_atom_unresolved"}
     # Items are still populated though, just with one entry.
     assert len(r.items) == 1
-    assert r.items[0].target == "p"
+    assert r.items[0].target == "numeric:unresolved_query_bound"
     assert r.items[0].need is _UNSLOTTED
 
 
@@ -153,7 +173,7 @@ def test_a_group_whose_items_ask_for_different_things_has_no_note():
     they would have been rendered in."""
     reqs = push((
         _mk(MissingKind.PARAMETER, "a", need=_NAMED, key="P(y|x)"),
-        _mk(MissingKind.PARAMETER, "b", need=_UNSLOTTED),
+        _mk(MissingKind.PARAMETER, need=_UNSLOTTED),
     ))
     assert reqs[0].target == "parameter:2_items"
     assert reqs[0].note is None
@@ -218,10 +238,9 @@ def test_a_shrunk_request_describes_the_items_it_still_holds():
     from themis.estimation.dispatch import _drop_investigation_items
 
     raised = (
-        _mk(MissingKind.PARAMETER, "parameter:P(y|x)",
-            need=_NAMED, key="P(y|x)"),
-        _mk(MissingKind.PARAMETER, "parameter:P*(y|x)", need=_UNSLOTTED),
-        _mk(MissingKind.PARAMETER, "parameter:P*(z)", need=_UNSLOTTED),
+        _mk(MissingKind.PARAMETER, "P(y|x)", need=_NAMED, key="P(y|x)"),
+        _mk(MissingKind.PARAMETER, need=_UNSLOTTED),
+        _mk(MissingKind.PARAMETER, need=_UNSLOTTED_TOO),
     )
     written = push(raised)
     result = {
