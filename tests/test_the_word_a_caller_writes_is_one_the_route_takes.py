@@ -333,7 +333,7 @@ def _writes_an_answer(f, r, k):
 def _table(models):
     return check_table((
         Strategy(
-            route=routing.Route(id="row", precedence=10,
+            route=routing.Route(id="backdoor", precedence=10,
                                 applies_when=lambda f: True,
                                 ends=routing.ESTIMATES),
             role=Role.CLAIM, produces=Estimand.QUERY_EFFECT,
@@ -361,9 +361,9 @@ def test_a_row_that_answers_under_a_word_it_did_not_declare_is_refused():
     evaluation = run_cascade(_table(MODEL_WORDS_NONE), None, result,
                              _knobs("linear"), query_id="q1")
     assert evaluation.fired is None
-    assert evaluation.declined == (("row", "estimator_refused"),)
+    assert evaluation.declined == (("backdoor", "estimator_refused"),)
     failure = result["estimator_failure"]
-    assert failure["estimator"] == "row"
+    assert failure["estimator"] == "backdoor"
     assert failure["failure_type"] == "unknown_option"
     assert failure["details"] == {
         "option": "model", "given": "linear", "known": ["auto"],
@@ -384,7 +384,7 @@ def test_a_row_that_answers_under_a_word_it_declared_is_left_alone():
         _table(MODEL_WORDS_OUTCOME), None, {}, _knobs("linear"),
         query_id="q1",
     )
-    assert evaluation.fired == ("row", Estimand.QUERY_EFFECT)
+    assert evaluation.fired == ("backdoor", Estimand.QUERY_EFFECT)
 
 
 def test_a_row_that_passes_under_a_word_it_did_not_declare_is_left_alone():

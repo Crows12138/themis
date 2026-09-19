@@ -71980,7 +71980,7 @@ false
 100.0
 ]
 },
-"estimator": "dose_response_drlearner_dml",
+"estimator": "dose_response_curve",
 "failure_type": "too_sparse_to_estimate",
 "kind": "data",
 "recorded": {

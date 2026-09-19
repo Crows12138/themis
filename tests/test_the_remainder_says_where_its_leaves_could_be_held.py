@@ -274,13 +274,22 @@ def test_the_remainder_split_is_what_it_is():
     documents this reading reads. The caveat the docstring above makes
     about `_NOTHING` holds of this heading too, and all thirty-one went
     at once.
+
+    Eleventh use, and the caveat came due on `_NOTHING` itself. Thirty-two
+    of the thirty-seven estimator names sat there -- no second writing of
+    the name anywhere on either document, which is exactly what the
+    heading says. What held them was not a second writing but a roster:
+    the names this build can give, read from the two tables that already
+    declare methods and routes. A leaf under the last heading is one no
+    COMPARISON can reach, and a recomputation, a re-derivation and a
+    membership check are none of them comparisons.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 214,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 250,
+        gate._ANSWER_OTHERWISE: 245,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 665,
+        gate._NOTHING: 633,
         gate._EVERY_READING_MATCHES: 89,
     }
 

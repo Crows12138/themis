@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-23243 passed / 534 skipped, warning-clean
+23344 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,30 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #710 一次拒绝点名的估计器，是这个 build 真有的那一个（2026-09-19）
+
+**根因。** 那个「本该是数字、结果是一段拒绝」的块，开头一行并排写两个字段：哪个 species 拒的，哪个 estimator 在跑。species 已经被三道门各查一次注册表查了好几条前沿；estimator 一次都没被查过——而它俩是**同一个函数的同一行**装配出来的（`refusals._envelope`，`block` / `record` / `relayed` 三条路全汇到这里）。
+
+没东西可查，是因为这个名字**有两个作者**。估计器自己声明它（`est.method`，同一批名字在 `answers.SHAPES_OF`、`form.py`、schema enum 各有声明），而 dispatch 的 catch 点用格式串现场拼第二个：`f"dose_response_{model}_dml"`。三个后端自称 `dose_response_linear_dml` / `dose_response_causal_forest_dml` / `dose_response_linear_drlearner`；那个格式串能收到的四个词里，**只有一个拼出估计器自己的名字，另外三个拼出本仓没有的东西**。而且那一层根本给不出更深的名字：`_check_overlap`（167 行）在 `_resolve_model_choice`（169 行）**之前**跑，那条路上拒绝发生时后端还没选。**格式串没法被任何东西核对**——所以这个字段缺的是名册，不只是规则。语料替这件事留了证据：一个答案写着 `dose_response_drlearner_dml`，而**本仓任何版本的源码都不含这个字符串**。
+
+**为什么是根因不是表象。** 原来那条「押不住」的理由写在 `estimator_failure_rules` 的 docstring 里，是真的：七十处字面量、契约 typed 成 `string`，押住就意味着验证器去复述那七十条，而那是验证器绝不能变成的表。但实测：29 种拼法里 **15 种已经在别处被声明过**（7 个 route id、5 个方法名、3 个两者都是），剩下 14 个缺的是**一个家**，不是一份拷贝。
+
+**结构。** ①名册**读而不存**：`refusals.the_estimators_this_build_has()` = `answers.SHAPES_OF`（49 方法）∪ `routing.EFFECT_ROUTES`（26 route）∪ 新声明的 `FAMILIES`（14 个族名，别处没人声明才由它声明）= 86。验证器自己留一份名单就是给这些名字添第三个作者，正是本条要关的毛病。②生产端在**唯一的装配点** `_envelope` 查它，与它早就在查的 species 并排（`_named` 对着 `_registered` 写）。③那个格式串改成它正在跑的那条 route（`dose_response_curve`，一个已声明的名字）；caller 要的 model 词**不抄进来**——程序已经记着它了。④验证器 `verify_refusal_block` 押住该字段是名册成员，导入不复述。
+
+**拒绝方向**按本模块已陈述的判据定：未注册的 **species 接受**（可能是别人诚实的拒绝，写在一套长出来的词汇里），未注册的 **route 拒绝**（本 build 没听过的路描述不了）。estimator 说的是**本 build 自己的机器**——一个答案点名它没有的 estimator，描述的是一次不可能发生的运行，按 route 那侧办。
+
+**语料那一行。** `dose_response_drlearner_dml` 是缺陷的产物，不是过期快照：它由 `dispatch.py:9524` 那行写出，而那一行现在给出 `dose_response_curve`。改这一个值的依据是闸口第一条测试自己的说法——快照是这个 build 现在仍然给出的答案。改动脚本逐条断言只有这一个答案变了。
+
+**账。** 新文件 `tests/test_an_estimator_a_refusal_names_is_one_this_build_has.py` 100 测；三个测试文件里 7 处占位名（`anything` / `e`）换成真名——一条测试点名 build 没有的 estimator，断言的是不可能发生的运行。基线 23243→23344。两侧排练：252 个诚实答案全过；37 个答案 111 次弯折 **111 拒 / 0 过**。预测「关 37 片、1229→1192」与 roster（86 = 49 ∪ 26 ∪ 14，重叠 3；37 个答案按来源 13 方法 / 4 route / 20 族）**全部写在闸口跑之前且全中**。
+
+**分裂对读。** `_NOTHING` 665→633、`_ANSWER_OTHERWISE` 250→245。37 片里 **32 片压在 `_NOTHING`**——那份对读的 docstring 特意警告过这一栏说的是「没有任何**比较**够得着」，不是「没有任何东西能押住」。连续两条前沿在兑现这句警告：#709 兑的是 `_EVERY_READING_MATCHES`，#710 兑的是最后那一栏本身，而关掉它的是一次**成员资格检查**，根本不是比较。
+
+**全量**：23344 passed / 534 skipped，warning-clean，40:17（`-n 6 --dist loadgroup`）；声明 1229 → **1192**。
+
+**方法学：**
+- **(X) 一个名字被格式串拼出来，就没有任何东西能核对它。** 「缺名册」往往不是懒，是**第二个作者不是一份声明而是一段代码**；先问这个名字有几个作者，再问要不要加检查。
+- **(Y) 验证器不能拥有名册，但可以读名册。** 「押住它就得复述那七十条」是真命题也是错结论——十五条已经有家，剩下的需要一个家。**给缺家的那些一个家，然后读三处，而不是抄一处。**
 
 ### #709 一条区间说的是对着哪条臂，那是问题的事（2026-09-19）
 

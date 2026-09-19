@@ -2047,9 +2047,24 @@ def test_the_declared_remainder_is_what_it_is():
     forgery, so the rule says nothing about either. All 31 stored
     contrasts name their arms in the program's own words and closed; an
     envelope that does not is a finding of its own.
+
+    Then 37 fewer, off the estimator a refusal names. The block opens
+    with two fields and only one of them was ever asked whether this
+    build has such a thing, though both are written on one line of one
+    function. There was nothing to ask with: the name was spelled at
+    some seventy sites, and one site did not spell it at all but built
+    it out of the caller's word, in a shape three of whose four results
+    no estimator here answers to. Of the 29 spellings 15 were already
+    declared elsewhere; the other 14 wanted a home rather than a copy,
+    and the roster is now read from the three places instead of kept.
+
+    32 of the 37 sat under the reading's last heading, which says no
+    comparison can reach a leaf and warns in its own words that this is
+    not the same as nothing being able to hold one. A membership check
+    against a declaration is not a comparison.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 1229, total
+    assert total == 1192, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

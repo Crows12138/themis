@@ -441,7 +441,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "missing_information.[].name",
@@ -462,7 +461,6 @@
   "missing_information.[].priority"
  ],
  "needs_investigation:counterfactual:none#308829": [
-  "estimator_failure.estimator",
   "estimator_failure.recorded.intervention",
   "estimator_failure.recorded.interventional_risk"
  ],
@@ -485,9 +483,6 @@
   "missing_information.[].priority@gap=missing_assumption,kind=assumption,need=iv_monotonicity_undeclared",
   "status"
  ],
- "needs_investigation:counterfactual:none#9f9a06": [
-  "estimator_failure.estimator"
- ],
  "needs_investigation:effect:none": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
@@ -508,7 +503,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject"
  ],
@@ -535,7 +529,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.e_treatment_high",
   "estimator_failure.recorded.e_treatment_low",
   "extensions.type_reconciliation.checks.[].dtype_kind",
@@ -570,7 +563,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "extensions.type_reconciliation.checks.[].dtype_kind"
@@ -578,8 +570,7 @@
  "needs_investigation:effect:none#1be52a": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#1df86c": [
   "extensions.missing_data_recovery.search_budget",
@@ -621,7 +612,6 @@
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#451831": [
@@ -631,15 +621,13 @@
  "needs_investigation:effect:none#4beb47": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#4c108f": [
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.share"
  ],
  "needs_investigation:effect:none#4c2552": [
@@ -647,7 +635,6 @@
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "extensions.selection_recovery.search_budget"
@@ -660,8 +647,7 @@
  "needs_investigation:effect:none#5b5a2e": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#5ec0c1": [
   "investigation_requests.[].items.[].skeleton.annotations.source",
@@ -672,7 +658,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.outcome_relative_range",
   "estimator_failure.recorded.outcome_relative_std",
   "estimator_failure.recorded.outcome_scale"
@@ -689,7 +674,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.bandwidth",
   "estimator_failure.recorded.sparse_points.[].n_within_bandwidth",
   "estimator_failure.recorded.sparse_points.[].x",
@@ -707,7 +691,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "missing_information.[].name",
   "status",
   "structural_result.value"
@@ -720,7 +703,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "extensions.missing_data_recovery.search_budget",
   "investigation_requests.[].items.[].skeleton.annotations.source",
   "missing_information.[].priority"
@@ -729,8 +711,7 @@
   "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#808045": [
   "investigation_requests.[].items.[].skeleton.annotations.source",
@@ -749,7 +730,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.outcome",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject"
@@ -758,7 +738,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "estimator_failure.remedies.[].subject@remedy=use_method"
@@ -809,15 +788,13 @@
  "needs_investigation:effect:none#bb3eb5": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#c60193": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "needs_investigation:effect:none#cdaa7d": [
   "data_gap_report.gaps.[].alternative_paths.[].said.drop",
@@ -838,15 +815,13 @@
  "needs_investigation:effect:none#cf69fc": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "estimator_failure.estimator"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#dd007d": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.t_range"
  ],
  "needs_investigation:effect:none#f57a55": [
@@ -880,7 +855,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "missing_information.[].name",
   "status"
  ],
@@ -892,7 +866,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "missing_information.[].name",
   "missing_information.[].priority"
  ],
@@ -1086,7 +1059,6 @@
  "numerically_solved:effect:numeric_backdoor_estimate#958dab": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "estimator_failure.estimator",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
   "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate"
@@ -1411,12 +1383,6 @@
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "extensions.type_reconciliation.checks.[].observed_values.[]"
  ],
- "outside_language:causation:none": [
-  "estimator_failure.estimator"
- ],
- "outside_language:counterfactual:none": [
-  "estimator_failure.estimator"
- ],
  "proximal_bridge": [
   "data_gap_report.gaps.[].describes.[].said.bend",
   "data_gap_report.gaps.[].describes.[].said.noise",
@@ -1537,7 +1503,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.diagnostic",
   "extensions.mediation_decomposition.numeric.cde_status.mediator_value",
   "extensions.mediation_decomposition.numeric.cde_status.missing_key",
@@ -1599,7 +1564,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.n_control",
   "estimator_failure.recorded.n_treated",
   "extensions.type_reconciliation.checks.[].dtype_kind",
@@ -1614,7 +1578,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
   "investigation_requests.[].items.[].skeleton.annotations.source",
@@ -1634,7 +1597,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "estimator_failure.estimator",
   "estimator_failure.recorded.stratum.z",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "formula.body.terms.[].given.[].value",
@@ -1654,24 +1616,21 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#146fcc": [
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#2777a5": [
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#535477": [
   "data_gap_report.gaps.[].alternative_paths.[].said.k",
@@ -1683,16 +1642,14 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#f57fe5": [
   "derivation.steps.[].step_id",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "estimator_failure.estimator"
+  "estimation_context.sample_size"
  ],
  "tmle": [
   "data_gap_report.gaps.[].describes.[].said.high",

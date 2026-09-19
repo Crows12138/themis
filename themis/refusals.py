@@ -1721,6 +1721,66 @@ from another kernel may name one this build has never heard of.
 """
 
 
+FAMILIES: frozenset[str] = frozenset({
+    "berkson_error",
+    "causation",
+    "causation_identification",
+    "controlled_direct",
+    "counterfactual_cell",
+    "counterfactual_identification",
+    "ctf_conjunction",
+    "gformula",
+    "ipw",
+    "joint_backdoor",
+    "mediation",
+    "missing_data_recovery",
+    "outcome_measurement_error",
+    "proximal",
+    "scm_counterfactual",
+    "the_stratum_asked",
+})
+"""What a refusal names when no route and no method was chosen yet.
+
+A refusal happens at three depths and the name it can honestly give
+differs by depth. Deepest: a method had been chosen, and the methods are
+declared in :data:`themis.answers.SHAPES_OF`, one row per answer shape.
+Above it: a cascade row was running and no method yet, and the rows are
+declared in :data:`themis.routing.EFFECT_ROUTES`. Above both: the option
+naming the estimator was unreadable, or the check that failed runs before
+the backend is resolved, and what is left to name is the family.
+
+Nothing else declares a family, so this does. It is the only part of
+:func:`the_estimators_this_build_has` written out here rather than read
+from the table that already owns it.
+
+Two of them, ``gformula`` and ``ipw``, are also the caller's own words
+for those families — ``themis.estimation.dispatch._ATE_ESTIMATORS``, of
+whose four words two happen to be method names as well. They are written
+again here because that module imports this one and the read cannot go
+the other way, and the duplication is held to the original by a test
+rather than left to agree by habit. A row that refuses on one of those
+words can name no more than the family: which member of it would have
+run — ``ipw_stabilized`` or ``ipw_ht`` — is chosen inside the estimator,
+after the point where the refusal happened.
+"""
+
+
+def the_estimators_this_build_has() -> frozenset[str]:
+    """Every name a refusal may give for what was running.
+
+    Read rather than restated. Two of the three sources are other
+    modules' tables and this asks them, so a method or a route added
+    there is nameable here the same day and cannot drift from what it is
+    called where it is declared.
+    """
+    from .answers import SHAPES_OF
+    from .routing import EFFECT_ROUTES
+
+    return (frozenset(SHAPES_OF)
+            | frozenset(route.id for route in EFFECT_ROUTES)
+            | FAMILIES)
+
+
 def stamp(result: dict) -> None:
     """Send every refusal out bearing the ``kind`` its species declares.
 
@@ -3346,6 +3406,31 @@ def _registered(failure_type) -> Refusal:
     return species
 
 
+def _named(estimator) -> str:
+    """The estimator by that name, or a refusal to proceed without one.
+
+    :func:`_registered` for the other half of the block's first line. The
+    two fields are written side by side and only one of them was ever
+    asked whether this build has such a thing — which is how a name no
+    estimator here answers to reached an envelope. A catch site built one
+    by interpolating the caller's model word, and of the four words it can
+    be handed, three produce a name the estimator itself spells
+    differently. A format string cannot be checked against anything; a
+    declared name can.
+    """
+    name = str(estimator)
+    if name not in the_estimators_this_build_has():
+        raise ValueError(
+            f"unregistered estimator {name!r}; a refusal names the method "
+            f"it had chosen, the route it was running, or — where neither "
+            f"had been chosen — the family. Declare it where that kind of "
+            f"name is declared: themis.answers.SHAPES_OF, "
+            f"themis.routing.EFFECT_ROUTES or themis.refusals.FAMILIES. "
+            f"Do not build one out of the caller's words"
+        )
+    return name
+
+
 def block(*, estimator: str, failure_type, details=None,
           recorded=None, remedies=None) -> dict:
     """The one shape a refusal takes on the envelope.
@@ -3415,7 +3500,7 @@ def _envelope(*, estimator: str, species: Refusal, details: dict,
     the rule the schema states once — "there is nothing here" has one
     spelling.
     """
-    out: dict = {"estimator": estimator, "failure_type": species}
+    out: dict = {"estimator": _named(estimator), "failure_type": species}
     for key, part in (("details", details), ("said", said),
                       ("words", words), ("recorded", recorded),
                       ("remedies", remedies)):

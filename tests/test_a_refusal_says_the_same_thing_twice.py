@@ -212,6 +212,10 @@ def test_a_bent_leaf_is_refused():
     door does, so a leaf another rule already holds counts as free here and
     is named below instead of inflating this. The seven leaves of the copied
     identification reason were all on the free side, and left with it.
+
+    Thirty-seven moved from free to held when the estimator became a name
+    this build has to have: one per refusal block, since every one of them
+    carries the field and nothing had ever asked what it said.
     """
     held = free = 0
     for name in REFUSALS:
@@ -225,7 +229,7 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (227, 106), (held, free)
+    assert (held, free) == (264, 69), (held, free)
 
 
 def test_a_dropped_fact_is_refused():

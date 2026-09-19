@@ -488,7 +488,7 @@ def test_a_species_with_no_sentence_and_no_message_is_refused(monkeypatch):
     with pytest.raises(ValueError, match="has no sentence"):
         refusals.EstimatorFailure(refusals.Refusal.SAMPLE_TOO_SMALL)
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.block(estimator="e",
+        refusals.block(estimator="backdoor",
                        failure_type=refusals.Refusal.SAMPLE_TOO_SMALL)
 
 
@@ -556,7 +556,7 @@ def test_a_fact_the_sentence_does_not_say_survives_as_a_recorded_one():
         "the sentence says what it says; recording a fact does not add it")
 
     result: dict = {}
-    refusals.record(result, estimator="e", exc=exc)
+    refusals.record(result, estimator="backdoor", exc=exc)
     block = result["estimator_failure"]
     assert block["details"] == {"n": 40, "minimum": 100}
     assert block["recorded"] == {"treatment": "t", "rows_seen": 40}
@@ -568,7 +568,7 @@ def test_a_refusal_with_nothing_unsaid_carries_no_recorded_key():
     exc = refusals.EstimatorFailure(
         refusals.Refusal.SAMPLE_TOO_SMALL, n=40, minimum=100)
     result: dict = {}
-    refusals.record(result, estimator="e", exc=exc)
+    refusals.record(result, estimator="backdoor", exc=exc)
     assert "recorded" not in result["estimator_failure"]
 
 

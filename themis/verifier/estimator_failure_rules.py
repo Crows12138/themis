@@ -59,16 +59,29 @@ refused: :func:`themis.refusals.route` says a route this build has never
 heard of is one it cannot describe, and a bare token in a reader's
 sentence is worse than the field being absent.
 
-WHAT STAYS OPEN, measured rather than deferred. The ``estimator`` is 36 of
-the 273 and has no second record anywhere — 31 of its 36 appear nowhere
-else on the envelope, and these answers carry no estimate and often no
-chain for one to appear in. Nor is there a roster: it is written as a
-string literal at some forty raise sites, and the contract types it
-``string`` where it gives ``failure_type`` a full enum. Holding it would
-mean this package restating those forty literals, which is the table a
-verifier must not become — and the honest frontier there is the one
-``failure_type`` already had, a name declared once rather than spelled at
-each site. ``recorded`` stays open for a reason its own producer states:
+The ESTIMATOR is one this build has. It stayed open here for one frontier
+with the reason written out: no second record anywhere, and no roster to
+be a member of, since it was spelled as a string literal at some seventy
+sites while the contract typed it ``string``. Holding it would have meant
+this package restating those literals, which is the table a verifier must
+not become.
+
+What changed is not this package. The names are now assembled once, by
+:func:`themis.refusals.the_estimators_this_build_has`, out of the two
+tables that already declare methods and routes plus the families nothing
+else declares — so this asks a roster rather than keeping one, and a
+method added where methods are declared is nameable the same day. The
+producer checks it at the one point that assembles the block, beside the
+species it was already checking there.
+
+An unregistered name is refused rather than read past, which is the
+ROUTE's answer to that question and not the SPECIES'. A species this
+build has never heard of may be somebody else's honest refusal, written
+in a vocabulary that grew; an estimator is a thing this build either has
+or does not, and an answer naming one it does not have describes a run
+that could not have happened here.
+
+``recorded`` stays open for a reason its own producer states:
 it is the occasion's half that was measured and NOT said, so there is no
 second rendering of it to compare with. Nor a second record: what it
 holds is what the estimator measured, and a verdict another layer reached
@@ -284,6 +297,35 @@ def _check_each_route_is_one_this_build_declares(failure: Mapping) -> None:
             )
 
 
+def _check_the_estimator_is_one_this_build_has(failure: Mapping) -> None:
+    """Which estimator refused, against the names this build can give.
+
+    The block's first line names two things and only one of them was
+    asked whether this build has such a thing. What the other one says
+    is the whole occasion — a reader who is told no number was produced
+    learns from this field what it was that could not produce one — and
+    every spelling of it was the raise site's word.
+
+    The roster is read, never kept. A verifier holding its own list of
+    estimator names would be a second author of them, which is the defect
+    this rule exists to close rather than one to commit again.
+
+    Whether the field is PRESENT is a claim about the record's shape, and
+    the schema makes that one. This asks only about a name that is there.
+    """
+    name = failure.get("estimator")
+    if not isinstance(name, str):
+        return
+    known = refusals.the_estimators_this_build_has()
+    if name not in known:
+        _reject(
+            f"estimator_failure.estimator is {name!r}; this build has no "
+            f"estimator by that name. A refusal names the method it had "
+            f"chosen, the route it was running, or the family where "
+            f"neither had been chosen, and all three are declared"
+        )
+
+
 def verify_refusal_block(result: Mapping) -> None:
     """Hold a refusal to what the one function that assembles it declares."""
     failure = result.get("estimator_failure")
@@ -293,3 +335,4 @@ def verify_refusal_block(result: Mapping) -> None:
     _check_the_sentence_carries_the_occasions_facts(failure)
     _check_each_fact_is_written_twice_and_agrees(failure)
     _check_each_route_is_one_this_build_declares(failure)
+    _check_the_estimator_is_one_this_build_has(failure)

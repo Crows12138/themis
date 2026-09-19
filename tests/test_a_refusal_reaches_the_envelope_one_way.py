@@ -84,7 +84,7 @@ def test_the_species_speaks_and_the_caller_could_not_have():
     side that cannot know which one to choose.
     """
     built = refusals.block(
-        estimator="anything",
+        estimator="backdoor",
         failure_type=refusals.Refusal.UNKNOWN,
         details={"diagnostic": "ZeroDivisionError: division by zero"},
     )
@@ -108,7 +108,7 @@ def test_a_species_with_no_sentence_and_no_reason_is_refused(monkeypatch):
     """
     monkeypatch.delitem(refusals.SAYS, "sample_too_small")
     with pytest.raises(ValueError, match="has no sentence"):
-        refusals.block(estimator="anything",
+        refusals.block(estimator="backdoor",
                        failure_type=refusals.Refusal.SAMPLE_TOO_SMALL)
 
 
@@ -123,7 +123,7 @@ def test_no_caller_can_write_a_reason_of_its_own():
     """
     with pytest.raises(TypeError):
         refusals.block(  # type: ignore[call-arg]
-            estimator="anything",
+            estimator="backdoor",
             failure_type=refusals.Refusal.INSUFFICIENT_SUPPORT,
             reason="the stratum X=1 has no rows",
         )
@@ -135,7 +135,7 @@ def test_the_occasions_numbers_are_coerced_at_this_door_too():
     standing there is what ``envelope_scalar`` exists to prevent."""
     numpy = pytest.importorskip("numpy")
     built = refusals.block(
-        estimator="anything",
+        estimator="backdoor",
         failure_type=refusals.Refusal.UNKNOWN,
         details={"rows": numpy.int64(7), "levels": {numpy.float64(1.5)}},
     )

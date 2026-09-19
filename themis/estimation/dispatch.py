@@ -9521,9 +9521,18 @@ def _try_dose_response_estimate(
         estimate_dose_response,
     )
 
-    estimator_label = (
-        f"dose_response_{model}_dml" if model != "auto" else "dose_response_dml"
-    )
+    # The row that is running, which is a name this build declares. It
+    # used to be built here out of the caller's model word, and that name
+    # was not the estimator's: the three backends call themselves
+    # dose_response_linear_dml, dose_response_causal_forest_dml and
+    # dose_response_linear_drlearner, while the word-plus-suffix spelling
+    # matches only the first of them. Nor could a deeper name be honest at
+    # this depth — `_check_overlap` runs before `_resolve_model_choice`,
+    # so on that path no backend had been chosen to name. Nor is the
+    # caller's word copied in beside it: the program states which model
+    # was asked for, and a refusal restating it would be a second record
+    # of the question on the answer.
+    estimator_label = "dose_response_curve"
 
     try:
         est = estimate_dose_response(
