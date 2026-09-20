@@ -447,13 +447,27 @@ def test_the_remainder_split_is_what_it_is():
     value appearing twice, so neither is a thing this reading could have
     found. Twice in a row now, and both times the heading was measuring
     something real and beside the point.
+
+    Twenty-second use, 115 leaves, and for once they are all under ONE
+    heading -- "nothing either document writes", 450 to 565, with the
+    other five unmoved. The reading is right here, and right for the same
+    reason it was beside the point the two times before: it asks whether
+    the value recurs, and a status word recurs nowhere, because no other
+    slot on either document is written in that vocabulary.
+
+    It is still not what decides. What a status word may be is settled by
+    what the answer CONTAINS -- a chain, an estimate, a request to go and
+    look -- and none of that is the word appearing a second time. Three
+    frontiers running, this reading has been accurate about recurrence and
+    silent about derivability, which is now less a caveat about these
+    headings than the sentence they are for.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 139,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 191,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 450,
+        gate._NOTHING: 565,
         gate._EVERY_READING_MATCHES: 89,
     }
 

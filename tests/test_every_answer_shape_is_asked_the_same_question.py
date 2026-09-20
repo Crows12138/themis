@@ -214,22 +214,58 @@ for _path, _sub, _container in schema_walk.RESULT.walk():
     if isinstance(_members, list) and len(_members) > 1:
         _DOMAIN[".".join(_path)] = tuple(_members)
 
-#: How many lies one leaf is told. Unchanged by the domain reading below:
-#: what changed is where the three come FROM, not how many there are.
+#: How many KINDS of lie a leaf with no vocabulary is told: a coined
+#: spelling, a blank, a name from somewhere else. Three is how many kinds
+#: there are, which is why it is a number at all.
+#:
+#: It used to say that the domain reading below "changed where the three
+#: come FROM, not how many there are", and that sentence was the defect
+#: :data:`_LARGEST_VOCABULARY_ASKED_IN_FULL` exists to undo. A closed
+#: vocabulary has no kinds. It has members, and two members are two
+#: different claims, so the number of lies it can be told is the number of
+#: words in it.
 _PER_LEAF = 3
+
+#: The largest vocabulary this sweep asks about word by word.
+#:
+#: A ceiling, so it is a cost and has to be priced rather than chosen. The
+#: enums this contract declares come in two clumps with a gap between
+#: them: fifty-two have four members or fewer and were always asked in
+#: full, thirty-one more have five, six, seven, nine or ten, and then the
+#: sizes jump to thirty-nine, forty-two, forty-nine, eighty-five,
+#: eighty-eight and a hundred and forty. Any line drawn inside that gap
+#: buys exactly the same coverage, so this number is the gap rather than a
+#: budget. Measured on this corpus: asking the small clump word by word
+#: costs about ten minutes in one process, which is two of wall clock
+#: across the workers this suite runs; the large clump is a hundred and
+#: thirty-nine lies on each of several hundred leaves through twelve
+#: doors, which is hours.
+#:
+#: Above it the spread below is kept, AND :func:`_the_vocabularies_only
+#: _sampled` counts what is in that position, because "held" means
+#: something weaker there and a number that means two things is a number
+#: nobody can use.
+_LARGEST_VOCABULARY_ASKED_IN_FULL = 10
 
 
 def _from_domain(value, members) -> list:
-    """Lies drawn from inside the leaf's own vocabulary.
+    """Every other word the leaf's vocabulary allows, while that is affordable.
 
-    Spread across the declared order rather than taken from beside the
-    value. Adjacent members are often the two that mean nearly the same
-    thing, and a sweep that only ever asked about the neighbour would
-    report a whole vocabulary as held on the strength of its least
-    consequential swap.
+    Measured when this was written, over the enums at or under the ceiling:
+    of 2036 such leaves this sweep called held, 115 survive a member it
+    never asked about. 108 of them are ``status`` -- on all forty-three
+    answers saying ``counterfactual_solved`` the word can be rewritten to
+    ``numerically_solved`` and every door says yes, while the three the
+    sample did ask about sit either side of it.
+
+    Above the ceiling, spread across the declared order rather than taken
+    from beside the value. Adjacent members are often the two that mean
+    nearly the same thing, and a sweep that only ever asked about the
+    neighbour would report a whole vocabulary as held on the strength of
+    its least consequential swap.
     """
     others = [m for m in members if m != value]
-    if len(others) <= _PER_LEAF:
+    if len(members) <= _LARGEST_VOCABULARY_ASKED_IN_FULL:
         return others
     step = len(others) / _PER_LEAF
     return [others[int(i * step)] for i in range(_PER_LEAF)]
@@ -2251,10 +2287,99 @@ def test_the_declared_remainder_is_what_it_is():
     leaves -- fourteen on rows, three on decompositions one level down --
     and the four beside them that name the column itself. 21 and 880 were
     predicted exactly.
+
+    Then 115, the other way, and about this gate rather than about a rule.
+    It tells a leaf with a declared vocabulary three lies, and three is how
+    many KINDS of lie a value with NO vocabulary can be told: a coined
+    spelling, a blank, a name from somewhere else. A vocabulary has no
+    kinds. It has words, and two words are two different claims. The
+    comment that carried the number over said what it was doing -- the
+    domain reading "changed where the three come FROM, not how many there
+    are" -- and that sentence was the defect. Of 2036 leaves with ten words
+    or fewer that this sweep called held, 115 survive a word it never
+    asked: on all forty-three answers saying ``counterfactual_solved`` the
+    word can be rewritten to ``numerically_solved`` and every door says
+    yes, while the three the sample did ask about sit either side of it.
+
+    115 and 995 were predicted exactly, and this is the first entry here
+    where the number went UP. Nothing about the answers changed; the
+    question did. A remainder measured by a question nobody asked was
+    never the smaller one, and 1974 leaves are still in that position --
+    counted, now, rather than described.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 880, total
+    assert total == 995, total
     assert len(SHAPES) == 252, len(SHAPES)
+
+
+def _the_vocabularies_only_sampled() -> dict[str, int]:
+    """Every leaf this sweep measures by sample, by the shape it belongs to.
+
+    A leaf whose vocabulary is above
+    :data:`_LARGEST_VOCABULARY_ASKED_IN_FULL` is asked three of its words
+    and not the rest, so "held" is a weaker sentence about it than about a
+    leaf asked word by word. Counted rather than described, because the
+    difference between the two sentences is exactly the kind of thing a
+    single coverage number hides.
+    """
+    found: dict[str, int] = {}
+    for name in sorted(SHAPES):
+        result = SHAPES[name]["result"]
+        for shape, _sort, path, value in _asked(result):
+            domain = _the_domain_of(result, path, shape)
+            if domain is None or value not in domain:
+                continue
+            if len(domain) > _LARGEST_VOCABULARY_ASKED_IN_FULL:
+                found[shape] = found.get(shape, 0) + 1
+    return found
+
+
+def test_the_part_of_held_that_was_measured_by_sample_is_counted():
+    """The remainder's footnote, as a number that moves.
+
+    This gate's whole claim is that a coverage number is a fact about the
+    question that was asked. For every leaf with a small vocabulary the
+    question is now every word in it; for these it is three words, and
+    saying so here is the difference between a limit and a blind spot.
+
+    It is not a small footnote. These outnumber the declared remainder
+    twice over, and they are where the large vocabularies live: which
+    sentence a gap is written from, which species it is, which route an
+    alternative path took, which word a statement's token is. Asking those
+    word by word is a hundred and thirty-nine lies on each of several
+    hundred leaves through twelve doors, so the ceiling is a cost rather
+    than a judgement that those leaves matter less.
+
+    Moving the ceiling moves this number, which is the point: it turns
+    "we sample the big ones" from a sentence in a comment into a quantity
+    somebody can decide about.
+    """
+    sampled = _the_vocabularies_only_sampled()
+    assert sum(sampled.values()) == 1974, sum(sampled.values())
+    assert len(sampled) == 107, len(sampled)
+    biggest = sorted(sampled.items(), key=lambda kv: (-kv[1], kv[0]))[:4]
+    assert [shape for shape, _n in biggest] == [
+        "data_gap_report.gaps.[].describes.[].sentence",
+        "data_gap_report.gaps.[].kind",
+        "data_gap_report.gaps.[].alternative_paths.[].route",
+        "investigation_requests.[].items.[].need",
+    ], biggest
+
+
+def test_every_vocabulary_at_or_under_the_ceiling_is_asked_in_full():
+    """The other half of the same statement, asked of the contract rather
+    than of the corpus: below the ceiling nothing is sampled at all.
+
+    Written as a property of :func:`_from_domain` rather than as a count,
+    because a count would pass again the day the function stopped asking
+    and the corpus happened not to carry the shape.
+    """
+    for shape, members in sorted(_DOMAIN.items()):
+        if len(members) > _LARGEST_VOCABULARY_ASKED_IN_FULL:
+            continue
+        for value in members:
+            asked = _from_domain(value, members)
+            assert set(asked) == set(members) - {value}, (shape, value)
 
 
 def _contract_blocks() -> frozenset[str]:
