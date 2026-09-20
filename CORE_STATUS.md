@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-26449 passed / 534 skipped, warning-clean
+26476 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,67 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #716 一个条件的名字，是图决定的（2026-09-20）
+
+**现象。** `extensions.mediation_decomposition.nde_nie.failed_condition` 两片押不住。
+schema 枚举 `M1..M4|null`，今天只押住「可识别 ⇔ 没有 failed_condition」，所以 `null`
+拒得掉，**词表内换成 M2/M3/M4 全部放行**。
+
+**根因两层，第二层才是真的。**
+
+**第一层：一段写下来的论证不成立。** 两处 docstring 都写着「哪个条件被点名，取决于走得
+**最远**的那个候选，那是那次**搜索**的性质、不是图的性质；验证器重算它等于转录生产者的
+策略、按构造同意它」。读产生它的代码——`structural_solver._search_mediation_adjustment`
+保的是 `if order.index(failure) > rank: furthest = failure`，**对候选集合取 max**；
+走的顺序（size 从小到大、combinations 的次序）改不了一个 max。docstring 说的"固定顺序"
+指的是**条件**的次序 M1<M2<M3<M4，而那是 schema 自己枚举出来的**词表**，是契约。
+
+**第二层：这四个条件在验证器里被问了两遍，而丢掉标签的那一遍正是读信封的那一遍。**
+步骤规则 `_rule_mediation_nde_nie_check`（`rules.py`）把 M1/M2/M3/M4 **各算一个 bool**，
+拒绝消息里逐条点名；路由审计 `verify_mediation_decomposition._nde_holds` 问**同样四件事、
+同样次序**，然后 `return False`。**标签本来就算出来了，只是算在另一个高度的另一份拷贝里。**
+CDE 侧同构（C1/C2）。所以「在路由审计里补一段重算」会把病灶从两份加成**三份**。
+
+**结构。** 一处转写，两处调用：`rules.py` 每个臂一个 asker（图截断做一次，按 W 逐次作答），
+返回**按条件次序排的「每条一个答案」**；步骤规则读 `all(...)` 并照旧逐条打印，路由审计读
+「第一个 False 的标签」，bool 成为它的退化读法。**次序不另立常量**——条件被问的次序就是
+它被点名的次序，读答案的键序即可，不会和问题漂开。`failed_condition` 的重算落在那个
+**本来就要走的**遍历里取 max。
+
+**论证里对的那一半保留了。** 点出标签的那个候选，可能正是成员资格限制会藏起来的那个
+（中间混杂满足所有分离、只因为是 X 的后代被拒），所以这里的遍历**无视**那个限制——
+旁边那条反面搜索本来就是这么做的。
+
+**唯一留在外面的策略数：** 生产者候选池的 size cap。这里跑满整个池，池不大于 cap 时两者
+一致、大于时这边更严；**语料里每个池都小于 cap**——写进新文件里量，不是假设。
+
+**账。** 声明 930 → **928**（2 片），行 169 不变，NEW 洞 0；标题分档
+ALIKE 152 / PROGRAM_ALIKE 6 / OTHERWISE 200 / PROGRAM_OTHERWISE 5 /
+NOTHING 476 / EVERY_READING 89。**预测「2 片、928、行数不变」——全中。**
+诚实方向：13 个中介答案全部原样放行，两个非可识别臂重算都得 `M1`（`pool=0`，唯一候选是
+空集）。新文件 `tests/test_the_condition_a_decomposition_names_is_the_graphs.py` 27 测
+0 skip。全量 **26476 passed / 534 skipped，25:26**。
+
+**全量第一轮 3 failed，三条都是本档自己的事，记下来。** ①②
+`test_which_decomposition_a_reader_is_being_given.py` 两条押的是旧拒绝消息「does not
+satisfy the conditions」——新消息点名了**是哪一条**（M4 / C2），这正是本档让标签可得的
+副产品，测试改成押具体条件并补了 docstring。③语言闸口
+`test_a_caller_of_one_of_those_doors_says_who_is_reading` 报 `verify.py` 两处 `ask(...)`
+没带 `lang`——**真碰撞**：`ask` 是 `themis/web/llm_bridge.py` 里散文门的名字，那条闸口按
+**名字**扫全包。局部变量改名 `conditions_of`，不削弱闸口。
+
+**方法学：**
+- **(I) 全量之前的定点网要按「我改了哪些符号、哪些字符串」撒，不按功能词。** 本轮只跑了
+  文件名里带 mediation 的四个文件，漏掉的两个一个写的就是中介分解（文件名是句子、不含
+  mediation），另一个是按名字扫全包的闸口。正确的网：grep 改动过的**函数名** + 我改写过
+  的**每一段拒绝消息文本**。这个仓库的测试文件名是句子，按功能词 grep 必漏。
+- **(G) 「重算会不会变成按构造同意」要看重算的是不是同一个函数。** 生产者算的是
+  `max_W first(W)`，验证器独立地对同一张图算同一个 max——两边都由**图**决定，不由任何一方
+  的遍历策略决定。真正会「按构造同意」的是抄对方的**策略数**（cap），那个留在外面了。
+- **(H) 补一份重算之前先数这个判据在包里已经有几份。** 这一轮如果直接在路由审计里补，
+  同样四个条件就有三份转写了。#715 方法学 (A) 的镜像：那次是「同一个字段在两个高度」，
+  这次是「同一个判据在两个高度」。
 
 ### #718 一个字段，两种待遇（2026-09-20）
 

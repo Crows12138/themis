@@ -387,13 +387,23 @@ def test_the_remainder_split_is_what_it_is():
     the two places the count appears were never independent, and the
     frontier was not the second writing but the fact that one of the two
     was determined and unchecked.
+
+    Eighteenth use, 2 leaves, and the same heading for the same kind of
+    reason. A condition's label is a word from a closed vocabulary, and
+    a word from a closed vocabulary is written in the CONTRACT and not
+    in either of the two documents this reading compares. So "nothing
+    either document writes" is right, and what holds the leaf is a
+    re-derivation -- the seventh time in nine rounds. The heading keeps
+    being right and keeps being a poor guide to which leaves are
+    reachable, which is the sentence this file has now earned rather
+    than only asserted.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 152,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 200,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 478,
+        gate._NOTHING: 476,
         gate._EVERY_READING_MATCHES: 89,
     }
 

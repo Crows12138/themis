@@ -2184,6 +2184,90 @@ def _the_stratum_asked(ctx: VerificationContext) -> frozenset:
                      for g in getattr(ctx.query, "given", ()) or ())
 
 
+def _verifier_mediation_nde_asker(graph, bidirected, x, y, mediators):
+    """Pearl's four conditions for the natural-effect decomposition, asked
+    in one place for both of this package's readers of them.
+
+    Returns a function of the held set, and that function answers EVERY
+    condition rather than reporting whether all of them hold. The two
+    readers need different halves of the same work: a step rule asks
+    whether the set identifies the quantity and shows a reader each
+    condition that did not, while the envelope's audit asks WHICH
+    condition stopped the candidate that got furthest -- a maximum over
+    the order they are asked in. Collapsing them to a bool where they are
+    computed is what left the second reader with nothing to re-derive.
+
+    The order of the answers IS the order the conditions are named in,
+    which is why there is no constant beside this function saying so. A
+    named order kept somewhere else is one that can disagree with the
+    questions.
+
+    The graph is cut once, here, because the mutilation is part of the
+    condition rather than of the caller; the held set arrives per call
+    because it is what varies. ``mediators`` is a set at both altitudes:
+    the singular case is the set of one, and the conditions read the same
+    on it.
+    """
+    g_bar_x = graph.copy()
+    g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
+    g_bar_m = graph.copy()
+    for m in mediators:
+        g_bar_m.remove_edges_from(list(g_bar_m.out_edges(m)))
+    descendants_of_x = _verifier_directed_descendants(graph, x)
+
+    def ask(held) -> dict[str, bool]:
+        return {
+            "M1": not _verifier_is_m_connected(
+                g_bar_x, bidirected, x, y, held),
+            "M2": not any(
+                _verifier_is_m_connected(g_bar_x, bidirected, x, m, held)
+                for m in mediators),
+            "M3": not any(
+                _verifier_is_m_connected(
+                    g_bar_m, bidirected, m, y, held | {x})
+                for m in mediators),
+            "M4": not (held & descendants_of_x),
+        }
+
+    return ask
+
+
+def _verifier_mediation_cde_asker(graph, bidirected, x, y, mediators):
+    """Its controlled twin, and the same posture.
+
+    Two conditions rather than four: fixing the mediators by intervention
+    removes the cross-world questions, and the two separations C1 asks
+    for are one condition because the contract names them as one.
+    """
+    g_bar_xm = graph.copy()
+    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(x)))
+    for m in mediators:
+        g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
+    forbidden = frozenset(_verifier_directed_descendants(graph, x)).union(
+        *(_verifier_directed_descendants(graph, m) for m in mediators))
+
+    def ask(held) -> dict[str, bool]:
+        return {
+            "C1": not _verifier_is_m_connected(
+                g_bar_xm, bidirected, x, y, held)
+            and not any(
+                _verifier_is_m_connected(g_bar_xm, bidirected, m, y, held)
+                for m in mediators),
+            "C2": not (held & forbidden),
+        }
+
+    return ask
+
+
+def _verifier_first_condition_that_failed(answers: dict) -> str | None:
+    """The label a reader is owed, or None when the set identifies.
+
+    One reading of one mapping, so that "which one failed" and "did they
+    all hold" cannot drift apart into two judgements of the same answers.
+    """
+    return next((name for name, held in answers.items() if not held), None)
+
+
 def _rule_mediation_nde_nie_check(
     ctx: VerificationContext,
     inputs: Mapping,
@@ -2241,39 +2325,14 @@ def _rule_mediation_nde_nie_check(
         )
     held = w | stratum
 
-    bidir = ctx.bidirected
-
-    # M4: W has no X-descendants. Compute descendants from the directed
-    # edges of G directly (BFS), without importing networkx.descendants.
-    x_desc = _verifier_directed_descendants(graph, x)
-    if held & x_desc:
-        m4 = False
-    else:
-        m4 = True
-
-    # Build G\bar{X} (X's outgoing edges removed)
-    g_bar_x = graph.copy()
-    g_bar_x.remove_edges_from(list(g_bar_x.out_edges(x)))
-
-    # M1: Y ⊥ X | W in G\bar{X}
-    m1 = not _verifier_is_m_connected(g_bar_x, bidir, x, y, held)
-
-    # M2: M ⊥ X | W in G\bar{X}
-    m2 = not _verifier_is_m_connected(g_bar_x, bidir, x, m, held)
-
-    # Build G\bar{M} (M's outgoing edges removed)
-    g_bar_m = graph.copy()
-    g_bar_m.remove_edges_from(list(g_bar_m.out_edges(m)))
-
-    # M3: Y ⊥ M | X, W in G\bar{M}
-    xw = held | {x}
-    m3 = not _verifier_is_m_connected(g_bar_m, bidir, m, y, xw)
-
-    recomputed = m1 and m2 and m3 and m4
+    answers = _verifier_mediation_nde_asker(
+        graph, ctx.bidirected, x, y, frozenset({m}))(held)
+    recomputed = all(answers.values())
     if recomputed != bool(claimed_output):
+        said = ", ".join(f"{name}={held_}" for name, held_ in answers.items())
         raise RuleCheckFailed(
             f"mediation_nde_nie_check claimed {claimed_output!r}, "
-            f"recomputed {recomputed!r} (M1={m1}, M2={m2}, M3={m3}, M4={m4})",
+            f"recomputed {recomputed!r} ({said})",
             step_index=step_index, rule="mediation_nde_nie_check",
         )
 
@@ -2328,31 +2387,14 @@ def _rule_mediation_cde_check(
         )
     held = w | stratum
 
-    bidir = ctx.bidirected
-
-    # C2: W has no descendants of X or M
-    x_desc = _verifier_directed_descendants(graph, x)
-    m_desc = _verifier_directed_descendants(graph, m)
-    if held & (x_desc | m_desc):
-        c2 = False
-    else:
-        c2 = True
-
-    # Build G\bar{XM}: remove X's and M's outgoing edges
-    g_bar_xm = graph.copy()
-    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(x)))
-    g_bar_xm.remove_edges_from(list(g_bar_xm.out_edges(m)))
-
-    # C1: both Y ⊥ X and Y ⊥ M given W in G\bar{XM}
-    c1_x = not _verifier_is_m_connected(g_bar_xm, bidir, x, y, held)
-    c1_m = not _verifier_is_m_connected(g_bar_xm, bidir, m, y, held)
-    c1 = c1_x and c1_m
-
-    recomputed = c1 and c2
+    answers = _verifier_mediation_cde_asker(
+        graph, ctx.bidirected, x, y, frozenset({m}))(held)
+    recomputed = all(answers.values())
     if recomputed != bool(claimed_output):
+        said = ", ".join(f"{name}={held_}" for name, held_ in answers.items())
         raise RuleCheckFailed(
             f"mediation_cde_check claimed {claimed_output!r}, "
-            f"recomputed {recomputed!r} (C1={c1}, C2={c2})",
+            f"recomputed {recomputed!r} ({said})",
             step_index=step_index, rule="mediation_cde_check",
         )
 

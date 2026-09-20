@@ -160,9 +160,18 @@ def test_denying_that_the_mediator_mediates_is_refused(program, key):
 @pytest.mark.parametrize("arm", ["nde_nie", "cde"])
 def test_an_adjustment_set_that_does_not_satisfy_the_conditions_is_refused(
         arm):
+    """And the refusal says which condition it fails.
+
+    The outcome is a descendant of the treatment, so what it fails is the
+    membership condition — M4 on the natural arm, C2 on the controlled
+    one. The rule used to say only that something failed, because the
+    answers were collapsed to a bool where they were computed; they are
+    kept now, which is what lets the block's own ``failed_condition`` be
+    re-derived, and a reader gets the label out of the same change.
+    """
     _refuses(SINGLE, _tampered(SINGLE, lambda b: b[arm].update(
         {"adjustment": ["y(u)"]})),
-        "which does not satisfy the conditions")
+        "which fails M4" if arm == "nde_nie" else "which fails C2")
 
 
 @pytest.mark.parametrize("arm", ["nde_nie", "cde"])

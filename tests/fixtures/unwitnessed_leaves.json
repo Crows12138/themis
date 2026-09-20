@@ -45,7 +45,6 @@
   "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mediation_decomposition.nde_nie.failed_condition",
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
  "combined_measurement_error_correction": [
@@ -1148,7 +1147,6 @@
  "structurally_solved:effect:identify_via_mediation#af41dd": [
   "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
-  "extensions.mediation_decomposition.nde_nie.failed_condition",
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
  "structurally_solved:effect:identify_via_mediation_joint": [

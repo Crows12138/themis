@@ -2202,9 +2202,20 @@ def test_the_declared_remainder_is_what_it_is():
     were predicted exactly, and so was the row count this time -- the
     leanest of the nine went from three declared leaves to one and
     stayed, which is what the paragraph above says a row does.
+
+    Then 2, and they are the smallest frontier this file has recorded
+    and the one with the longest argument in front of it. A mediation
+    block that reports no identification names the condition that
+    stopped it, and the audit checked only that a condition is named
+    exactly when one failed -- on a written argument that the label
+    belongs to the candidate that got furthest along a fixed order and
+    so is a property of the search. The producer keeps a MAX over the
+    candidate set by that order, and no walk order changes a maximum.
+    Every entry of the contract's vocabulary but ``null`` went through.
+    2 and 928 were predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 930, total
+    assert total == 928, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

@@ -133,10 +133,10 @@ Public surface (re-exports from sub-modules):
   of identifiability names the W that carries it and is checked in full; a
   claim of NON-identifiability names no witness and is the claim that
   withholds an answer, so it is held to being negative by search.
-  ``failed_condition`` is checked for agreement rather than re-derived:
-  which condition is named is the label of the candidate that got
-  furthest along a fixed order, which is a property of that search and not
-  of the graph) /
+  ``failed_condition`` is re-derived as the maximum, over the same
+  walk, of the first condition each candidate fails — a max over a set,
+  which no walk order changes, and the order it is taken in is the order
+  the conditions are asked in) /
   ``verify_mediation_decomposition_numeric`` (what was then computed from
   that decomposition, which is the same block's other half and needs
   theta: the four potential outcomes and the ten numbers read off them,

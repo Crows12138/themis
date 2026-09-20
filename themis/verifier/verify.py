@@ -5700,21 +5700,34 @@ def verify_mediation_decomposition(
     there (``stratum_moved``), so a block beside one is a decomposition of
     a population the question does not have.
 
-    ``failed_condition`` is checked for AGREEMENT and not re-derived, and
-    the distinction is the point. Which condition is named is the label of
-    the candidate that got FURTHEST along a fixed order, searched without
-    the membership restriction so that an intermediate confounder can be
-    named rather than hidden. Furthest-along-an-order is a property of that
-    search, not of the graph, and a verifier recomputing it would be
-    transcribing the producer's policy and agreeing by construction. What
-    IS a fact about the graph is that a condition is named exactly when
-    something failed, and that is checked.
+    ``failed_condition`` is re-derived, and the argument that it could not
+    be is worth recording because it was written here and is wrong. It
+    said the label belongs to the candidate that got FURTHEST along a
+    fixed order, that furthest-along-an-order is a property of the search
+    rather than of the graph, and that recomputing it would be
+    transcribing a policy. But the producer keeps a MAX over the candidate
+    SET by that order, and no order of walking a set changes a maximum;
+    the order it fixes is the order of the CONDITIONS, which the contract
+    enumerates as a vocabulary. What the argument had right is that the
+    candidate naming the label may be one the membership restriction
+    hides — an intermediate confounder satisfies every separation and is
+    refused only for descending from X — so the walk here ignores that
+    restriction, which is what the negative-claim search beside it
+    already did.
+
+    So the label is a maximum over the same walk that answers the other
+    question, and both come out of one asking of the conditions. What
+    stays outside is the producer's size cap on its candidate pool: this
+    walks the whole pool, which agrees wherever the pool is no larger
+    than the cap and is stricter where it is not.
     """
     from itertools import combinations
 
     from .rules import (
         _verifier_directed_descendants,
-        _verifier_is_m_connected,
+        _verifier_first_condition_that_failed,
+        _verifier_mediation_cde_asker,
+        _verifier_mediation_nde_asker,
         _verifier_nodes_by_label,
     )
 
@@ -5757,43 +5770,23 @@ def verify_mediation_decomposition(
              f"{sorted(m.predicate for m in declared if m is not None)}")
 
     bidir = frozenset(bidirected or ())
-
-    def _cut(nodes):
-        g = graph.copy()
-        for node in nodes:
-            g.remove_edges_from(list(g.out_edges(node)))
-        return g
-
-    g_bar_x = _cut({x})
-    g_bar_m = _cut(mediators)
-    g_bar_xm = _cut(mediators | {x})
     desc_x = _verifier_directed_descendants(graph, x)
-    forbidden_nde = frozenset(desc_x)
-    forbidden_cde = frozenset(desc_x).union(
-        *(_verifier_directed_descendants(graph, m) for m in mediators))
     stratum = frozenset(getattr(g, "atom", g)
                         for g in getattr(query, "given", ()) or ())
 
-    def _nde_holds(w) -> bool:
-        held = frozenset(w) | stratum
-        if _verifier_is_m_connected(g_bar_x, bidir, x, y, held):
-            return False
-        if any(_verifier_is_m_connected(g_bar_x, bidir, x, m, held)
-               for m in mediators):
-            return False
-        if any(_verifier_is_m_connected(g_bar_m, bidir, m, y, held | {x})
-               for m in mediators):
-            return False
-        return not (held & forbidden_nde)
-
-    def _cde_holds(w) -> bool:
-        held = frozenset(w) | stratum
-        if _verifier_is_m_connected(g_bar_xm, bidir, x, y, held):
-            return False
-        if any(_verifier_is_m_connected(g_bar_xm, bidir, m, y, held)
-               for m in mediators):
-            return False
-        return not (held & forbidden_cde)
+    # The conditions themselves are asked in one place, beside the step
+    # rules that ask them of a single candidate. Here they are asked of
+    # every candidate, and this audit wants the label rather than the
+    # verdict: which condition the set failed is what the row names.
+    nde_conditions_of = _verifier_mediation_nde_asker(
+        graph, bidir, x, y, mediators)
+    cde_conditions_of = _verifier_mediation_cde_asker(
+        graph, bidir, x, y, mediators)
+    # The order the conditions are NAMED in is the order they are ASKED
+    # in, so it is read off an answer rather than kept as a second list
+    # that could disagree with the questions.
+    nde_order = list(nde_conditions_of(stratum))
+    cde_order = list(cde_conditions_of(stratum))
 
     # A mediator that does not mediate makes both arms vacuous, so it is
     # settled first and on its own terms: some directed path from the
@@ -5824,7 +5817,9 @@ def verify_mediation_decomposition(
     pool = [n for n in graph.nodes
             if n != x and n != y and n not in mediators and n not in stratum]
 
-    for arm, holds in (("nde_nie", _nde_holds), ("cde", _cde_holds)):
+    for arm, conditions_of, order in (
+            ("nde_nie", nde_conditions_of, nde_order),
+            ("cde", cde_conditions_of, cde_order)):
         attempt = block.get(arm)
         if not isinstance(attempt, dict):
             continue
@@ -5845,22 +5840,38 @@ def verify_mediation_decomposition(
             if w & stratum:
                 _err(f"{arm} names {sorted(named)} to adjust on, holding what "
                      f"the question already conditions on")
-            if not holds(w):
+            stopped = _verifier_first_condition_that_failed(
+                conditions_of(w | stratum))
+            if stopped is not None:
                 _err(f"{arm} claims identifiability adjusting on "
-                     f"{sorted(named)}, which does not satisfy the "
-                     f"conditions")
+                     f"{sorted(named)}, which fails {stopped}")
             continue
 
         if named:
             _err(f"{arm} is not identifiable and still names an adjustment "
                  f"set {sorted(named)}")
+        # One walk, two questions of it. Whether ANY candidate identifies
+        # the quantity is the refusal below; which condition the candidate
+        # that gets FURTHEST fails at is what the row names, and it is a
+        # maximum over the order the conditions are asked in — so no walk
+        # order can change it, which is why re-deriving the label is not
+        # transcribing a search policy.
+        furthest, rank = None, -1
         for size in range(len(pool) + 1):
             for combo in combinations(pool, size):
-                if holds(frozenset(combo)):
+                stopped = _verifier_first_condition_that_failed(
+                    conditions_of(frozenset(combo) | stratum))
+                if stopped is None:
                     _err(f"{arm} is reported non-identifiable while "
                          f"{sorted(n.predicate for n in combo)} satisfies "
                          f"every condition — the answer was withheld from a "
                          f"reader who could have had it")
+                if order.index(stopped) > rank:
+                    furthest, rank = stopped, order.index(stopped)
+        if failed != furthest:
+            _err(f"{arm} names {failed!r} as the condition that stopped it, "
+                 f"while the candidate that gets furthest along "
+                 f"{order} fails at {furthest!r}")
 
     # `strategy` is the one field where the two blocks genuinely differ, and
     # the difference is a vocabulary rather than a rule: the joint block has
