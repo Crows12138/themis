@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, render, runProgram, type ClarifyPick } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
+import { useOffers } from '../lib/offers'
 import { framingVariables, framingDefaultsInProgram, framingFieldLabel } from '../lib/verdict'
 import type { LlmProposedReview } from '../types'
 import { Verdict } from './Verdict'
@@ -76,6 +77,7 @@ export function ResultView({
   onSendTo?: (target: Workspace, program: Record<string, unknown>) => void
 }) {
   const lang = useLang()
+  const offers = useOffers()
   const [result, setResult] = useState<QueryResult>(payload.result)
   const [program, setProgram] = useState<Record<string, unknown> | undefined>(payload.program)
   const [reply, setReply] = useState<string | undefined>(payload.reply)
@@ -97,7 +99,13 @@ export function ResultView({
   const review = (result.extensions?.llm_proposed_review as LlmProposedReview | undefined) ?? undefined
   // The data-scarcity escape hatch: a structurally-identifiable query whose
   // needed distributions have no data. Offer to source AI priors (disclosed).
+  //
+  // Both this and the reply below are the two places in the product that
+  // need a model outside the Ask workspace, which is why hiding that tab
+  // is not the whole of turning a model off. What they offer is a step
+  // this deployment can take; a deployment with no model cannot take it.
   const canAssume =
+    offers?.llm === true &&
     program != null &&
     result.status === 'needs_investigation' &&
     gaps.some((g) => g.kind === 'missing_distribution')
@@ -234,7 +242,7 @@ export function ResultView({
           </div>
           <p className="reply__body">{reply}</p>
         </section>
-      ) : program ? (
+      ) : program && offers?.llm ? (
         <div className="renderrow">
           <button className="btn btn--ghost" onClick={doRender} disabled={rendering}>
             {fill(rendering ? SAYS.rendering : SAYS.renderGo, lang)}

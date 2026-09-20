@@ -124,6 +124,18 @@ STAGE: dict[str, language.Words] = {
         "zh": "LLM 桥接没能加载",
         "en": "the LLM bridge could not be loaded",
     },
+    # Not a failure of this request: a fact about this deployment, and the
+    # same fact the page read before it drew anything. It is said here too
+    # because a page is not a door — whoever calls the endpoint directly
+    # gets the answer the page was given, in their language.
+    "no_model": {
+        "zh": "这份部署背后没有接模型，这一步做不了。图、判定、缺口报告、"
+              "补定义和数据估计都不需要模型，照常可用",
+        "en": "this deployment has no model behind it, so this step is not "
+              "available. The graph, the verdict, the gap report, filling "
+              "in definitions and estimating from data need none, and all "
+              "still work",
+    },
 }
 
 

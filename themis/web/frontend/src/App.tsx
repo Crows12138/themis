@@ -5,6 +5,7 @@ import { BuildWorkspace } from './components/BuildWorkspace'
 import { EstimateWorkspace } from './components/EstimateWorkspace'
 import { ENDONYM } from './lib/kernelWords.generated'
 import { chooseLang, fill, LANGS, useLang, type Words } from './lib/language'
+import { useOffers } from './lib/offers'
 import { TIER_META, tierMeta } from './lib/verdict'
 
 type Workspace = 'ask' | 'build' | 'estimate'
@@ -33,7 +34,17 @@ const SAYS = {
 const TIER_ORDER = Object.keys(TIER_META) as (keyof typeof TIER_META)[]
 
 export default function App() {
-  const [workspace, setWorkspace] = useState<Workspace>('ask')
+  // What this deployment offers, and so which workspaces there are. A
+  // deployment with no model behind it has no Ask: the question would go
+  // nowhere, and a tab that leads nowhere is worse than one that is not
+  // there. The endpoint refuses too — see themis/web/app.py — because a
+  // page is not a door.
+  const offers = useOffers()
+  // Not state until the reader picks one. Before that it is whatever this
+  // deployment leads with, which is not known until the server answers;
+  // making it state would mean choosing before knowing and correcting
+  // afterwards, on screen.
+  const [picked, setPicked] = useState<Workspace | null>(null)
   // The API key is optional — Ask / render default to the local proxy. The panel
   // only opens on demand (an LLM call failing because the proxy is unreachable),
   // so there's no persistent key button cluttering the masthead.
@@ -43,13 +54,15 @@ export default function App() {
   const [pending, setPending] = useState<{ target: Workspace; program: Record<string, unknown> } | null>(null)
   const lang = useLang()
 
+  const workspace: Workspace = picked ?? (offers?.llm ? 'ask' : 'build')
+
   function sendTo(target: Workspace, program: Record<string, unknown>) {
     setPending({ target, program })
-    setWorkspace(target)
+    setPicked(target)
   }
   function navTo(target: Workspace) {
     setPending(null)
-    setWorkspace(target)
+    setPicked(target)
   }
   const seedProgram = pending && pending.target === workspace ? pending.program : undefined
 
@@ -69,9 +82,11 @@ export default function App() {
         </a>
 
         <nav className="nav" aria-label={fill(SAYS.nav, lang)}>
-          <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => navTo('ask')}>
-            {fill(SAYS.ask, lang)}
-          </button>
+          {offers?.llm ? (
+            <button className="nav__item" aria-current={workspace === 'ask'} onClick={() => navTo('ask')}>
+              {fill(SAYS.ask, lang)}
+            </button>
+          ) : null}
           <button className="nav__item" aria-current={workspace === 'build'} onClick={() => navTo('build')}>
             {fill(SAYS.build, lang)}
           </button>
@@ -98,7 +113,7 @@ export default function App() {
       {showKey ? <ApiKeyPanel onClose={() => setShowKey(false)} /> : null}
 
       <main className={`stage ${workspace !== 'ask' ? 'stage--wide' : ''}`}>
-        {workspace === 'ask' ? (
+        {offers === null ? null : workspace === 'ask' ? (
           <AskWorkspace onNeedKey={() => setShowKey(true)} onSendTo={sendTo} />
         ) : workspace === 'build' ? (
           <BuildWorkspace initialProgram={seedProgram} onSendTo={sendTo} />

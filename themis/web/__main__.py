@@ -1,8 +1,11 @@
 """``python -m themis.web`` — start the local UI server.
 
 Defaults: bind to 127.0.0.1:8000. Use ``--host 0.0.0.0`` to share on
-the local network; use a real platform (Railway / Fly / Render) for
-public deployment.
+the local network.
+
+This is a development server. A public deployment puts something in
+front of it, and decides one more thing: whether it has a model behind
+it, which ``THEMIS_WEB_LLM`` says and :mod:`themis.web.app` reads.
 """
 from __future__ import annotations
 

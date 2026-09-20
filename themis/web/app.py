@@ -40,6 +40,33 @@ os.environ.setdefault(
 )
 os.environ.setdefault("ANTHROPIC_API_KEY", "x")
 
+#: Whether this deployment has a model behind it.
+#:
+#: Three of the things this server offers need one: turning a question in
+#: prose into a program, sourcing a prior for each distribution the kernel
+#: says is missing, and writing a result up as a reply. Nothing else does
+#: — the graph, the verdict, the gap report, filling in a definition and
+#: estimating from data are the kernel's, and the kernel holds no model.
+#:
+#: A deployment that has none says so HERE, once, and both halves read it:
+#: the page, to decide what to offer, and each of the three endpoints, to
+#: decide whether to answer. Both, because a page is not a door. Drawing
+#: no button leaves the endpoint open to whoever calls it directly, and
+#: the endpoint is where the key would have been spent.
+#:
+#: Declared rather than detected. Whether a proxy answers right now is a
+#: fact about this minute; whether this deployment offers the three is a
+#: decision whoever deployed it made, and a reader is owed the decision.
+_LLM = os.environ.get("THEMIS_WEB_LLM", "on")
+if _LLM not in ("on", "off"):
+    raise ValueError(
+        f"THEMIS_WEB_LLM is {_LLM!r}; it says whether this deployment has a "
+        f"model behind it and the only two answers are 'on' and 'off'. A "
+        f"third spelling would read as one of them and nobody could say "
+        f"which"
+    )
+_OFFERS_A_MODEL = _LLM == "on"
+
 
 _HERE = Path(__file__).parent
 _STATIC = _HERE / "static"
@@ -173,6 +200,18 @@ if (_FRONTEND_DIST / "assets").exists():
 app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 
+@app.get("/api/offers")
+def api_offers():
+    """What this deployment offers, for a page that must not draw a door
+    it cannot open.
+
+    One key, because there is one fact. A roster of feature names would
+    be a second place to forget an entry, and what the three surfaces
+    share is not a name — it is that each needs a model.
+    """
+    return {"llm": _OFFERS_A_MODEL}
+
+
 @app.post("/api/run")
 def api_run(req: RunRequest):
     try:
@@ -246,6 +285,14 @@ def api_ask(req: AskRequest):
     """
     import themis
     from .llm_bridge import LLMBridgeError, nl_to_kernel_ast, render_reply
+
+    # This endpoint and the two below each ask the one declaration at the
+    # top of this module. Three asks, one fact — and asked here rather
+    # than once at the edge, because "which of these needs a model" is a
+    # fact about each endpoint and a middleware listing them would be a
+    # second roster to forget an entry in.
+    if not _OFFERS_A_MODEL:
+        return failure.refused("no_model")
 
     key = req.api_key or "x"
     # Retry nl→ast→run up to 3 times for transient LLM / network failures
@@ -396,6 +443,9 @@ def api_assume(req: AssumeRequest):
     """
     from .llm_bridge import LLMBridgeError, propose_theta_priors
 
+    if not _OFFERS_A_MODEL:
+        return failure.refused("no_model")
+
     # 1. Run once to discover exactly which probabilities are missing.
     try:
         env0 = themis.run(req.program)
@@ -428,6 +478,8 @@ def api_assume(req: AssumeRequest):
 def api_render(req: RenderRequest):
     """On-demand LLM 大白话 reading of a result. The structured verdict is
     instant; this is the optional translation layer (needs an API key)."""
+    if not _OFFERS_A_MODEL:
+        return failure.refused("no_model")
     try:
         from .llm_bridge import render_reply
     except Exception as exc:

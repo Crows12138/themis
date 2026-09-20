@@ -158,6 +158,15 @@ export function ask(nl: string, lang: Lang, apiKey?: string): Promise<AskRespons
   return post<AskResponse>('/api/ask', { nl, lang, api_key: apiKey || undefined })
 }
 
+// What this deployment offers. Raised rather than defaulted: what to do
+// when the server cannot say is a policy, and it belongs where the fact
+// is kept (`lib/offers.ts`) rather than in the fetch.
+export async function fetchOffers(): Promise<{ llm: boolean }> {
+  const res = await fetch('/api/offers')
+  if (!res.ok) throw new Error(`offers unavailable (${res.status})`)
+  return res.json()
+}
+
 export async function fetchExamples(): Promise<ExampleItem[]> {
   const res = await fetch('/api/examples')
   if (!res.ok) return []
