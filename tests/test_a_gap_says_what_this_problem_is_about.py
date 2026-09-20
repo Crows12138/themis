@@ -476,6 +476,14 @@ def test_the_remainder_is_counted_rather_than_described():
     on a descendant of the treatment: the eight rows collected for it
     brought 149, being more gaps with more leaves to forge, and the stored
     refusal they replaced took 7. The accepted did not move.
+
+    And 24 more when a word that is no copy of anything was held by what
+    it NAMES: the branch a mediation caveat says its premises are the
+    premises of. The roster that holds the rest of a caveat asks what a
+    value is a copy of, and there is no record of the string ``CDE``
+    anywhere; the record is of what the word means, and the premises in
+    the same breath are one branch\'s and never the other\'s. A forgery
+    over them now names a branch whose record says otherwise.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -490,7 +498,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2281, 167), (refused, accepted)
+    assert (refused, accepted) == (2305, 143), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

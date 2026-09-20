@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-26476 passed / 534 skipped, warning-clean
+26594 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,67 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #720 一个 caveat 说的分支，就是它的前提出处（2026-09-20）
+
+**现象。** `data_gap_report.gaps.[].describes.[].said.branch` 13 片押不住。一个中介答案
+判定分解可识别时，每支写一条 caveat，逐条列出它依赖的前提，并在上面压一个词说这些前提是
+**哪个量**的前提——`CDE` 或 `NDE/NIE`。同一个 `said` 里的 `assumptions` 和 `subject` 都
+押得住，只有这个词松着。而且理由是写在册子里的（`gap_claim_rules.py`）：
+「a coined label (`CDE`) is not a copy of anything at all」。
+
+**根因：册子刚立的原则被用反了。** 那段的原则是对的——「能不能押住不是关于这个值是什么
+**种类**的事实，而是关于**第二份记录在不在**的事实，得逐个键去问，不能从它是哪类词推」。
+但 `_COPIED_FROM` 去找的是**这个字符串本身**的第二份记录：信封上没有任何地方存着
+`"CDE"`，于是判定无解。**实际存在的，是这个词所指的那件事的记录。** 同一条 gap 上有两份：
+provenance 的 `ref_id` 就是 `extensions.mediation_decomposition.cde.assumptions`（24/24
+命中），而同一口气里的 `said.assumptions` 正是那个块 `assumptions` 的逐字逗号连接（24/24，
+且两支的名单在整个语料里**从不重样**）。
+
+**这个词不是副本，是定位符**——它说的是同一条 claim 里**别的槽**是从信封上哪份记录抄来的。
+`_COPIED_FROM` 的读者签名 `(result, context) -> set[str]` 问不出这个：它拿不到身边的槽。
+而 `every_said_mapping` 的 docstring 早写着它「yields the mapping rather than its leaves,
+so that a caller asking about one key can see the keys beside it」——能力一直备着，
+`verify_gap_quotes` 在 `said.items()` 那一层把它丢了。
+
+**为什么不走那个更省事的修法。** 把 `branch` 填进 `_COPIED_FROM`、读者返回「这个答案报为
+可识别的那些支」，闸口一样判它押住（`CDE_forged`、`""` 都不在集合里），数字一样落 13。
+但实测 24 条里 **22 条两支都可识别**，于是 `CDE`↔`NDE/NIE` **对调全程通过**——而那是这个词
+唯一能撒的谎。押住的是形状不是意思。
+
+**结构。** 第四张表 `_LOCATES`，与 `_COPIED_FROM` 同样按 `(statement, slot)` 键，读者签名
+改成 `(result, said)`：返回「其记录与这条 claim 其余部分相符的那些支名」。规则臂加在
+**同一趟遍历**里——不新开函数、不重走 walk，沉默纪律只有一处。记录不在时沉默。
+
+**顺手关掉第二个洞。** `said.assumptions` 原先只被「这个答案在任何地方记过的全部假设 id」
+的**并集成员测试**问过，而两支的前提都记在信封上——实测**另一支的名单在 22/24 条上都能
+通过那个测试**，也就是 CDE 的 caveat 可以列 NDE/NIE 的前提而无人察觉。按定位符读之后，
+它被押到**一支**的名单上。
+
+**代价，当场声明。** 验证器里多一份两个词的抄写（两支的名字拼法）：验证器不许 import
+产生方，所以得先知道 `CDE` 指的是哪个键才能去找那份记录。产生方那对已提成模块常量
+`_BRANCHES`，测试同时 import 两边钉等——来第三支、或换个拼法，在那儿红，而不是悄悄不被问。
+可以不抄（`key.upper().replace("_","/")` 推得出来），但那是拿字面巧合当规则，不选。
+
+**D1。** 新文件 `test_the_branch_a_caveat_names_is_the_one_it_read.py` 118 条、0 skip：
+普查（24 条 caveat / 13 个答案 / 两个词 / 两种句子）、两份抄写对钉、两支前提永不重样
+（规则赖以成立的事实，实测非假设）、`branch` 从不走 `words` 半边（为什么只读一半）、
+honest 方向、三种弯折（forged / 空 / **对调**）逐条被拒、「对调是这个答案本可以诚实写出
+的词」（22）、另一支前提压在本支词下被拒（22，构造期过滤而非运行期 skip）、读者单测
+（指认唯一一支 + 四种记录不在时沉默）、规则臂在同一趟遍历里（AST）、被推翻的那句话已从
+源码删除。演练：24 个词 × 3 种谎 = 72 次全部被 `verify` 以 `VerificationError` 拒绝，
+13 个带 branch 的答案 honest 方向全过。
+
+**余项 928 → 915**（13 片全部出自「nothing either document writes」，476 → 463），
+169 行 → 168 行（`structurally_solved:effect:identify_via_mediation_joint` 整行清空），
+0 NEW holes。全量 **26594 passed / 534 skipped，24:57**，warning-clean。
+
+**方法论沉淀**：(411)**「这个值是不是某份记录的副本」和「这个值指认的那份记录在不在」是
+两个问题，而一张只会问前者的表会把后者报成「无解」**。判据：一个槽押不住、旁边的槽押得住、
+而旁边那个槽的内容是**被这个槽选中**的——那这个槽就是定位符，它的第二份记录是它指的那份
+记录本身，不是它自己的另一份拷贝。(412)**闭合词表上的成员测试会骗过闸口**：`_forged` 和
+空串都不在词表里，所以数字会掉；而词表内对调全程通过，那往往正是这个词唯一能撒的谎。
+动手前先数「有多少行两个成员都合法」——这里是 22/24。
 
 ### #716 一个条件的名字，是图决定的（2026-09-20）
 

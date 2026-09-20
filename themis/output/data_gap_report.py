@@ -966,6 +966,19 @@ def _mediation_view(extensions: dict) -> "_MediationView | None":
     return None
 
 
+#: The two branches of a decomposition, as a caveat spells each and as the
+#: envelope files it.
+#:
+#: Spelt once because the two are one fact. A caveat saying ``CDE`` is
+#: saying its assumptions were read from ``…cde.assumptions`` -- the word
+#: over it and the key its provenance cites pick out the same branch -- and
+#: anything holding the word has to know which key it picks out.
+_BRANCHES: tuple[tuple[str, str], ...] = (
+    ("NDE/NIE", "nde_nie"),
+    ("CDE", "cde"),
+)
+
+
 def _classify_mediation_assumptions(
     extensions: dict,
 ) -> Iterable[DataGap]:
@@ -984,7 +997,7 @@ def _classify_mediation_assumptions(
     view = _mediation_view(extensions)
     if view is None or not view.valid:
         return
-    for branch_name, branch_key in (("NDE/NIE", "nde_nie"), ("CDE", "cde")):
+    for branch_name, branch_key in _BRANCHES:
         branch = view.block.get(branch_key) or {}
         if not branch.get("identifiable"):
             continue

@@ -2213,9 +2213,21 @@ def test_the_declared_remainder_is_what_it_is():
     candidate set by that order, and no walk order changes a maximum.
     Every entry of the contract's vocabulary but ``null`` went through.
     2 and 928 were predicted exactly.
+
+    Then 13, on a word that NAMES rather than copies. A mediation answer
+    that identifies a decomposition writes one caveat per branch, and the
+    word over each -- ``CDE`` or ``NDE/NIE`` -- says which quantity the
+    premises under it are the premises of. The roster that holds the rest
+    of a caveat had the word down as unholdable, and gave a reason: no
+    record on this envelope holds the string ``CDE``. True, and beside
+    the point. What the word names is recorded twice more on the same
+    gap -- the branch key its own provenance cites, and the premises in
+    the same breath, which are that branch's list and, over all
+    twenty-four caveats here, never the other's. 13 and 915 were
+    predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 928, total
+    assert total == 915, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

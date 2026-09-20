@@ -499,6 +499,50 @@ def _assumptions_the_answer_records(result: Mapping,
     return found
 
 
+#: Where a mediation answer files its branches, and how a caveat spells
+#: each. A transcription of the producer's own pair, and the whole of what
+#: holding the word costs: a verifier may not import the producer, so it
+#: has to be told which key ``CDE`` picks out before it can go looking for
+#: that branch's record. Held to the original by test rather than by
+#: import. Both extension keys are read because which one a decomposition
+#: is filed under is the scheduler's business, not this rule's to assume.
+_BRANCH_KEYS: Mapping[str, str] = {"NDE/NIE": "nde_nie", "CDE": "cde"}
+
+_DECOMPOSITIONS: tuple[str, ...] = ("mediation_decomposition",
+                                    "mediation_joint_decomposition")
+
+
+def _the_branch_whose_assumptions_these_are(result: Mapping,
+                                            said: Mapping) -> set[str]:
+    """The branch of a decomposition whose recorded assumptions are the
+    ones this caveat lists.
+
+    Empty where the caveat lists nothing, and empty where no branch on
+    this envelope records what it lists -- the record is not there to
+    appeal to, and the rule that calls this is silent then. A set rather
+    than a word because two branches recording the same premises would be
+    two honest answers to the question, and the rule should say so by
+    accepting either rather than by picking one.
+    """
+    listed = str(said.get("assumptions") or "")
+    if not listed:
+        return set()
+    found: set[str] = set()
+    for block in _DECOMPOSITIONS:
+        branches = (result.get("extensions") or {}).get(block)
+        if not isinstance(branches, Mapping):
+            continue
+        for name, key in _BRANCH_KEYS.items():
+            branch = branches.get(key)
+            if not isinstance(branch, Mapping):
+                continue
+            recorded = ", ".join(
+                str(one) for one in branch.get("assumptions") or ())
+            if recorded and recorded == listed:
+                found.add(name)
+    return found
+
+
 def _the_target_population_the_question_names(_result: Mapping,
                                               context) -> set[str]:
     """The population the question asks its answer to be carried TO.
@@ -717,8 +761,19 @@ _NOT_THE_QUESTIONS: Mapping[tuple[str, str], str] = {
 #: each key rather than inferred from what sort of word it is. The keys
 #: that stay unheld are the ones where the answer is genuinely no: a
 #: rendered number (``36.3%`` for 0.363, ``1.089e-229`` for a p-value) is
-#: not equal to anything on the envelope, and a coined label (``CDE``) is
-#: not a copy of anything at all.
+#: not equal to anything on the envelope.
+#:
+#: A coined label sat in that sentence too -- "and ``CDE`` is not a copy of
+#: anything at all" -- and the half of it that is true was doing the work
+#: of the half that is not. No record on the envelope holds the STRING
+#: ``CDE``. Three hold what it MEANS: the branch key its gap's provenance
+#: cites, and the assumptions the same breath lists, which are one
+#: branch's list and never the other's. The record to go looking for is a
+#: record of what a value means, and a roster that can only ask after the
+#: value reports the difference as no record at all.
+#:
+#: :data:`_LOCATES` is that second question, and the reason it is a table
+#: of its own rather than a row in this one.
 #:
 #: ``lists`` says the slot spells several at once, comma-separated, and
 #: every one of them must be a record.
@@ -810,6 +865,42 @@ def _copied_from(statement: str | None,
     """The record a hole copies IN THIS STATEMENT, or the general one."""
     return (_COPIED_FROM.get((statement, slot))
             or _COPIED_FROM.get((None, slot)))
+
+
+#: What a ``said`` value NAMES, where the record it names is the one the
+#: rest of its claim was read off.
+#:
+#: The question the roster above cannot put. Its readers are handed the
+#: answer and asked what a slot could legally say, and a locator has no
+#: such answer: what the word has to be is whatever the record it picks
+#: out says, so it does not exist until the slot BESIDE it has been read.
+#: A reader here takes that ``said``, which the walk has been carrying all
+#: along and saying so.
+#:
+#: A branch word is the one this arrived for. ``CDE`` over a caveat says
+#: the premises under it are the premises of the controlled direct effect,
+#: and the roster above could hold it only by membership in the two words
+#: there are -- which refuses a forgery and takes the swap, the one lie
+#: this word can tell that reads as honest. Held this way it also holds the
+#: list
+#: beside it to ONE branch's, where the roster above asks only that each
+#: premise be one this answer records somewhere, and both branches' are.
+#:
+#: Read only where the fact travels as a ``said``. What a locator picks
+#: out is the envelope's own spelling of a key, and the other half is
+#: where a fact goes to be said in the reader's language.
+#:
+#: Keyed like the other, with ``None`` for a slot whose answer does not
+#: turn on which sentence it is in.
+_LOCATES: Mapping[tuple[str | None, str], tuple[str, Any]] = {
+    (None, "branch"): ("the branch whose assumptions it lists",
+                       _the_branch_whose_assumptions_these_are),
+}
+
+
+def _locates(statement: str | None, slot: str) -> tuple[str, Any] | None:
+    """The record a hole NAMES in this statement, or the general one."""
+    return _LOCATES.get((statement, slot)) or _LOCATES.get((None, slot))
 
 
 def _the_question_asked(program: Mapping) -> tuple[str | None,
@@ -1258,6 +1349,21 @@ def verify_gap_quotes(result: Mapping, context) -> None:
 
     for where, statement, said in every_said_mapping(report):
         for key, value in said.items():
+            names = _locates(statement, str(key))
+            if names is not None:
+                says, read = names
+                picked = read(result, said)
+                if picked and str(value) not in picked:
+                    raise VerificationError(
+                        f"a gap says {value!r} where it names {says} (at "
+                        f"{where}.{key}), and the record the rest of its "
+                        f"sentence was read off is {sorted(picked)}'s. This "
+                        f"word is the only part of the sentence that says "
+                        f"which record the rest of it came from, so a "
+                        f"reader taking the sentence for what it says "
+                        f"takes it for the wrong one",
+                        step_index=None, rule=_RULE,
+                    )
             entry = _copied_from(statement, str(key))
             if entry is None:
                 continue

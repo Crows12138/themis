@@ -397,13 +397,29 @@ def test_the_remainder_split_is_what_it_is():
     being right and keeps being a poor guide to which leaves are
     reachable, which is the sentence this file has now earned rather
     than only asserted.
+
+    Nineteenth use, 13 leaves, the same heading once more, and the first
+    time it was right about the VALUE and wrong about the kind of second
+    writing there is. The word over a mediation caveat -- ``CDE`` --
+    appears nowhere else in either document, which is what this reading
+    compares and what it correctly reports. The word is a NAME, though,
+    and what a name is written a second time as is the RECORD IT NAMES:
+    the branch key the caveat's own provenance cites, and the premises in
+    the same breath, which are that branch's list and never the other's.
+    This reading looks for another copy of the value. A locator's second
+    writing is not a copy of it at all, and no comparison of values can
+    find one.
+
+    What closed it is neither a recomputation nor an equality between two
+    copies. The word is read as the key under which the rest of its own
+    claim was found, and a key is checked by looking there.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 152,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 200,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 476,
+        gate._NOTHING: 463,
         gate._EVERY_READING_MATCHES: 89,
     }
 

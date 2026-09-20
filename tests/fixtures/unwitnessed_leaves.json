@@ -42,7 +42,6 @@
   "numeric_estimate.probabilities_of_causation.ps.ci_width_is"
  ],
  "cde_linear": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.controlled_direct_effect.levels_observed"
@@ -229,12 +228,10 @@
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
  "mediation_joint_linear": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "mediation_joint_logit": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
   "numeric_estimate.decomposition.cde.reference_control.mediator_level",
   "numeric_estimate.decomposition.cde.reference_treated.mediator_level",
@@ -250,12 +247,10 @@
   "structural_result.value"
  ],
  "mediation_linear_imai": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
  "mediation_logit_imai": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
@@ -867,7 +862,6 @@
   "derivation.steps.[].inputs.intervention.value"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "derivation.steps.[].output.items.cde_status.items.cap",
   "extensions.mediation_joint_decomposition.numeric.cde_status.cap",
   "structural_result.value"
@@ -892,7 +886,6 @@
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#7173f0": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#822998": [
@@ -916,13 +909,11 @@
   "formula.body.terms.[].denominator.body.body.terms.[].given.[].value"
  ],
  "numerically_solved:effect:numeric_result#d97753": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
   "numeric_estimate.four_way_ratio.bootstrap.kind",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#f188a1": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "structural_result.value"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_bridge_estimate": [
@@ -1131,7 +1122,6 @@
   "formula.denominator.body.body.body.body.terms.[].given.[].value"
  ],
  "structurally_solved:effect:identify_via_mediation": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -1139,18 +1129,13 @@
   "estimator_failure.recorded.diagnostic"
  ],
  "structurally_solved:effect:identify_via_mediation#a7cd7e": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "numeric_estimate.four_way_ratio.bootstrap.kind"
  ],
  "structurally_solved:effect:identify_via_mediation#af41dd": [
-  "data_gap_report.gaps.[].describes.[].said.branch",
   "estimation_context.random_state",
   "numeric_estimate.controlled_direct_effect.levels_observed"
- ],
- "structurally_solved:effect:identify_via_mediation_joint": [
-  "data_gap_report.gaps.[].describes.[].said.branch"
  ],
  "structurally_solved:effect:identify_via_transport": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
