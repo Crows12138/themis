@@ -3186,7 +3186,10 @@ def _query_target_label(stmt) -> "str | Unnamed":
 
     The phrase says the question names no outcome, and is read that way:
     a proximal effect names its own ``outcome``, and falling past it
-    handed a reader the phrase where the question had the name.
+    handed a reader the phrase where the question had the name. A
+    counterfactual names its own ``counterfactual_target`` and was the
+    same omission one class over -- found because the verifier's copy of
+    this list learnt that spelling and the two stopped agreeing.
     """
     q = getattr(stmt, "query", None)
     if q is None:
@@ -3197,12 +3200,18 @@ def _query_target_label(stmt) -> "str | Unnamed":
         pred = getattr(atom, "predicate", None)
         if pred:
             return pred
-    # A proximal effect calls it ``outcome``. CauseQuery exposes its
+    # A proximal effect calls it ``outcome``; a counterfactual calls it
+    # ``counterfactual_target``. CauseQuery exposes its
     # source/destination as ``from_atom`` / ``to_atom`` (avoiding Python's
     # ``from`` keyword); AssocQuery uses left/right.
-    for attr in ("outcome", "to_atom", "to", "right"):
-        atom = getattr(q, attr, None)
-        if atom is not None:
+    for attr in ("outcome", "counterfactual_target", "to_atom", "to",
+                 "right"):
+        found = getattr(q, attr, None)
+        if found is not None:
+            # As the branch above does: a spelling may name the atom or
+            # the field that holds one, and which it is belongs to the
+            # query class rather than to this list.
+            atom = getattr(found, "atom", None) or found
             pred = getattr(atom, "predicate", None)
             if pred:
                 return pred
@@ -3222,13 +3231,19 @@ def _query_intervention_label(stmt) -> "str | Unnamed":
         pred = getattr(atom, "predicate", None)
         if pred:
             return pred
-    # A proximal effect calls it ``treatment``. CauseQuery exposes its
-    # source as ``from_atom``; AssocQuery uses ``left``. ``from`` is a
-    # Python keyword so it never appears as an attribute name on typed
-    # objects, but check it for dict-shaped callers anyway.
-    for attr in ("treatment", "from_atom", "from_", "from", "left"):
-        atom = getattr(q, attr, None)
-        if atom is not None:
+    # A proximal effect calls it ``treatment``; a counterfactual calls it
+    # ``counterfactual_intervention``. CauseQuery exposes its source as
+    # ``from_atom``; AssocQuery uses ``left``. ``from`` is a Python
+    # keyword so it never appears as an attribute name on typed objects,
+    # but check it for dict-shaped callers anyway.
+    for attr in ("treatment", "counterfactual_intervention", "from_atom",
+                 "from_", "from", "left"):
+        found = getattr(q, attr, None)
+        if found is not None:
+            # As the branch above does: a spelling may name the atom or
+            # the field that holds one, and which it is belongs to the
+            # query class rather than to this list.
+            atom = getattr(found, "atom", None) or found
             pred = getattr(atom, "predicate", None)
             if pred:
                 return pred

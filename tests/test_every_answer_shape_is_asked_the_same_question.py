@@ -2225,9 +2225,21 @@ def test_the_declared_remainder_is_what_it_is():
     the same breath, which are that branch's list and, over all
     twenty-four caveats here, never the other's. 13 and 915 were
     predicted exactly.
+
+    Then 14, on a slot the roster beside that one had no entry for at
+    all. A gap says how many intervals bound one quantity and how many
+    instruments the graph offered. A ``count`` is filed as a number,
+    correctly, for the question the NAME rule asks; the roster that asks
+    the other question keeps numbers out because a RENDERED number is not
+    equal to anything on the envelope, and a count is not a rendering --
+    it is ``str`` of a length whose list is on the same envelope.
+    Reaching the second of the two took the question's two ends, and
+    neither of that module's two readers of those knew that a
+    counterfactual query spells them in two fields of its own. 14 and
+    901 were predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 915, total
+    assert total == 901, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

@@ -127,14 +127,16 @@ def test_the_facts_this_rule_speaks_for():
     # asked within a stratum was evaluated within it.
     # 4 more intervention: the row brought when a question was refused because the
     # stratum it names holds too few rows to answer it on.
+    # 14 count, a slot this roster had no entry for: twelve caveats saying how many
+    # intervals bound one quantity, two saying how many instruments the graph offered.
     assert split == {
         "assumptions": 38, "method": 63, "what": 113,
         "methods": 73, "population": 16, "source": 10,
-        "kind": 11, "target": 39,
+        "kind": 11, "target": 39, "count": 14,
         "intervention": 592, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3,
     }, split
-    assert len(SITES) == 1006, len(SITES)
+    assert len(SITES) == 1020, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -153,7 +155,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 1006, refused
+    assert refused == 1020, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -253,6 +255,14 @@ def test_a_kind_is_not_a_reason_nothing_can_hold_a_value():
     And a NAME, where its statement copies it from the question. Being a
     name says the name rule asks it, and that rule asks whether a word is
     one of the problem's; a second record says whether it is the one.
+
+    Five kinds now, and the fifth is the one this paragraph was written
+    against. A NUMBER contains no identifier to be wrong about, which is
+    true and is the name rule's answer; it was read as the copy rule's
+    answer too. What no roster can hold is a RENDERED number, where a
+    formatting step sits between the value and its spelling. A ``count``
+    is ``str`` of a length, and the list it is the length OF is on the
+    same envelope.
     """
     def kind(statement, key):
         if holds_a_name(statement, key):
@@ -260,7 +270,7 @@ def test_a_kind_is_not_a_reason_nothing_can_hold_a_value():
         return _IN_ITS_SENTENCE.get((statement, key)) or _NOT_NAMES[key]
 
     assert {kind(s, k) for s, k in _COPIED_FROM} == {
-        "vocabulary", "expression", "domain", "name"}
+        "vocabulary", "expression", "domain", "name", "number"}
     names = {(s, k) for s, k in _COPIED_FROM if kind(s, k) == "name"}
     assert {k for _s, k in names} == set(_ROLES)
     assert all(s is not None for s, _k in names)
@@ -629,7 +639,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 1006 * 6, refused
+    assert refused == 1020 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

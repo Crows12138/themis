@@ -543,6 +543,46 @@ def _the_branch_whose_assumptions_these_are(result: Mapping,
     return found
 
 
+def _the_intervals_this_answer_reports(result: Mapping,
+                                       _context=None) -> set[str]:
+    """How many intervals this answer puts in front of a reader.
+
+    The sentence saying several of them bound one quantity is written out
+    of that list -- one caveat per list longer than one -- so the number
+    over it and the list under it are one fact. A reader deciding whether
+    to go looking for the others is reading this number.
+    """
+    return {str(len(result.get("bounds_results") or ()))}
+
+
+def _the_instruments_the_graph_offers(_result: Mapping,
+                                      context) -> set[str]:
+    """How many variables this graph could offer as an instrument.
+
+    The criterion is the one :func:`themis.verifier.rules
+    .unconditional_instrument_holds` states and no more: an edge into the
+    treatment, and no open path to the outcome once the treatment's
+    outgoing edges are cut. Whether a candidate also has a domain worth
+    enumerating is the declaration's business, so a count that disagreed
+    with this one would be a count of something else -- which is why the
+    set is empty, and the rule silent, for a question whose two ends this
+    graph does not both hold.
+    """
+    from .rules import unconditional_instrument_holds
+
+    graph = getattr(context, "graph", None)
+    treatment, outcome = _the_questions_ends(context)
+    if graph is None or treatment is None or outcome is None:
+        return set()
+    if treatment not in graph or outcome not in graph:
+        return set()
+    bidirected = frozenset(getattr(context, "bidirected", ()) or ())
+    return {str(sum(
+        1 for candidate in graph.predecessors(treatment)
+        if unconditional_instrument_holds(
+            graph, bidirected, treatment, outcome, candidate)))}
+
+
 def _the_target_population_the_question_names(_result: Mapping,
                                               context) -> set[str]:
     """The population the question asks its answer to be carried TO.
@@ -597,17 +637,37 @@ def _ambiguities_the_caller_flagged(result: Mapping, _context) -> set[str]:
     return found
 
 
+#: The two ends of a question, in every spelling a query shape gives them.
+#:
+#: Read in three places below -- the atom accessors the role roster uses,
+#: the pair reader that answers from the program document, and the count
+#: of instruments a graph offers -- and written here once, so a shape
+#: whose spelling arrives is learnt by all three or by none.
+#:
+#: The third pair is why this is a list rather than two literals. An
+#: effect, an identification and a structural counterfactual say
+#: ``intervention``/``target``; a proximal effect says
+#: ``treatment``/``outcome``; a counterfactual says
+#: ``counterfactual_intervention``/``counterfactual_target`` -- plainly,
+#: in its own two fields -- and that pair was in NEITHER reader. The
+#: module read the question twice and both copies were blind to the same
+#: spelling, so on every counterfactual answer the roster that copies the
+#: question answered nothing and said nothing about answering nothing.
+_THE_TWO_ENDS: tuple[tuple[str, str], ...] = (
+    ("intervention", "target"),
+    ("treatment", "outcome"),
+    ("counterfactual_intervention", "counterfactual_target"),
+)
+
+
 def _the_questions_atom(context, fields: tuple[str, ...]) -> set[str]:
     """The atom the question keeps under the first of ``fields`` it has,
     spelled both ways a gap spells an atom; empty for a question with none.
 
-    A question names a role by a field of its own: an effect, an
-    identification and a structural counterfactual call the two
-    ``intervention`` and ``target``, and a proximal effect calls them
-    ``treatment`` and ``outcome``. Both spellings are the producer's —
-    most statements carry the predicate, and the ones about a declared
-    loop carry the atom as the scheduler labels it, ``x()`` for a
-    variable applied to nothing.
+    Which fields those are is :data:`_THE_TWO_ENDS`. Both SPELLINGS of the
+    atom are the producer's -- most statements carry the predicate, and
+    the ones about a declared loop carry the atom as the scheduler labels
+    it, ``x()`` for a variable applied to nothing.
     """
     query = getattr(context, "query", None)
     for field in fields:
@@ -620,12 +680,28 @@ def _the_questions_atom(context, fields: tuple[str, ...]) -> set[str]:
 
 def _the_questions_intervention(_result: Mapping, context) -> set[str]:
     """The variable the question intervenes on."""
-    return _the_questions_atom(context, ("intervention", "treatment"))
+    return _the_questions_atom(context, tuple(a for a, _b in _THE_TWO_ENDS))
 
 
 def _the_questions_target(_result: Mapping, context) -> set[str]:
     """The variable the question asks the effect on."""
-    return _the_questions_atom(context, ("target", "outcome"))
+    return _the_questions_atom(context, tuple(b for _a, b in _THE_TWO_ENDS))
+
+
+def _the_questions_ends(context):
+    """The two atoms themselves, for a reader that walks the graph.
+
+    The accessors above answer in the spellings a gap writes, which is
+    what a roster compares against. A graph is keyed by the atoms, so a
+    rule that has to walk one needs them rather than their names.
+    """
+    query = getattr(context, "query", None)
+    for first, second in _THE_TWO_ENDS:
+        one, two = getattr(query, first, None), getattr(query, second, None)
+        one, two = getattr(one, "atom", one), getattr(two, "atom", two)
+        if isinstance(one, Atom) and isinstance(two, Atom):
+            return one, two
+    return None, None
 
 
 def _the_questions_members(context, field: str) -> set[str]:
@@ -760,8 +836,17 @@ _NOT_THE_QUESTIONS: Mapping[tuple[str, str], str] = {
 #: about whether a second record of it exists, which has to be asked of
 #: each key rather than inferred from what sort of word it is. The keys
 #: that stay unheld are the ones where the answer is genuinely no: a
-#: rendered number (``36.3%`` for 0.363, ``1.089e-229`` for a p-value) is
-#: not equal to anything on the envelope.
+#: RENDERED number (``36.3%`` for 0.363, ``1.089e-229`` for a p-value) is
+#: not equal to anything on the envelope, because a rendering puts a
+#: formatting step between the value and its spelling and an equality
+#: would have to re-derive the producer's format.
+#:
+#: That reason belongs to the rendering and not to the number, and the
+#: sentence was read as though it belonged to the number. A ``count`` is
+#: not a rendering. It is ``str`` of a length, and the thing it is the
+#: length OF is on the same envelope: the intervals this answer reports,
+#: the instruments its graph offers. Asked the way the paragraph above
+#: says to ask -- of each key -- both are records.
 #:
 #: A coined label sat in that sentence too -- "and ``CDE`` is not a copy of
 #: anything at all" -- and the half of it that is true was doing the work
@@ -818,6 +903,16 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     # the first three have too.
     (None, "kind"): ("the uncertainties the caller flagged",
                      _ambiguities_the_caller_flagged, False),
+    # And the two counts, each read against the list it counts. Keyed on
+    # the sentence, because a count is a count OF something and which
+    # something is the sentence's to say: one is the intervals in front of
+    # a reader, the other the instruments the graph admits.
+    ("several_intervals_bound_the_same_quantity", "count"):
+        ("the intervals it reports", _the_intervals_this_answer_reports,
+         False),
+    ("iv_monotonicity_undeclared", "count"):
+        ("the instruments this graph offers",
+         _the_instruments_the_graph_offers, False),
     # And the slot whose answer is the sentence's. Under this statement a
     # target is where an answer is being transported TO.
     ("transport_rests_on_s_admissibility", "target"):
@@ -918,12 +1013,13 @@ def _the_question_asked(program: Mapping) -> tuple[str | None,
             statement, Mapping) else None
         if not isinstance(query, Mapping):
             continue
-        intervention = ((query.get("intervention") or {})
-                        .get("atom") or {}).get("predicate")
-        target = ((query.get("target") or {})
-                  .get("atom") or {}).get("predicate")
-        if intervention and target:
-            return str(intervention), str(target)
+        for first, second in _THE_TWO_ENDS:
+            intervention = ((query.get(first) or {})
+                            .get("atom") or {}).get("predicate")
+            target = ((query.get(second) or {})
+                      .get("atom") or {}).get("predicate")
+            if intervention and target:
+                return str(intervention), str(target)
     return None, None
 
 

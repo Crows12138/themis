@@ -413,13 +413,33 @@ def test_the_remainder_split_is_what_it_is():
     What closed it is neither a recomputation nor an equality between two
     copies. The word is read as the key under which the rest of its own
     claim was found, and a key is checked by looking there.
+
+    Twentieth use, 14 leaves, and the first time ONE frontier's leaves
+    came out of three headings at once: 2 from "another field of the
+    answer, named alike", 6 from "somewhere in the answer, named
+    otherwise", 6 from "nothing either document writes". One slot, one
+    rule, one record per sentence -- and this reading put the same kind
+    of leaf in three places.
+
+    Which is not a fault in it. What it compares is whether the VALUE
+    appears again, and the values here are small integers: ``"2"`` is a
+    level, an index and a count of rows as readily as it is the number of
+    intervals, so whether it recurs says nothing about this leaf. The two
+    under the first heading recur because the same ask is written twice
+    over; the six under the last do not recur at all; and the record that
+    holds every one of them is neither -- it is a LENGTH, which is not
+    written anywhere as a value and is derivable everywhere.
+
+    So the sentence this file has been earning has its sharpest form. A
+    reading that asks whether a value recurs cannot see whether a value
+    is DERIVABLE, and derivable is what decides.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 152,
+        gate._ANSWER_ALIKE: 150,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 200,
+        gate._ANSWER_OTHERWISE: 194,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 463,
+        gate._NOTHING: 457,
         gate._EVERY_READING_MATCHES: 89,
     }
 

@@ -484,6 +484,13 @@ def test_the_remainder_is_counted_rather_than_described():
     anywhere; the record is of what the word means, and the premises in
     the same breath are one branch\'s and never the other\'s. A forgery
     over them now names a branch whose record says otherwise.
+
+    And 14 more from the same roster, one row over. A count was filed as
+    a number, and the reason numbers stay out of that roster is about a
+    RENDERED number -- 36.3% for 0.363 -- where a formatting step sits
+    between the value and its spelling. These are not renderings: how
+    many intervals bound one quantity, and how many instruments the graph
+    offered, are ``str`` of a length whose list is on the same envelope.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -498,7 +505,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2305, 143), (refused, accepted)
+    assert (refused, accepted) == (2319, 129), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

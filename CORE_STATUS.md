@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-26594 passed / 534 skipped, warning-clean
+26923 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,74 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #722 一个 count，数的是这个答案自己列着的东西（2026-09-20）
+
+**现象。** `said.count` 共 15 片押不住。先分堆：三种刻度失配句子的 36 片 `count` **今天就已经
+被拒**（`verify` / `verify_answer_claims`），不是前沿——写根因前先量这一步，否则会把已经押住的
+一起算进去。活着的只有两处：`several_intervals_bound_the_same_quantity` 的 count **12/12 存活**，
+`iv_monotonicity_undeclared` 的 count（坐在 `words.why.said` 下）**2/2 存活**。
+
+**根因：不押的理由属于「渲染」，被当成属于「数」。** `count` 在 `_NOT_NAMES` 里归为 `"number"`，
+理由是「a NUMBER contains no identifier to be wrong about」——**那是第一个问题（这是不是名字）
+的答案，而且对**。说了押不押得住那件事的是 `_COPIED_FROM` 那段：「a **rendered** number
+（`36.3%` for 0.363）is not equal to anything on the envelope」。对**渲染**为真：渲染在值和拼法
+之间隔着一个格式化步骤，要比就得重算产生方的格式。而这些 count 不是渲染，`"2"` 就是
+`str(len(...))`，被数的那个列表就在同一个信封上。那段自己写着「has to be asked of each key」，
+`count` 这个键从来没被问过。
+
+**实测。** `several_intervals` 的 count **12/12 逐字等于 `len(result["bounds_results"])`**
+（产生方就是 `if len(rows) > 1: _sentence(..., count=len(rows))`）；`iv_monotonicity_undeclared`
+的 `count=len(iv_candidates)`，**2/2 等于验证器按 `unconditional_instrument_holds` 在自己那张图上
+数出来的候选数**。两条都走 `_COPIED_FROM` 既有的成员测试形状——**不需要 #720 新建的 `_LOCATES`**，
+因为 count 是货真价实的副本，两张表的分工各自成立。
+
+**第二半：问题的两端被读了两遍，两份都瞎在同一处。** 取工具变量候选要先拿到问题的 treatment /
+outcome，而这个模块读这两端读了两遍——一遍从解析后的 query 给抄问题的册子用
+（`_the_questions_atom`），一遍从程序文档给角色规则用（`_the_question_asked`）——**两份都不知道
+counterfactual 查询把两端拼作 `counterfactual_intervention` / `counterfactual_target`**。于是
+11 个 counterfactual 答案上，那张册子整个是哑的，而且哑得没有声张。现在拼法是**一张表
+`_THE_TWO_ENDS`，三个读者共读**。
+
+**教会验证器之后，一条既有测试红了——它正是为此存在的。**
+`test_a_curve_names_every_role_the_question_is_read_for` 把**产生方**读这两端的方式和验证器的钉在
+一起（当初是为 proximal 的 `treatment`/`outcome` 写的）。产生方 `_query_intervention_label` /
+`_query_target_label` 瞎在同一处、只差一个类：它会把占位词 `<intervention>` 写给一个明明叫 `x` 的
+问题。顺带修掉它回退分支的一个旧毛病：**回退只向字段要 `predicate`，不解包 `.atom`**——在每个回退
+拼法都恰好直接命名 atom 的时候看不出来，遇到第一个「拼法命名的是装着 atom 的字段」就失效。
+
+**动手前量过的取舍。** 加宽两个读者：**252 个答案的诚实判定 0 改变，自身 0 关叶**（48→48）——
+它只为 IV 那一片开路，不夹带。
+
+**不在本轮、单独登记的两条。** ①`missing_information.[].said.count` 那 1 片在
+`verify_gap_quotes` 的射程之外（它只走 `data_gap_report`）；扩不扩射程是「这条规则关于什么」的
+问题，不顺手做。②旁边量到一条独立缺陷：`investigation_item_check` 用 item 的 `target` 当键去配
+`missing_information` 的 `name`，而 `target` **不是键**（它是「要去补的那个东西的名字」），只在两者
+碰巧一致的通道上生效；framing 通道上 `target` 是光谓词、行名带 `framing:` 前缀，实测 **2 条**本该
+配上却没配（另 84 条是那些答案根本没有对应行，规则正确沉默——这一步也是先量才分清的）。
+
+**D1。** 新文件 `test_a_count_is_a_claim_about_a_list.py` 328 条、0 skip：普查（五种句子各多少）、
+`count` 仍不是名字（第一个问题的答案没变）、两个读者逐答案对记录、三种弯折（伪造 / 空 /
+**差一**）逐片被拒、拼法表只此一份（四个读者的 `co_names` 都指向它）、counterfactual 两端两读者
+都答得出（11 个）、哪些查询类给两端哪些不给（各 5 类，实测非断言）、改写后的理由点名「渲染」。
+姊妹文件四处钉随之移（1006→1020、kind 集合多 `number`）。
+
+**余项 915 → 901**，168 行 → 166 行（`needs_investigation:effect:none#11ec26`、
+`#ae3c9c` 两行整行清空），0 NEW holes。全量 **26923 passed / 534 skipped，25:20**，warning-clean。
+**这 14 片是头一回横跨三个标题**：2 片
+「another field of the answer, named alike」（caveat 的 `words.why.said.count` 与同条 gap
+的 `said.count` 本就是同一句话写了两遍）、6 片「named otherwise」、6 片「nothing either
+document writes」。同一个槽、同一条规则、同一份记录，读法却把它分到三处——这不是那个读法
+的毛病，是它量的根本是别的事：它问「这个值有没有再出现一次」，而这些值是小整数，`"2"`
+当层级、当下标、当行数出现得和当「区间条数」一样自然。真正押住它们的那份记录**是个长度**，
+哪儿都没写成值，哪儿都能算出来。这是这份文件一路在挣的那句话最锋利的形态：**一个问「值复不
+复现」的读法看不见「值可不可推」，而可不可推才是决定性的。**
+
+**方法论沉淀**：(413)**一个「已声明」的形状不等于这个形状的叶子全都押不住——先按句子/位置把它
+拆开，逐堆弯一遍**。`said.count` 15 片声明，而同名叶子里 36 片今天就已被拒；不拆就会把根因写在
+一群其实押得住的叶子上。(414)**当一个模块把同一件事读了两遍，加宽其中一遍会把另一遍的瞎点顶出来
+——那正是既有测试该红的地方，别当成回归去绕开**。#722 里红的那条测试，当初就是为「产生方和验证器
+对同一个问题的两端读法必须一致」写的。
 
 ### #720 一个 caveat 说的分支，就是它的前提出处（2026-09-20）
 
