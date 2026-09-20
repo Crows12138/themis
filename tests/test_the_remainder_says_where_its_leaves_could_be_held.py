@@ -433,13 +433,27 @@ def test_the_remainder_split_is_what_it_is():
     So the sentence this file has been earning has its sharpest form. A
     reading that asks whether a value recurs cannot see whether a value
     is DERIVABLE, and derivable is what decides.
+
+    Twenty-first use, 21 leaves, three headings again -- 11 "named alike",
+    3 "named otherwise", 7 "nothing either document writes" -- and the
+    same sentence arriving from the other end. These leaves are words a
+    stamp uses, and a word like ``iid`` recurs across an answer carrying
+    more than one loop, so the reading finds a second copy and files the
+    leaf under "alike". The second copy is a DIFFERENT loop's, which is
+    the one thing that would have mattered about it.
+
+    What held them is that a block contradicts itself, and that the column
+    it names is not the column the run resolved. Neither of those is a
+    value appearing twice, so neither is a thing this reading could have
+    found. Twice in a row now, and both times the heading was measuring
+    something real and beside the point.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 150,
+        gate._ANSWER_ALIKE: 139,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 194,
+        gate._ANSWER_OTHERWISE: 191,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 457,
+        gate._NOTHING: 450,
         gate._EVERY_READING_MATCHES: 89,
     }
 

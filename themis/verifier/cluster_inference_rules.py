@@ -21,9 +21,22 @@ to every consumer, from an interval computed on independent rows. So silence is
 the defect — not merely undocumented, but a claim of i.i.d. inference the run
 gave no basis for.
 
+Where such a record may sit is a question the CONTRACT answers, and this
+module used to answer it from the shape of a producer's function name. The
+result schema declares a ``bootstrap`` block in four places -- the estimate,
+two decompositions under it, and a row of ``bounds_results`` -- and every one
+of them carries stamps in practice. This module walked the first three and
+watched, for the fourth, a top-level ``numeric_bounds`` key that the schema
+does not declare and nothing has ever written, so the check reading it could
+not fire on any answer that passes the door. What the producer calls
+``_attach_numeric_bounds`` fills a ROW, and ``numeric_cluster`` is declared on
+that row and nowhere else.
+
 It also rejects the mirror failure: a ``bootstrap`` block asserting
 cluster-robustness that the run never resolved, that names a different column
-than the run did, or that the estimator's own declarations do not corroborate.
+than the run did, that contradicts itself by labelling an interval ``iid``
+beside the very column it claims to have ignored, or that the estimator's own
+declarations do not corroborate.
 That block is written by the dispatch layer, one call site per estimator
 family; requiring the estimator to independently declare the same thing turns a
 hand-written assertion into a two-source agreement.
@@ -79,64 +92,158 @@ def _reject(message: str) -> NoReturn:
 def verify_cluster_inference(result: dict) -> None:
     """Audit one result's cluster-robustness disclosure.
 
-    No-op when the run named no cluster column and neither the stamp nor
-    the estimator's declarations claim one. Raises
-    :class:`VerificationError` on under-disclosure, on a cluster-robustness
-    claim the envelope does not support, and on a stamp that says less than
-    the estimator declared.
+    No-op when the run named no cluster column and nothing on the answer
+    claims one. Raises :class:`VerificationError` on under-disclosure, on a
+    cluster-robustness claim the envelope does not support, on a block that
+    contradicts itself, and on a stamp that says less than the estimator
+    declared.
     """
     context = result.get("estimation_context") or {}
     run_cluster = context.get("cluster")
-
     estimate = result.get("numeric_estimate") or {}
-    stamp = estimate.get("bootstrap")
-    bounds = result.get("numeric_bounds") or {}
-    bounds_cluster = bounds.get("numeric_cluster")
 
-    if run_cluster is None:
-        # Nothing was resolved, so nothing may claim to have honoured it.
-        if isinstance(stamp, dict) and stamp.get("kind") == "cluster":
-            _reject(
-                "numeric_estimate.bootstrap claims a cluster bootstrap on "
-                f"{stamp.get('cluster_column')!r}, but the run recorded no "
-                "cluster column in estimation_context — the claim has no "
-                "run-level basis"
-            )
-        if bounds_cluster is not None:
-            _reject(
-                f"numeric_bounds.numeric_cluster names {bounds_cluster!r}, "
-                "but the run recorded no cluster column in estimation_context"
-            )
-    else:
-        _check_stamp(stamp, run_cluster, estimate)
-        _check_bounds(bounds_cluster, run_cluster)
+    for where, block, stamp, declared in _stamped_blocks(result):
+        _check_one_block(where, block, stamp, run_cluster, declared)
+
+    if run_cluster is not None:
         _check_declaration(estimate, run_cluster)
 
-    # Last, and in both branches. Last because the checks above own the
-    # cases they can already name, and a rule that reaches a forgery first
-    # with a wider sentence takes the better one away from the reader. In
-    # both branches because an estimator saying it resampled whole clusters
-    # is a claim about its own loop, owed a stamp that says so whether or
-    # not the run recorded a column of its own.
+    # Last, and whatever the run recorded. Last because the checks above
+    # own the cases they can already name, and a rule that reaches a
+    # forgery first with a wider sentence takes the better one away from
+    # the reader. Whatever the run recorded, because an estimator saying it
+    # resampled whole clusters is a claim about its own loop, owed a stamp
+    # that says so whether or not the run recorded a column of its own.
     _check_every_stamp_says_what_the_estimator_declared(estimate)
 
 
-def _check_stamp(stamp, run_cluster: str, estimate: dict) -> None:
-    """The dispatch-written bootstrap block must agree with the run and be
-    corroborated by the estimator's own declarations."""
-    if not isinstance(stamp, dict) or stamp.get("kind") != "cluster":
-        return
-    stamped = stamp.get("cluster_column")
-    if stamped != run_cluster:
+def _stamped_blocks(result: dict):
+    """Every block on one result carrying a stamp, and what describes it.
+
+    Four yields' worth of places, because that is how many the contract
+    declares: ``numeric_estimate``, the two decompositions under it, and a
+    row of ``bounds_results``. The first three are one walk, for the reason
+    :func:`_stamps` gives. The fourth is a row, and reaching it is the
+    whole of what this function adds -- see the module docstring for the
+    key that was being watched instead.
+
+    The last element of each yield is what describes THIS loop in its own
+    words, or nothing where nothing does. A bounds row has an
+    ``assumptions`` slot that no producer fills: thirteen of the fourteen
+    stamped rows in this repository's corpus carry ``None``, both of the
+    clustered ones among them. So the corroboration this module asks of the
+    estimate has nothing to ask of a row -- which is a record the row does
+    not have rather than a direction left unwatched, and the block checks
+    below are written to ask only where there is something to ask.
+    """
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, dict):
+        declared = estimate.get("assumptions")
+        for where, block, stamp in _stamps(estimate):
+            yield where, block, stamp, declared
+    for row in result.get("bounds_results") or ():
+        if isinstance(row, dict) and isinstance(row.get("bootstrap"), dict):
+            yield (f"bounds_results[{row.get('method')!r}]", row,
+                   row["bootstrap"], row.get("assumptions"))
+
+
+def _check_one_block(where: str, block: dict, stamp: dict,
+                     run_cluster, declared) -> None:
+    """One block's stamp: against itself, against the run, against words.
+
+    The first of those is a biconditional the contract states in prose and
+    cannot carry. ``bootstrapDraws`` says ``cluster_column`` "is present
+    exactly then"; ``numeric_cluster`` is "absent for the i.i.d.
+    bootstrap". An enum beside a closed object accepts ``iid`` next to a
+    named column either way round, so holding it is a rule's job.
+
+    Which slot each half is asked of is the whole of the care here.
+    ``cluster_column`` belongs to the stamp, and every stamp is a
+    ``bootstrapDraws``, so requiring it whenever the kind is ``cluster``
+    needs to know nothing about the container. ``numeric_cluster`` is
+    declared on a bounds row and on nothing else, so it is read where it is
+    PRESENT: a rule demanding it of every block would refuse every honest
+    estimate, and a rule demanding it of the containers it could name would
+    be a table of containers again -- which is the mistake this module is
+    being taken out of.
+
+    That asymmetry costs one hold, named here rather than left to be
+    discovered: a bounds row stamped ``cluster`` whose ``numeric_cluster``
+    is missing is accepted, because the half of the biconditional that
+    would refuse it is the half that needs the container. The row still
+    names the column in its stamp, so no reader is told the wrong unit of
+    independence; what is lost is the envelope's second copy of it.
+    """
+    stamp_at = f"{where}.bootstrap"
+    kind = stamp.get("kind")
+    named: dict[str, object] = {}
+    if stamp.get("cluster_column") is not None:
+        named[f"{stamp_at}.cluster_column"] = stamp["cluster_column"]
+    if block.get("numeric_cluster") is not None:
+        named[f"{where}.numeric_cluster"] = block["numeric_cluster"]
+    listed = ", ".join(f"{slot}={value!r}"
+                       for slot, value in sorted(named.items()))
+
+    if kind == "cluster" and stamp.get("cluster_column") is None:
         _reject(
-            f"numeric_estimate.bootstrap resampled {stamped!r} but the run "
-            f"resolved cluster column {run_cluster!r}"
+            f"{stamp_at} says its loop resampled whole clusters and does "
+            f"not say which column. Which column is the unit of "
+            f"independence is the whole of what that claim tells a reader, "
+            f"so a claim without one leaves them nothing to check their "
+            f"own unit against"
         )
-    if not _names(estimate.get("assumptions"), run_cluster):
+    if kind != "cluster" and named:
         _reject(
-            f"numeric_estimate.bootstrap claims a cluster bootstrap on "
-            f"{run_cluster!r}, but the estimator's own assumptions never "
-            "mention that column — the claim is unattributed"
+            f"{stamp_at} says {kind!r} while its block still names the "
+            f"column it would have had to ignore ({listed}). An interval "
+            f"labelled i.i.d. is read as resting on independent rows and "
+            f"one naming a cluster column is read as resampling it, so "
+            f"this block is read both ways by two readers who both looked"
+        )
+    if len(set(named.values())) > 1:
+        _reject(
+            f"one loop ran, so one column was resampled, and {where} names "
+            f"more than one ({listed}). A reader deciding whether the "
+            f"interval covers their unit of independence reads whichever "
+            f"of them they happened to find"
+        )
+
+    for slot, column in sorted(named.items()):
+        if run_cluster is None:
+            _reject(
+                f"{slot} claims a cluster bootstrap on {column!r}, but the "
+                f"run recorded no cluster column in estimation_context — "
+                f"the claim has no run-level basis"
+            )
+        if column != run_cluster:
+            _reject(
+                f"{slot} resampled {column!r} but the run resolved cluster "
+                f"column {run_cluster!r}"
+            )
+
+    if named and declared and not _names(declared, run_cluster):
+        _reject(
+            f"{stamp_at} claims a cluster bootstrap on {run_cluster!r}, but "
+            f"the estimator's own assumptions never mention that column "
+            f"— the claim is unattributed"
+        )
+    # Where the stamp is the only register a block has, the stamp is what
+    # has to say it. ``declared is None`` means nothing on this envelope
+    # describes this loop in words -- a bounds row, whose ``assumptions``
+    # slot no producer fills -- so an ``iid`` label under a clustered run
+    # is the whole of what the block says about the column, and it is a
+    # claim the run gave no basis for. Where words exist the same question
+    # belongs to :func:`_check_declaration`, which also reaches intervals
+    # carrying no stamp at all; asking it twice would take that case away
+    # from the rule whose sentence is about it.
+    if declared is None and kind != "cluster" and run_cluster is not None:
+        _reject(
+            f"the run resolved cluster column {run_cluster!r} and "
+            f"{stamp_at} says {kind!r}, with nothing on this block saying "
+            f"what its loop did with that column and no declarations of "
+            f"its own to say it in. An interval labelled i.i.d. under a "
+            f"clustered run is an anti-conservative claim the run gave no "
+            f"basis for — the same failure as silence, asserted"
         )
 
 
@@ -160,11 +267,15 @@ def _stamps(node, under: str = "numeric_estimate"):
     a second loop under a block of its own and that loop is described by
     the same flat list of declarations — a stamp is not exempt from a
     claim for sitting one level down.
+
+    The block as well as the record, because a column can be named twice in
+    one place and the question is about the block rather than about the
+    stamp alone.
     """
     if isinstance(node, dict):
         record = node.get("bootstrap")
         if isinstance(record, dict):
-            yield f"{under}.bootstrap", record
+            yield under, node, record
         for key, value in node.items():
             if key != "bootstrap":
                 yield from _stamps(value, key)
@@ -201,12 +312,12 @@ def _check_every_stamp_says_what_the_estimator_declared(estimate) -> None:
     column = _resampled_clusters_on(estimate.get("assumptions"))
     if column is None:
         return
-    for where, record in _stamps(estimate):
+    for where, _block, record in _stamps(estimate):
         kind = record.get("kind")
         if kind != "cluster":
             _reject(
                 f"the estimator declares it resampled whole clusters by "
-                f"{column!r} and {where} says {kind!r}. An interval "
+                f"{column!r} and {where}.bootstrap says {kind!r}. An interval "
                 f"labelled i.i.d. is read as resting on independent rows, "
                 f"so a stamp saying less than the estimator declared hands "
                 f"the reader a narrower claim than the run supports — and "
@@ -216,19 +327,12 @@ def _check_every_stamp_says_what_the_estimator_declared(estimate) -> None:
         if stamped != column:
             _reject(
                 f"the estimator declares it resampled whole clusters by "
-                f"{column!r} and {where} resampled {stamped!r}. One loop "
+                f"{column!r} and {where}.bootstrap resampled {stamped!r}. "
+                f"One loop "
                 f"ran, so one column was resampled, and a reader deciding "
                 f"whether the interval covers their unit of independence "
                 f"is reading whichever of the two they happened to find"
             )
-
-
-def _check_bounds(bounds_cluster, run_cluster: str) -> None:
-    if bounds_cluster is not None and bounds_cluster != run_cluster:
-        _reject(
-            f"numeric_bounds.numeric_cluster names {bounds_cluster!r} but the "
-            f"run resolved cluster column {run_cluster!r}"
-        )
 
 
 def _reports_an_interval(node: object) -> bool:
@@ -271,7 +375,14 @@ def _reports_an_interval(node: object) -> bool:
 
 def _check_declaration(estimate: dict, run_cluster: str) -> None:
     """Every interval produced under a clustered run must say, in the
-    estimator's own declarations, what it did with the column."""
+    estimator's own declarations, what it did with the column.
+
+    The estimate's, because this asks about intervals that carry no stamp
+    at all — an analytic one, or a decomposition's endpoint — and
+    the declarations are the only record those have. A block that does
+    carry a stamp is asked the same question by :func:`_check_one_block`,
+    where the stamp itself counts as saying what the loop did.
+    """
     if not _reports_an_interval(estimate):
         return  # no interval — there is nothing to be robust about
     if _names(estimate.get("assumptions"), run_cluster):

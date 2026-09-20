@@ -115,10 +115,7 @@
   "numeric_estimate.front_door_empirical.treatment_prevalence"
  ],
  "frontdoor_linear": [
-  "bounds_results.[].bootstrap.cluster_column",
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_cluster",
   "estimation_context.random_state"
  ],
  "frontdoor_logistic": [
@@ -176,13 +173,10 @@
   "numeric_estimate.robust_anderson_rubin_confidence_set.point"
  ],
  "iv_acr": [
-  "bounds_results.[].bootstrap.kind",
-  "bounds_results.[].bootstrap.kind@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].ci_lower",
   "bounds_results.[].ci_lower@method=balke_pearl_iv,tightness=sharp",
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
-  "estimation_context.random_state",
-  "numeric_estimate.acr_decomposition.bootstrap.kind"
+  "estimation_context.random_state"
  ],
  "iv_stratified_wald": [
   "estimation_context.ci_bootstrap",
@@ -287,7 +281,6 @@
   "status"
  ],
  "needs_investigation:effect:none": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.anderson_rubin_region.instruments.[]",
@@ -361,7 +354,6 @@
   "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#44412c": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -376,14 +368,12 @@
   "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#4c108f": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.recorded.share"
  ],
  "needs_investigation:effect:none#4c2552": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -433,7 +423,6 @@
   "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#7a43ba": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state"
@@ -461,7 +450,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.said.total"
  ],
  "needs_investigation:effect:none#a9f370": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.anderson_rubin_region.instruments.[]",
@@ -602,7 +590,6 @@
   "numeric_estimate.method"
  ],
  "numerically_solved:effect:none": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.selection_recovery.search_budget",
@@ -686,7 +673,6 @@
   "numeric_estimate.ovb_sensitivity.t_statistic"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#2ec0e3": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "data_gap_report.gaps.[].describes.[].said.high",
   "data_gap_report.gaps.[].describes.[].said.low",
@@ -717,7 +703,6 @@
   "estimation_context.random_state"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#6ce8fb": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind",
@@ -786,7 +771,6 @@
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.mechanism_audit.mechanisms.[].target",
@@ -892,7 +876,6 @@
  ],
  "numerically_solved:effect:numeric_result#d97753": [
   "estimation_context.random_state",
-  "numeric_estimate.four_way_ratio.bootstrap.kind",
   "structural_result.value"
  ],
  "numerically_solved:effect:numeric_result#f188a1": [
@@ -1061,10 +1044,7 @@
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "rmst_kaplan_meier": [
-  "bounds_results.[].bootstrap.cluster_column",
-  "bounds_results.[].bootstrap.kind",
   "bounds_results.[].ci_lower",
-  "bounds_results.[].numeric_cluster",
   "estimation_context.random_state",
   "extensions.survival_curve.cells.[].stratum.[]",
   "extensions.survival_curve.censored_share",
@@ -1112,8 +1092,7 @@
  ],
  "structurally_solved:effect:identify_via_mediation#a7cd7e": [
   "estimation_context.random_state",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "numeric_estimate.four_way_ratio.bootstrap.kind"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "structurally_solved:effect:identify_via_mediation#af41dd": [
   "estimation_context.random_state",

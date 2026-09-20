@@ -122,10 +122,32 @@ def test_a_stamp_that_contradicts_itself_is_refused_too():
     """``iid`` beside the very column it claims to have ignored. Two halves
     of one block disagreeing is not a lesser version of the forgery above —
     it is the same interval mislabelled, with a leftover that makes it look
-    checked."""
-    with pytest.raises(VerificationError, match="resampled whole clusters"):
+    checked.
+
+    The sentence refusing it changed in #721, and the refusal got wider.
+    This used to be caught only because the estimator ALSO declared a
+    cluster bootstrap, by the rule that holds a stamp against that
+    declaration; the same block with nothing declared behind it was
+    accepted, measured on the version this replaced. A block saying two
+    things is now refused by itself, which is where the contradiction is
+    — the test below is that half.
+    """
+    with pytest.raises(VerificationError, match="read both ways"):
         verify_cluster_inference(_result(
             assumptions=[_READER_SAYS + "clinic"],
+            bootstrap={"kind": "iid", "cluster_column": "clinic",
+                       "requested": 40, "used": 40}))
+
+
+def test_the_contradiction_needs_nothing_else_on_the_answer():
+    """Nothing declares a loop, the run resolved no column, and the block
+    still says both things at once. Every reading that could have refused
+    this one came from somewhere else on the answer; the contract's own
+    sentence about the block — ``cluster_column`` is present exactly when
+    the kind is ``cluster`` — needs nothing else."""
+    with pytest.raises(VerificationError, match="read both ways"):
+        verify_cluster_inference(_result(
+            run_cluster=None,
             bootstrap={"kind": "iid", "cluster_column": "clinic",
                        "requested": 40, "used": 40}))
 

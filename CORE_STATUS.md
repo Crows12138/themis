@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-26923 passed / 534 skipped, warning-clean
+27008 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,92 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #721 一个戳能坐在哪儿，是契约回答的问题（2026-09-20）
+
+**现象。** `bounds_results.[].bootstrap.kind` 14 片押不住。一个界行记着它那条区间的重采样
+是怎么抽的，`kind` 说的是抽的整簇还是独立行——这是**独立性单位**：认它区间变宽，丢掉它区间
+偏窄，而纸面上的数一模一样。契约把 `kind` 声明成 `enum:["iid","cluster"]`，所以闸口对这片叶子
+唯一的谎来自**域**：伪造拼法被 schema 挡掉，`iid`↔`cluster` **对调** 14/14 全程通过。
+
+**根因：那个模块自以为看着界这一侧，其实看着一个信封上不存在的容器。**
+`cluster_inference_rules` 正是为这个失败写的，它的 docstring 说对簇列沉默「不只是没写清楚，
+而是这次运行从未给过依据的 i.i.d. 推断主张」。它也确实写了一段专管界的检查
+`_check_bounds`，读的是 `result["numeric_bounds"]["numeric_cluster"]`。
+
+**那个键不存在。** 结果契约顶层 `additionalProperties: false`，而 `numeric_bounds` 没有被声明,
+带这个键的答案过不了门。全仓顶层 `numeric_bounds` 的三处提及全在这个模块自己（93 读、
+107/229 印），**无任何写者**；语料 252 个答案里 **0 个**带它；也没有任何测试碰过它。
+产生方叫 `_attach_numeric_bounds` / `_fill_numeric_bounds` 的函数填的是**一行**
+（`dispatch.py:2201` 的 `bounds["numeric_cluster"] = nb.cluster`），而 `numeric_cluster` 在整份
+契约里**只声明于 `$defs.boundsResult`**——`numeric_estimate` 上压根没有这个字段。
+**容器名是照着产生方的函数名起的，而那个函数填的是行。**
+
+**契约自己说了戳住在哪几处，一共四处**（按 `$ref` 展开走一遍 schema）：
+`numeric_estimate.bootstrap`、`...acr_decomposition.bootstrap`、`...four_way_ratio.bootstrap`、
+`bounds_results.[].bootstrap`；语料里四处都真有戳（27 / 1 / 2 / 14，共 44 个）。
+`_stamps` 递归走 `numeric_estimate`，正好覆盖前三处；第四处够不着。
+
+**结构。** 走法改成按**契约声明了 `bootstrap` 的每个容器**走（`_stamped_blocks`），这个模块
+本来就在问估计的那两个问题，现在戳坐在哪儿就在哪儿问：①这个块自相不自相矛盾，②它名的列
+是不是运行解析出的那个。删掉 `_check_bounds` 这个死读法和 `run_cluster is None` 分支里对应的
+那条臂——它本该守的 `numeric_cluster` 跟着行走，同一句话现在真的可达了。
+
+**①是契约用散文写了、又载不动的双条件**：`bootstrapDraws` 说 `cluster_column`「is present
+exactly then」，`numeric_cluster` 说「absent for the i.i.d. bootstrap」，而 `enum` 配
+`additionalProperties:false` 两个方向都收。**两个槽问法不同，这是本轮最要小心的地方**：
+`cluster_column` 属于戳，而每个戳都是 `bootstrapDraws`，所以「kind 是 cluster 就必须有它」
+不需要知道容器是谁；`numeric_cluster` 只声明在界行上，所以只在它**在场**时读——对每个块都要
+它会拒掉每个诚实的估计，对「叫得出名字的容器」要它就又是一张容器表，而这张表正是本轮要
+拆掉的东西。**这条不对称代价一处，写在模块里而不是留给人去撞**：一个 cluster 界行丢了
+`numeric_cluster` 会被放行，因为拒它的那半个双条件正是需要容器知识的那半。
+
+**顺手关掉一个估计侧的洞。** 一个块说 `iid` 却还挂着它声称忽略了的那列，以前只有在
+**估计器也声明了簇 bootstrap** 时才被抓（靠「戳不能说得比声明少」那条）；把同一个块换成
+声明缺席、运行也没解析簇列，**实测旧版放行**。现在块自己就拒。
+
+**一条既有测试的期望随之移，当场声明**：
+`test_a_stamp_that_contradicts_itself_is_refused_too` 的 `match` 从「resampled whole clusters」
+改成「read both ways」——同一个伪造，改由**块自己**拒，不再借道估计器声明；旁边补了新的
+`test_the_contradiction_needs_nothing_else_on_the_answer` 钉住变强的那一半。
+
+**设计上走过一次弯路，记下来。** 第一版给 `_check_one_block` 加了一条「簇运行下说 iid 就拒」
+的臂，结果 `test_an_answer_whose_intervals_all_nest_is_audited_too` 红了——那条臂把
+`_check_declaration` 本来该答的题抢走了，而那个测试的主题恰恰是「区间全嵌套的答案也要被审」。
+分界线应该画在**这个容器有几份独立记录**上：估计有两份（dispatch 写戳、估计器写话），所以话
+是必须的、戳另有一条规则去对；界行只有一份，戳就是它的声明。臂改成只在
+`declared is None`（这个信封上没有任何话描述这个循环）时才开口。
+
+**代价，已量后声明。** 14 行里 **13 行 `assumptions=None`**（两条 cluster 行都在其中），
+唯一带话的那行坐在非簇运行上。所以 `_check_declaration`（要求区间自己的声明点名簇列）
+**不能搬到界行上**——搬了今天就会拒掉诚实答案。界行有这个槽，但没有产生方去填。
+三个方向在界行上只覆盖两个，第三个不是漏做，是**界行没有那份声明可对**，这句话写进了
+`_stamped_blocks` 的 docstring。
+
+**D1。** 新文件 `test_a_stamp_sits_where_the_contract_says_it_may.py` 84 条、0 skip：普查
+（14 个带戳界行 / 12 iid + 2 cluster / 84 个无戳行全都没有区间 / 4 个簇运行里 2 个有界行）、
+**契约声明的四处**（测试自己展开 `$ref` 走一遍，不与模块共用走法）、四处在语料里都真有戳、
+**模块的走法到达的就是这四处**、被守着的那个容器契约里没有（顶层封闭 + 0 个答案带它 +
+源码里不再读它）、`numeric_cluster` 只声明于一个容器、honest 方向（13 个逐一 + 全语料一遍）、
+「对调是这个答案本可以诚实写出的词」、四种弯折逐行被拒（对调 14、第二个不同的列 14、
+cluster 戳不说哪列 2、iid 戳还名着列 12）、**押不住的那一条明写成测试**
+（cluster 行丢了第二份副本会被放行）、读者单测（走法交出块和描述它的话、无戳时沉默）、
+`_check_one_block` 八种拒绝各一条 + 四种放行各一条。
+
+**余项 901 → 880**（21 片：17 片 `kind`〔14 界行 + 3 个下一层的分解〕+ 2 片
+`bootstrap.cluster_column` + 2 片 `numeric_cluster`），**166 行不变，0 NEW holes**；
+重建 1013 秒。全量 **27008 passed / 534 skipped，29:20**，warning-clean。
+**预测 21 / 880 / 行数不变——全中。**
+新分布 139 / 6 / 191 / 5 / 450 / 89，**又是横跨三个标题**（−11 / −3 / −7）。
+
+**方法论沉淀**：(415)**一个验证器读的键，可能是契约里根本没有的键——而这种死读法长得和活检查
+一模一样**（有函数、有 docstring、有消息）。判据是三问：这个容器谁写的？契约声明了吗？语料里
+有几个答案带它？三问都要，因为「检查存在」不证明它跑过。(416)**「这个东西能坐在哪儿」是契约
+回答的问题**，模块按产生方的**函数名**给容器起名，就会在函数名和字段名不同构的地方错位——
+`_attach_numeric_bounds` 填的是一行。加一条测试把「模块走到的地方」和「契约声明的地方」对齐，
+比逐个检查便宜得多。(417)**一条新臂如果回答的是既有规则的问题，它会把那个案例从那条规则手里
+抢走**，于是那条规则的测试红在一个与它主题无关的理由上。分界线要画在**这个容器有几份独立
+记录**上，不是画在「哪条先跑」上。
 
 ### #722 一个 count，数的是这个答案自己列着的东西（2026-09-20）
 

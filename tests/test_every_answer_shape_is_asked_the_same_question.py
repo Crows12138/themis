@@ -2237,9 +2237,23 @@ def test_the_declared_remainder_is_what_it_is():
     neither of that module's two readers of those knew that a
     counterfactual query spells them in two fields of its own. 14 and
     901 were predicted exactly.
+
+    Then 21, and not one of them a gap. A bounds row records how its
+    interval's replicates were drawn, and the module that knows what that
+    word MEANS was watching a container this contract does not have: a
+    top-level ``numeric_bounds``, which the schema closes its top level
+    against and does not declare, so nothing writes one and the check
+    reading it could not fire on any answer that passes the door. The
+    contract declares a stamp in four places and the corpus carries one in
+    all four; the module walked three, because it had named its container
+    after a producer's function rather than after the envelope. Asking its
+    own two questions wherever a stamp sits closed all seventeen ``kind``
+    leaves -- fourteen on rows, three on decompositions one level down --
+    and the four beside them that name the column itself. 21 and 880 were
+    predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 901, total
+    assert total == 880, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
