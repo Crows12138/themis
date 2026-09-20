@@ -77,6 +77,7 @@ def test_a_surface_cannot_bind_a_kind_the_vocabulary_does_not_have():
     made_up = questions.Question("mediation_kind", asks="", settles="a",
                                  fails="b", verdict_is_the_answer=False,
                                  names_an_estimand=True,
+                                 asks_across_worlds=False,
                                  interval_fallback=None,
                                  answers_with=frozenset({"numerically_solved"}))
     with pytest.raises(ValueError, match="not a declared query"):

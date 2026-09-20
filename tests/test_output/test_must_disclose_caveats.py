@@ -201,9 +201,16 @@ def test_front_door_assumptions_surface_as_caveat():
     assert "前门" in explanation
 
 
-def test_counterfactual_classifier_fires_on_status():
-    """Unit test on the classifier: COUNTERFACTUAL_SOLVED status alone
-    triggers the assumption gap (consistency + composition axioms)."""
+def test_counterfactual_classifier_fires_on_the_question():
+    """Unit test on the classifier: what was ASKED triggers the assumption
+    gap (consistency + composition axioms), whatever came out.
+
+    It used to be read off the answer, and the four cases below are the
+    ones that were hand-picked when it was. The declaration they are now
+    a sample of is ``Question.asks_across_worlds``; every question is put
+    to the classifier against every status in
+    ``test_a_caveat_about_two_worlds_is_owed_to_the_question``.
+    """
     from themis import language
     from themis.output.data_gap_report import _classify_counterfactual_assumptions
     from themis.types import QueryKind, ResultStatus
@@ -222,8 +229,8 @@ def test_counterfactual_classifier_fires_on_status():
     ))
     assert len(fired_bounded) == 1
 
-    # Status alone (non-counterfactual query somehow getting a non-CF
-    # status) must not trigger.
+    # A question that asks for an interventional contrast is not owed
+    # this, whatever its answer came out as.
     not_counterfactual = list(_classify_counterfactual_assumptions(
         derivation=(), status=ResultStatus.STRUCTURALLY_SOLVED,
         query_kind=QueryKind.EFFECT,

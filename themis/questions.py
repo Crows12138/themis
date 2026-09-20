@@ -109,6 +109,23 @@ class Question:
     applicable, not what makes one knowable — a result whose kernel has not
     yet decided the shape of its answer still states none.
 
+    ``asks_across_worlds`` says the quantity is defined over more than
+    one world, so identifying it rests on premises no data can check.
+    Four of the ten ask for one: a cell of the counterfactual joint
+    distribution, the probabilities of causation, one unit's value
+    under a structural model, a conjunction of counterfactual events.
+    The caveat that states those premises reached only some of them,
+    because it asked the ANSWER -- a status word, and a three-name list
+    of derivation rules -- and which question was asked is not a fact
+    about the answer to it. Measured on the corpus: 56 of 69
+    across-world answers carried the caveat, and which 56 turned on
+    what came out. A ``causation`` query answered with bounds carried
+    it and the same query answered with points did not, so one
+    question told two different stories about its own premises. The
+    thirteen that lost it were left with a generic
+    ``missing_assumption`` gap -- the L3-versus-L2 distinction going
+    missing in precisely the way that caveat exists to prevent.
+
     ``answers_with`` is which words this question's ANSWER can lead with.
     Only answer words: a refusal is about what this system could not do
     rather than about what was asked, so the words a refusal leaves are
@@ -147,6 +164,7 @@ class Question:
     fails: Words = field(compare=False)
     verdict_is_the_answer: bool = field(compare=False)
     names_an_estimand: bool = field(compare=False)
+    asks_across_worlds: bool = field(compare=False)
     interval_fallback: str | None = field(compare=False)
     answers_with: frozenset[str] = field(compare=False)
 
@@ -170,6 +188,7 @@ CAUSE = Question(
                  "this graph"},
     verdict_is_the_answer=True,
     names_an_estimand=False,
+    asks_across_worlds=False,
     interval_fallback=None,
     answers_with=frozenset({"structurally_solved"}),
 )
@@ -184,6 +203,7 @@ ASSOC = Question(
                  "conditioning set"},
     verdict_is_the_answer=True,
     names_an_estimand=False,
+    asks_across_worlds=False,
     interval_fallback=None,
     answers_with=frozenset({"structurally_solved"}),
 )
@@ -203,6 +223,7 @@ IDENTIFY = Question(
     # No bounds are attempted for it — the scheduler runs them for effect
     # queries only — so an interval is not a fallback it has.
     names_an_estimand=True,
+    asks_across_worlds=False,
     interval_fallback=None,
     answers_with=frozenset({"structurally_solved"}),
 )
@@ -223,6 +244,7 @@ EFFECT = Question(
            "en": "on this graph the estimand is not identifiable"},
     verdict_is_the_answer=False,
     names_an_estimand=True,
+    asks_across_worlds=False,
     # A placeholder as much as a name: the scheduler rewrites this line to
     # whichever procedure actually produced a ``bounds_results`` row — Manski on a
     # bare graph, the IV bounds when an instrument is declared — and strips
@@ -243,6 +265,7 @@ PROBABILITY = Question(
     # data needs, and point-estimable, so no interval stands in for it.
     # Listed as neither for as long as both facts were hand-written sets.
     names_an_estimand=True,
+    asks_across_worlds=False,
     interval_fallback=None,
     answers_with=frozenset({"numerically_solved"}),
 )
@@ -256,6 +279,7 @@ COUNTERFACTUAL = Question(
            "en": "on this graph the cell is not identifiable"},
     verdict_is_the_answer=False,
     names_an_estimand=True,
+    asks_across_worlds=True,
     interval_fallback="Tian-Pearl bounds",
     answers_with=frozenset({"counterfactual_bounded",
                             "counterfactual_solved",
@@ -272,6 +296,7 @@ CAUSATION = Question(
                  "identifiable"},
     verdict_is_the_answer=False,
     names_an_estimand=True,
+    asks_across_worlds=True,
     # The interval is the ordinary answer here, not the consolation:
     # monotonicity is what collapses PN/PS/PNS to points, and it is a
     # premise the caller declares rather than one the data supply.
@@ -293,6 +318,7 @@ SCM_COUNTERFACTUAL = Question(
     # Deterministic: given the coefficients and the unit's observations the
     # value is a point, and short of them there is nothing to bound.
     names_an_estimand=True,
+    asks_across_worlds=True,
     interval_fallback=None,
     answers_with=frozenset({"counterfactual_solved",
                             "numerically_solved"}),
@@ -308,6 +334,7 @@ COUNTERFACTUAL_CONJUNCTION = Question(
     # ID* answers with a formula or a hedge; no bounds procedure is wired
     # to the hedge, so a refused conjunction has no interval to offer.
     names_an_estimand=True,
+    asks_across_worlds=True,
     interval_fallback=None,
     answers_with=frozenset({"numerically_solved",
                             "structurally_solved"}),
@@ -322,6 +349,7 @@ PROXIMAL_EFFECT = Question(
            "en": "on this graph the proximal criterion does not hold"},
     verdict_is_the_answer=False,
     names_an_estimand=True,
+    asks_across_worlds=False,
     interval_fallback=None,
     answers_with=frozenset({"numerically_solved",
                             "structurally_solved"}),

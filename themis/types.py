@@ -2745,9 +2745,17 @@ RAISED_BY: dict["GapKind", str] = {
 RAISED_BY_TURNS_ON: dict["GapKind", tuple[frozenset[str], str]] = {
     GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED: (
         frozenset({"counterfactual_status", "counterfactual_query_kind"}),
-        "which of two shapes triggered it when no derivation chain exists "
-        "to cite: an answer that reached a counterfactual status, or a "
-        "query that asked a counterfactual and got no further",
+        "which shape the answer arrived in, where no derivation chain "
+        "exists to cite: one that reached a counterfactual status, or "
+        "one that did not. Since #724 neither of those TRIGGERS the "
+        "gap -- the question does, and says so through "
+        "Question.asks_across_worlds -- so the pair records how the "
+        "answer looked rather than what noticed. It is a pair and not "
+        "the one name that reason now calls for because 55 collected "
+        "answers cite these two, and a structural row's identity is a "
+        "digest over the shapes it brought that run, so no targeted "
+        "refresh brings those rows back under their own names. They "
+        "collapse at the next full re-collection",
     ),
     GapKind.ILL_DEFINED_INTERVENTION_VERSIONS: (
         frozenset({"intervention_state_inferred",

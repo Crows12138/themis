@@ -1247,7 +1247,19 @@ def _classify_counterfactual_assumptions(
     caveat applies whether the kernel solved the cell, bounded it, or
     stopped for missing inputs. Without it a stalled counterfactual
     surfaces only as a generic 'missing assumption' gap and the L3 vs L2
-    distinction is lost in rendering."""
+    distinction is lost in rendering.
+
+    Which questions those are is the question's to declare
+    (:attr:`themis.questions.Question.asks_across_worlds`) and was
+    spelled here as one query kind, with a status word and a three-name
+    list of derivation rules catching what that missed. They missed
+    thirteen: every ``counterfactual_conjunction``, every ``causation``
+    answered with points instead of bounds, and the linear-SCM
+    counterfactual that came back through the estimator rather than the
+    solver. Reading the answer is what made the caveat turn on what came
+    out, so one ``causation`` query stated its own premises or did not
+    depending on whether monotonicity had been declared -- and a
+    question is not a fact about the answer to it."""
     triggering = next(
         (
             step for step in derivation
@@ -1255,17 +1267,15 @@ def _classify_counterfactual_assumptions(
         ),
         None,
     )
-    is_counterfactual_status = status in (
+    if not questions.reading_of(query_kind.value).asks_across_worlds:
+        return
+    # Not what raised it, and named anyway: the two check names this
+    # species declares are carried by answers already collected, and
+    # the pair says so where it is declared.
+    reached_a_counterfactual_status = status in (
         ResultStatus.COUNTERFACTUAL_SOLVED,
         ResultStatus.COUNTERFACTUAL_BOUNDED,
     )
-    is_counterfactual_query = query_kind == QueryKind.COUNTERFACTUAL
-    if (
-        triggering is None
-        and not is_counterfactual_status
-        and not is_counterfactual_query
-    ):
-        return
     yield DataGap(
         kind=GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
         describes=(_sentence(
@@ -1275,20 +1285,17 @@ def _classify_counterfactual_assumptions(
                 GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
                 derivation, triggering)
             if triggering
-            # The common counterfactual case is NEEDS_ASSUMPTION /
-            # counterfactual-query-kind, which carries no derivation
-            # chain — so there is no derivation step to cite, and
-            # citing one produced a dangling provenance the kernel's
-            # own T10-1 rejected on every derivation-less result. What
-            # raised it is a check on the query/status shape, and
-            # which of the two it was is the species' declared
-            # branch. This used to say it picked verifier_check
-            # BECAUSE T10-1 took it as free-form; the escape it named
-            # is the reason the check is now held to a declaration.
+            # The common counterfactual case carries no derivation
+            # chain — so there is no step to cite, and citing one
+            # produced a dangling provenance the kernel's own T10-1
+            # rejected on every derivation-less result. What raised it
+            # is the question; which of the species' two names the ref
+            # wears is the answer's shape, and the declaration beside
+            # the pair says why that is so and what closes it.
             else raised_by_ref(
                 GapKind.COUNTERFACTUAL_IDENTIFICATION_ASSUMPTION_REQUIRED,
                 check=("counterfactual_status"
-                       if is_counterfactual_status
+                       if reached_a_counterfactual_status
                        else "counterfactual_query_kind"),
             )
         ),
