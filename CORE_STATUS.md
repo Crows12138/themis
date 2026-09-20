@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-27477 passed / 534 skipped, warning-clean
+27736 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,24 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #726 一个范围，是答案「没到达」时手里剩下的东西（2026-09-20）
+
+**现象。** 42 个只带 `bounds_results`（Manski 界，没有任何估计块 / 结果块）的 `needs_investigation` 答案，可以被改写成 `numerically_solved` 而两扇公共门都放行。读者读到的第一个词是「已数值求解」，而这个答案**一个数都没算出来**——它的全部内容是一份缺口诊断。
+
+**根因：`A_QUANTITY` 把「拿到了量」和「没拿到、只剩一个范围」当成了同一种证据。** 它写作 `{POINT, INTERVAL, NUMBER}`、三者择一。但 `POINT` 只从盛放量的块里读出来，**蕴含 `NUMBER`**；`INTERVAL` 除了 `bounds_results` 那一路（估计的 `ci_lower`、结果的 `interval`）**也蕴含 `NUMBER`**。**实测：252 个存档答案上，「三者取一」与「有 NUMBER，或者有 `bounds_results`」逐个相等，0 例外。** 所以那两个多出来的成员买到的唯一东西，就是**让 `bounds_results` 去满足一个宣称量已到达的词**——而读法自己的措辞是：那个块是「where an answer that **could not** reach a point keeps what it did reach」。**这个集合其实是第二句话，挂着第一句话的名字。**
+
+**为什么是根因不是表象。** 表象修法是给 `needs_investigation` 加一条否认（例如「不能挨着 `missing_information`」）：从另一头绕，而且实测只吃掉一部分——20 个 `needs_investigation` 答案根本没有 `missing_information`，那条会误拒。毛病在**证据的语义**上：一份「没到达」的记录被当成「到达了」的证据，谁引用 `A_QUANTITY` 谁中招。`types.py` 里那段注释写的是「a promise is only as good as the totality of the reading behind it」——那句针对的是**读得太少**，而这里的毛病相反，是**读进了一个方向相反的块**。同一段还警告过：承诺不可写得更细。**这次改的不是细度，是范围**：读法仍然是同一个「总」的读法（`themis.blocks.Family` 声明的那批块），只是不再把「专门用来说没到达」的那个块算作到达的证据。
+
+**改动。** `A_QUANTITY` 收成 `{NUMBER}`；新增 `A_QUANTITY_OR_THE_RANGE_STANDING_IN` = `{NUMBER, INTERVAL}`，**只有 `counterfactual_bounded` 用**——对它而言范围就是答案，那个块正是它的证据。**这个不对称是主张本身，不是对冲**：两个词说运行到达了、一个词说没到达，能同时满足三者的东西不是任何一个的证据。
+
+**实测：0 个诚实答案被拒**（252 个全部仍被各自的门接受）；**幸存对调 124 → 83**，`needs_investigation → numerically_solved` 那族 **42 → 1**（剩下那个另带一个 answer block，信封上真有量，它的词错在别处）；声明 `status` 的答案 120 → 80。**余项 982 → 942 片（关 40），行 231 → 220（29 行留着别的叶子、11 行整行离开）；预测全中，0 NEW holes。**
+
+**D1 并进既有文件而不新开**——改的就是 `STATUS_CLAIMS` / `A_QUANTITY`，它们的测试本来就在 `test_the_first_word_an_answer_says_about_itself.py`，另起一份会把同一个词的叙事劈成两半。+257 条。断言：被丢掉的两个梯级本来就不给承诺加任何东西（四种信封各自蕴含 NUMBER，而 `bounds_results` 只给 INTERVAL）；**252 个存档答案没有一个能把新旧两种读法分开**（这正是「第二句话挂着第一句话名字」的钉子）；两个「到达了」的词不被范围满足、`counterfactual_bounded` 仍然接受它；**不对称的两侧都被诚实答案练到**（41 个只有范围的、141 个说到达了的，都写成等号）。姊妹钉三处移动：`SURVIVING` 124→83、这条规则单独跑到的 (990,522)→(1072,440)、幸存者点名册那一行 42→1。
+
+**方法论沉淀**：(424)**一个「择一即可」的证据集合，要逐个问成员是不是彼此独立的证据。** `{POINT, INTERVAL, NUMBER}` 看着是三条平行的路，实际是「一条路 + 它的两个别名 + 一个方向相反的块」。判据：对集合里每个成员问「有没有一个信封只满足它、不满足其余」——答案就是这个成员**真正**在买的东西；如果它买到的是一个语义相反的块，这个集合就是在替那个块背书。(425)**「承诺不可写得更细」不等于「承诺不可写得更窄」。** 原注释的警告是对的（承诺读得太细会拒掉把数放在没枚举的键下的诚实答案），但它被当成了「承诺不能动」。**细度**说的是读法有多全，**范围**说的是哪些东西算证据；前者不能动，后者可以动、而且必须跟着「这个块是为了说什么而存在的」走。
+
+**全量 27736 passed / 534 skipped，29:57**，warning-clean。第一遍是 27733 passed / 3 failed：三个全是本改动该移动的钉子——余项 982→942、分档「nothing either document writes」565→525（两个都预测中），以及 `test_prose_resolves_at_head` 抓到测试文件里那句「#726」引用了一个 CORE_STATUS 还没有条目的编号，**正是这条闸口存在的理由**。三条补完后单独复跑全过。
 
 ### #725 一个前提，不该由「运行走到了第几步」来审（2026-09-20）
 

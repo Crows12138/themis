@@ -102,6 +102,10 @@ def _shown(result: Mapping) -> frozenset[Shown]:
     audited. ``bounds_results`` counts as an interval because that is what
     a bound IS to a reader — a range the answer is inside — and it is
     where an answer that could not reach a point keeps what it did reach.
+    Which is also why the rung it raises is no evidence that one arrived,
+    and why the claims table asks the two words saying the run got there
+    for a number rather than for any of the three
+    (:data:`themis.types.A_QUANTITY`).
 
     Certainly: every rung here is a value sitting in a field, not a block
     that would hold one. This is the reading a denial is held against, and

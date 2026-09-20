@@ -419,23 +419,18 @@
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "status"
  ],
- "needs_investigation:effect:none#03cf75": [
-  "status"
- ],
  "needs_investigation:effect:none#045841": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.remedies.[].remedy",
-  "estimator_failure.remedies.[].subject",
-  "status"
+  "estimator_failure.remedies.[].subject"
  ],
  "needs_investigation:effect:none#055e4a": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.feedback_loop.withdrew.[]",
-  "status"
+  "extensions.feedback_loop.withdrew.[]"
  ],
  "needs_investigation:effect:none#06d3b8": [
   "estimation_context.ci_bootstrap",
@@ -452,15 +447,10 @@
   "estimation_context.random_state",
   "estimator_failure.recorded.e_treatment_high",
   "estimator_failure.recorded.e_treatment_low",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "status"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#0e36ff": [
-  "missing_information.[].observable.variables.[]",
-  "status"
- ],
- "needs_investigation:effect:none#11ec26": [
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#17bf1c": [
   "confidence",
@@ -469,8 +459,7 @@
   "confidence_sources.[].slot_label",
   "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.confidence",
-  "data_gap_report.gaps.[].describes.[].said.threshold",
-  "status"
+  "data_gap_report.gaps.[].describes.[].said.threshold"
  ],
  "needs_investigation:effect:none#17db0b": [
   "estimation_context.ci_bootstrap",
@@ -478,66 +467,43 @@
   "estimation_context.random_state",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "status"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#1be52a": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#1df86c": [
-  "extensions.missing_data_recovery.search_budget",
-  "status"
- ],
- "needs_investigation:effect:none#239d98": [
-  "status"
- ],
- "needs_investigation:effect:none#249ba4": [
-  "status"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#28ee90": [
   "data_gap_report.gaps.[].describes.[].words.why.said.detail",
   "extensions.transport_identification.sources.[].blocked_by",
   "status"
  ],
- "needs_investigation:effect:none#2beaf3": [
-  "status"
- ],
  "needs_investigation:effect:none#2dff45": [
-  "extensions.missing_data_recovery.search_budget",
-  "status"
- ],
- "needs_investigation:effect:none#30ca3b": [
-  "status"
- ],
- "needs_investigation:effect:none#38993c": [
-  "status"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#44412c": [
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.selection_recovery.search_budget",
-  "status"
+  "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#451831": [
-  "extensions.feedback_loop.withdrew.[]",
-  "status"
+  "extensions.feedback_loop.withdrew.[]"
  ],
  "needs_investigation:effect:none#4beb47": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#4c108f": [
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimator_failure.recorded.share",
-  "status"
+  "estimator_failure.recorded.share"
  ],
  "needs_investigation:effect:none#4c2552": [
   "bounds_results.[].ci_lower",
@@ -545,18 +511,15 @@
   "estimation_context.random_state",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "extensions.selection_recovery.search_budget",
-  "status"
+  "extensions.selection_recovery.search_budget"
  ],
  "needs_investigation:effect:none#515686": [
-  "extensions.missing_data_recovery.search_budget",
-  "status"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#5b5a2e": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#60ffe9": [
   "estimation_context.ci_bootstrap",
@@ -577,9 +540,6 @@
   "estimator_failure.recorded.sparse_points.[].x",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
- "needs_investigation:effect:none#6afcce": [
-  "status"
- ],
  "needs_investigation:effect:none#6d8fe1": [
   "data_gap_report.gaps.[].describes.[].words.why.said.time",
   "estimation_context.ci_bootstrap",
@@ -587,25 +547,19 @@
   "estimation_context.random_state",
   "status"
  ],
- "needs_investigation:effect:none#711239": [
-  "status"
- ],
  "needs_investigation:effect:none#77c113": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "extensions.missing_data_recovery.search_budget",
-  "status"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:effect:none#7a43ba": [
   "bounds_results.[].ci_lower",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#89bf2f": [
-  "missing_information.[].observable.variables.[]",
-  "status"
+  "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#8f6d34": [
   "estimation_context.ci_bootstrap",
@@ -613,8 +567,7 @@
   "estimation_context.random_state",
   "estimator_failure.recorded.outcome",
   "estimator_failure.remedies.[].remedy",
-  "estimator_failure.remedies.[].subject",
-  "status"
+  "estimator_failure.remedies.[].subject"
  ],
  "needs_investigation:effect:none#96f4c8": [
   "estimation_context.ci_bootstrap",
@@ -622,12 +575,10 @@
   "estimation_context.random_state",
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
-  "estimator_failure.remedies.[].subject@remedy=use_method",
-  "status"
+  "estimator_failure.remedies.[].subject@remedy=use_method"
  ],
  "needs_investigation:effect:none#a58bcc": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.total",
-  "status"
+  "data_gap_report.gaps.[].describes.[].words.why.said.total"
  ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].ci_lower",
@@ -637,29 +588,20 @@
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "status"
  ],
- "needs_investigation:effect:none#ae3c9c": [
-  "status"
- ],
  "needs_investigation:effect:none#af79f6": [
   "missing_information.[].gap",
   "missing_information.[].kind",
   "missing_information.[].said.count",
   "missing_information.[].said.fields",
-  "missing_information.[].said.predicate",
-  "status"
- ],
- "needs_investigation:effect:none#b26e61": [
-  "status"
+  "missing_information.[].said.predicate"
  ],
  "needs_investigation:effect:none#b2e77c": [
-  "data_gap_report.gaps.[].describes.[].said.rationale",
-  "status"
+  "data_gap_report.gaps.[].describes.[].said.rationale"
  ],
  "needs_investigation:effect:none#bb3eb5": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#c60193": [
   "estimation_context.ci_bootstrap",
@@ -680,14 +622,12 @@
   "data_gap_report.gaps.[].describes.[].said.won",
   "data_gap_report.gaps.[].provenance.[].ref_id@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,ref_kind=program_site",
   "data_gap_report.gaps.[].said.lost",
-  "data_gap_report.gaps.[].said.won",
-  "status"
+  "data_gap_report.gaps.[].said.won"
  ],
  "needs_investigation:effect:none#cf69fc": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "status"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#dd007d": [
   "estimation_context.ci_bootstrap",
@@ -697,12 +637,10 @@
   "estimator_failure.recorded.t_range"
  ],
  "needs_investigation:effect:none#f57a55": [
-  "bounds_results.[].notes.[].said.cap",
-  "status"
+  "bounds_results.[].notes.[].said.cap"
  ],
  "needs_investigation:effect:none#fe9f0f": [
-  "extensions.missing_data_recovery.search_budget",
-  "status"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "needs_investigation:proximal_effect:none": [
   "status"

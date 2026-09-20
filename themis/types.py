@@ -1340,8 +1340,8 @@ class Shown(StrEnum):
     CHAIN = "chain"
 
 
-#: Any of the three ways a quantity can be on the envelope, which is the
-#: only grain at which a word may be made to PROMISE one.
+#: A quantity arrived, at the only grain at which a word may be made to
+#: PROMISE one.
 #:
 #: The two halves of a claim have opposite exposures, and the difference
 #: decides how fine each may be written. A denial is read against a list
@@ -1357,8 +1357,30 @@ class Shown(StrEnum):
 #: coefficient and a linear-SCM counterfactual is a bare point, and both
 #: keep it under a key of their own that no shape-level reading enumerates
 #: without becoming a list of the answers its author happened to see.
-A_QUANTITY: frozenset[Shown] = frozenset(
-    {Shown.POINT, Shown.INTERVAL, Shown.NUMBER})
+#:
+#: ``POINT`` and ``INTERVAL`` were named here too, and neither added
+#: anything a promise could want. A point sits in a block that holds a
+#: quantity, so ``POINT`` implies ``NUMBER``, and an estimate's interval
+#: sits in one as well. What the pair did let in is the opposite of what
+#: they were named for: ``bounds_results`` raises ``INTERVAL`` while
+#: carrying no quantity at all, and it is, in the reading's own words,
+#: "where an answer that could not reach a point keeps what it did
+#: reach". Measured over every stored answer, "any of the three" and "a
+#: number, or else a range" agreed on all of them — so the set was the
+#: second sentence under the first one's name, and 42 answers holding
+#: nothing but Manski bounds could call themselves numerically solved.
+A_QUANTITY: frozenset[Shown] = frozenset({Shown.NUMBER})
+
+#: …or the range that stands in where none arrived, which one word's
+#: answer may BE.
+#:
+#: A bounded counterfactual reached bounds and says so, so the block that
+#: exists to say a quantity was not reached is its evidence rather than a
+#: contradiction of it. The asymmetry is the claim: two words say the run
+#: got there and one says it did not, and a thing that satisfies all three
+#: is not evidence for any of them.
+A_QUANTITY_OR_THE_RANGE_STANDING_IN: frozenset[Shown] = (
+    A_QUANTITY | frozenset({Shown.INTERVAL}))
 
 
 @dataclass(frozen=True)
@@ -1419,17 +1441,20 @@ STATUS_CLAIMS: dict[ResultStatus, StatusClaim] = {
     ResultStatus.STRUCTURALLY_SOLVED: StatusClaim(
         carries=(frozenset({Shown.STRUCTURE}),),
         withholds=frozenset({Shown.POINT})),
-    # The three words that say a quantity arrived promise it at the grain
-    # A_QUANTITY explains and no finer. What separates them is the question
-    # rather than the answer: a counterfactual point and an estimated one
-    # are the same rung on the envelope and differ in which query kind was
-    # allowed to return the word. Nothing states that, so it is the next
-    # frontier rather than a claim to make here on a reading that would
-    # have to enumerate every key a number can sit under.
+    # The two words that say a quantity arrived promise it at the grain
+    # A_QUANTITY explains and no finer. What separates THOSE TWO is the
+    # question rather than the answer: a counterfactual point and an
+    # estimated one are the same rung on the envelope and differ in which
+    # query kind was allowed to return the word. Nothing states that, so
+    # it is the next frontier rather than a claim to make here on a
+    # reading that would have to enumerate every key a number can sit
+    # under.
     ResultStatus.NUMERICALLY_SOLVED: StatusClaim(carries=(A_QUANTITY,)),
     ResultStatus.COUNTERFACTUAL_SOLVED: StatusClaim(carries=(A_QUANTITY,)),
+    # And the word whose answer may be the range itself, which is why it
+    # is the one of the three admitting the block that says none arrived.
     ResultStatus.COUNTERFACTUAL_BOUNDED: StatusClaim(
-        carries=(A_QUANTITY,),
+        carries=(A_QUANTITY_OR_THE_RANGE_STANDING_IN,),
         withholds=frozenset({Shown.POINT})),
 }
 

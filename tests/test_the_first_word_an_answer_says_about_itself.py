@@ -39,6 +39,9 @@ What is asserted here:
   is total over the kinds the contract admits; the words open to every
   question are the refusal kinds' own; and each half is put to the case it
   has to say no to, and to the case it must not
+- that the promise half is not satisfied by the block that exists to say
+  a quantity was NOT reached, and that the one word whose answer may be
+  that range still admits it — both sides put to honest answers
 - the numbers: what each rule reaches, what they refuse, and what they do
   not — the survivors are named, because a gate that reports its own
   blindness as coverage is the failure this whole line of work is about
@@ -54,7 +57,9 @@ import pathlib
 import pytest
 
 from themis import blocks, questions, refusals
-from themis.types import STATUS_CLAIMS, ResultStatus, Shown
+from themis.types import (
+    A_QUANTITY, A_QUANTITY_OR_THE_RANGE_STANDING_IN,
+    STATUS_CLAIMS, ResultStatus, Shown)
 from themis.verifier import VerificationError
 from themis.verifier.status_rules import (
     _ANSWER_BLOCKS, _ANSWERS_WITH, _REFUSAL_WORDS, _might_be_showing, _shown,
@@ -83,7 +88,7 @@ RULE_QUESTION = "answer_status_question_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 124
+SURVIVING = 83
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -117,14 +122,31 @@ SURVIVING = 124
 #: say a point is not. A word these two rules cannot tell apart is told
 #: apart by what the tier would have to become under it. That is what it
 #: means for a field to select an audit: the fields it selects can hold it.
+#:
+#: Forty-one more went in #726, and to this rule's PROMISE half rather
+#: than its denial — the half a first draft was warned off making finer.
+#: ``A_QUANTITY`` offered three rungs as alternatives and two of them
+#: were already implied by the third: a point sits in a block that holds
+#: a quantity, and so does an estimate's interval. What the pair let in
+#: was the one interval that is not a quantity at all —
+#: ``bounds_results``, which the reading's own words call where an answer
+#: that COULD NOT reach a point keeps what it did reach. So the word
+#: saying a number arrived was satisfied by the block that says none did,
+#: and 42 gap diagnoses holding nothing but Manski bounds could call
+#: themselves numerically solved. Making the promise finer is what the
+#: warning was about; this made it narrower without making it finer, and
+#: the reading behind it is the same total one. The single survivor is
+#: the diagnosis that also carries an answer block, where a quantity
+#: really is on the envelope and what is wrong with the word is something
+#: else.
 SURVIVORS = {
     "counterfactual_solved -> numerically_solved": 43,
-    "needs_investigation -> numerically_solved": 42,
     "structurally_solved -> needs_investigation": 24,
     "needs_investigation -> outside_language": 8,
     "counterfactual_bounded -> counterfactual_solved": 2,
     "counterfactual_bounded -> numerically_solved": 2,
     "needs_investigation -> structurally_solved": 2,
+    "needs_investigation -> numerically_solved": 1,
     "numerically_solved -> needs_investigation": 1,
 }
 
@@ -255,7 +277,7 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (990, 522), (refused, passed)
+    assert (refused, passed) == (1072, 440), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [
@@ -285,6 +307,81 @@ def test_a_word_that_claims_what_is_not_there(status):
     forged = {"status": status, "query_id": "q", "query_kind": "effect"}
     with pytest.raises(VerificationError, match="claims"):
         verify_answer_status(forged)
+
+
+#: How many stored answers hold a range and no quantity, and how many
+#: say the run reached one. Both sides of the asymmetry, counted, so a
+#: corpus that stopped exercising either says so here.
+ANSWERS_HOLDING_ONLY_A_RANGE = 41
+ANSWERS_SAYING_THE_RUN_GOT_THERE = 141
+
+
+def test_the_two_rungs_the_promise_dropped_were_never_adding_to_it():
+    """``POINT`` and ``INTERVAL`` sat in ``A_QUANTITY``, and one of them
+    was the whole hole. A point is only ever read out of a block that
+    holds a quantity, and so is an estimate's interval, so both imply
+    ``NUMBER``. The single reading they added is the one interval that is
+    not a quantity at all."""
+    assert A_QUANTITY == frozenset({Shown.NUMBER})
+    for envelope in ({"numeric_estimate": {"point": 1.0}},
+                     {"numeric_result": {"value": 1.0}},
+                     {"numeric_estimate": {"ci_lower": 0.0}},
+                     {"numeric_result": {"interval": [0.0, 1.0]}}):
+        assert Shown.NUMBER in _shown(envelope), envelope
+    assert _shown({"bounds_results": [{}]}) == frozenset({Shown.INTERVAL})
+    assert A_QUANTITY_OR_THE_RANGE_STANDING_IN == frozenset(
+        {Shown.NUMBER, Shown.INTERVAL})
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_no_stored_answer_tells_the_old_reading_from_the_new_one(shape):
+    """Which is what made the old set the second sentence under the first
+    one's name: over every stored answer, "any of the three rungs" and "a
+    number, or else a range" answer the same."""
+    result = SHAPES[shape]["result"]
+    might = _might_be_showing(result)
+    three = frozenset({Shown.POINT, Shown.INTERVAL, Shown.NUMBER})
+    assert bool(three & might) == (
+        Shown.NUMBER in might or bool(result.get("bounds_results")))
+
+
+@pytest.mark.parametrize("word", ["numerically_solved",
+                                  "counterfactual_solved"])
+def test_a_word_saying_the_run_got_there_is_not_satisfied_by_a_range(word):
+    """The block that exists to say a quantity was not reached is not
+    evidence that one was."""
+    with pytest.raises(VerificationError, match="claims"):
+        verify_answer_status({
+            "query_id": "q", "query_kind": "effect", "status": word,
+            "bounds_results": [{"lower_value": 0.1, "upper_value": 0.9}]})
+
+
+def test_the_word_whose_answer_may_be_the_range_admits_it():
+    """The asymmetry is the claim rather than a hedge: a bounded
+    counterfactual reached bounds, and saying so is its answer."""
+    verify_answer_status({
+        "query_id": "q", "query_kind": "counterfactual",
+        "status": "counterfactual_bounded",
+        "bounds_results": [{"lower_value": 0.1, "upper_value": 0.9}]})
+
+
+def test_both_sides_of_the_asymmetry_are_exercised_by_honest_answers():
+    """A claim only a constructed envelope reaches is a claim about
+    nothing this system builds."""
+    only_a_range = sorted(
+        name for name, row in SHAPES.items()
+        if Shown.NUMBER not in _might_be_showing(row["result"])
+        and row["result"].get("bounds_results"))
+    assert len(only_a_range) == ANSWERS_HOLDING_ONLY_A_RANGE
+    assert {SHAPES[n]["result"]["status"] for n in only_a_range} == {
+        "needs_investigation"}
+    got_there = sorted(
+        name for name, row in SHAPES.items()
+        if row["result"].get("status") in ("numerically_solved",
+                                           "counterfactual_solved"))
+    assert len(got_there) == ANSWERS_SAYING_THE_RUN_GOT_THERE
+    assert all(Shown.NUMBER in _might_be_showing(SHAPES[n]["result"])
+               for n in got_there)
 
 
 def test_a_word_this_build_does_not_carry_is_passed_over():

@@ -2317,9 +2317,21 @@ def test_the_declared_remainder_is_what_it_is():
     no route at all and met the narrow door. What a premise is worth
     turned on whether data happened to be there. 982 was predicted
     exactly.
+
+    Then forty, and this time to a promise rather than to a rule. The set
+    a word was held to for "some quantity is here" offered three rungs as
+    alternatives, and two of them implied the third -- a point is only
+    read out of a block that holds a quantity, and so is an estimate's
+    interval. The one reading the pair added was the interval that is not
+    a quantity: the bounds block, which exists to say a quantity was NOT
+    reached. Over all 252 answers "any of the three" and "a number, or
+    else a range" answered identically, so the set was the second
+    sentence under the first one's name, and 42 gap diagnoses holding
+    nothing but Manski bounds could call themselves numerically solved.
+    942 and 220 were predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 982, total
+    assert total == 942, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

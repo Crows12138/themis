@@ -471,13 +471,24 @@ def test_the_remainder_split_is_what_it_is():
     in its own gap report, in the number sitting beside it. That is a
     seventh heading these five do not have: not where the value recurs,
     but what else in the document could only be true if it held.
+
+    Twenty-fourth use, 40 leaves, all of them out of "nothing either
+    document writes" -- the heading the status word arrived under two
+    frontiers ago, and for the same reason: no other slot on either
+    document is written in that vocabulary. Right again about recurrence,
+    silent again about what decides, which here was that the word claims
+    a quantity and the block beside it is the one that says none was
+    reached. Four uses now, and the sentence has stopped being a caveat
+    about these headings: what they read is whether the value is written
+    twice, and what has held every leaf they were asked about is what
+    else on the envelope could only be true if this one were.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 139,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 191,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 565,
+        gate._NOTHING: 525,
         gate._EVERY_READING_MATCHES: 76,
     }
 
