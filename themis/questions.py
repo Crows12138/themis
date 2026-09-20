@@ -109,6 +109,15 @@ class Question:
     applicable, not what makes one knowable — a result whose kernel has not
     yet decided the shape of its answer still states none.
 
+    It is also which proposition the verdict stands for. Where a question
+    names an estimand the verdict says that quantity can be got — eight
+    questions, one proposition, whatever else separates them; where it
+    names none the verdict is about the shape of a graph and each has its
+    own. Only the first sort can be held by the rest of the envelope, and
+    holding it there is what stops the audit of a premise from depending
+    on how far the run got past it
+    (:mod:`themis.verifier.verdict_rules`).
+
     ``asks_across_worlds`` says the quantity is defined over more than
     one world, so identifying it rests on premises no data can check.
     Four of the ten ask for one: a cell of the counterfactual joint

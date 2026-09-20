@@ -2306,9 +2306,20 @@ def test_the_declared_remainder_is_what_it_is():
     question did. A remainder measured by a question nobody asked was
     never the smaller one, and 1974 leaves are still in that position --
     counted, now, rather than described.
+
+    Then thirteen back the other way, and the first entry here whose hole
+    was not in a rule but in WHICH rule ran. A structural verdict is one
+    slot carrying ten propositions, so re-deriving it belonged to the
+    ROUTE verifiers -- and a route is chosen by the status word and the
+    chain's last rule, neither of which is the question. Eight answers
+    identified and then went on counting, so the output the structural
+    door equates the verdict with stopped being the last one; five took
+    no route at all and met the narrow door. What a premise is worth
+    turned on whether data happened to be there. 982 was predicted
+    exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 995, total
+    assert total == 982, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

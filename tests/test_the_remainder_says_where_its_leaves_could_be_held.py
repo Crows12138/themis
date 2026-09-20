@@ -461,6 +461,16 @@ def test_the_remainder_split_is_what_it_is():
     frontiers running, this reading has been accurate about recurrence and
     silent about derivability, which is now less a caveat about these
     headings than the sentence they are for.
+
+    Twenty-third use, 13 leaves, again all under one heading -- "a flag
+    or an absence, which every reading matches", 89 to 76. Here the
+    heading is not beside the point but empty by construction: the leaf
+    is a boolean, and a boolean matches every reading, so recurrence had
+    nothing it COULD say. What held it was that the same answer commits
+    to the same fact three more times -- in the step that concluded it,
+    in its own gap report, in the number sitting beside it. That is a
+    seventh heading these five do not have: not where the value recurs,
+    but what else in the document could only be true if it held.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 139,
@@ -468,7 +478,7 @@ def test_the_remainder_split_is_what_it_is():
         gate._ANSWER_OTHERWISE: 191,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 565,
-        gate._EVERY_READING_MATCHES: 89,
+        gate._EVERY_READING_MATCHES: 76,
     }
 
 

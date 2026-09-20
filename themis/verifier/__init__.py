@@ -430,6 +430,22 @@ Public surface (re-exports from sub-modules):
   do, not about what was asked. The roster is collected from every result
   the suite causes this system to build rather than read off the
   producers, because a roster one entry short refuses an honest answer)
+- The structural verdict, against what the same answer already committed:
+  ``verify_structural_verdict`` (one slot carries ten propositions and
+  which one is the question's to say, so auditing it was the ROUTE
+  verifier's job — and a route is chosen by the status word and the
+  chain's last rule, neither of which is the question. Where the verdict
+  is the answer the route always re-derives it; where it is a premise the
+  route lands wherever the run got to, so an effect query stopping at
+  ``identify_via_mediation`` had its verdict held against the last step's
+  output while the same query with data ran three steps further and
+  reached a numeric verifier with no reason to read a premise it does not
+  use. Thirteen stored answers could be flipped at every door. Held here
+  outside the dispatch, against the three places one answer commits to
+  identification — the step that concluded it, wherever in the chain it
+  sits; a gap of the one declared kind that says it failed; and a point
+  estimate, which is what identification is for. Nothing is re-derived:
+  what this catches is an answer contradicting itself)
 - What an answer calls the steps of its chain:
   ``verify_the_chain_names_its_steps`` (a name exists to be pointed at, and
   the reader of an answer holds no second record of what its producer liked
@@ -934,6 +950,7 @@ from .status_rules import (
     verify_answer_status_fits_its_question,
 )
 from .step_name_rules import verify_the_chain_names_its_steps
+from .verdict_rules import verify_structural_verdict
 from .gap_claim_rules import (
     verify_gap_names,
     verify_gap_quotes,
@@ -984,6 +1001,7 @@ __all__ = [
     "verify_answer_tier",
     "verify_answer_status",
     "verify_answer_status_fits_its_question",
+    "verify_structural_verdict",
     "verify_statements_carry_their_facts",
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",

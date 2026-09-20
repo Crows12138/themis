@@ -145,6 +145,7 @@ from .verifier import (
     verify_longitudinal_option_copy,
     verify_answer_status,
     verify_answer_status_fits_its_question,
+    verify_structural_verdict,
     verify_answer_tier,
     verify_statements_carry_their_facts,
     verify_statements_repeat_what_decided_them,
@@ -1686,6 +1687,15 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # tells two words showing the same thing apart. Ordered after the kind
     # is held, because it reads the kind.
     verify_answer_status_fits_its_question(result)
+
+    # And the other thing an answer says about itself in one slot: the
+    # structural verdict, whose proposition is the question's to name. That
+    # is why it was the route verifiers' to audit — and a route is chosen by
+    # the status word and the chain's last rule, so a premise the route does
+    # not use went unread the moment a run got past it. Here for the same
+    # reason the rules above are here, and reading the kind for the same
+    # reason: it is held to the program by now.
+    verify_structural_verdict(result)
 
     # Which node each column of an accepted frame stood for. Asked of the
     # program's graph and ahead of every rule that reads a number: the
