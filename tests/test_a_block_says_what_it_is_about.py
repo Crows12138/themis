@@ -39,7 +39,9 @@ import pytest
 
 import themis
 from themis.input.syntactic_validator import SyntacticError
-from themis.verifier.frame_rules import _CITED, verify_frame
+from themis.verifier.frame_rules import (
+    _CITED, _conditioned_at, _the_estimands_this_answer_reports, verify_frame,
+)
 from themis.verifier.errors import VerificationError
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -436,3 +438,224 @@ def test_a_citation_cannot_be_replaced_with_another(path):
 
     node[steps[-1]] = sorted(_CITED[path])[0]
     verify_frame(result, {"statements": []}, query_id="q")
+
+
+# ================================ the arm, in the estimand a reader is shown
+
+
+def _the_question(program):
+    for statement in program.get("statements") or ():
+        if statement.get("kind") == "query":
+            return statement.get("query") or {}
+    return {}
+
+
+def _query_id(program):
+    for statement in program.get("statements") or ():
+        if statement.get("kind") == "query":
+            return statement.get("id")
+    return None
+
+
+def _intervened(program):
+    """(predicate, value) the question intervened to, or None."""
+    query = _the_question(program)
+    intervention = query.get("intervention")
+    if not isinstance(intervention, dict):
+        return None
+    atom, value = intervention.get("atom"), intervention.get("value")
+    if not isinstance(atom, dict) or not isinstance(value, bool):
+        return None
+    return atom.get("predicate"), value
+
+
+def _rows_whose_estimand_names_the_arm():
+    """Every corpus row whose estimand conditions the intervened predicate.
+
+    Read off the corpus rather than listed, so a build that stops writing
+    the arm into its formula fails the roster test below rather than
+    quietly leaving these with nothing to bend.
+    """
+    out = []
+    for name, pair in SHAPES.items():
+        asked = _intervened(pair["program"])
+        if asked is None:
+            continue
+        predicate, _value = asked
+        for where, node in _the_estimands_this_answer_reports(pair["result"]):
+            if any(isinstance(shown, bool)
+                   for _p, shown in _conditioned_at(node, predicate, where)):
+                out.append(name)
+                break
+    return sorted(out)
+
+
+ARM_ROWS = _rows_whose_estimand_names_the_arm()
+
+
+def test_the_corpus_publishes_estimands_that_name_the_arm():
+    assert len(ARM_ROWS) >= 20, len(ARM_ROWS)
+
+
+@pytest.mark.parametrize("method", ARM_ROWS)
+def test_an_estimand_for_the_other_arm_is_refused(method):
+    """One boolean, flipped where the formula says which arm this is.
+
+    No comparison can find its second writing -- a ``True`` matches every
+    other ``True`` -- and its second writing is not on the envelope at all.
+    It is in the question.
+
+    Asked of this rule rather than of the door, and the reason is worth the
+    line: a formula naming the other arm is also a formula the
+    identification check can no longer re-derive, so the door refuses it
+    twice over and which refusal arrives first is not a fact about the
+    forgery. The door's half is the test below.
+    """
+    program, result = _pair(method)
+    predicate, value = _intervened(program)
+    flipped = 0
+    for _where, node in _the_estimands_this_answer_reports(result):
+        flipped = _flip_in(node, predicate, value)
+        if flipped:
+            break
+    assert flipped, method
+    with pytest.raises(VerificationError, match="the other arm"):
+        verify_frame(result, program, query_id=_query_id(program))
+
+
+@pytest.mark.parametrize("method", ARM_ROWS)
+def test_the_door_refuses_an_estimand_for_the_other_arm(method):
+    """And the claim that matters to a caller: whoever says so, the public
+    door does not hand this answer back as a good one."""
+    program, result = _pair(method)
+    predicate, value = _intervened(program)
+    for _where, node in _the_estimands_this_answer_reports(result):
+        if _flip_in(node, predicate, value):
+            break
+    with pytest.raises(Exception):
+        themis.verify(program, result)
+
+
+def _flip_in(node, predicate, value) -> int:
+    """Flip the first conditioning on ``predicate`` inside this estimand."""
+    if isinstance(node, dict):
+        for entry in node.get("given") or ():
+            if not isinstance(entry, dict):
+                continue
+            atom = entry.get("atom")
+            if isinstance(atom, dict) and atom.get("predicate") == predicate \
+                    and isinstance(entry.get("value"), bool):
+                entry["value"] = not value
+                return 1
+        for child in node.values():
+            if _flip_in(child, predicate, value):
+                return 1
+    elif isinstance(node, list):
+        for child in node:
+            if _flip_in(child, predicate, value):
+                return 1
+    return 0
+
+
+def _rows_whose_step_declares_an_intervention():
+    out = []
+    for name, pair in SHAPES.items():
+        if _intervened(pair["program"]) is None:
+            continue
+        for step in (pair["result"].get("derivation") or {}).get("steps") or ():
+            record = (step.get("inputs") or {}).get("intervention")
+            if isinstance(record, dict) and isinstance(record.get("value"),
+                                                       bool):
+                out.append(name)
+                break
+    return sorted(out)
+
+
+STEP_ROWS = _rows_whose_step_declares_an_intervention()
+
+
+def test_the_corpus_has_steps_that_say_what_they_set():
+    assert STEP_ROWS, "nothing to hold"
+
+
+@pytest.mark.parametrize("method", STEP_ROWS)
+@pytest.mark.parametrize("part", ("value", "predicate"))
+def test_a_step_that_set_something_else_is_refused(method, part):
+    """What the step says it did, against what was asked. Two halves,
+    because an arm and a variable are two different ways of computing
+    something nobody asked for.
+
+    Asked of this rule for the same reason as above, and for one more: a
+    predicate no program declares is refused by the schema before any rule
+    reads it, so putting this through the door would test the validator and
+    call it this."""
+    program, result = _pair(method)
+    predicate, value = _intervened(program)
+    for step in result["derivation"]["steps"]:
+        record = (step.get("inputs") or {}).get("intervention")
+        if not isinstance(record, dict) or not isinstance(record.get("value"),
+                                                          bool):
+            continue
+        if part == "value":
+            record["value"] = not value
+            match = "two different arms"
+        else:
+            record["atom"]["predicate"] = "not_" + str(predicate)
+            match = "not the effect of the variable"
+        break
+    with pytest.raises(VerificationError, match=match):
+        verify_frame(result, program, query_id=_query_id(program))
+
+
+def test_a_corner_of_a_contrast_may_stand_at_the_other_arm():
+    """The boundary, as the honest answer that draws it. A joint contrast
+    records the corners it was taken between, and a corner is another cell
+    by definition -- so what this rule asks about is the quantity the answer
+    says it computed, and not every estimand-shaped thing beneath a step."""
+    corners = [name for name, pair in SHAPES.items()
+               if "corner_estimands" in json.dumps(pair["result"])]
+    assert corners, "the boundary has no witness in the corpus"
+    for name in corners:
+        program, result = _pair(name)
+        themis.verify(program, result)
+
+
+def test_a_question_that_names_no_one_intervention_is_left_alone():
+    """A conjunction of counterfactuals intervenes per conjunct, so the
+    question carries no single arm to hold an estimand to. Left alone rather
+    than guessed at: reading the first conjunct's arm as the question's
+    would refuse an honest answer for the shape of its question."""
+    rows = [name for name, pair in SHAPES.items()
+            if _the_question(pair["program"]).get("kind")
+            == "counterfactual_conjunction"]
+    assert rows, "no witness for this boundary"
+    for name in rows:
+        program, result = _pair(name)
+        assert _intervened(program) is None, name
+        themis.verify(program, result)
+
+
+def test_the_arm_is_asked_of_an_answer_that_computed_no_number():
+    """Above the gate, and this is what being above it buys.
+
+    ``verify_frame`` returns early for a result with no numeric estimate,
+    correctly: everything after that point is about the estimate. Which arm
+    the question named is not, and a gap diagnosis publishes the estimand it
+    could NOT evaluate -- so an estimand naming the wrong arm there tells a
+    reader that a quantity is unavailable when a different one is.
+    """
+    row = next((name for name in ARM_ROWS
+                if not isinstance(SHAPES[name]["result"].get(
+                    "numeric_estimate"), dict)), None)
+    assert row, "no answer without a numeric estimate carries an estimand"
+    program, result = _pair(row)
+    assert verify_frame(result, program, query_id="q") is None
+    predicate, value = _intervened(program)
+    flipped = 0
+    for _where, node in _the_estimands_this_answer_reports(result):
+        flipped = _flip_in(node, predicate, value)
+        if flipped:
+            break
+    assert flipped, row
+    with pytest.raises(VerificationError, match="the other arm"):
+        verify_frame(result, program, query_id="q")

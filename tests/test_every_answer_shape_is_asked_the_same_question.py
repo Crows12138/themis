@@ -2393,9 +2393,21 @@ def test_the_declared_remainder_is_what_it_is():
     own endpoints, held now BY the sentence, which is the first time a
     reader's copy has been what holds the record rather than the other way
     round. 818 and 220 were predicted exactly.
+
+    Then twenty-three, out of the arm. A question that intervenes names one
+    value of one predicate, and the estimand answering it says which arm it
+    is for wherever it conditions that predicate -- as does the step that
+    says what it set. Both are bare booleans, so no comparison can find
+    their second writing, and their second writing is not on the envelope:
+    it is in the QUESTION. Twenty-eight were predicted and twenty-three
+    closed; the five are a ratio's own targets, which this does not read,
+    and three conditionings under a counterfactual CONJUNCTION, whose
+    question names an intervention per conjunct and none at the top. Four
+    rows left this file entirely, which is why the row count moves for the
+    first time in five frontiers.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 818, total
+    assert total == 795, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

@@ -553,6 +553,15 @@ def test_the_remainder_split_is_what_it_is():
     written that way. So this heading now has three escapes rather than
     two: recompute it, read it by name out of the question, or print the
     record and compare the printing.
+
+    Twenty-ninth use, twenty-three leaves, and all of them out of the sixth
+    heading, which is the second frontier to spend ITS caveat and the same
+    escape both times. A ``True`` matches every other ``True``, so no
+    comparison can say which of them is this leaf's second writing -- and
+    the estimand's arm has no second writing on the envelope to find. The
+    question names it, and a table reading the question by name holds it
+    without comparing anything. That heading is now a statement about what
+    comparing can reach and nothing else, which is what it always said.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 109,
@@ -560,7 +569,7 @@ def test_the_remainder_split_is_what_it_is():
         gate._ANSWER_OTHERWISE: 162,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 480,
-        gate._EVERY_READING_MATCHES: 56,
+        gate._EVERY_READING_MATCHES: 33,
     }
 
 

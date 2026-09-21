@@ -753,6 +753,123 @@ _FIXED: dict[str, dict[str, Any]] = {
 }
 
 
+def _conditioned_at(node: Any, predicate: Any, path: str):
+    """Every value an estimand conditions ``predicate`` at, and where.
+
+    A walk rather than a path, because an estimand nests: a sum's body, a
+    ratio's numerator, a product's terms, and the same again inside them.
+    The bound values a sum ranges over are ``var_ref`` nodes rather than
+    booleans, so a summation index is not mistaken for a value somebody
+    chose -- which is what makes this a question about the treatment and not
+    about everything a formula conditions on.
+    """
+    if isinstance(node, dict):
+        for index, entry in enumerate(node.get("given") or ()):
+            if not isinstance(entry, dict):
+                continue
+            atom = entry.get("atom")
+            if isinstance(atom, dict) and atom.get("predicate") == predicate:
+                yield f"{path}.given[{index}]", entry.get("value")
+        for key, value in node.items():
+            yield from _conditioned_at(value, predicate, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _conditioned_at(value, predicate, f"{path}[{index}]")
+
+
+def _the_estimands_this_answer_reports(result: dict):
+    """The answer's own estimand, and each step's own.
+
+    NOT every estimand-shaped node under a step. A joint contrast records
+    the CORNERS it was taken between, and a corner is another cell by
+    definition -- measured: of sixty-three conditionings on the intervened
+    predicate anywhere under ``derivation``, the two that put the treatment
+    at the other arm both sit in ``corner_estimands``, honestly. The
+    boundary is not an address exempted: what this asks about is the
+    quantity the answer says it computed, and a cell a contrast was taken
+    between is not that quantity.
+    """
+    formula = result.get("formula")
+    if isinstance(formula, dict):
+        yield "formula", formula
+    steps = (result.get("derivation") or {}).get("steps") or ()
+    for index, step in enumerate(steps):
+        inputs = step.get("inputs") if isinstance(step, dict) else None
+        if not isinstance(inputs, dict):
+            continue
+        shown = inputs.get("formula")
+        if isinstance(shown, dict):
+            yield f"derivation.steps[{index}].inputs.formula", shown
+
+
+def _the_arm_the_question_named(result: Any, program: Any,
+                                query_id: Any) -> None:
+    """The estimand a reader is shown, held to the arm the question asked
+    about.
+
+    A question that intervenes names one value of one predicate, and the
+    estimand answering it conditions that predicate at that value wherever
+    it conditions it at all. Both copies are on the envelope and neither was
+    read: the value is a bare ``True``, so no comparison can find its second
+    writing -- a ``True`` matches every other ``True`` -- and its second
+    writing is not on the envelope at all. It is in the QUESTION, and read
+    by name out of it, which is the escape that heading has carried since a
+    counterfactual cell's coordinates were held the same way.
+
+    Asked above the gate below, with the attributions, because a question
+    is answered by an envelope whether or not a number came out of it: a gap
+    diagnosis publishes the estimand it could not evaluate, and an estimand
+    naming the wrong arm is a reader told which quantity is unavailable when
+    it is a different quantity that is.
+    """
+    if not isinstance(result, dict):
+        return
+    query = query_of(program, query_id) if isinstance(program, dict) else None
+    intervention = (query or {}).get("intervention")         if isinstance(query, dict) else None
+    if not isinstance(intervention, dict):
+        return
+    atom = intervention.get("atom")
+    wanted = intervention.get("value")
+    if not isinstance(atom, dict) or not isinstance(wanted, bool):
+        return
+    predicate = atom.get("predicate")
+
+    for where, node in _the_estimands_this_answer_reports(result):
+        for path, shown in _conditioned_at(node, predicate, where):
+            if isinstance(shown, bool) and shown != wanted:
+                _reject(
+                    _RULE,
+                    f"{path} conditions {predicate!r} at {shown!r} and the "
+                    f"question intervened it to {wanted!r}; the formula on "
+                    f"the page is for the other arm, so a reader weighing "
+                    f"this answer is weighing a quantity nobody asked about")
+
+    steps = (result.get("derivation") or {}).get("steps") or ()
+    for index, step in enumerate(steps):
+        inputs = step.get("inputs") if isinstance(step, dict) else None
+        record = inputs.get("intervention") if isinstance(inputs, dict) \
+            else None
+        if not isinstance(record, dict) or "value" not in record:
+            continue
+        where = f"derivation.steps[{index}].inputs.intervention"
+        done = record.get("atom")
+        if isinstance(done, dict) and done.get("predicate") != predicate:
+            _reject(
+                _RULE,
+                f"{where} says the step intervened on "
+                f"{done.get('predicate')!r} and the question intervened on "
+                f"{predicate!r}; whatever it computed, it is not the effect "
+                f"of the variable a reader asked about")
+        if isinstance(record.get("value"), bool) \
+                and record["value"] != wanted:
+            _reject(
+                _RULE,
+                f"{where} says the step set {predicate!r} to "
+                f"{record['value']!r} and the question intervened it to "
+                f"{wanted!r}; the arm the number is for and the arm it is "
+                f"reported as are two different arms")
+
+
 def _the_attributions(result: dict) -> None:
     """Which paper a block says it is the block of.
 
@@ -1034,10 +1151,20 @@ def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
     the audit, this system's own constants or the block's own record
     contradicts. Returns ``None`` for a result carrying no numeric estimate,
     which has made no such claim.
+
+    TWO ZONES, AND THE LINE BETWEEN THEM IS WHAT THE CLAIM NEEDS. Everything
+    after that return is about the estimate and is rightly skipped without
+    one. What comes before it is not: a paper an extension attributes itself
+    to, and the arm the question named, are claims an envelope makes whether
+    or not a number came out of the run. The rules that hold those go above
+    the gate, and the line is easy to cross by accident, because writing a
+    new rule at the end of the function is what writing a new rule looks
+    like.
     """
     if not isinstance(result, dict):
         return
     _the_attributions(result)
+    _the_arm_the_question_named(result, program, query_id)
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, dict):
         return
