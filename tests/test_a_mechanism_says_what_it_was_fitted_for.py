@@ -88,16 +88,29 @@ def _verify_with(method, mutate):
     themis.verify(program, result)
 
 
-def _asked_of(name):
-    """What the question offers a renderer, taken the way the rule takes it."""
+def _a_row_on(method):
+    """A stored answer that ran this route.
+
+    By the route rather than by the row's name: a row is named after its
+    method only while every row in the corpus carries a number, and the
+    three routes that spell a world are named for the question they
+    answered instead.
+    """
+    for name in CARRIERS:
+        if _method_of(name) == method:
+            return name
+    raise AssertionError(f"{method} names no answer shape")
+
+
+def _context_of(name):
+    """The question, as the rule receives it."""
     program, result = _pair(name)
     captured = []
     import themis.kernel as kernel
     real = kernel.verify_mechanism_target
 
     def spy(res, context):
-        captured.append((outcome_the_question_names(context),
-                         treatment_the_question_intervenes_on(context)))
+        captured.append(context)
         return real(res, context)
 
     kernel.verify_mechanism_target = spy
@@ -105,7 +118,14 @@ def _asked_of(name):
         the_door_for(result)(program, result)
     finally:
         kernel.verify_mechanism_target = real
-    return captured[-1] if captured else (None, None)
+    return captured[-1] if captured else None
+
+
+def _asked_of(name):
+    """What a slope renderer is offered, taken the way the rule takes it."""
+    context = _context_of(name)
+    return (outcome_the_question_names(context),
+            treatment_the_question_intervenes_on(context))
 
 
 # ------------------------------------------------- the facts this rests on
@@ -152,21 +172,26 @@ def test_the_target_is_the_outcome_the_question_names():
             else:
                 rendered.append(name)
     assert (equal, len(rendered), len(unasked)) == (48, 7, 3)
-    # Compared as METHODS, which is what that frozenset is a set of. A
+    # Compared as METHODS, which is what that roster is keyed on. A
     # shape's NAME was its method for as long as every row in the corpus
     # carried a number; the answers that take no route are named for what
     # they are instead, and a name-to-method comparison quietly stopped
     # being one comparison at all.
-    assert {_method_of(n) for n in rendered} == _RENDERS_ITS_TARGET
+    assert {_method_of(n) for n in rendered} == {
+        "differential_outcome_correction",
+        "differential_regression_calibration",
+        "regression_calibration", "simex"}
     # And the third bucket names a question kind, not a method's habit:
     # causation, the counterfactual cell and the counterfactual
-    # conjunction all ask something with no outcome slot in it. The last
-    # of those used to be carried as an extra name beside the rendering
-    # set — an exception filed under the wrong reason, which reads exactly
-    # like a justified one until a corpus arrives with the other two.
+    # conjunction all ask something with no outcome slot in it. That was
+    # once read as a reason to be silent about them; what it is a reason
+    # for is reading them against a different sentence, which is why both
+    # buckets are the same roster now.
     assert {_method_of(n) for n in unasked} == {
         "causation_plugin", "counterfactual_cell_plugin",
         "ctf_conjunction_plugin"}
+    assert ({_method_of(n) for n in rendered}
+            | {_method_of(n) for n in unasked}) == set(_RENDERS_ITS_TARGET)
 
 
 def _outcome_of(name):
@@ -241,46 +266,61 @@ def test_the_authority_is_the_question_not_the_answers_copy_of_it():
 
 
 def test_the_routes_that_spell_their_target_are_named():
-    """A rendering is not a reference, and there are four of them.
+    """A rendering is not a reference, and there are seven of them.
 
-    A measurement-error route models a SLOPE, and the slot has no way to
-    say "the derivative of ``y`` with respect to ``w``" except by
-    spelling it. Pinned by name so a fifth is a red suite rather than a
-    quiet fifth — and a fifth that spells some OTHER sentence would be
-    read against this one, which is why arriving here has to be a decision
-    somebody makes rather than a line somebody adds.
+    Four model a SLOPE, which the problem has no name for, so the slot can
+    only spell "the derivative of ``y`` with respect to ``w``". Three spell
+    a WORLD — a cell of the counterfactual joint, a conjunction of
+    counterfactual events, a probability of necessity — and their
+    questions name no single outcome to be equal to. Pinned by name so an
+    eighth is a red suite rather than a quiet eighth, because a route that
+    spells a sentence nobody wrote down is read against a sentence it never
+    meant.
     """
-    assert _RENDERS_ITS_TARGET == frozenset({
+    assert set(_RENDERS_ITS_TARGET) == {
         "differential_outcome_correction",
         "differential_regression_calibration",
         "regression_calibration",
         "simex",
-    })
+        "causation_plugin",
+        "counterfactual_cell_plugin",
+        "ctf_conjunction_plugin",
+    }
     for method in _RENDERS_ITS_TARGET:
-        assert method in CARRIERS, f"{method} names no answer shape"
-        target = _mechanisms(SHAPES[method]["result"])[0]["target"]
-        assert target != _outcome_of(method)
+        name = _a_row_on(method)
+        target = _mechanisms(SHAPES[name]["result"])[0]["target"]
+        assert target != _outcome_of(name)
 
 
 def test_what_each_route_spells_is_what_the_question_spells():
     """The measurement the reading rests on, kept where it can go stale.
 
-    Every stored answer on one of these routes, rendered from its own
-    question and compared with what it stored. A route whose producer
-    changes its wording arrives here rather than as an honest answer the
-    kernel refuses at its exit.
+    Every stored answer on one of these routes, spelled from its own
+    question and compared with what it stored. A producer that changes its
+    wording arrives here rather than as an honest answer the kernel refuses
+    at its own exit.
     """
     seen = 0
     for name in CARRIERS:
-        if _method_of(name) not in _RENDERS_ITS_TARGET:
+        spells = _RENDERS_ITS_TARGET.get(_method_of(name))
+        if spells is None:
             continue
-        outcome, treatment = _asked_of(name)
         mechanism = _mechanisms(SHAPES[name]["result"])[0]
-        assert _the_slope_as_spelt(
-            _the_link_a_slope_is_taken_through(mechanism["form"]),
-            outcome, treatment) == mechanism["target"]
+        assert spells(_context_of(name),
+                      mechanism["form"]) == mechanism["target"]
         seen += 1
-    assert seen == 7, seen
+    assert seen == 10, seen
+
+
+def test_a_slope_and_a_world_are_spelled_by_different_hands():
+    """The roster is a mapping and not a set, so what each route spells is
+    a fact beside its name rather than one rule's guess at which sentence
+    a route meant."""
+    assert (_RENDERS_ITS_TARGET["simex"]
+            is _RENDERS_ITS_TARGET["regression_calibration"])
+    assert (_RENDERS_ITS_TARGET["causation_plugin"]
+            is not _RENDERS_ITS_TARGET["simex"])
+    assert len({spells for spells in _RENDERS_ITS_TARGET.values()}) == 4
 
 
 @pytest.mark.parametrize("bend", ["_forged", "", "xz"])
@@ -343,18 +383,55 @@ def test_a_question_that_intervenes_on_nothing_leaves_nothing_to_spell():
         object())
 
 
-def test_a_question_with_no_single_outcome_leaves_nothing_to_compare():
-    """The fifth is not a gap: a counterfactual conjunction asks about a
-    sentence, not a variable, so there is no outcome for a target to be.
+@pytest.mark.parametrize("method,bend", [
+    ("causation_plugin", "_forged"),
+    ("causation_plugin", "xz"),
+    ("counterfactual_cell_plugin", "_forged"),
+    ("counterfactual_cell_plugin", "xz"),
+    ("ctf_conjunction_plugin", "_forged"),
+])
+def test_a_world_spelled_some_other_way_is_refused(method, bend):
+    """The three sentences about worlds, each put the lies a free string
+    can be told. Their questions name no outcome, which is what used to
+    make every one of these pass."""
+    name = _a_row_on(method)
+    target = _mechanisms(SHAPES[name]["result"])[0]["target"]
+    with pytest.raises(VerificationError):
+        _verify_with(name, lambda m, r: m.update(
+            target=target + bend if bend == "_forged" else bend))
 
-    The silence is keyed on the ASKED side, which is what makes being
-    silent safe here — an answer cannot edit its question into having no
-    outcome. Stated as a passing forgery so the day a target IS available
-    there fails loudly.
+
+def test_a_question_with_no_single_outcome_is_read_against_its_own_sentence():
+    """What that question has no outcome FOR is being equal to something.
+
+    A counterfactual conjunction asks about a sentence rather than a
+    variable, and for as long as the only reading was "is this the
+    outcome", having no outcome read as having nothing to check. The
+    sentence is in the question, so the target is read against it now, and
+    a forgery there is refused like any other.
     """
     assert _outcome_of("ctf_conjunction_plugin") is None
-    _verify_with("ctf_conjunction_plugin",
-                 lambda m, r: m.update(target="anything at all"))
+    with pytest.raises(VerificationError, match="nobody asked"):
+        _verify_with("ctf_conjunction_plugin",
+                     lambda m, r: m.update(target="anything at all"))
+
+
+def test_the_silence_left_is_a_question_that_carries_no_sentence():
+    """What an exemption became: a reading that has nothing to read.
+
+    Not an exception list and not a habit of four routes — a question
+    object with none of the parts its own sentence is made of leaves every
+    renderer with nothing to build, and the rule is silent there for the
+    reason it is silent about a question with no outcome.
+    """
+    for spells in set(_RENDERS_ITS_TARGET.values()):
+        assert spells(object(), "simex_logistic_rational") is None
+    verify_mechanism_target(
+        {"extensions": {"mechanism_audit": {"mechanisms": [
+            {"method": "ctf_conjunction_plugin",
+             "form": "nonparametric_plug_in",
+             "target": "anything at all"}]}}},
+        object())
 
 
 def test_the_exemption_costs_two_lies_and_still_does_not_buy_anything():

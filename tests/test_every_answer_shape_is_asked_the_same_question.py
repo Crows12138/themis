@@ -2457,9 +2457,21 @@ def test_the_declared_remainder_is_what_it_is():
     and the shape word beside the target names the arm -- so the exemption
     became a second reading. An exemption is a reading declining to run,
     and the answer to one is another reading rather than a looser first.
+
+    Then three more out of the same slot, by the same move against a
+    different sentence. A cell of the counterfactual joint, a conjunction
+    of counterfactual events and a probability of necessity spell a WORLD
+    where the four before them spelled a slope, and what stood in the way
+    of reading those was a question that names no single outcome: while
+    the only reading was equality, a question with no outcome read as a
+    question with nothing to check. Every part of those sentences is in
+    the question -- which variable was set and to what, which value the
+    outcome is asked at, what was observed, which events are conjoined --
+    so the slot has no exemption left in it, and what is left where a
+    reading cannot run is a silence that says as much.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 696, total
+    assert total == 693, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

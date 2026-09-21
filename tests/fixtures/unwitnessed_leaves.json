@@ -54,8 +54,7 @@
  ],
  "ctf_conjunction_plugin": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target"
+  "estimation_context.random_state"
  ],
  "differential_outcome_correction": [
   "estimation_context.ci_bootstrap",
@@ -475,7 +474,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.probabilities_of_causation.pn.ci_width_is",
   "numeric_estimate.probabilities_of_causation.pns.ci_width_is",
   "numeric_estimate.probabilities_of_causation.ps.ci_width_is"
@@ -500,7 +498,6 @@
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#b627d2": [
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_result.value"
  ],
  "numerically_solved:effect:identify_via_transport": [

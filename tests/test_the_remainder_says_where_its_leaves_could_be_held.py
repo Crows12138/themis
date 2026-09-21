@@ -595,13 +595,22 @@ def test_the_remainder_split_is_what_it_is():
     question, the arm in the shape word beside the value. Twice in three
     frontiers the thing that held a leaf was not a second writing of it,
     which is what this heading can see and the whole of what it can see.
+
+    Thirty-fourth use, three leaves, and the first time two headings move
+    together for one reason. Two of the three sat under nothing either
+    document writes and the third under somewhere in the answer, named
+    otherwise; the two headings disagreed about where the value was, they
+    were each right, and neither was what held it. The same slot, the same
+    move: what is spelled is spelled again. Where a value is WRITTEN and
+    whether a leaf can be HELD are two questions, and this table answers
+    the first.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 157,
+        gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 403,
+        gate._NOTHING: 401,
         gate._EVERY_READING_MATCHES: 33,
     }
 

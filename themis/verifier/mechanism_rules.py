@@ -38,14 +38,24 @@ So the four are read now, by writing the sentence a second time and
 comparing — the set below names which routes spell their target, and
 naming a route there no longer means nothing reads it.
 
-The fifth is a gap of another kind. A counterfactual conjunction asks
-about no single outcome, so there is nothing for its target to be EQUAL
-to; its target is a rendering as well, of the events the question
-carries, and reading it is the same move made against a different
-sentence. That is not done here yet, and until it is, the silence stays
-keyed on the ASKED side of the envelope, which is what makes it a safe
-thing to be silent about — an answer cannot edit the question into
-having no outcome.
+The fifth was a gap of another kind and is the same move made against a
+different sentence. Three questions ask about no single outcome — a
+counterfactual cell, a conjunction of counterfactual events, a
+probability of necessity — so there is nothing for their targets to be
+EQUAL to. Those targets are renderings as well, of worlds rather than of
+slopes, and every part of them is in the question: which variable was
+intervened on and to what, which value the outcome is asked at, what was
+observed, which events are conjoined. So the roster below spells seven
+routes now and the rule has no exemption left in it.
+
+What survives is a silence rather than an exemption, and the difference
+is the whole of this module's argument. A route with no entry is read
+against the outcome the question names; a question that names none
+leaves nothing to read, and that is keyed on the ASKED side of the
+envelope, which is what makes it a safe thing to be silent about — an
+answer cannot edit the question into having no outcome. The day a route
+arrives spelling a sentence nobody has written down, it is refused for
+spelling one this roster does not have, which is the loud way round.
 
 ``form`` — the shape word beside the target — was the fourth, and the
 note here said it was "a function of ``method`` across the corpus
@@ -71,7 +81,7 @@ result-only door rather than at this one.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .errors import VerificationError
 
@@ -188,25 +198,6 @@ def shape_the_method_cannot_fit(method: object, form: object) -> str | None:
         )
     return None
 
-#: The routes whose mechanism target is a rendering rather than a
-#: reference. Keyed on ``method`` because that is the field naming the
-#: route that a verifier can see, and it is not free to claim: the
-#: estimate beside the block records the method too, and the two are
-#: already held to each other, so reaching this exemption dishonestly
-#: costs a second lie about which estimator ran.
-#:
-#: A route here is a route whose target is read by being spelled again,
-#: from the question rather than from the answer's record of it. The list
-#: is pinned by name in the tests so that arriving at five is a red suite
-#: rather than a quiet fifth — a route that spells some other sentence
-#: would be read against this one and refused for spelling its own.
-_RENDERS_ITS_TARGET: frozenset[str] = frozenset({
-    "differential_outcome_correction",
-    "differential_regression_calibration",
-    "regression_calibration",
-    "simex",
-})
-
 
 #: The non-linear arm, under both spellings a caller and a family give it.
 #:
@@ -285,6 +276,103 @@ def treatment_the_question_intervenes_on(context: Any) -> str | None:
     return str(predicate) if isinstance(predicate, str) else None
 
 
+def _predicate_of(node: object) -> str | None:
+    """The variable name inside whatever shape a question hands over.
+
+    A question carries its parts as atoms, as valued atoms and as
+    interventions, and every one of them is a name with something wrapped
+    around it. Reading the name is one move, so it is written once.
+    """
+    atom = getattr(node, "atom", node)
+    predicate = getattr(atom, "predicate", None)
+    return str(predicate) if isinstance(predicate, str) else None
+
+
+def _an_event_as_spelt(event: object) -> str:
+    """One counterfactual event, spelled the way a conjunction spells it.
+
+    ``y_{x=True}=True``: the variable, the world it is read in, the value
+    it takes there. The world is the subscript, sorted by variable so that
+    two events differing only in the order they were written spell the
+    same sentence.
+
+    The parts arrive here as the QUESTION carries them, which is not the
+    shape the producer's renderer takes: a question's subscript is valued
+    atoms and the estimate's is pairs. Restating a rendering means
+    restating what it says, not the shape its author had in hand.
+    """
+    subscript = getattr(event, "subscript", ()) or ()
+    named = sorted(
+        ((_predicate_of(one), getattr(one, "value", None))
+         for one in subscript),
+        key=lambda pair: str(pair[0]))
+    inside = ("_{" + ",".join(f"{name}={value}" for name, value in named)
+              + "}") if named else ""
+    return f"{_predicate_of(getattr(event, 'variable', None))}{inside}=" \
+           f"{getattr(event, 'value', None)}"
+
+
+def _the_necessity_this_question_spells(context: Any,
+                                        form: object) -> str | None:
+    """``PN(y|x)`` — the probability that this cause was necessary for
+    this effect, which a causation question asks as a pair of variables and
+    names no single outcome of."""
+    query = getattr(context, "query", None)
+    cause = _predicate_of(getattr(query, "cause", None))
+    effect = _predicate_of(getattr(query, "effect", None))
+    if cause is None or effect is None:
+        return None
+    return f"PN({effect}|{cause})"
+
+
+def _the_cell_this_question_spells(context: Any,
+                                   form: object) -> str | None:
+    """``P(y_{x=0}=0|x=1)`` — one cell of the counterfactual joint: the
+    value the outcome is asked at in the world where the cause was set,
+    given what was observed in this one. Values spelled as the integers a
+    two-valued variable takes, which is how the route writes them."""
+    query = getattr(context, "query", None)
+    intervention = getattr(query, "counterfactual_intervention", None)
+    target = getattr(query, "counterfactual_target", None)
+    observed = getattr(query, "observed", None)
+    if intervention is None or target is None or observed is None:
+        return None
+    cause = _predicate_of(intervention)
+    effect = _predicate_of(target)
+    if cause is None or effect is None:
+        return None
+    return (f"P({effect}_{{{cause}={int(intervention.value)}}}"
+            f"={int(target.value)}|{cause}={int(observed.value)})")
+
+
+def _the_conjunction_this_question_spells(context: Any,
+                                          form: object) -> str | None:
+    """``P(y_{x=True}=True | x=False)`` — a conjunction of counterfactual
+    events, and a condition of them where there is one."""
+    query = getattr(context, "query", None)
+    events = getattr(query, "events", None)
+    condition = getattr(query, "condition", None)
+    if not events:
+        return None
+    said = f" ∧ ".join(_an_event_as_spelt(one) for one in events)
+    if condition:
+        given = f" ∧ ".join(_an_event_as_spelt(one) for one in condition)
+        return f"P({said} | {given})"
+    return f"P({said})"
+
+
+def _the_slope_this_question_spells(context: Any,
+                                    form: object) -> str | None:
+    """``dE[y|do(w),Z]/dw`` — the derivative a measurement-error route
+    models, which the problem has no name for."""
+    outcome = outcome_the_question_names(context)
+    treatment = treatment_the_question_intervenes_on(context)
+    if outcome is None or treatment is None:
+        return None
+    return _the_slope_as_spelt(
+        _the_link_a_slope_is_taken_through(form), outcome, treatment)
+
+
 def _the_slope_as_spelt(link: str, outcome: str, treatment: str) -> str:
     """How a slope route spells the thing it was fitted for.
 
@@ -320,6 +408,35 @@ def _the_link_a_slope_is_taken_through(form: object) -> str:
     return "logit " if "logistic" in str(form).split("_") else ""
 
 
+#: The routes whose mechanism target is a rendering rather than a
+#: reference. Keyed on ``method`` because that is the field naming the
+#: route that a verifier can see, and it is not free to claim: the
+#: estimate beside the block records the method too, and the two are
+#: already held to each other, so reaching this reading dishonestly
+#: costs a second lie about which estimator ran.
+#:
+#: A route here is a route whose target is read by being spelled again,
+#: from the question rather than from the answer's record of it, and the
+#: value beside each name is what that route spells. The roster is pinned
+#: by name in the tests so that an eighth is a red suite rather than a
+#: quiet eighth — a route that spells a sentence nobody wrote down is
+#: refused for spelling one this roster does not have.
+#:
+#: Four spell a SLOPE, which is a thing the problem has no name for. Three
+#: spell a world: a cell of the counterfactual joint, a conjunction of
+#: counterfactual events, a probability of necessity. They are one kind of
+#: thing here for one reason — nothing in the question is called what
+#: they say, and everything they say is in the question.
+_RENDERS_ITS_TARGET: "Mapping[str, Callable[[Any, object], str | None]]" = {
+    "differential_outcome_correction": _the_slope_this_question_spells,
+    "differential_regression_calibration": _the_slope_this_question_spells,
+    "regression_calibration": _the_slope_this_question_spells,
+    "simex": _the_slope_this_question_spells,
+    "causation_plugin": _the_necessity_this_question_spells,
+    "counterfactual_cell_plugin": _the_cell_this_question_spells,
+    "ctf_conjunction_plugin": _the_conjunction_this_question_spells,
+}
+
 def verify_mechanism_target(result: Mapping, context: Any) -> None:
     """Hold each disclosed mechanism to the question it was fitted for.
 
@@ -348,21 +465,18 @@ def verify_mechanism_target(result: Mapping, context: Any) -> None:
                 step_index=None,
                 rule=_RULE,
             )
-        if str(mechanism.get("method")) in _RENDERS_ITS_TARGET:
-            # Spelled, so spelled again. Silent where the question names
-            # no outcome or intervenes on nothing, which is the same
+        spells = _RENDERS_ITS_TARGET.get(str(mechanism.get("method")))
+        if spells is not None:
+            # Spelled, so spelled again. Silent where the question does
+            # not carry the parts of its own sentence, which is the same
             # silence the rule below keeps and for the same reason.
-            if outcome is None or treatment is None:
-                continue
-            spelt = _the_slope_as_spelt(
-                _the_link_a_slope_is_taken_through(mechanism.get("form")),
-                outcome, treatment)
-            if target == spelt:
+            spelt = spells(context, mechanism.get("form"))
+            if spelt is None or target == spelt:
                 continue
             raise VerificationError(
                 f"mechanism_audit says the shape behind this number was "
-                f"fitted for {target!r}; this route models a slope and "
-                f"spells what it was fitted for, and what the question "
+                f"fitted for {target!r}; this route spells what it was "
+                f"fitted for rather than naming it, and what the question "
                 f"spells is {spelt!r}; a reader weighing whether the shape "
                 f"is a fair one is weighing it against a sentence nobody "
                 f"asked",
