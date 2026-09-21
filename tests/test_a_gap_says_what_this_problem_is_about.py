@@ -503,6 +503,18 @@ def test_the_remainder_is_counted_rather_than_described():
     which field each slot is printed from and with which format. A
     forgery in any of the seven now names a fit the block beside it
     describes differently.
+
+    And 24 more from a question none of those rosters could put. Each of
+    them asks whether a value is one of the records the ANSWER holds, and
+    for these the record is not elsewhere on the answer: it is on the same
+    gap. A gap is written once and speaks several times -- its occasion,
+    each description, each way past -- and a producer with one value in
+    hand puts it in every sentence that needs it. A dispatch conflict
+    spells its two routes across seven slots, a proxy coarsening writes
+    the declared cardinality into three sentences, a weak instrument
+    writes its level and its rendered set into two. A forgery in any of
+    them now says one thing where the gap's own next sentence says
+    another.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -517,7 +529,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2347, 101), (refused, accepted)
+    assert (refused, accepted) == (2371, 77), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

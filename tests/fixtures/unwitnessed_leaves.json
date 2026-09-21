@@ -569,19 +569,8 @@
   "estimation_context.sample_size"
  ],
  "needs_investigation:effect:none#cdaa7d": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.drop",
-  "data_gap_report.gaps.[].alternative_paths.[].said.drop@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,route=drop_the_other_layer",
   "data_gap_report.gaps.[].alternative_paths.[].said.wanted",
-  "data_gap_report.gaps.[].alternative_paths.[].said.wanted@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,route=drop_the_other_layer",
-  "data_gap_report.gaps.[].describes.[].said.lost",
-  "data_gap_report.gaps.[].describes.[].said.skipped",
-  "data_gap_report.gaps.[].describes.[].said.skipped@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,sentence=the_result_reflects_one_layer_only",
-  "data_gap_report.gaps.[].describes.[].said.winner",
-  "data_gap_report.gaps.[].describes.[].said.winner@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,sentence=the_result_reflects_one_layer_only",
-  "data_gap_report.gaps.[].describes.[].said.won",
-  "data_gap_report.gaps.[].provenance.[].ref_id@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,ref_kind=program_site",
-  "data_gap_report.gaps.[].said.lost",
-  "data_gap_report.gaps.[].said.won"
+  "data_gap_report.gaps.[].provenance.[].ref_id@blocks=interpretation,kind=unattempted_layer_due_to_dispatch_conflict,severity=important,ref_kind=program_site"
  ],
  "needs_investigation:effect:none#cf69fc": [
   "estimation_context.ci_bootstrap",
@@ -768,11 +757,7 @@
   "estimation_context.sample_size"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.interval",
-  "data_gap_report.gaps.[].alternative_paths.[].said.level",
   "data_gap_report.gaps.[].describes.[].said.f",
-  "data_gap_report.gaps.[].describes.[].said.interval",
-  "data_gap_report.gaps.[].describes.[].said.level",
   "data_gap_report.gaps.[].describes.[].said.threshold",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -962,8 +947,6 @@
   "numeric_estimate.covariates.[]"
  ],
  "numerically_solved:proximal_effect:numeric_proximal_null_test": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.levels",
-  "data_gap_report.gaps.[].describes.[].said.levels",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.x",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.z",
   "derivation.steps.[].inputs.measurement_channel.items.estimator",
@@ -992,8 +975,6 @@
   "estimation_context.random_state"
  ],
  "proximal_null_test": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.k",
-  "data_gap_report.gaps.[].describes.[].said.k",
   "data_gap_report.gaps.[].describes.[].said.z_levels",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.x",
   "derivation.steps.[].inputs.measurement_channel.items.cells.items.[].items.z",
@@ -1139,9 +1120,6 @@
   "status"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#535477": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.k",
-  "data_gap_report.gaps.[].describes.[].said.k",
-  "data_gap_report.gaps.[].describes.[].said.k@blocks=point_estimate,kind=proxy_coarsening_undeclared,severity=blocking,sentence=which_levels_are_one_state_is_not_in_the_data",
   "data_gap_report.gaps.[].describes.[].said.w_levels",
   "data_gap_report.gaps.[].describes.[].said.z_levels",
   "estimation_context.ci_bootstrap",

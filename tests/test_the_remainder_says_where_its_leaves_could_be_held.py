@@ -569,11 +569,19 @@ def test_the_remainder_split_is_what_it_is():
     has a MEANING, and what holds it is a table saying what each word
     claims -- which is not comparing, and was never going to be reported
     here as anything but nothing either document writes.
+
+    Thirty-first use, twenty-two leaves, and this time out of the two
+    headings that say a second writing IS somewhere: seventeen named
+    alike, five named otherwise. Both were right and neither says where,
+    which is the whole of what a heading claims. Where turned out to be
+    the same GAP -- one occasion described in several sentences, from one
+    value the producer had in hand -- and a comparison reaches that only
+    once a rule knows which two of a gap's slots are one fact.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 109,
+        gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 162,
+        gate._ANSWER_OTHERWISE: 157,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 453,
         gate._EVERY_READING_MATCHES: 33,

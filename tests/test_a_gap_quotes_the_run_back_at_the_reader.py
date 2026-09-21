@@ -59,6 +59,7 @@ from themis.types import Atom, ConstTerm, DerivationStep
 from themis.verifier.gap_claim_rules import (
     _ABOUT_WHAT_IT_NAMES,
     _COPIED_FROM,
+    _SPELT_AGAIN_ON_THE_GAP,
     _STANDS_IN,
     _IN_ITS_SENTENCE,
     _NOT_NAMES,
@@ -591,6 +592,122 @@ def _a_report_saying(sentence, slot, word):
 
 def _atom(name):
     return Atom(predicate=name, args=(ConstTerm(name="u"),))
+
+
+# --- and the third question: the gap's own other sentences --------------------
+
+
+#: Every (answer, gap, where, statement, slot) the third table speaks for,
+#: found by the rule's own walk. A denominator per slot, so that a corpus
+#: which stopped carrying one of these families says so here rather than
+#: reading as a rule that still has teeth.
+SPELT_SITES = sorted(
+    (name, index, where, statement or "", key)
+    for name, pair in SHAPES.items()
+    for index, gap in enumerate(
+        ((pair["result"] or {}).get("data_gap_report") or {}).get("gaps")
+        or ())
+    for where, statement, said in every_said_mapping(gap, ("gaps", str(index)))
+    for key in said
+    if _SPELT_AGAIN_ON_THE_GAP.get((statement or "", key)) is not None
+)
+
+#: How many of those have another sentence on the same gap to be read
+#: against. The rest are the silence this rule keeps on purpose.
+SPELT_WITH_A_PARTNER = 25
+
+
+def _partnered():
+    for site in SPELT_SITES:
+        name, index, where, statement, key = site
+        result = SHAPES[name]["result"]
+        gap = result["data_gap_report"]["gaps"][index]
+        _says, slots = _SPELT_AGAIN_ON_THE_GAP[(statement, key)]
+        elsewhere = {
+            str(value)
+            for w, _s, said in every_said_mapping(gap, ("gaps", str(index)))
+            for k, value in said.items()
+            if str(k) in slots and (w, str(k)) != (where, key)
+        }
+        if elsewhere:
+            yield site
+
+
+PARTNERED = sorted(_partnered())
+
+
+def test_the_second_spellings_this_rule_speaks_for():
+    """The denominator, per slot. Four families, each read off the producer
+    that writes it rather than off values that happened to agree."""
+    split: dict[str, int] = {}
+    for _name, _index, _where, _statement, key in PARTNERED:
+        split[key] = split.get(key, 0) + 1
+    assert sum(split.values()) == SPELT_WITH_A_PARTNER, split
+    assert split == {
+        "drop": 4, "interval": 2, "k": 5, "level": 2, "levels": 2,
+        "lost": 2, "skipped": 2, "wanted": 2, "winner": 2, "won": 2,
+    }, split
+
+
+def test_the_table_is_keyed_on_the_statement_and_never_on_the_slot():
+    """A slot's meaning is its sentence's, and here that is not a nicety.
+
+    ``level`` is a confidence level in the sentence about an
+    Anderson-Rubin set and a dose in the one about a bridge going
+    negative. A table filed by the commoner meaning would not merely miss
+    the other; it would refuse it, because the other gap says that number
+    once.
+    """
+    for statement, slot in _SPELT_AGAIN_ON_THE_GAP:
+        assert statement, slot
+        assert slot
+    filed = {slot for _statement, slot in _SPELT_AGAIN_ON_THE_GAP}
+    assert "level" in filed
+    assert sum(1 for s, k in _SPELT_AGAIN_ON_THE_GAP if k == "level") == 2
+
+
+@pytest.mark.parametrize("site", PARTNERED,
+                         ids=lambda s: f"{s[0]}|{s[3]}|{s[4]}")
+def test_an_honest_gap_says_the_same_thing_in_both_sentences(site):
+    name, _index, _where, _statement, _key = site
+    verify_gap_quotes(SHAPES[name]["result"], CONTEXTS[name])
+
+
+@pytest.mark.parametrize("site", PARTNERED,
+                         ids=lambda s: f"{s[0]}|{s[3]}|{s[4]}")
+def test_a_spelling_that_disagrees_with_the_gaps_other_is_refused(site):
+    """One sentence edited, and the gap now says two things about one
+    occasion. The reader meets whichever sentence they read first."""
+    name, _index, where, _statement, key = site
+    forged = copy.deepcopy(SHAPES[name]["result"])
+    _said(forged, where)[key] = str(_said(forged, where)[key]) + "_forged"
+    with pytest.raises(VerificationError,
+                       match="another of its own sentences"):
+        verify_gap_quotes(forged, CONTEXTS[name])
+
+
+_ALONE = {"data_gap_report": {"gaps": [{
+    "kind": "proxy_coarsening_undeclared",
+    "describes": [{"sentence": "which_levels_are_one_state_is_not_in_the_data",
+                   "said": {"k": "2"}}],
+}]}}
+
+
+def test_the_rule_is_silent_where_the_gap_says_a_thing_only_once():
+    """There is nothing to appeal to, and a rule that spoke here would be
+    refusing a sentence for being alone."""
+    verify_gap_quotes(copy.deepcopy(_ALONE), _NAMES_NOTHING)
+
+
+def test_two_gaps_do_not_lend_each_other_their_spellings():
+    """The record being appealed to is THIS gap, which is why the question
+    is asked of each in turn. Two gaps each saying a thing once are two
+    sentences that are alone, not one pair."""
+    report = copy.deepcopy(_ALONE)
+    second = copy.deepcopy(report["data_gap_report"]["gaps"][0])
+    second["describes"][0]["said"]["k"] = "9"
+    report["data_gap_report"]["gaps"].append(second)
+    verify_gap_quotes(report, _NAMES_NOTHING)
 
 
 #: A context whose every record this rule reads names nothing, and one

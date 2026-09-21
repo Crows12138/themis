@@ -998,6 +998,111 @@ def _locates(statement: str | None, slot: str) -> tuple[str, Any] | None:
     return _LOCATES.get((statement, slot)) or _LOCATES.get((None, slot))
 
 
+#: What a ``said`` value is a second spelling of ON ITS OWN GAP.
+#:
+#: The third question, and the one the two above cannot put. Both of them
+#: ask whether a value is one of the records the ANSWER holds, and for
+#: these the record is not somewhere else on the answer. It is on this
+#: gap. A gap is written once and SPEAKS several times — its own occasion,
+#: each description, each way past — and a producer with a value in hand
+#: puts it in every sentence that needs it. Four measured families, each
+#: read off the producer rather than off values that happened to match: a
+#: dispatch conflict names two routes and writes each of them as an id and
+#: as the trigger that put it there, across seven slots; a proxy
+#: coarsening writes the declared cardinality into three sentences; a weak
+#: instrument writes the level and the rendered set into two; a treatment
+#: with too many arms writes how many into two.
+#:
+#: Keyed on the statement and never on the slot alone, which is the
+#: mistake this module already named: ``level`` is a confidence level in
+#: the sentence about an Anderson-Rubin set and a dose in the one about a
+#: bridge going negative, and a table filed by a slot's commonest meaning
+#: is unchecked in its other -- here it would be worse than unchecked, it
+#: would refuse the other outright.
+#:
+#: The VALUE is the fact and the slot names are where else it is spelt, so
+#: one entry covers a fact that travels under two names. What this does
+#: not refuse is a SWAP between two slots of one family, and the reason it
+#: is not worth more machinery today is measured: none of these slots has
+#: a declared vocabulary, so the sweep tells three gross lies about each
+#: -- a forged spelling, an empty string, a name neither document uses --
+#: and a roster read off the gap refuses all three. The day one of them
+#: gains a vocabulary this has to become a pairing, which is what
+#: :data:`_LOCATES` exists to hold.
+_SPELT_AGAIN_ON_THE_GAP: Mapping[tuple[str, str], tuple[str, frozenset]] = {
+    # A dispatch conflict names two routes. Each of them reaches a reader
+    # as an id and as the trigger that put it there, and the two ways past
+    # say which one they keep and which they drop.
+    ("unattempted_layer_due_to_dispatch_conflict", "won"):
+        ("the layer that ran", frozenset({"won", "drop"})),
+    ("unattempted_layer_due_to_dispatch_conflict", "lost"):
+        ("the layer that did not", frozenset({"lost", "drop"})),
+    ("only_one_declared_layer_was_run", "won"):
+        ("the layer that ran", frozenset({"won", "drop"})),
+    ("only_one_declared_layer_was_run", "lost"):
+        ("the layer that did not", frozenset({"lost", "drop"})),
+    ("only_one_declared_layer_was_run", "winner"):
+        ("the route that answered", frozenset({"winner", "wanted"})),
+    ("only_one_declared_layer_was_run", "skipped"):
+        ("the route that did not", frozenset({"skipped", "wanted"})),
+    ("the_result_reflects_one_layer_only", "winner"):
+        ("the route that answered", frozenset({"winner", "wanted"})),
+    ("the_result_reflects_one_layer_only", "skipped"):
+        ("the route that did not", frozenset({"skipped", "wanted"})),
+    ("drop_the_other_layer", "wanted"):
+        ("the route this way past keeps",
+         frozenset({"winner", "skipped", "wanted"})),
+    ("drop_the_other_layer", "drop"):
+        ("the layer this way past drops", frozenset({"won", "lost", "drop"})),
+    ("joint_with_mediation_or_transport", "drop"):
+        ("the layer this way past drops", frozenset({"drop"})),
+    # The cardinality the caller declared for the latent, in every
+    # sentence that has to say it.
+    ("the_proxies_are_finer_than_the_declared_cardinality", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    ("which_levels_are_one_state_is_not_in_the_data", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    ("declare_a_proxy_coarsening", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    ("the_proxies_show_fewer_states_than_the_latent_has", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    ("the_proxy_channel_is_singular", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    ("enrich_a_proxy_to_get_a_number", "k"):
+        ("the cardinality the caller declared", frozenset({"k"})),
+    # A weak instrument's region: the level it was built at and the set
+    # itself, said once and offered once.
+    ("the_anderson_rubin_set_is_this", "level"):
+        ("the level the set was built at", frozenset({"level"})),
+    ("the_anderson_rubin_set_is_this", "interval"):
+        ("the set itself", frozenset({"interval"})),
+    ("use_the_ar_set", "level"):
+        ("the level the set was built at", frozenset({"level"})),
+    ("use_the_ar_set", "interval"):
+        ("the set itself", frozenset({"interval"})),
+    # And how many arms the treatment turned out to take.
+    ("the_discrete_contrast_needs_two_arms", "levels"):
+        ("how many arms the treatment takes", frozenset({"levels"})),
+    ("use_a_bridge_channel_for_more_than_two_arms", "levels"):
+        ("how many arms the treatment takes", frozenset({"levels"})),
+}
+
+
+def _spelt_again(statement: str | None,
+                 slot: str) -> tuple[str, frozenset] | None:
+    """Where else on its gap this hole's fact is written, if anywhere."""
+    return _SPELT_AGAIN_ON_THE_GAP.get((statement or "", slot))
+
+
+def _the_gap_also_writes(gap: Mapping, at: tuple, slots: frozenset,
+                         here: tuple[str, str]) -> set[str]:
+    """Every value this gap writes under one of ``slots``, bar this one."""
+    return {str(value)
+            for where, _statement, said in every_said_mapping(gap, at)
+            for key, value in said.items()
+            if str(key) in slots and (where, str(key)) != here}
+
+
 def _the_question_asked(program: Mapping) -> tuple[str | None,
                                                    str | None]:
     """The predicate intervened on and the predicate asked about.
@@ -1430,6 +1535,20 @@ def verify_gap_quotes(result: Mapping, context) -> None:
     the stand-in its sentence declares, and only where the record names
     nothing.
 
+    And then asked of the GAP, which is the third question and the one the
+    walk had to widen for. ``every_said_mapping`` yields the mapping and
+    not its leaves so that a caller asking about one key can see the keys
+    beside it -- and the keys beside it stopped at the edge of the
+    sentence, while a gap speaks several times. Its own occasion, each
+    description, each way past: a producer with one value in hand puts it
+    in every one that needs it, and nothing compared the copies. So this
+    question is asked of each gap in turn, which is also what says what it
+    is about: the record being appealed to is not somewhere on the answer,
+    it is this gap. Silent where the gap says a thing only once, for the
+    reason the paragraph above gives -- there is nothing to appeal to, and
+    a rule that refused there would be refusing a sentence for being
+    alone.
+
     Returns ``None`` on accept, including when there is no report.
     """
     report = result.get("data_gap_report")
@@ -1478,6 +1597,29 @@ def verify_gap_quotes(result: Mapping, context) -> None:
                     f"sentence reaches them with that word already "
                     f"substituted in, so they are sent after something "
                     f"this answer never did",
+                    step_index=None, rule=_RULE,
+                )
+    for index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, Mapping):
+            continue
+        at = ("gaps", str(index))
+        for where, statement, said in every_said_mapping(gap, at):
+            for key, value in said.items():
+                also = _spelt_again(statement, str(key))
+                if also is None:
+                    continue
+                about, under = also
+                elsewhere = _the_gap_also_writes(gap, at, under,
+                                                 (where, str(key)))
+                if not elsewhere or str(value) in elsewhere:
+                    continue
+                raise VerificationError(
+                    f"a gap says {about} is {value!r} at {where}.{key}, and "
+                    f"says it is {sorted(elsewhere)} in another of its own "
+                    f"sentences. One occasion is being described more than "
+                    f"once, from one value the producer had in hand, and a "
+                    f"reader who reads two of those sentences is reading "
+                    f"one fact twice",
                     step_index=None, rule=_RULE,
                 )
     for where, statement, words, _said in every_word_mapping(report):

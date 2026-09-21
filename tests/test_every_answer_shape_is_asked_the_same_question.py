@@ -2419,9 +2419,21 @@ def test_the_declared_remainder_is_what_it_is():
     answers had this one leaf and nothing else left in the file. A leaf
     count predicts a leaf count, and what a row has BESIDES the leaf is a
     fact about the row.
+
+    Then twenty-two, out of a gap's own other sentences. A gap is written
+    once and speaks several times -- its occasion, each description, each
+    way past -- and a producer with one value in hand puts it in every
+    sentence that needs it: a dispatch conflict's two routes across seven
+    slots, a declared cardinality across three sentences, a level and a
+    rendered set across two, an arm count across two. The walk that reads
+    reports had widened twice so that a caller asking about one key could
+    see the keys beside it, and stopped at the edge of the sentence while
+    the thing being described is the gap. Twenty-one were predicted and
+    twenty-two closed: a way past names the route it keeps twice over, and
+    the sweep bends the one with a partner.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 768, total
+    assert total == 746, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 
