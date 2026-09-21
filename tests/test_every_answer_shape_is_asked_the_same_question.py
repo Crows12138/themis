@@ -2329,9 +2329,29 @@ def test_the_declared_remainder_is_what_it_is():
     sentence under the first one's name, and 42 gap diagnoses holding
     nothing but Manski bounds could call themselves numerically solved.
     942 and 220 were predicted exactly.
+
+    Then thirty-seven, and this time out of a record rather than a word. A
+    proximal bridge arm writes down five blocks of second moments and the
+    replay took three: the first stage is re-inverted out of ``s_aa``,
+    ``s_ab`` and ``s_ay``, while ``s_bb``, ``s_by`` and ``yy`` appeared
+    nowhere in the verifier -- next to a standard error that was copied
+    off the envelope rather than re-derived, and which those three blocks
+    determine. Said the other way, the three blocks nobody read and the
+    one figure nobody checked were one fact.
+
+    The measurement worth keeping is what the first attempt cost. Saying
+    only what a Gram matrix cannot be -- symmetric, positive semidefinite,
+    a non-negative residual -- held eight of a hundred and two, because
+    this gate bends a collapsed shape at its first position, which for a
+    matrix is the diagonal, and a diagonal made LARGER never leaves the
+    cone. An inequality closes one direction and a leaf is held only when
+    every direction is closed, so the rest had to be an equality: the
+    arms' rows adding to the sample, and the standard error re-derived
+    from the very blocks that had no reader. 905 and 220 were predicted
+    exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 942, total
+    assert total == 905, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

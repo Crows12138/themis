@@ -6004,6 +6004,216 @@ def _bridge_operator(channel, arm: str, d: int, m: int, rule, step_index):
     return s_ab.T @ weight @ s_ab, s_ab.T @ weight @ s_ay
 
 
+def _bridge_is_a_gram(m, name: str, rule: str, step_index) -> None:
+    """One recorded matrix, held to being a matrix of second moments.
+
+    ``MᵀM/n`` is symmetric for every design there has ever been and has no
+    negative eigenvalue, whatever the data were. Neither statement needs
+    the data, a second copy or any knowledge of the estimator, which is
+    why they reach blocks that nothing else on the envelope answers for.
+
+    They are not equally sharp and the difference is worth saying.
+    Symmetry is an equality: an off-diagonal moved on its own always
+    breaks it. Positivity is a cone: a diagonal made LARGER stays inside,
+    so this cannot be the whole of what holds these blocks, and it is not
+    -- the arithmetic that consumes them is re-derived below.
+    """
+    import numpy as np
+
+    if not np.allclose(m, m.T, rtol=1e-9, atol=1e-12):
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} is not symmetric; MᵀM/n is "
+            f"symmetric for every design, so this is not one",
+            step_index=step_index, rule=rule,
+        )
+    eigenvalues = np.linalg.eigvalsh((m + m.T) / 2)
+    floor = -1e-9 * max(1.0, float(np.abs(eigenvalues).max()))
+    if float(eigenvalues.min()) < floor:
+        raise RuleCheckFailed(
+            f"measurement_channel.{name} has eigenvalue "
+            f"{float(eigenvalues.min()):.6e}; MᵀM/n is positive "
+            f"semidefinite for every design, so no data give this block",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _bridge_second_moments(channel, arm: str, d: int, rule: str, step_index):
+    """The three blocks the first stage never touches, and their identities.
+
+    ``_bridge_operator`` rebuilds ``G`` and ``c`` out of ``s_aa``, ``s_ab``
+    and ``s_ay``, so those three are answered for by the answer they
+    produce. ``s_bb``, ``s_by`` and ``yy`` are the second stage's, and the
+    step's docstring already claimed the moments were "checked for the
+    identities second moments have" while three of the five had none
+    checked.
+
+    The identities here are the ones a Gram matrix cannot escape. Stacking
+    the span against the outcome gives one more of them:
+
+        [ S_BB  S_BY ]
+        [ S_BYᵀ  YY  ]
+
+    is ``[B Y]ᵀ[B Y]/n`` and so is positive semidefinite too, which ties
+    the three blocks to each other rather than each to itself. Its Schur
+    complement is ``Var(Y − b(W)ᵀθ)`` at the least-squares θ, stated
+    separately because the two are one fact in exact arithmetic and catch
+    different edits in floating point.
+
+    Returns the three, so that the caller re-deriving the standard error
+    does not read them a second time.
+    """
+    import numpy as np
+
+    block = channel.get(arm)
+    if not isinstance(block, dict):
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm} must record that arm's cross-moments",
+            step_index=step_index, rule=rule,
+        )
+    s_bb = _bridge_matrix(block.get("s_bb"), d, d, f"{arm}.s_bb", rule,
+                          step_index)
+    s_by = _bridge_vector(block.get("s_by"), d, f"{arm}.s_by", rule,
+                          step_index)
+    yy = block.get("yy")
+    if not isinstance(yy, (int, float)) or isinstance(yy, bool):
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}.yy must be the outcome's second "
+            f"moment; got {yy!r}",
+            step_index=step_index, rule=rule,
+        )
+    yy = float(yy)
+    _bridge_is_a_gram(s_bb, f"{arm}.s_bb", rule, step_index)
+    joint = np.zeros((d + 1, d + 1))
+    joint[:d, :d] = s_bb
+    joint[:d, d] = s_by
+    joint[d, :d] = s_by
+    joint[d, d] = yy
+    _bridge_is_a_gram(joint, f"{arm} [span, outcome]", rule, step_index)
+    theta = np.linalg.lstsq(s_bb, s_by, rcond=None)[0]
+    residual = yy - 2.0 * theta @ s_by + theta @ s_bb @ theta
+    if residual < -1e-9 * max(1.0, abs(yy)):
+        raise RuleCheckFailed(
+            f"measurement_channel.{arm}: the outcome's second moment is "
+            f"{yy} where the span explains {yy - residual}, leaving a "
+            f"residual variance of {residual}; a variance below zero is not "
+            f"a sample anything was measured on",
+            step_index=step_index, rule=rule,
+        )
+    return s_bb, s_by, yy
+
+
+def _bridge_treatment_arms(bridge) -> list:
+    """The treatment bridge's arms, found by what an arm IS.
+
+    A contrast records them beside each other under their own names and a
+    curve records them in an ``arms`` table keyed by level. Naming either
+    spelling is how a roster comes to cover one shape and not the other,
+    which is what left four row counts unheld when this rule first went
+    in: it looked for ``arms``. An arm is a record carrying its own
+    cross-moments and its own row count, so that is what is looked for,
+    and a third spelling arrives already covered.
+    """
+    found: list = []
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            if "gg" in node and isinstance(node.get("n"), int):
+                found.append(node)
+                return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(bridge)
+    return found
+
+
+def _bridge_sample_adds_up(channel, rule: str, step_index) -> None:
+    """Each roster of arms covers the sample once.
+
+    An arm's ``n`` is how many rows its moments were taken over, and the
+    arms of one roster partition the sample — the outcome bridge's by
+    treatment, the treatment bridge's by whatever it varies over. So each
+    roster sums to ``n_total``, which is itself held to the estimate's
+    sample size.
+
+    Rosters rather than "every ``n`` on the record": the two are two
+    partitions of the same rows, and adding them together would count
+    every row twice and refuse every honest record carrying both.
+    """
+    n_total = channel.get("n_total")
+    if not isinstance(n_total, int) or isinstance(n_total, bool):
+        return
+    rosters = [
+        ("the outcome bridge",
+         [channel[arm] for arm in ("treated", "control", "joint")
+          if isinstance(channel.get(arm), dict)]),
+        ("the treatment bridge",
+         _bridge_treatment_arms(channel.get("treatment_bridge"))),
+    ]
+    for what, roster in rosters:
+        counts = [a.get("n") for a in roster]
+        if not counts or any(not isinstance(n, int) or isinstance(n, bool)
+                             for n in counts):
+            continue
+        if sum(counts) != n_total:
+            raise RuleCheckFailed(
+                f"measurement_channel: {what}'s arms hold {counts} rows, "
+                f"{sum(counts)} in all, where the channel was taken over "
+                f"n_total={n_total}; the arms of one roster are that sample "
+                f"split up, so they add to it",
+                step_index=step_index, rule=rule,
+            )
+
+
+def _bridge_standard_error(moments, n, g, c, w_bar, ridge: float) -> float:
+    """The delta-method SE of ``w̄ᵀθ``, out of the moments alone.
+
+    The sandwich at the penalty in force, times the structural residual,
+    over the rows. Every term of it is either rebuilt here or a block this
+    module has just held to being a block of second moments, so a producer
+    who moved ``yy``, ``s_by`` or ``s_bb`` moves this and the envelope's
+    own figure no longer matches it.
+
+    The penalty's BIAS is not in it, deliberately: what a reader needs are
+    two separate facts, how far sampling moves the number and how far the
+    penalty does, and the ladder is where the second one is.
+    """
+    import numpy as np
+
+    s_bb, s_by, yy = moments
+    penalised = g + ridge * np.eye(len(c))
+    inner = np.linalg.inv(penalised)
+    theta = inner @ c
+    residual = max(yy - 2.0 * theta @ s_by + theta @ s_bb @ theta, 0.0)
+    variance = residual * float(w_bar @ (inner @ g @ inner) @ w_bar)
+    return float(np.sqrt(max(variance, 0.0) / n))
+
+
+def _bridge_uncertainty_agrees(channel, said, parts, rule: str,
+                               step_index) -> None:
+    """What the envelope calls the standard error, against what it gives.
+
+    Absent for two of the three estimators, and silent here when it is:
+    a figure the record does not carry is not one this rule can hold, and
+    refusing its absence would refuse an honest answer.
+    """
+    import numpy as np
+
+    if not isinstance(said, (int, float)) or isinstance(said, bool):
+        return
+    mine = float(np.sqrt(sum(p * p for p in parts)))
+    if not np.isclose(mine, float(said), rtol=_BRIDGE_RTOL, atol=_NUMERIC_TOL):
+        raise RuleCheckFailed(
+            f"measurement_channel records a standard error of {said} where "
+            f"the recorded moments give {mine}; the uncertainty a reader is "
+            f"shown is the one these moments carry or it is nobody's figure",
+            step_index=step_index, rule=rule,
+        )
+
+
 def _bridge_design_width(design, name: str, rule: str, step_index) -> int:
     """How many columns a recorded design builds, re-counted here.
 
@@ -6731,11 +6941,17 @@ def _check_proximal_bridge_curve(ctx, inputs: Mapping, channel: dict,
     disagree.
 
     What this cannot re-derive is ``w̄(a)`` itself, which is a mean over the
-    data at a counterfactual level and so belongs with ``n`` and ``yy``
-    among the measurements the record reports rather than the arithmetic it
-    replays. What it can and does refuse is a curve those vectors do not
-    give, a reference that is not the first level, effects that are not
-    differences against it, and a ladder that does not re-walk.
+    data at a counterfactual level: the record reports it and the
+    arithmetic downstream is checked against it. ``n`` and ``yy`` were
+    filed beside it here, and that was one category too wide. A
+    measurement nothing can recompute is still a measurement something
+    CONSUMES, and both of these are consumed on this envelope -- the rows
+    by the roster they partition, the outcome's second moment by the
+    standard error the reader is shown. What it can and does refuse is a
+    curve those vectors do not give, a reference that is not the first
+    level, effects that are not differences against it, a ladder that does
+    not re-walk, and a block of second moments no data could have
+    produced.
     """
     import numpy as np
 
@@ -6838,6 +7054,21 @@ def _check_proximal_bridge_curve(ctx, inputs: Mapping, channel: dict,
         )
     w_bars = [_bridge_vector(raw, d, f"level_means[{index}]", rule, step_index)
               for index, raw in enumerate(w_means)]
+    # The second stage's blocks, and the curve's own uncertainty: one arm
+    # here rather than two, and one standard error per level, because what
+    # varies along a curve is w̄ and nothing else.
+    _bridge_sample_adds_up(channel, rule, step_index)
+    joint_moments = _bridge_second_moments(channel, "joint", d, rule,
+                                           step_index)
+    said = channel.get("standard_errors")
+    if isinstance(said, (list, tuple)) and len(said) == len(w_bars):
+        for index, (w, one) in enumerate(zip(w_bars, said)):
+            _bridge_uncertainty_agrees(
+                channel, one,
+                [_bridge_standard_error(joint_moments,
+                                        channel["joint"]["n"], g, c, w,
+                                        float(ridge))],
+                rule, step_index)
     curves: "dict[str, list[float]]" = {
         "outcome_regression": [float(w @ theta) for w in w_bars]}
     curves.update(_treatment_curves_agree(
@@ -7262,6 +7493,13 @@ def _rule_numeric_proximal_bridge_estimate(
             step_index=step_index, rule=rule,
         )
 
+    # The other half of the record. Above, three blocks per arm were spent
+    # rebuilding the first stage; these three are the second stage's, and
+    # until now nothing on this envelope read them.
+    _bridge_sample_adds_up(channel, rule, step_index)
+    moments = {arm: _bridge_second_moments(channel, arm, d, rule, step_index)
+               for arm in ("treated", "control")}
+
     # --- the arithmetic -------------------------------------------------------
     arms = {}
     for arm, (g, c) in (("do_prob_treated", (g_t, c_t)),
@@ -7290,6 +7528,16 @@ def _rule_numeric_proximal_bridge_estimate(
                 f"the recorded moments gives {arms[arm]}",
                 step_index=step_index, rule=rule,
             )
+    # And the figure those moments determine. A contrast's arms are
+    # independent samples, so the variances add.
+    _bridge_uncertainty_agrees(
+        channel, channel.get("standard_error"),
+        [_bridge_standard_error(moments[arm], channel[arm]["n"], g, c, w_bar,
+                                float(ridge))
+         for arm, (g, c) in (("treated", (g_t, c_t)),
+                             ("control", (g_c, c_c)))],
+        rule, step_index)
+
     treatment = _treatment_bridge_agrees(
         channel, channel_declared, d, w_bar, rule, step_index)
     if treatment is None:

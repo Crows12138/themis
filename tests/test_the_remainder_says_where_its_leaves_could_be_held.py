@@ -482,13 +482,33 @@ def test_the_remainder_split_is_what_it_is():
     about these headings: what they read is whether the value is written
     twice, and what has held every leaf they were asked about is what
     else on the envelope could only be true if this one were.
+
+    Twenty-fifth use, 37 leaves, and the first one that comes out of
+    three headings at once: 20 from "another field of the answer, named
+    alike", 2 from "somewhere in the answer, named otherwise", and 15
+    from "nothing either document writes". The last of those is the
+    interesting number, because it is this reading's own caveat finally
+    being paid. ``_where_the_truth_of`` says in as many words that
+    ``_NOTHING`` means no COMPARISON can hold the leaf and not that
+    nothing can -- "a rule that recomputes a number from sufficient
+    statistics holds it without any second writing" -- and until now no
+    frontier had done that. Fifteen blocks of second moments with no
+    second copy anywhere on either document are held by the standard
+    error they determine.
+
+    And the twenty under "alike" say the sentence these paragraphs keep
+    arriving at, once more. Their values DO recur -- one arm's row count
+    equals a number elsewhere, one moment equals another -- and the
+    recurrence is not what held them; the sum they belong to and the
+    figure they feed are. Five frontiers now: accurate about recurrence,
+    silent about what decides.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 139,
+        gate._ANSWER_ALIKE: 119,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 191,
+        gate._ANSWER_OTHERWISE: 189,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 525,
+        gate._NOTHING: 510,
         gate._EVERY_READING_MATCHES: 76,
     }
 
