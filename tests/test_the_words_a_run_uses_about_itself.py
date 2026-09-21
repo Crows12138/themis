@@ -39,7 +39,7 @@ import pytest
 from tests.answer_corpus import the_door_for, verify_honestly
 from themis import questions
 from themis.verifier.data_gap_rules import (
-    _HAS_INTERVAL_FALLBACK, _NAMES_AN_ESTIMAND, _an_interval_is_in_hand,
+    _NAMES_AN_ESTIMAND, _THE_INTERVAL_FALLBACK, _an_interval_is_in_hand,
     _the_point_is_blocked, verify_answer_tier,
 )
 from themis.verifier.errors import VerificationError
@@ -77,13 +77,19 @@ def test_which_questions_name_a_quantity_is_the_readings_answer():
     agrees with it by construction and has nothing to say when the roster
     changes. What makes that safe is this comparison — a new query kind
     arrives as a red suite rather than as a tier nothing reads.
+
+    The second is held word for word and not merely by which kinds have
+    one. Which procedure supplies a question's interval is the
+    repository's to say rather than the mathematics', and the sentence
+    offering that interval to a reader names it; a roster that answered
+    only yes could not be asked what the sentence should say.
     """
     assert _NAMES_AN_ESTIMAND == {
         k for k in KINDS if questions.reading_of(k).names_an_estimand}
-    assert _HAS_INTERVAL_FALLBACK == {
-        k for k in KINDS
+    assert _THE_INTERVAL_FALLBACK == {
+        k: questions.reading_of(k).interval_fallback for k in KINDS
         if questions.reading_of(k).interval_fallback is not None}
-    assert _HAS_INTERVAL_FALLBACK < _NAMES_AN_ESTIMAND
+    assert set(_THE_INTERVAL_FALLBACK) < _NAMES_AN_ESTIMAND
 
 
 # ------------------------------------------------ nothing honest is refused

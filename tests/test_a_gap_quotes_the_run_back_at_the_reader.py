@@ -133,14 +133,18 @@ def test_the_facts_this_rule_speaks_for():
     # stratum it names holds too few rows to answer it on.
     # 14 count, a slot this roster had no entry for: twelve caveats saying how many
     # intervals bound one quantity, two saying how many instruments the graph offered.
+    # 12 fallback, the other slot it had no entry for: the interval a question falls
+    # back to, offered by name on its own way past. The roster was one rule over, as
+    # the set of kinds that have one, which is what the tier rule asks and a column
+    # short of the word.
     assert split == {
         "assumptions": 38, "method": 63, "what": 113,
         "methods": 73, "population": 16, "source": 10,
         "kind": 11, "target": 39, "count": 14,
         "intervention": 592, "treatment": 21, "outcome": 18,
-        "latent": 4, "z": 5, "w": 3,
+        "latent": 4, "z": 5, "w": 3, "fallback": 12,
     }, split
-    assert len(SITES) == 1020, len(SITES)
+    assert len(SITES) == 1032, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -159,7 +163,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 1020, refused
+    assert refused == 1032, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -759,7 +763,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 1020 * 6, refused
+    assert refused == 1032 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

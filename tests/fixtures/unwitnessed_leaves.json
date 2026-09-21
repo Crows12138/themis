@@ -223,9 +223,6 @@
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.upper",
   "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.value"
  ],
- "needs_investigation:counterfactual:none": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback"
- ],
  "needs_investigation:counterfactual:none#308829": [
   "estimator_failure.recorded.intervention",
   "estimator_failure.recorded.interventional_risk"
@@ -905,11 +902,9 @@
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
  "structurally_solved:effect:identify_via_transport": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#34ca6e": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -920,7 +915,6 @@
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#c8a187": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -929,11 +923,9 @@
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#f3260c": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#f57dd6": [
-  "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",

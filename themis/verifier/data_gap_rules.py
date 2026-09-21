@@ -2069,8 +2069,22 @@ _NAMES_AN_ESTIMAND = frozenset({
 })
 
 #: And which of those have an interval to fall back on when a point is out
-#: of reach for a reason the data cannot mend. Same roster, same pin.
-_HAS_INTERVAL_FALLBACK = frozenset({"effect", "counterfactual", "causation"})
+#: of reach for a reason the data cannot mend, and WHICH interval it is.
+#: Same roster, same pin.
+#:
+#: A set was the whole of what the tier rule below needs: it asks only
+#: whether the shape this question's answer could take is an interval. The
+#: sentence a reader gets names the PROCEDURE, and a set can be asked one
+#: thing — is this kind in it — so the word a reader is sent after was in
+#: no roster here at all. Which procedure supplies a question's interval is
+#: an inventory fact rather than a mathematical one, which is why the
+#: declaration spells it out rather than answering yes; restating the word
+#: beside the kind is what lets a second reader check the sentence.
+_THE_INTERVAL_FALLBACK: Mapping[str, str] = {
+    "effect": "Balke-Pearl bounds",
+    "counterfactual": "Tian-Pearl bounds",
+    "causation": "Tian-Pearl bounds",
+}
 
 #: The species that say the POINT is unreachable — not "the data are
 #: short", which every gap says. Bounds presence is NOT such a signal: an
@@ -2303,7 +2317,7 @@ def _the_tier_this_envelope_supports(result: Mapping, program: Any) -> str:
         return _TIER_INTERVAL
     if (came_out is None and premise_blocked and not identification_blocked
             and result.get("numeric_result") is None
-            and result.get("query_kind") in _HAS_INTERVAL_FALLBACK):
+            and result.get("query_kind") in _THE_INTERVAL_FALLBACK):
         # Nothing computed, and with the premise the only thing in the way
         # the shape an answer would take is the interval. NONE here would
         # say the data cannot produce an answer, when what they cannot

@@ -525,6 +525,16 @@ def test_the_remainder_is_counted_rather_than_described():
     question's two ends and what that route adjusts for. A forgery in one
     of them now sends a reader after a quantity the route beside it needs
     nothing of.
+
+    And 12 more from a roster this package had already restated, one
+    column short of the question being asked of it. A way past offers a
+    reader the interval where the point is out of reach and names the
+    procedure that would produce one; which procedure a question falls
+    back to was restated one rule over, as the SET of kinds that have
+    one. That is everything the tier rule needs and nothing the sentence
+    needs, a set having one question in it. The set is a mapping now, and
+    a forgery in one of them names a procedure this question's own
+    reading does not.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -539,7 +549,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2379, 69), (refused, accepted)
+    assert (refused, accepted) == (2391, 57), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

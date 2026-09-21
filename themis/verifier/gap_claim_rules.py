@@ -132,6 +132,7 @@ from .. import gaps as _gaps
 from .. import language
 from ..types import Atom, VariableDeclaration
 from .errors import VerificationError
+from .data_gap_rules import _THE_INTERVAL_FALLBACK
 from .type_reconciliation_rules import _declared_from_scale_domain
 from .rules import _atom_label_verifier
 from .statement_rules import _CARRIERS
@@ -810,6 +811,23 @@ def _the_conditional_this_source_prints(result: Mapping, context,
     return set()
 
 
+def _the_interval_this_question_falls_back_to(result: Mapping,
+                                              _context) -> set[str]:
+    """The bounds procedure whose interval stands in for this question's
+    point; empty for a question with no such procedure.
+
+    Read off the kind rather than off the answer's own sentence, and the
+    kind is a record: ``verify_answer_names_its_kind`` holds it to the
+    query the program carries, which is the one thing an answer may not
+    edit. The roster is a sibling rule's restatement of the declaration
+    both sides answer to, pinned to it there; a second copy here would be
+    the fourth time this one fact was written down in this package, and
+    the first three are why it is a declaration at all.
+    """
+    word = _THE_INTERVAL_FALLBACK.get(str(result.get("query_kind")))
+    return {word} if word else set()
+
+
 #: The slot names that are roles of the question, and the role each one
 #: copies wherever its statement copies one.
 _ROLES: Mapping[str, tuple[str, Any]] = {
@@ -978,6 +996,14 @@ _COPIED_FROM: Mapping[tuple[str | None, str], tuple[str, Any, bool]] = {
     ("the_target_populations_covariate_distribution_is_missing",
      "population"): ("the target population the question declares",
                      _the_target_population_the_question_names, False),
+    # And the interval a question falls back to, which its own way past
+    # offers by name. A vocabulary member whose table this package would
+    # have to restate was the reason nothing asked it, and the table was
+    # restated one rule over -- as the set of kinds that have one, which
+    # is all the tier rule needs and one column short of the word.
+    ("accept_the_interval", "fallback"):
+        ("the interval this question falls back to",
+         _the_interval_this_question_falls_back_to, False),
     # What the CALLER flagged, copied onto the envelope beside the gap
     # that reports it. Both copies are the producer's, which is the shape
     # the first three have too.

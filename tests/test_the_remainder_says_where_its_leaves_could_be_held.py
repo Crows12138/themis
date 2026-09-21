@@ -612,13 +612,20 @@ def test_the_remainder_split_is_what_it_is():
     and one on the program. Where a value is written and what can hold it
     are two questions, and a leaf with no second writing can still be
     held by what it was printed from.
+
+    Thirty-sixth use, six leaves, under the same heading again — and
+    this time what held them is on neither document. The word a way past
+    offers a reader is the one the question's own reading declares, and
+    this package restates that reading a rule away. A heading that
+    answers where on these two papers a value is written has nothing to
+    say about a value that is written on a third.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 394,
+        gate._NOTHING: 388,
         gate._EVERY_READING_MATCHES: 33,
     }
 
