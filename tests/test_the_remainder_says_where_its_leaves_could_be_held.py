@@ -604,13 +604,21 @@ def test_the_remainder_split_is_what_it_is():
     move: what is spelled is spelled again. Where a value is WRITTEN and
     whether a leaf can be HELD are two questions, and this table answers
     the first.
+
+    Thirty-fifth use, seven leaves, every one of them under nothing
+    either document writes — and the heading is right for the third
+    frontier running. A printing is not a second writing of anything: it
+    is MADE, and what it is made from sits in two places on the envelope
+    and one on the program. Where a value is written and what can hold it
+    are two questions, and a leaf with no second writing can still be
+    held by what it was printed from.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 401,
+        gate._NOTHING: 394,
         gate._EVERY_READING_MATCHES: 33,
     }
 

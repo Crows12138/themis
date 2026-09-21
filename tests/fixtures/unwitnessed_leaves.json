@@ -710,7 +710,6 @@
   "confidence_sources.[].slot_label"
  ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "extensions.transport_identification.sources.[].blocked_by"
  ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
@@ -718,9 +717,6 @@
   "extensions.iv_identification.alternatives_count",
   "extensions.iv_identification.late_caveat.[].said.variables",
   "extensions.iv_identification.numeric.conditioning_order.[]"
- ],
- "numerically_solved:effect:numeric_result#822998": [
-  "data_gap_report.gaps.[].describes.[].said.formula"
  ],
  "numerically_solved:effect:numeric_result#acfd4b": [
   "extensions.transport_identification.sources.[].formula_repr"
@@ -910,12 +906,10 @@
  ],
  "structurally_solved:effect:identify_via_transport": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#34ca6e": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -927,7 +921,6 @@
  ],
  "structurally_solved:effect:identify_via_transport#c8a187": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -937,12 +930,10 @@
  ],
  "structurally_solved:effect:identify_via_transport#f3260c": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "missing_information.[].observable.population"
  ],
  "structurally_solved:effect:identify_via_transport#f57dd6": [
   "data_gap_report.gaps.[].alternative_paths.[].said.fallback",
-  "data_gap_report.gaps.[].describes.[].said.formula",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",

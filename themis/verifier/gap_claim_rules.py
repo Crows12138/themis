@@ -108,6 +108,20 @@ bug when a sixth appears. Two of those five were found only after this
 module was written, by auditing the roster below against the data rather
 than trusting it; pulling identifier tokens out and requiring each to be
 a word the problem uses needed no change to accept them.
+
+AND A RENDERING IS NOT A NAME, WHICH SAYS WHICH QUESTION TO ASK AND NOT
+THAT THERE IS NONE. The three questions below all ask membership: is this
+word one of the records the answer holds, the one the rest of its sentence
+points at, the one its own gap writes elsewhere. A slot filed as an
+expression holds no word for membership to be about — it holds a whole
+sentence, assembled by a producer out of a record that is still on this
+envelope. Classifying it said the NAME rule cannot read it, and it was
+read as saying nothing can: the stratified conditional a transport gap
+sends a reader after could be rewritten to any string at all, and every
+door took it. The fourth question is not membership. What a producer
+printed can be printed AGAIN, from the record it was printed from, and the
+two printings compared — which is also how it keeps the rule above, since
+a printing that is rebuilt is a printing nobody had to parse.
 """
 from __future__ import annotations
 
@@ -730,6 +744,72 @@ def _the_questions_outcome_proxies(_result: Mapping, context) -> set[str]:
     return _the_questions_members(context, "outcome_proxy")
 
 
+def _the_conditional_as_printed(y: str, x: str, names: str) -> str:
+    """The stratified conditional a transporting source is asked for."""
+    return f"P({y} | do({x}), {names})"
+
+
+def _the_transport_formula_as_printed(y: str, x: str, names: str) -> str:
+    """How a transporting route prints its own formula, in this
+    package's second hand.
+
+    Written here rather than taken from the runtime that printed the
+    string on the envelope. Two hands printing one record is a
+    comparison; one hand printing it twice agrees with itself whatever it
+    says. What a second hand costs is that it can stop recognising the
+    first one's work without saying so — a printer that no longer agrees
+    goes SILENT rather than loud — and what answers that is a test
+    failing when the corpus stops being recognised, not a comment.
+    """
+    return (f"P*({y} | do({x})) = Σ_{{{names}}} "
+            f"{_the_conditional_as_printed(y, x, names)} · P*({names})")
+
+
+def _the_conditional_this_source_prints(result: Mapping, context,
+                                        said: Mapping) -> set[str]:
+    """The stratified conditional the source THIS SENTENCE names prints
+    for itself, and nothing where there is no such printing to appeal to.
+
+    The sentence says which source it is about, and that word is held to
+    the populations the program declares, so which route to read is not
+    the answer's to choose. The route carries what it adjusts for and the
+    formula it prints over that; the question carries the two ends, which
+    no answer can edit. Printed from those and compared to the route's
+    own printing: coming out the same is what says the record was read
+    the way its producer wrote it, and the conditional inside it is then
+    the quantity this gap is short of.
+
+    Silent where it does not come out the same. What a route shows a
+    reader rests on a step in the chain, and the rule that holds it there
+    is the one to speak when it does not — refusing here would be
+    refusing a gap's sentence for a fault in the thing it quotes.
+    """
+    intervention, target = _the_questions_ends(context)
+    if intervention is None or target is None:
+        return set()
+    y, x = target.predicate, intervention.predicate
+    extensions = result.get("extensions")
+    block = (extensions.get("transport_identification")
+             if isinstance(extensions, Mapping) else None)
+    routes = block.get("sources") if isinstance(block, Mapping) else None
+    population = str(said.get("population"))
+    for route in routes or ():
+        if not isinstance(route, Mapping) or not route.get("transportable"):
+            continue
+        if str(route.get("source_population")) != population:
+            continue
+        names = ", ".join(
+            str(atom.get("predicate"))
+            for atom in route.get("adjustment_set") or ()
+            if isinstance(atom, Mapping))
+        if not names:
+            continue
+        if _the_transport_formula_as_printed(y, x, names) == route.get(
+                "formula_repr"):
+            return {_the_conditional_as_printed(y, x, names)}
+    return set()
+
+
 #: The slot names that are roles of the question, and the role each one
 #: copies wherever its statement copies one.
 _ROLES: Mapping[str, tuple[str, Any]] = {
@@ -996,6 +1076,41 @@ _LOCATES: Mapping[tuple[str | None, str], tuple[str, Any]] = {
 def _locates(statement: str | None, slot: str) -> tuple[str, Any] | None:
     """The record a hole NAMES in this statement, or the general one."""
     return _LOCATES.get((statement, slot)) or _LOCATES.get((None, slot))
+
+
+#: What a ``said`` value is a PRINTING of, where what it prints is a
+#: record still on this envelope.
+#:
+#: The fourth question, and the one the three around it cannot put. All
+#: three ask membership — of a roster, of the record another slot names,
+#: of what this gap writes elsewhere — and a slot classified as an
+#: expression holds no word for membership to be about. It holds a
+#: sentence a producer assembled, and what was assembled can be assembled
+#: again.
+#:
+#: Which is also why this lives here rather than beside the block it
+#: prints. The frontier that read a fitted diagnostic's sentence put that
+#: reading in the module owning the block, because the correspondence it
+#: needed — which block speaks which sentence — was already declared
+#: there. The correspondence needed here is (statement, slot) to a
+#: record, which is what the three tables around this one are, and the
+#: word saying WHICH record is the population in the same sentence, held
+#: by the first of them.
+#:
+#: Keyed like the others, with ``None`` for a slot whose answer does not
+#: turn on which sentence it is in.
+_PRINTED_FROM: Mapping[tuple[str | None, str], tuple[str, Any]] = {
+    ("the_source_populations_stratified_conditional_is_missing", "formula"):
+        ("what that source's own transport formula prints",
+         _the_conditional_this_source_prints),
+}
+
+
+def _printed_from(statement: str | None,
+                  slot: str) -> tuple[str, Any] | None:
+    """The record this hole is a printing of, in this statement."""
+    return (_PRINTED_FROM.get((statement, slot))
+            or _PRINTED_FROM.get((None, slot)))
 
 
 #: What a ``said`` value is a second spelling of ON ITS OWN GAP.
@@ -1549,6 +1664,16 @@ def verify_gap_quotes(result: Mapping, context) -> None:
     a rule that refused there would be refusing a sentence for being
     alone.
 
+    And asked of a slot that holds no word at all. A hole can arrive
+    filled with a whole RENDERING — an estimand assembled out of the
+    question's two ends and what a route adjusts for — and the three
+    questions above are membership, which such a slot has no word to
+    answer. It is read by printing the record again and comparing the
+    printings, and the sentence itself says which record: the population
+    beside it, held to the ones the program declares by the first of
+    them. Silent where the printing does not come out as the record's
+    own, for the reason the paragraph above gives.
+
     Returns ``None`` on accept, including when there is no report.
     """
     report = result.get("data_gap_report")
@@ -1577,6 +1702,20 @@ def verify_gap_quotes(result: Mapping, context) -> None:
                         f"which record the rest of it came from, so a "
                         f"reader taking the sentence for what it says "
                         f"takes it for the wrong one",
+                        step_index=None, rule=_RULE,
+                    )
+            printing = _printed_from(statement, str(key))
+            if printing is not None:
+                says, printer = printing
+                again = printer(result, context, said)
+                if again and str(value) not in again:
+                    raise VerificationError(
+                        f"a gap sends a reader after {value!r} (at "
+                        f"{where}.{key}), and {says} is {sorted(again)}. "
+                        f"The sentence reaches them with that estimand "
+                        f"already assembled, so what they are told to go "
+                        f"and get is not the quantity this answer would "
+                        f"use if they came back with it",
                         step_index=None, rule=_RULE,
                     )
             entry = _copied_from(statement, str(key))

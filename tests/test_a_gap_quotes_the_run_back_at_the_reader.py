@@ -73,8 +73,11 @@ from themis.verifier.gap_claim_rules import (
     verify_gap_subjects,
 )
 from themis.verifier.gap_claim_rules import (
+    _PRINTED_FROM,
+    _printed_from,
     _the_question_asked,
     _the_role_the_question_gives,
+    _the_transport_formula_as_printed,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -851,3 +854,154 @@ def test_a_curve_names_every_role_the_question_is_read_for():
                       ("CauseQuery", "intervention"), ("CauseQuery", "target")}, (
         sorted(unread))
     assert len(one_of_each) == 10, sorted(one_of_each)
+# --- and the fourth question: a slot holding a whole printing ---------------
+
+
+_STRATIFIED = "the_source_populations_stratified_conditional_is_missing"
+
+#: Every (answer, where, statement, slot) the fourth table speaks for,
+#: found by the rule's own walk.
+PRINTED_SITES = sorted(
+    (name, where, statement or "", key)
+    for name, pair in SHAPES.items()
+    for where, statement, said in every_said_mapping(
+        (pair["result"] or {}).get("data_gap_report") or {})
+    for key in said
+    if _printed_from(statement, key) is not None
+)
+
+
+def _printing_for(site):
+    """What the rule's own printer hands back for this sentence."""
+    name, where, statement, key = site
+    result = SHAPES[name]["result"]
+    _says, printer = _printed_from(statement, key)
+    return printer(result, CONTEXTS[name], _said(result, where))
+
+
+def test_an_expression_is_read_by_the_question_membership_cannot_put():
+    """The root cause, asserted where it can be argued with.
+
+    ``formula`` is filed as an expression and correctly so: it is not a
+    name, and the name rule cannot read it. That classification was doing
+    double duty as the reason NOTHING read it — and it holds a whole
+    sentence, which the three questions before this one have no word to
+    ask about. One statement declares the slot; a second one arriving
+    fails here rather than going quietly unread.
+    """
+    assert _NOT_NAMES["formula"] == "expression"
+    assert not holds_a_name(_STRATIFIED, "formula")
+    assert _COPIED_FROM.get((_STRATIFIED, "formula")) is None
+    assert _SPELT_AGAIN_ON_THE_GAP.get((_STRATIFIED, "formula")) is None
+    assert _printed_from(_STRATIFIED, "formula") is not None
+    assert {statement
+            for statement, slot in statements_and_the_slots_they_declare()
+            if slot == "formula"} == {_STRATIFIED}
+    for statement, slot in _PRINTED_FROM:
+        assert statement and slot
+
+
+def test_the_printings_this_rule_speaks_for():
+    """The denominator, and the one that has to be counted rather than
+    described.
+
+    A second hand can stop recognising the first one's work, and when it
+    does this rule goes SILENT rather than loud. So what is pinned is not
+    that the printer exists but how many of the corpus's sentences it
+    still finds a record for.
+    """
+    split: dict[str, int] = {}
+    for _name, _where, _statement, key in PRINTED_SITES:
+        split[key] = split.get(key, 0) + 1
+    assert split == {"formula": 8}, split
+    assert sum(1 for site in PRINTED_SITES if _printing_for(site)) == 8
+
+
+def test_the_second_hand_prints_what_the_first_one_printed():
+    """The two hands, on one record.
+
+    The rule rests on a printing of this package's own making agreeing
+    with the one on the envelope, so the agreement is pinned against the
+    runtime's printer rather than against a string written out twice.
+    """
+    from themis.runtime.transport import transport_formula_repr
+    y, x = _atom("belly_fat_loss"), _atom("running")
+    for z in ((_atom("age"),), (_atom("age"), _atom("sex"))):
+        names = ", ".join(a.predicate for a in z)
+        assert _the_transport_formula_as_printed(
+            y.predicate, x.predicate, names) == transport_formula_repr(y, x, z)
+
+
+@pytest.mark.parametrize("site", PRINTED_SITES,
+                         ids=lambda s: f"{s[0]}|{s[3]}")
+def test_an_honest_printing_is_accepted(site):
+    name = site[0]
+    verify_gap_quotes(SHAPES[name]["result"], CONTEXTS[name])
+
+
+def test_an_estimand_printed_some_other_way_is_refused():
+    """Three gross lies per sentence — a forged spelling, an empty string,
+    a set of variables this route never adjusted for."""
+    refused = 0
+    for site in PRINTED_SITES:
+        name, where, _statement, key = site
+        honest = str(_said(SHAPES[name]["result"], where)[key])
+        for lie in (honest + "_forged", "",
+                    honest.replace(", ", ", stranger, ")):
+            assert lie != honest
+            forged = copy.deepcopy(SHAPES[name]["result"])
+            _said(forged, where)[key] = lie
+            with pytest.raises(VerificationError,
+                               match="sends a reader after"):
+                verify_gap_quotes(forged, CONTEXTS[name])
+            refused += 1
+    assert refused == 24, refused
+
+
+def test_the_record_is_the_source_this_sentence_names():
+    """Two sources adjust for what each was declared to differ in, so the
+    estimand a gap about one of them prints is that one's.
+
+    Swapped between the two sentences, every word is still on the
+    envelope and both sentences now send a reader after the other
+    source's quantity. This is what the population beside the estimand is
+    for, and why one roster per answer would have taken the swap.
+    """
+    by_answer: dict[str, list] = {}
+    for name, where, _statement, key in PRINTED_SITES:
+        by_answer.setdefault(name, []).append((where, key))
+    pairs = sorted((name, sites) for name, sites in by_answer.items()
+                   if len(sites) == 2)
+    assert pairs, "no answer carrying two of these sentences to swap"
+    for name, ((one, key_one), (two, key_two)) in pairs:
+        forged = copy.deepcopy(SHAPES[name]["result"])
+        first, second = _said(forged, one)[key_one], _said(forged, two)[key_two]
+        assert first != second, (name, first)
+        _said(forged, one)[key_one] = second
+        _said(forged, two)[key_two] = first
+        with pytest.raises(VerificationError, match="sends a reader after"):
+            verify_gap_quotes(forged, CONTEXTS[name])
+
+
+def test_the_silence_is_real_where_the_route_prints_something_else():
+    """A route whose formula is not the one this package prints is a fault
+    in the thing being quoted, and the rule holding a route to the chain
+    is the one to speak about it. Refusing here would refuse a gap's
+    sentence for somebody else's mistake.
+    """
+    name, where, _statement, key = PRINTED_SITES[0]
+    altered = copy.deepcopy(SHAPES[name]["result"])
+    for route in altered["extensions"]["transport_identification"]["sources"]:
+        if route.get("formula_repr") is not None:
+            route["formula_repr"] = "P*(y | do(x)) = something else entirely"
+    _said(altered, where)[key] = "anything at all"
+    verify_gap_quotes(altered, CONTEXTS[name])
+
+
+def test_the_silence_is_real_where_the_question_has_no_two_ends():
+    """The two ends are the question's, and a question with none leaves
+    the printer nothing to print from."""
+    name, where, _statement, key = PRINTED_SITES[0]
+    altered = copy.deepcopy(SHAPES[name]["result"])
+    _said(altered, where)[key] = "anything at all"
+    verify_gap_quotes(altered, _NAMES_NOTHING)
