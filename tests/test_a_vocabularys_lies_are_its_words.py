@@ -21,6 +21,15 @@ did ask about sit either side of it in the declared order, so the spread
 that was meant to avoid asking only about neighbours asked only about
 neighbours of the wrong word.
 
+That clearest case is closed. #735 held the word to the road the answer
+came by -- four questions are about more than one world and reach a number
+two ways, and the estimating road leaves an estimate behind -- so a
+counterfactual point that estimated nothing can no longer call itself
+numerically solved. The paragraph above is what this instrument FOUND, and
+it stays as it was measured; what is still open is the pair below it. That
+distinction is the whole difference between a file about an instrument and
+a file about the rules the instrument measured.
+
 Asking every word is affordable up to a point and the point is measured
 rather than chosen: the vocabularies this contract declares come in two
 clumps -- four words or fewer, then five to ten, and then a jump straight
@@ -38,10 +47,14 @@ import pytest
 
 import tests.test_every_answer_shape_is_asked_the_same_question as gate
 
-#: The three pairs the measurement found, as (honest word, word that
-#: survives). Each is a word the old sample never asked about.
+#: The pairs the measurement found that are still holes, as (honest word,
+#: word that survives). Each is a word the old sample never asked about.
+#:
+#: The measurement found three. The first of them -- a counterfactual point
+#: calling itself numerically solved -- was closed in #735, and what a
+#: closed pair would do here is fail the two tests below, which put every
+#: pair to the doors rather than trusting this list.
 SURVIVING = (
-    ("counterfactual_solved", "numerically_solved"),
     ("needs_investigation", "numerically_solved"),
     ("structurally_solved", "needs_investigation"),
 )
@@ -135,6 +148,16 @@ def test_a_word_outside_the_vocabulary_is_not_a_lie_this_sweep_tells():
 def _answers_saying(word):
     return [name for name in sorted(gate.SHAPES)
             if gate.SHAPES[name]["result"].get("status") == word]
+
+
+def test_the_pairs_this_file_still_finds_a_hole_for():
+    """Named and counted, because the two tests below are parametrized over
+    this tuple and a tuple gone empty is a pair of green tests asking
+    nothing at all."""
+    assert SURVIVING == (
+        ("needs_investigation", "numerically_solved"),
+        ("structurally_solved", "needs_investigation"),
+    )
 
 
 @pytest.mark.parametrize("honest,survives", SURVIVING)

@@ -1,11 +1,14 @@
 """The first word an answer says about itself, against what can hold it.
 
-Two things can. What the envelope is SHOWING, which is most of this
-module; and what the question ASKED, which is the rule at the end and the
-only thing that separates two words that show the same. Both are needed
-and neither subsumes the other: an answer showing nothing cannot be any
-of the solved words whatever was asked, and an effect query's answer
-cannot be a counterfactual point however many numbers are beside it.
+Three things can. What the envelope is SHOWING, which is most of this
+module; what the question ASKED, which separates two words that show the
+same; and, where a question has more than one road to an answer, which
+ROAD this one came by. None subsumes another: an answer showing nothing
+cannot be any of the solved words whatever was asked; an effect query's
+answer cannot be a counterfactual point however many numbers are beside
+it; and a question about two worlds is answered either by computing from
+the model the program declares or by estimating from data, where the word
+says which and the envelope shows which.
 
 
 ``status`` is what a reader meets before anything else, and it decides
@@ -100,11 +103,13 @@ from .errors import VerificationError
 
 _RULE = "answer_status_check"
 
-#: A name of its own rather than a second use of the one above: the two
+#: A name of its own rather than a second use of the one above: the
 #: rules refuse for different reasons — one because the envelope
-#: contradicts the word, one because the question does — and a reader
-#: given one name for both has to open the sentence to learn which.
+#: contradicts the word, one because the question does, one because the
+#: road the answer came by does — and a reader given one name for them
+#: has to open the sentence to learn which.
 _RULE_QUESTION = "answer_status_question_check"
+_RULE_ROAD = "answer_status_road_check"
 
 #: The extension blocks that hold a quantity the estimate fields have no
 #: room for. ``themis.blocks.declared_as(Family.ANSWER)``, restated rather
@@ -242,6 +247,26 @@ _ANSWERS_WITH: dict[str, frozenset[str]] = {
                                   "structurally_solved"}),
 }
 
+#: The questions whose quantity is defined over more than one world.
+#:
+#: ``themis.questions``' own ``asks_across_worlds``, restated and pinned
+#: for the reason the roster above is. A question that gains the property
+#: and not an entry here leaves this rule silent on its answers, which is
+#: a rule that stops refusing rather than one that starts refusing wrongly
+#: — and the test pins the table in both directions anyway.
+_ACROSS_WORLDS: frozenset[str] = frozenset({
+    "causation",
+    "counterfactual",
+    "counterfactual_conjunction",
+    "scm_counterfactual",
+})
+
+#: The word the estimating road ends in, and the one word an across-world
+#: question shares with the questions that ask about a single world. Named
+#: rather than written into the sentence below, because which word it is is
+#: a fact about the roster above.
+_THE_ESTIMATORS_WORD = "numerically_solved"
+
 
 def verify_answer_status_fits_its_question(result: Mapping) -> None:
     """Hold the word an answer leads with to the question it answers.
@@ -259,6 +284,23 @@ def verify_answer_status_fits_its_question(result: Mapping) -> None:
     answer may not edit. Reading an unheld field would make this rule an
     argument between two things the same author wrote.
 
+    A roster keyed on the question is only as fine as the question is.
+    Where a question has one road to an answer, naming the question names
+    the road; where it has two, the roster can do nothing but list both
+    words, which is no hold at all on whichever family took the commoner
+    road. Four questions are about more than one world, and a number for
+    one of them arrives either from data, estimated, or from the structural
+    model the program itself declares, computed. The estimating road ends
+    in ``numerically_solved`` and the computing road in the counterfactual
+    words, so on those four questions the estimator's word is asked for the
+    estimate that earns it.
+
+    The estimate block is the witness and the estimation context beside it
+    is not, though the context is the broader mark of an estimator having
+    run. Same sentence as above: what a rule leans on has to be held by
+    somebody other than the author of the answer, and the context is the
+    block whose own leaves this repository's sweep still lists as unheld.
+
     Returns ``None`` on accept. Raises
     :class:`~themis.verifier.errors.VerificationError` otherwise.
     """
@@ -267,15 +309,26 @@ def verify_answer_status_fits_its_question(result: Mapping) -> None:
         return
     if not isinstance(kind, str) or (allowed := _ANSWERS_WITH.get(kind)) is None:
         return
-    if word in allowed:
-        return
-    raise VerificationError(
-        f"the answer says it is {word!r} and the question asked was "
-        f"{kind!r}, whose answer says one of {sorted(allowed)}; a reader is "
-        f"told that word before anything else, and it says the run answered "
-        f"a question that was not put to it",
-        rule=_RULE_QUESTION,
-    )
+    if word not in allowed:
+        raise VerificationError(
+            f"the answer says it is {word!r} and the question asked was "
+            f"{kind!r}, whose answer says one of {sorted(allowed)}; a reader "
+            f"is told that word before anything else, and it says the run "
+            f"answered a question that was not put to it",
+            rule=_RULE_QUESTION,
+        )
+    if (kind in _ACROSS_WORLDS and word == _THE_ESTIMATORS_WORD
+            and not result.get("numeric_estimate")):
+        raise VerificationError(
+            f"the answer says it is {word!r} and the question asked was "
+            f"{kind!r}, which is about more than one world; a number for "
+            f"such a question comes either from data, estimated, or from "
+            f"the structural model this program declares, computed, and "
+            f"that word is the estimating road's. No estimate is on this "
+            f"envelope, so a reader is told the number came from data when "
+            f"it came from what the program itself declares",
+            rule=_RULE_ROAD,
+        )
 
 
 def verify_answer_status(result: Mapping) -> None:

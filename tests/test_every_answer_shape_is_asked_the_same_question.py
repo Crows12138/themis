@@ -2431,9 +2431,24 @@ def test_the_declared_remainder_is_what_it_is():
     the thing being described is the gap. Twenty-one were predicted and
     twenty-two closed: a way past names the route it keeps twice over, and
     the sweep bends the one with a partner.
+
+    Then forty-three, every one of them the first word an answer says
+    about itself, and every one out of the heading that says no document
+    writes this value anywhere. None does. What holds the word is not a second
+    copy of it but a fork: four questions are about more than one world and
+    have two roads to a number, estimate it from data or compute it from
+    the model the program declares, and the word is which road was taken.
+    The estimating road leaves an estimate behind, so a road that left
+    nothing behind is a road not taken. An absence witnesses a choice
+    between two, and renaming the word -- which is the whole of the lie
+    this sweep tells about it -- walks into it. Forty-five relabellings
+    stopped being believed and forty-three leaves closed: two answers that
+    bounded a counterfactual are held against this word now and can still
+    be called solved instead, which is a lie the same leaf tells another
+    way, so the leaf stays.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 746, total
+    assert total == 703, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

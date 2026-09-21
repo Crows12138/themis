@@ -577,13 +577,23 @@ def test_the_remainder_split_is_what_it_is():
     the same GAP -- one occasion described in several sentences, from one
     value the producer had in hand -- and a comparison reaches that only
     once a rule knows which two of a gap's slots are one fact.
+
+    Thirty-second use, forty-three leaves, and this time every one of them
+    from the heading that says nothing either document writes. The heading
+    was right: the word appears nowhere else, in either document. It is the
+    sixth thing to hold a leaf no document writes twice, and the first that
+    reads nothing present. Where a word is one of two, what holds it is the
+    fork: one road leaves an estimate behind and the other leaves the
+    model's own arithmetic, so the absence of the first says the second was
+    taken. A heading that asks where a value is WRITTEN cannot see that,
+    and is not wrong to be unable to.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 157,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 453,
+        gate._NOTHING: 410,
         gate._EVERY_READING_MATCHES: 33,
     }
 

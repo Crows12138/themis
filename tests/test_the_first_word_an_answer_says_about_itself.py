@@ -19,13 +19,20 @@ the meaning is declared beside the word
 (:data:`themis.types.STATUS_CLAIMS`), the audit reads the blocks for
 itself, and the two have to agree.
 
-Two things can hold the word and the second one is here too. What the
+Three things can hold the word and the other two are here too. What the
 envelope SHOWS stops where two words show the same thing — a
 counterfactual point and an estimated one are one rung. What the question
 ASKED separates them, and which words a question's answer may lead with is
 declared beside the question (``themis.questions``' ``answers_with``),
 while the words a REFUSAL leaves are open to every question and declared
 once on ``refusals.Kind.outcome``.
+
+And a roster keyed on the question is only as fine as the question is.
+Four questions are about more than one world and have two roads to a
+number — estimate it from data, or compute it from the structural model
+the program itself declares — so their roster lists the words of both
+roads and holds neither. Which ROAD an answer came by is the third thing,
+read off the estimate the estimating road leaves behind.
 
 What is asserted here:
 
@@ -39,6 +46,10 @@ What is asserted here:
   is total over the kinds the contract admits; the words open to every
   question are the refusal kinds' own; and each half is put to the case it
   has to say no to, and to the case it must not
+- that the word is held to the road as well: the questions about more than
+  one world are the questions' own, the word this rule calls the estimating
+  road's is the one the estimation layer writes, and the case it must
+  refuse and the two it must not are each put to it
 - that the promise half is not satisfied by the block that exists to say
   a quantity was NOT reached, and that the one word whose answer may be
   that range still admits it — both sides put to honest answers
@@ -61,9 +72,11 @@ from themis.types import (
     A_QUANTITY, A_QUANTITY_OR_THE_RANGE_STANDING_IN,
     STATUS_CLAIMS, ResultStatus, Shown)
 from themis.verifier import VerificationError
+from themis.estimation import dispatch
 from themis.verifier.status_rules import (
-    _ANSWER_BLOCKS, _ANSWERS_WITH, _REFUSAL_WORDS, _might_be_showing, _shown,
-    verify_answer_status, verify_answer_status_fits_its_question)
+    _ACROSS_WORLDS, _ANSWER_BLOCKS, _ANSWERS_WITH, _REFUSAL_WORDS,
+    _THE_ESTIMATORS_WORD, _might_be_showing, _shown, verify_answer_status,
+    verify_answer_status_fits_its_question)
 
 from . import schema_walk
 from .answer_corpus import the_door_for, verify_honestly
@@ -75,6 +88,7 @@ SHAPES = json.loads(
 
 RULE = "answer_status_check"
 RULE_QUESTION = "answer_status_question_check"
+RULE_ROAD = "answer_status_road_check"
 
 #: What one relabelling of every answer comes to. Stated so that a
 #: narrowing shows up as a number: 1458 swaps, of which 673 survived both
@@ -88,7 +102,7 @@ RULE_QUESTION = "answer_status_question_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 56
+SURVIVING = 11
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -154,14 +168,37 @@ SURVIVING = 56
 #: structure and its whole chain did not. The five that remain identify
 #: and then refuse at the estimator for want of data, and this rule leaves
 #: them alone on purpose: on those five the word would not be a lie.
+#:
+#: Forty-five more went in #735, and what reached them is the sentence
+#: three paragraphs above being wrong about its own limit. Where a
+#: question's answer may lead with either of two words that both say a
+#: quantity arrived, nothing on the envelope separates them — true, and
+#: the sentence went on to say that telling them apart would need the
+#: derivation. It needs less than that. Four questions are about more than
+#: one world, and a number for one of them is either estimated from data or
+#: computed from the structural model the program itself declares: two
+#: roads, and the word is which road this answer took. The estimating road
+#: leaves an estimate behind, so the word naming it is asked for one — and
+#: forty-three counterfactual points and two bounded ones stop being able
+#: to call themselves numerically solved.
+#:
+#: What is left is eleven, of two shapes. Nine relabel into or out of a word
+#: a refusal leaves, which is open to every question by construction. Two
+#: are between the two words the computing road itself ends in, where the
+#: roster admits both, the road is one, and the envelope shows a quantity
+#: either way.
+#: The questions with one world and one road, whose answers say the
+#: estimating road's word without owing an estimate for it.
+ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
+    kind for kind, words in _ANSWERS_WITH.items()
+    if kind not in _ACROSS_WORLDS and _THE_ESTIMATORS_WORD in words)
+
 SURVIVORS = {
-    "counterfactual_solved -> numerically_solved": 43,
-    "structurally_solved -> needs_investigation": 5,
     "counterfactual_bounded -> counterfactual_solved": 2,
-    "counterfactual_bounded -> numerically_solved": 2,
-    "needs_investigation -> structurally_solved": 2,
     "needs_investigation -> numerically_solved": 1,
+    "needs_investigation -> structurally_solved": 2,
     "numerically_solved -> needs_investigation": 1,
+    "structurally_solved -> needs_investigation": 5,
 }
 
 
@@ -267,7 +304,12 @@ def test_a_relabelled_answer_is_refused_wherever_the_envelope_says_so():
 def test_what_the_question_rule_reaches_on_its_own():
     """Same reason as the sibling below: most of its work happens behind
     other rules at the door, and a gate counting only what got through them
-    would not notice this one going quiet."""
+    would not notice this one going quiet.
+
+    Both halves of it, because they are one function reading one envelope:
+    sixty of these refusals are the road half, which is what the roster
+    could not do and the estimate can.
+    """
     refused = passed = 0
     for _name, _program, _honest, forged, _was, _now in _swaps():
         try:
@@ -276,7 +318,7 @@ def test_what_the_question_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (756, 756), (refused, passed)
+    assert (refused, passed) == (816, 696), (refused, passed)
 
 
 def test_what_this_rule_reaches_on_its_own():
@@ -541,6 +583,75 @@ def test_the_roster_is_the_questions_own():
     """The other half of the same pin."""
     assert _ANSWERS_WITH == {q.kind: q.answers_with
                              for q in questions.DECLARED}
+
+
+def test_the_questions_about_more_than_one_world_are_the_questions_own():
+    """The same pin, on the other fact this rule reads off the question.
+
+    Both directions, and they fail differently. A question that gains the
+    property and not an entry leaves its answers unheld by the road half;
+    an entry no question carries asks a single-world answer for an estimate
+    it never owed.
+    """
+    assert _ACROSS_WORLDS == {q.kind for q in questions.DECLARED
+                              if q.asks_across_worlds}
+
+
+def test_the_word_this_rule_calls_the_estimating_roads_is_written_there():
+    """Named in the verifier, written in the estimation layer.
+
+    Every road that attaches a number for the query's own estimand ends in
+    one finaliser, and that finaliser is what puts a word on an envelope
+    when data produced the number. Called rather than read, so a rename
+    arrives here as a red suite instead of as a rule that stopped holding.
+    """
+    envelope: dict = {}
+    dispatch._finalise_numeric_result(envelope)
+    assert envelope["status"] == _THE_ESTIMATORS_WORD
+
+
+def test_an_across_world_answer_the_program_settled_itself_keeps_its_word():
+    """The honest shape this must never touch: an SCM counterfactual is
+    computed from the coefficients the program declares and estimates
+    nothing, so there is no estimate to ask it for."""
+    verify_answer_status_fits_its_question(
+        {"status": "counterfactual_solved",
+         "query_kind": "scm_counterfactual"})
+
+
+def test_the_estimating_roads_word_is_asked_for_the_estimate_it_names():
+    """The counterexample. Both words say a quantity arrived and the roster
+    admits both, so what road it came by is the only thing left that can
+    tell a reader which answer they are holding."""
+    with pytest.raises(VerificationError, match="came from data") as err:
+        verify_answer_status_fits_its_question(
+            {"status": _THE_ESTIMATORS_WORD,
+             "query_kind": "scm_counterfactual"})
+    assert err.value.rule == RULE_ROAD
+
+
+def test_the_estimating_roads_word_is_kept_where_the_estimate_is_there():
+    """The half that must NOT refuse: a counterfactual cell estimated from
+    data leads with this word, and nine stored answers do."""
+    verify_answer_status_fits_its_question(
+        {"status": _THE_ESTIMATORS_WORD, "query_kind": "scm_counterfactual",
+         "numeric_estimate": {"method": "scm_counterfactual_linear_fit"}})
+
+
+def test_the_one_world_questions_this_word_is_open_to():
+    """The roster the case below is parametrized over, counted here: a
+    parametrize that has gone empty is a green test asking nothing."""
+    assert ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT == [
+        "effect", "probability", "proximal_effect"]
+
+
+@pytest.mark.parametrize("kind", ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT)
+def test_a_question_about_one_world_is_not_asked_for_an_estimate(kind):
+    """Nineteen stored answers evaluate an identified formula on declared
+    parameters, lead with this word and estimated nothing. A question with
+    one road to a number needs no word to say which road."""
+    verify_answer_status_fits_its_question(
+        {"status": _THE_ESTIMATORS_WORD, "query_kind": kind})
 
 
 def test_every_question_the_contract_admits_declares_a_roster():
