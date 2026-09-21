@@ -37,8 +37,7 @@
  ],
  "combined_measurement_error_correction": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.form"
+  "estimation_context.random_state"
  ],
  "counterfactual_bounded:causation:causation_probability_bounds": [
   "status"
@@ -81,8 +80,7 @@
  "exposure_measurement_error_correction": [
   "bounds_results.[].sufficient_statistics.n_joint_other_arm",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.form"
+  "estimation_context.random_state"
  ],
  "frontdoor_empirical_linear": [
   "estimation_context.ci_bootstrap",
@@ -178,7 +176,6 @@
  "measurement_error_correction": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
  "mediation_joint_linear": [
@@ -674,27 +671,23 @@
  "numerically_solved:effect:numeric_measurement_correction_estimate#57ba98": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#7b2034": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.measurement_correction.confusion_matrices.[].arm",
-  "numeric_estimate.measurement_correction.form",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#a72f27": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.confusion_matrices.[].level",
-  "numeric_estimate.measurement_correction.form"
+  "numeric_estimate.measurement_correction.confusion_matrices.[].level"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#dae267": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.confusion_matrices.[].outcome",
-  "numeric_estimate.measurement_correction.form"
+  "numeric_estimate.measurement_correction.confusion_matrices.[].outcome"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
   "derivation.steps.[].output.items.cde_status.items.cap",

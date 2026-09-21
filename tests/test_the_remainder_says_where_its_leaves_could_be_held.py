@@ -619,13 +619,20 @@ def test_the_remainder_split_is_what_it_is():
     this package restates that reading a rule away. A heading that
     answers where on these two papers a value is written has nothing to
     say about a value that is written on a third.
+
+    Thirty-seventh use, seven leaves, the same heading a third time —
+    and it has been right every time. A shape word IS written once; what
+    held it is not a second writing but a declaration of which shapes
+    each method can fit. This table says where a value is written, and
+    three frontiers running have been closed by something that is not a
+    writing at all.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 388,
+        gate._NOTHING: 381,
         gate._EVERY_READING_MATCHES: 33,
     }
 

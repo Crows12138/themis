@@ -1449,6 +1449,36 @@ def _where_the_run_reports_itself(result: dict,
             yield place
 
 
+def _every_shape_this_run_discloses(
+    result: dict, extensions: dict,
+) -> Iterator[tuple[str, Mapping, object]]:
+    """Each place this answer writes that a fit took a shape.
+
+    A mechanism row was the only place the loop below knew, and the note
+    above it said why: the shape word reaches the envelope through that
+    block alone. Measured, it does not. A measurement-error correction
+    writes its shape inside ``numeric_estimate`` — seven answer shapes
+    carry a form there, and not one of them carries a mechanism row — so
+    a walk addressed to the block read a claim published somewhere else,
+    and the seven forms could be rewritten to anything at all.
+
+    Yields the place, the mapping holding the shape, and the method that
+    place states for ITSELF, or ``None`` where it states none and the
+    method is the run's own. A place that states one is a second copy and
+    is held to the run's; a place that states none is not being trusted
+    about anything, it simply is the estimate.
+    """
+    for row in ((extensions.get("mechanism_audit") or {}).get("mechanisms")
+                or ()):
+        if isinstance(row, Mapping):
+            yield "mechanism_audit", row, row.get("method")
+    estimate = result.get("numeric_estimate")
+    block = (estimate.get("measurement_correction")
+             if isinstance(estimate, Mapping) else None)
+    if isinstance(block, Mapping) and "form" in block:
+        yield "numeric_estimate.measurement_correction", block, None
+
+
 def _check_the_block_describes_the_fit_that_ran(
     result: dict, extensions: dict,
 ) -> None:
@@ -1476,12 +1506,17 @@ def _check_the_block_describes_the_fit_that_ran(
     attributes to anybody is at its most complete exactly when there is no
     fit to attribute it to.
 
-    ``form`` reaches the envelope through this block alone — the estimate
-    records which method ran, never the shape word — so it stands as the
-    producer's statement, in the company of the other producer statements
-    this repository declines to recompute rather than agree with by
-    construction. A check invented for it (that the method spells the
-    form, say) holds for the outcome models and fails on the honest
+    ``form`` is asked, against what the method can fit, and the note here
+    said it could not be: the shape word was said to reach the envelope
+    through this block alone, the estimate recording which method ran and
+    never the shape. Two claims read as one, and only the second is true.
+    The estimate does not record a shape — and the measurement-error
+    correction that lives INSIDE it does, on seven answer shapes, not one
+    of which carries a mechanism row. So what is walked below is the
+    places this answer discloses a shape rather than the rows of this
+    block. What a method can fit is a declaration and not a
+    recomputation; the check the note ruled out — that the method spells
+    the form — is a different check, and it does fail on the honest
     ``logistic_propensity`` beside ``aipw``.
 
     ``target`` is asked, and not from here. This function is reached
@@ -1496,9 +1531,8 @@ def _check_the_block_describes_the_fit_that_ran(
     targets are the question's outcome exactly. The five that are not
     are accounted for there.
     """
-    mechanisms = ((extensions.get("mechanism_audit") or {})
-                  .get("mechanisms") or ())
-    if not mechanisms:
+    disclosed = list(_every_shape_this_run_discloses(result, extensions))
+    if not disclosed:
         return
     estimate = _the_fit_this_run_reported(result, extensions)
     if estimate is None:
@@ -1509,10 +1543,10 @@ def _check_the_block_describes_the_fit_that_ran(
             "envelope has no record of"
         )
     declared = {str(a) for a in estimate.get("assumptions") or ()}
-    for m in mechanisms:
-        if m.get("method") != estimate.get("method"):
+    for where, m, stated in disclosed:
+        if stated is not None and stated != estimate.get("method"):
             _reject(
-                f"mechanism_audit says the fit was {m.get('method')!r} and "
+                f"{where} says the fit was {stated!r} and "
                 f"the estimate reports {estimate.get('method')!r}; a reader "
                 "weighing the shape is weighing the wrong estimator"
             )
@@ -1523,7 +1557,9 @@ def _check_the_block_describes_the_fit_that_ran(
         # be rewritten and this door said yes. It is asked after the method
         # is held, so the set it is looked up in is not one an answer can
         # choose for itself.
-        complaint = shape_the_method_cannot_fit(m.get("method"), m.get("form"))
+        complaint = shape_the_method_cannot_fit(
+            estimate.get("method") if stated is None else stated,
+            m.get("form"), where)
         if complaint is not None:
             _reject(complaint)
         for named in m.get("assumptions") or ():

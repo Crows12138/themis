@@ -170,12 +170,19 @@ FITS: dict[str, frozenset[str]] = {
 }
 
 
-def shape_the_method_cannot_fit(method: object, form: object) -> str | None:
+def shape_the_method_cannot_fit(method: object, form: object,
+                                where: str) -> str | None:
     """A complaint if this method cannot fit this shape, else ``None``.
 
-    Returns rather than raises because the caller is one loop over a block
-    whose other two fields it already checks, and it words its own
-    refusals.
+    Returns rather than raises because the caller is one loop over the
+    places this answer discloses a shape, and it words its own refusals.
+
+    ``where`` is the place that was read, and it is a parameter because
+    there is more than one of them. A mechanism row was the only place
+    this was ever asked of and the refusal said so in its own words; a
+    correction writing its shape inside the estimate, and writing no
+    mechanism row at all, would have been refused in the name of a block
+    it does not carry.
 
     A method with no row is a complaint too. The methods that disclose a
     mechanism are finite and were measured; answering "no opinion" for an
@@ -185,13 +192,13 @@ def shape_the_method_cannot_fit(method: object, form: object) -> str | None:
     allowed = FITS.get(str(method))
     if allowed is None:
         return (
-            f"mechanism_audit says the fit was {method!r}, and no method by "
+            f"{where} says the fit was {method!r}, and no method by "
             f"that name declares any shape it can fit; a reader weighing the "
             f"shape has nothing to weigh it against"
         )
     if str(form) not in allowed:
         return (
-            f"mechanism_audit says {method!r} fitted the shape {form!r} and "
+            f"{where} says {method!r} fitted the shape {form!r} and "
             f"that method fits {sorted(allowed)}; the one word telling a "
             f"reader what the number was fitted through names a shape this "
             f"build cannot fit that way"

@@ -159,11 +159,30 @@ def _mechanism(method: str, form: str) -> dict:
                              "settled_by": "default"}]}
 
 
+AUDIT = "mechanism_audit"
+CORRECTION = "numeric_estimate.measurement_correction"
+
+
 def test_the_verifier_refuses_a_shape_outside_the_method():
-    assert shape_the_method_cannot_fit("backdoor_linear", "logistic")
-    assert shape_the_method_cannot_fit("a_family_nobody_declared", "linear")
-    assert shape_the_method_cannot_fit("tmle", "linear") is None
-    assert shape_the_method_cannot_fit("tmle", "logistic") is None
+    assert shape_the_method_cannot_fit("backdoor_linear", "logistic", AUDIT)
+    assert shape_the_method_cannot_fit("a_family_nobody_declared",
+                                       "linear", AUDIT)
+    assert shape_the_method_cannot_fit("tmle", "linear", AUDIT) is None
+    assert shape_the_method_cannot_fit("tmle", "logistic", AUDIT) is None
+
+
+def test_a_complaint_names_the_place_it_was_read_from():
+    """More than one place on an envelope writes this claim, so a refusal
+    names the one it read instead of the block that was once the only
+    one. A correction refused in the name of a block it does not carry
+    sends a reader looking for something that is not there."""
+    complaint = shape_the_method_cannot_fit(
+        "measurement_error_correction", "linear", CORRECTION)
+    assert complaint and complaint.startswith(f"{CORRECTION} says")
+    assert AUDIT not in complaint
+    missing = shape_the_method_cannot_fit(
+        "a_family_nobody_declared", "linear", CORRECTION)
+    assert missing and missing.startswith(f"{CORRECTION} says")
 
 
 @pytest.mark.parametrize("bend", ["_forged", "", "x"])
@@ -172,7 +191,7 @@ def test_the_three_lies_the_census_tells_about_a_form_are_refused(bend):
     those are the census's three: the value with something appended, the
     blank, and a short arbitrary string."""
     forged = "linear" + bend if bend == "_forged" else bend
-    assert shape_the_method_cannot_fit("backdoor_linear", forged)
+    assert shape_the_method_cannot_fit("backdoor_linear", forged, AUDIT)
 
 
 # ============================== the answers the corpus does not contain
@@ -196,7 +215,7 @@ def test_the_three_lies_the_census_tells_about_a_form_are_refused(bend):
     ("simex", "simex_linear_quadratic"),
 ])
 def test_a_run_the_corpus_never_saw_is_still_accepted(method, shape):
-    assert shape_the_method_cannot_fit(method, shape) is None
+    assert shape_the_method_cannot_fit(method, shape, AUDIT) is None
     assert producer.fits(method, shape) == shape
 
 

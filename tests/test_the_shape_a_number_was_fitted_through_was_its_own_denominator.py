@@ -1,8 +1,10 @@
 """The block saying what shape a number was fitted through was never
 checked, because it was what the checking was done against.
 
-``mechanism_audit`` is the one place a reader learns which functional form
-produced the number in front of them. Two checks already read it, and both
+``mechanism_audit`` is where a reader learns which functional form produced
+the number in front of them — and the note that it is the ONE place was
+wrong, which the last section of this file is the record of. Two checks
+already read it, and both
 walked the BLOCK: one finds the ledger line for each id the block names, the
 other counted the lines the block said the ledger owes. That makes the
 block the denominator, which is the one position in which a thing is never
@@ -303,3 +305,67 @@ def test_a_mechanism_written_twice_is_refused(name):
     mechanisms.append(copy.deepcopy(mechanisms[0]))
     with pytest.raises(SyntacticError, match="mechanism_audit/mechanisms"):
         the_door_for(bent)(program, bent)
+# ======================================= and the second place it is written
+#
+# The note this file opens with, and the one in the rule it tests, both
+# said the shape word reaches the envelope through the mechanism block
+# alone. A measurement-error correction writes it inside the estimate and
+# writes no mechanism block at all, so the walk addressed to the block
+# read a claim published somewhere else and seven forms took any string.
+
+
+def _correction_of(result):
+    block = ((result.get("numeric_estimate") or {})
+             .get("measurement_correction"))
+    return block if isinstance(block, dict) and "form" in block else None
+
+
+_CORRECTIONS = sorted(
+    n for n in _SHAPES if _correction_of(_SHAPES[n]["result"]))
+
+
+def test_the_second_place_a_shape_is_written_is_a_place_of_its_own():
+    """Counted rather than described, and the two sets do not meet: an
+    answer disclosing a correction's shape discloses no mechanism, so a
+    reader of the block alone never sees these at all."""
+    assert len(_CORRECTIONS) == 7, len(_CORRECTIONS)
+    assert not any(_mechanisms_of(_SHAPES[n]["result"])
+                   for n in _CORRECTIONS)
+    assert not set(_CORRECTIONS) & set(_CARRIERS)
+
+
+@pytest.mark.parametrize("name", _CORRECTIONS)
+def test_an_honest_correction_is_accepted(name):
+    program = _SHAPES[name]["program"]
+    the_door_for(_SHAPES[name]["result"])(program, _SHAPES[name]["result"])
+
+
+@pytest.mark.parametrize("name", _CORRECTIONS)
+def test_a_correction_naming_a_shape_its_method_cannot_fit_is_refused(name):
+    program = _SHAPES[name]["program"]
+    bent = copy.deepcopy(_SHAPES[name]["result"])
+    _correction_of(bent)["form"] = "linear"
+    with pytest.raises(VerificationError, match="cannot fit that way"):
+        the_door_for(bent)(program, bent)
+
+
+@pytest.mark.parametrize("bend", ["_forged", "", "x"])
+def test_the_three_lies_the_census_tells_about_a_correction(bend):
+    """The census's three kinds of lie, on the place it found them."""
+    name = _CORRECTIONS[0]
+    program = _SHAPES[name]["program"]
+    bent = copy.deepcopy(_SHAPES[name]["result"])
+    block = _correction_of(bent)
+    block["form"] = (str(block["form"]) + bend) if bend == "_forged" else bend
+    with pytest.raises(Exception):                              # noqa: B017
+        the_door_for(bent)(program, bent)
+
+
+def test_the_refusal_says_which_of_the_places_it_read():
+    name = _CORRECTIONS[0]
+    program = _SHAPES[name]["program"]
+    bent = copy.deepcopy(_SHAPES[name]["result"])
+    _correction_of(bent)["form"] = "linear"
+    with pytest.raises(VerificationError) as caught:
+        the_door_for(bent)(program, bent)
+    assert "numeric_estimate.measurement_correction says" in str(caught.value)
