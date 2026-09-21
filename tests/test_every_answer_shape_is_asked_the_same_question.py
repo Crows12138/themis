@@ -2370,9 +2370,22 @@ def test_the_declared_remainder_is_what_it_is():
     from the reading table altogether, and it is not a coordinate but it
     decides whether the cell is a point or a range, so it was unheld in
     both copies. 881 and 220 were predicted exactly.
+
+    Then thirty-three, out of the seam between two records of one run. A
+    terminal step writes down the numbers it produced and the answer
+    writes them again for a reader, and the rule that holds the two
+    together joins them by name. Three families spell one fact
+    differently on the two sides: a joint contrast's block is
+    ``joint_effect`` beside a step's ``joint_`` fields, a trimming summary
+    is ``propensity_summary`` beside ``propensity_``, and a curve is a
+    series whose one relevant row the step names by the point it reports
+    rather than by where it sits. In all three the point half of the
+    triple was already read and the interval half — what a reader is told
+    about how sure the number is — was read by nothing. 848 and 220 were
+    predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 881, total
+    assert total == 848, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

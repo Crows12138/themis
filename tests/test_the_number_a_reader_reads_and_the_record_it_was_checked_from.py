@@ -31,6 +31,31 @@ WHAT REMAINS, MEASURED. Nothing, on this answer shape. One leaf held out
 for a while — the first-stage F was not a copy that disagreed with its
 record, it was a number with no record at all — and the last test in this
 file is what it turned into once the producer gave it one.
+
+ON OTHER ANSWER SHAPES, THREE THINGS REMAINED, and all three were the
+same thing: the two sides spell one fact differently and the joining rule
+above does not produce that spelling. A joint contrast's block is called
+``joint_effect`` and the step prefixes its fields ``joint_``; a trimming
+summary is ``propensity_summary`` beside ``propensity_``. Both are the
+prefix shape this module already had, and both were kept out of it by its
+requirement that the correspondence be total — which is right for a
+confidence set, where a partial record is a hole with nothing saying so,
+and wrong for a block carrying leaves the step never produced.
+
+The third was a curve. Descent stops at a list because each entry of a
+series is its own subject, and that is true: a curve's fifth point and the
+step both say ``ci_lower`` and mean different intervals. What it leaves
+out is that ONE of those entries is the step's own, and the step says
+which by the point it reports. Measured before it was written: on every
+answer carrying both, exactly one row answers to that point, and its
+interval is the step's. Those rows all happen to be last, and a rule
+written on the position would hold a reordered curve to the wrong
+interval, so the rule is written on the number.
+
+What it cost, measured: the point half of each of these triples was
+already read — a joint contrast is re-derived from the corners, a curve
+level by level — and the interval half, which is what a reader is told
+about how sure the number is, was read by nothing.
 """
 from __future__ import annotations
 
@@ -46,6 +71,8 @@ import pathlib
 import themis
 from themis.verifier import verify_numeric_display_agrees
 from themis.verifier.display_copy_rules import (
+    _PARTLY_PREFIXED_VIEWS,
+    _THE_ENTRY_THE_STEP_PRODUCED,
     _agree, _spellings, _unambiguous,
 )
 from themis.verifier.errors import VerificationError
@@ -408,3 +435,122 @@ def test_a_price_computed_after_the_record_is_not_a_second_run():
     assert not _agree([dict(priced[0], effect=9.0)], curve)
     assert not _agree([{k: v for k, v in priced[0].items() if k != "x"}],
                       curve)
+
+
+# --------------------------- the same run, spelled differently on each side
+
+
+_JOINT_ROWS = ("joint_backdoor_linear", "joint_general_id_plugin")
+_PROPENSITY_ROWS = ("aipw", "tmle", "ipw_stabilized")
+_CURVE_ROWS = ("dose_response_causal_forest_dml", "dose_response_linear_dml")
+
+
+def _corpus(name):
+    pair = SHAPES[name]
+    return pair["program"], copy.deepcopy(pair["result"])
+
+
+def _display_refuses(result):
+    with pytest.raises(VerificationError):
+        verify_numeric_display_agrees(result, result.get("derivation"))
+
+
+def _terminal_inputs(result):
+    return result["derivation"]["steps"][-1]["inputs"]
+
+
+@pytest.mark.parametrize("name", _JOINT_ROWS)
+@pytest.mark.parametrize("side", ("step", "view"))
+@pytest.mark.parametrize("endpoint", ("ci_lower", "ci_upper"))
+def test_a_joint_interval_that_disagrees_with_its_record_is_refused(
+        name, side, endpoint):
+    """The endpoints a reader is shown for a joint contrast, against the
+    ones the step recorded. Neither copy moves the point, and the point is
+    what the corners re-derive — so this is the half of the block that had
+    no reader at all."""
+    _, result = _corpus(name)
+    verify_numeric_display_agrees(result, result["derivation"])
+    if side == "step":
+        _terminal_inputs(result)[f"joint_{endpoint}"] += 0.25
+    else:
+        result["numeric_estimate"]["joint_effect"][endpoint] += 0.25
+    _display_refuses(result)
+
+
+@pytest.mark.parametrize("name", _PROPENSITY_ROWS)
+@pytest.mark.parametrize("field", ("floor", "n_trimmed", "raw_max", "raw_min"))
+def test_a_trimming_summary_that_disagrees_with_its_record_is_refused(
+        name, field):
+    """How much of the sample was Winsorized away, and between which
+    bounds. A reader who is told a floor the run did not use is told the
+    estimate rests on a different amount of the data than it does."""
+    _, result = _corpus(name)
+    verify_numeric_display_agrees(result, result["derivation"])
+    step = _terminal_inputs(result)
+    if f"propensity_{field}" not in step:
+        pytest.skip("this route records no such field")
+    step[f"propensity_{field}"] = (
+        step[f"propensity_{field}"] + 1
+        if isinstance(step[f"propensity_{field}"], int) else 0.5)
+    _display_refuses(result)
+
+
+@pytest.mark.parametrize("name", _CURVE_ROWS)
+@pytest.mark.parametrize("endpoint", ("ci_lower", "ci_upper"))
+def test_the_curve_row_the_step_produced_is_held_to_its_record(name, endpoint):
+    _, result = _corpus(name)
+    verify_numeric_display_agrees(result, result["derivation"])
+    _terminal_inputs(result)[endpoint] += 0.25
+    _display_refuses(result)
+
+
+@pytest.mark.parametrize("name", _CURVE_ROWS)
+def test_the_row_is_found_by_the_point_and_not_by_its_place(name):
+    """Reversing the curve changes which row is last and changes nothing
+    about which row the step produced."""
+    _, result = _corpus(name)
+    result["numeric_estimate"]["dose_response_curve"].reverse()
+    verify_numeric_display_agrees(result, result["derivation"])
+
+    row = next(r for r in result["numeric_estimate"]["dose_response_curve"]
+               if r["effect"] == _terminal_inputs(result)["point"])
+    row["ci_lower"] -= 0.25
+    _display_refuses(result)
+
+
+def test_a_leaf_the_step_never_produced_is_not_demanded():
+    """What the partial rosters are for, said as the measurement that put
+    them there: on every answer carrying these blocks, the step records
+    none of these leaves, and each is held by whoever re-derives it."""
+    assert set(_PARTLY_PREFIXED_VIEWS) == {"joint_effect",
+                                           "propensity_summary"}
+    never = {"joint_effect": {"control", "treated"},
+             "propensity_summary": {"model"}}
+    carried = {view: 0 for view in never}
+    for name, pair in SHAPES.items():
+        result = pair["result"]
+        estimate = result.get("numeric_estimate")
+        steps = (result.get("derivation") or {}).get("steps") or ()
+        if not isinstance(estimate, dict) or not steps:
+            continue
+        inputs = steps[-1].get("inputs") or {}
+        for view, leaves in never.items():
+            block = estimate.get(view)
+            if not isinstance(block, dict):
+                continue
+            carried[view] += 1
+            prefix = _PARTLY_PREFIXED_VIEWS[view]
+            for leaf in leaves & set(block):
+                assert f"{prefix}{leaf}" not in inputs, (name, view, leaf)
+    assert all(count for count in carried.values()), carried
+
+
+def test_the_series_roster_says_what_names_the_entry():
+    """One series, and the pair that says which of its entries the step
+    produced — kept as data so a second series arrives as a row rather
+    than as a branch."""
+    assert set(_THE_ENTRY_THE_STEP_PRODUCED) == {"dose_response_curve"}
+    names_it, named_there, fields = \
+        _THE_ENTRY_THE_STEP_PRODUCED["dose_response_curve"]
+    assert (names_it, named_there) == ("point", "effect")
+    assert set(fields) == {"ci_lower", "ci_upper"}

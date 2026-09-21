@@ -115,6 +115,38 @@ _PREFIXED_VIEWS = {
     "stratified_anderson_rubin_confidence_set": "sar_",
 }
 
+#: The same prefix correspondence, where it is PARTIAL. A confidence set
+#: is a set: every endpoint of it comes from one record, so a set standing
+#: beside half a record is a hole with nothing saying so, and totality is
+#: what says so. These two are not sets. A joint contrast's block carries
+#: the cells it was taken between and a trimming summary carries the model
+#: that was fitted, and the step records neither — measured, on every
+#: answer that carries them — because neither is a number the step
+#: produced. They are not unheld: the cells are held against the corner
+#: risks the contrast was read off, and the model name by the diagnostic
+#: that reads it. Requiring totality here would be requiring the record to
+#: carry what it never produced.
+#:
+#: What totality buys for a set, the sweep gate buys here: a leaf of one of
+#: these blocks that nothing compares is a leaf the declared remainder
+#: names out loud.
+_PARTLY_PREFIXED_VIEWS = {
+    "joint_effect": "joint_",
+    "propensity_summary": "propensity_",
+}
+
+#: A series, and the one entry of it that speaks for the run. Descent
+#: stops at a list because each entry is its own subject, which is true
+#: and is not the whole of it: a terminal step reporting a point reports
+#: ONE of those subjects, and the point says which. So the correspondence
+#: is the entry whose named field equals what the step reports, and the
+#: fields that must then agree with it. Where no single entry answers to
+#: that number, this says nothing — a step whose point is not on the curve
+#: is not a disagreement about an interval.
+_THE_ENTRY_THE_STEP_PRODUCED = {
+    "dose_response_curve": ("point", "effect", ("ci_lower", "ci_upper")),
+}
+
 #: A stratum row's cells, and the column each was recorded in. Written out
 #: because the two spellings do not follow one rule — ``weight`` pluralises
 #: and ``shift_var_xx`` does not — and a guessed rule that happened to work
@@ -509,11 +541,15 @@ def verify_numeric_display_agrees(result: dict, derivation: dict) -> None:
     if isinstance(estimate, dict):
         for view, prefix in _PREFIXED_VIEWS.items():
             _check_prefixed_view(estimate.get(view), inputs, view, prefix, at)
+        for view, prefix in _PARTLY_PREFIXED_VIEWS.items():
+            _check_prefixed_view(estimate.get(view), inputs, view, prefix, at,
+                                 total=False)
+        _check_the_entry_the_step_produced(estimate, inputs, at)
         _check_stratum_table(estimate, inputs, at)
 
 
 def _check_prefixed_view(view, inputs: dict, name: str, prefix: str,
-                         at: int) -> None:
+                         at: int, total: bool = True) -> None:
     """A confidence set beside the fields it was recorded from.
 
     Total where it applies: once the step records anything under the
@@ -530,6 +566,11 @@ def _check_prefixed_view(view, inputs: dict, name: str, prefix: str,
     entirely" rather than as a list of methods, so a method that starts
     recording half a set is caught by the clause above rather than
     excused by a name.
+
+    ``total=False`` is for the blocks of :data:`_PARTLY_PREFIXED_VIEWS`,
+    which carry leaves the step never produced. The comparison itself is
+    the same one; what changes is that a leaf the record does not answer
+    for is left to whoever re-derives it.
     """
     if not isinstance(view, dict):
         return
@@ -538,10 +579,49 @@ def _check_prefixed_view(view, inputs: dict, name: str, prefix: str,
     for leaf, shown in view.items():
         key = f"{prefix}{leaf}"
         if key not in inputs:
+            if not total:
+                continue
             _disagree(f"{name}.{leaf}", shown,
                       f"<nothing: the step records no {key}>", at)
         if not _agree(shown, _plain(inputs[key])):
             _disagree(f"{name}.{leaf}", shown, _plain(inputs[key]), at)
+
+
+def _check_the_entry_the_step_produced(estimate: dict, inputs: dict,
+                                       at: int) -> None:
+    """The one row of a series that is the run the step recorded.
+
+    A series is not offered to the name-joining walk above, and the reason
+    measured there holds: a curve's fifth point carries ``ci_lower`` and so
+    does the step, and they are two different intervals. What that reason
+    leaves out is that one of those points IS the step's — a terminal step
+    reporting a point reports one dose, not the curve — and the point it
+    reports is what says which.
+
+    So the row is found by the number rather than by its position. On the
+    four answers that carry both, the row is the last one; being last is
+    where they happen to sit and not what they claim, and a rule written on
+    the position would hold a reordered curve to the wrong interval.
+    """
+    for view, (names_it, named_there, fields) in \
+            _THE_ENTRY_THE_STEP_PRODUCED.items():
+        series = estimate.get(view)
+        if not isinstance(series, list) or names_it not in inputs:
+            continue
+        wanted = _plain(inputs[names_it])
+        found = [row for row in series
+                 if isinstance(row, dict) and named_there in row
+                 and _agree(row[named_there], wanted)]
+        if len(found) != 1:
+            continue
+        row = found[0]
+        where = f"{view}[{named_there}={wanted!r}]"
+        for field in fields:
+            if field not in inputs or field not in row:
+                continue
+            if not _agree(row[field], _plain(inputs[field])):
+                _disagree(f"{where}.{field}", row[field],
+                          _plain(inputs[field]), at)
 
 
 def _check_stratum_table(estimate: dict, inputs: dict, at: int) -> None:

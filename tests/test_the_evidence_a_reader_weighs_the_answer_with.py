@@ -66,6 +66,24 @@ def _bend(pair, path, value):
     return bad
 
 
+def _both_writings(bad, leaf, value):
+    """A propensity figure moved where a reader sees it AND where the step
+    that produced it recorded it.
+
+    The two are one number written twice, and one module over holds them
+    equal. So moving only the block is a lie about the COPY, and it is
+    refused for being one before it can be a lie about anything else — which
+    is right, and is not what the two tests below are about. Theirs is a
+    claim between two figures of the answer: a clip count against the range
+    it was clipped from, one range disclosed by two blocks. The answer that
+    puts such a claim to the test is one that is consistent as a copy and
+    false only there, and moving both writings is what makes it one.
+    """
+    bad["numeric_estimate"]["propensity_summary"][leaf] = value
+    bad["derivation"]["steps"][-1]["inputs"][f"propensity_{leaf}"] = value
+    return bad
+
+
 def _at(pair, *path):
     node = pair["result"]["numeric_estimate"]
     for step in path:
@@ -194,7 +212,7 @@ def test_a_clip_count_and_the_range_it_was_clipped_from():
     bad = copy.deepcopy(THIN["result"])
     summary = bad["numeric_estimate"]["propensity_summary"]
     assert summary["raw_min"] < summary["floor"] and summary["n_trimmed"]
-    summary["n_trimmed"] = 0
+    _both_writings(bad, "n_trimmed", 0)
     with pytest.raises(VerificationError, match="crosses the floor"):
         themis.verify(THIN["program"], bad)
 
@@ -218,7 +236,7 @@ def test_the_one_range_this_answer_discloses_twice():
     bad = copy.deepcopy(THIN["result"])
     summary = bad["numeric_estimate"]["propensity_summary"]
     assert summary["raw_min"] == _at(THIN, "fitted_overlap", "p_min")
-    summary["raw_min"] = 0.004
+    _both_writings(bad, "raw_min", 0.004)
     with pytest.raises(VerificationError, match="the same fitted propensity"):
         themis.verify(THIN["program"], bad)
 

@@ -521,11 +521,31 @@ def test_the_remainder_split_is_what_it_is():
     could use. Nobody had written the comparison. Six frontiers now, and
     for the first time one of them found a leaf where the heading was
     right and the work was simply undone.
+
+    Twenty-seventh use, 33 leaves, and 27 of them out of the third
+    heading: "somewhere in the answer, named otherwise". That heading had
+    the defect exactly. The value IS on the envelope, under a different
+    word: a joint contrast's endpoints are ``joint_ci_lower`` in the step
+    the number came from and ``joint_effect.ci_lower`` where a reader
+    reads it; a trimming summary is ``propensity_floor`` beside
+    ``propensity_summary.floor``. The rule that holds a reader's copy to
+    the record joins the two sides by name, so a fact the two sides spell
+    differently fell out of its reach, and this heading is what had been
+    saying so all along. Seven frontiers of "accurate about recurrence,
+    silent about what decides", and this is the first where the heading
+    was accurate about recurrence AND the recurrence was the whole of what
+    decided.
+
+    The remaining 6 are the same seam at a different shape. A curve's rows
+    are each their own subject, so the walk does not descend into the
+    series at all -- rightly, measured: a dose's interval and the run's are
+    two different intervals. One row is the step's own, and the step names
+    it by the point it reports.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 115,
+        gate._ANSWER_ALIKE: 109,
         gate._PROGRAM_ALIKE: 6,
-        gate._ANSWER_OTHERWISE: 189,
+        gate._ANSWER_OTHERWISE: 162,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 510,
         gate._EVERY_READING_MATCHES: 56,

@@ -7,10 +7,6 @@
   "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.total",
   "data_gap_report.gaps.[].describes.[].said.upper",
-  "derivation.steps.[].inputs.propensity_floor",
-  "derivation.steps.[].inputs.propensity_n_trimmed",
-  "derivation.steps.[].inputs.propensity_raw_max",
-  "derivation.steps.[].inputs.propensity_raw_min",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
@@ -210,18 +206,14 @@
   "extensions.mechanism_audit.mechanisms.[].target"
  ],
  "dose_response_causal_forest_dml": [
-  "derivation.steps.[].inputs.ci_lower",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
  "dose_response_linear_dml": [
-  "derivation.steps.[].inputs.ci_lower",
-  "derivation.steps.[].inputs.ci_upper",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
  "dose_response_linear_drlearner": [
-  "derivation.steps.[].inputs.ci_lower",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
@@ -262,10 +254,6 @@
   "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.total",
   "data_gap_report.gaps.[].describes.[].said.upper",
-  "derivation.steps.[].inputs.propensity_floor",
-  "derivation.steps.[].inputs.propensity_n_trimmed",
-  "derivation.steps.[].inputs.propensity_raw_max",
-  "derivation.steps.[].inputs.propensity_raw_min",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
@@ -315,19 +303,14 @@
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "joint_backdoor_linear": [
-  "derivation.steps.[].inputs.joint_ci_lower",
-  "derivation.steps.[].inputs.joint_ci_upper",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "joint_backdoor_logistic": [
-  "derivation.steps.[].inputs.joint_point",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
  "joint_general_id_plugin": [
-  "derivation.steps.[].inputs.joint_ci_lower",
-  "derivation.steps.[].inputs.joint_ci_upper",
   "estimation_context.random_state"
  ],
  "longitudinal_gformula": [
@@ -737,17 +720,10 @@
   "data_gap_report.gaps.[].describes.[].said.cells",
   "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.strata",
-  "derivation.steps.[].inputs.propensity_floor",
-  "derivation.steps.[].inputs.propensity_n_trimmed",
-  "derivation.steps.[].inputs.propensity_raw_max",
-  "derivation.steps.[].inputs.propensity_raw_min",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min",
-  "numeric_estimate.propensity_summary.floor",
-  "numeric_estimate.propensity_summary.raw_max",
-  "numeric_estimate.propensity_summary.raw_min",
   "numeric_estimate.stratum_support.cells",
   "numeric_estimate.stratum_support.extrapolated_share",
   "numeric_estimate.stratum_support.supported"
@@ -799,8 +775,6 @@
   "numeric_estimate.ovb_sensitivity.se"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#428cc2": [
-  "derivation.steps.[].inputs.ci_lower",
-  "derivation.steps.[].inputs.ci_upper",
   "estimation_context.ci_bootstrap",
   "estimation_context.data_contract_warnings.[].said.chosen",
   "estimation_context.data_contract_warnings.[].said.passed_over",
@@ -864,14 +838,11 @@
   "numeric_estimate.robust_anderson_rubin_confidence_set.point"
  ],
  "numerically_solved:effect:numeric_joint_backdoor_estimate": [
-  "derivation.steps.[].inputs.joint_point",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "numerically_solved:effect:numeric_joint_backdoor_estimate#b00848": [
-  "derivation.steps.[].inputs.joint_ci_lower",
-  "derivation.steps.[].inputs.joint_ci_upper",
   "estimation_context.random_state",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
@@ -1306,10 +1277,6 @@
   "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.total",
   "data_gap_report.gaps.[].describes.[].said.upper",
-  "derivation.steps.[].inputs.propensity_floor",
-  "derivation.steps.[].inputs.propensity_n_trimmed",
-  "derivation.steps.[].inputs.propensity_raw_max",
-  "derivation.steps.[].inputs.propensity_raw_min",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
