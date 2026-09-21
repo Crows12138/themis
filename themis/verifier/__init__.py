@@ -722,6 +722,16 @@ Public surface (re-exports from sub-modules):
   to compare, and a comparison with nothing to compare is silent rather
   than refusing. Measured before it existed: the transported effect
   accepted any value at all)
+- The word that decides which of those rules runs at all:
+  ``verify_a_block_names_the_method_that_wrote_it`` (eleven rules here open
+  by returning unless ``numeric_estimate.method`` is their own, so the word
+  is a switch and not only a label — moving it does not merely misreport
+  which estimator ran, it turns off the rule that would have re-derived the
+  block that estimator left behind. Those gates watch the side they can see
+  from where they stand, the method claiming a block that is not there; the
+  other way into "nothing to check" is to leave the block and move the
+  word. Asked here of the blocks instead: one that is present names the
+  methods that write it, out of a table restating those eleven gates)
 - The evidence a reader weighs the answer WITH:
   ``verify_fitted_diagnostics`` (the fitted overlap and saturation ranges
   and the propensity clip, held to the arithmetic every fitted range obeys
@@ -962,6 +972,9 @@ from .mechanism_rules import verify_mechanism_target
 from .investigation_rules import verify_investigation_items
 from .bounds_account_rules import verify_bounds_account
 from .post_stratification_rules import verify_post_stratification
+from .method_block_rules import (
+    verify_a_block_names_the_method_that_wrote_it,
+)
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
 from .frame_rules import (
     verify_a_column_is_one_node,
@@ -1025,6 +1038,7 @@ __all__ = [
     "verify_a_column_is_a_name_the_program_states",
     "verify_frame",
     "verify_post_stratification",
+    "verify_a_block_names_the_method_that_wrote_it",
     "verify_assoc",
     "verify_assumption_ledger",
     "verify_causation",

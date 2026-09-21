@@ -635,13 +635,22 @@ def test_the_remainder_split_is_what_it_is():
     hand can move. What holds the leaf is the program, which no answer
     edits, and the key on the row beside it. A heading that says a value
     is written twice does not say which of the two writings is a record.
+
+    Thirty-ninth use, three leaves, out of the heading that says nothing
+    either document writes. Right, and this time the heading's own
+    question is the wrong one to have asked: the word says which
+    estimator ran, and what holds it is not a second writing of the word
+    anywhere but the BLOCK that estimator left behind. A block is not a
+    copy of the word; it is the work the word claims, and the difference
+    between a run that left the work and one that only says it did is
+    invisible to a table asking where a value is written.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 87,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 381,
+        gate._NOTHING: 378,
         gate._EVERY_READING_MATCHES: 33,
     }
 

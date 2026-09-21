@@ -174,6 +174,7 @@ from .verifier import (
     verify_a_column_is_a_name_the_program_states,
     verify_frame,
     verify_post_stratification,
+    verify_a_block_names_the_method_that_wrote_it,
     verify_feedback_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
@@ -2285,6 +2286,14 @@ def _hold_what_the_estimate_calls_for(
     # said nothing — which at a door is indistinguishable from finding
     # nothing wrong. Re-derived here from the strata it is a sum over.
     verify_post_stratification(result)
+    # And the other half of that rule's own question, asked from
+    # outside it. The line above reads nothing unless the method word
+    # says this route ran, which is the shape eleven rules in the
+    # package share -- so moving the word does not merely misreport
+    # the run, it switches off the audit of the block the run left
+    # behind. Here the blocks are asked instead, and a block that is
+    # present names the methods that write it.
+    verify_a_block_names_the_method_that_wrote_it(result)
 
     # And the blocks that are not the answer but the evidence a reader
     # weighs it with. The ledger reads its positivity verdict off the fitted

@@ -495,15 +495,13 @@
   "numeric_result.value"
  ],
  "numerically_solved:effect:identify_via_transport": [
-  "estimation_context.random_state",
-  "numeric_estimate.method"
+  "estimation_context.random_state"
  ],
  "numerically_solved:effect:none": [
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
   "extensions.selection_recovery.search_budget",
   "numeric_estimate.adjustment.[]",
-  "numeric_estimate.method",
   "numeric_estimate.selection_recovery_numeric.form",
   "numeric_estimate.selection_recovery_numeric.reference_sample_size",
   "numeric_estimate.selection_recovery_numeric.selected_values.w",
@@ -970,7 +968,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "transport_post_stratification": [
-  "estimation_context.random_state",
-  "numeric_estimate.method"
+  "estimation_context.random_state"
  ]
 }

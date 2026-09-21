@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-28204 passed / 534 skipped, warning-clean
+28234 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,7 +1559,53 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
-﻿﻿﻿### #741 规则已经打开了那个 mapping，只读了里面的一半（2026-09-22）
+﻿﻿﻿### #742 那个词是开关，改掉它等于把抓它的规则一起关掉（2026-09-22）
+
+**现象。** `numeric_estimate.method` 3 片。这个字段有封闭词表，陌生名和空串在 validator 那一步就被挡掉（不算叶子的弯），**活着的弯是 `→ 'aipw'`**：答案可以声称自己跑的是 aipw，而实际跑的是运输后分层（`transport_post_stratification`）或选择偏倚恢复（`selection_backdoor_recovery`）。三个答案里**两个带着完整推导链、`verify` 也读了它们**，弯照样活。
+
+**根因：这个词不只是给读者看的一句话，它是十一条规则的开关。** 本包里十一处写着
+
+```python
+if estimate.get("method") != X:
+    return
+```
+
+所以改掉这个词**不只是谎报跑了什么，它把本该重导那个块的规则一起关掉了**。`post_stratification_rules.verify_post_stratification` 自己的 docstring 说得最清楚——它会拒绝**属于这个方法**却不带任何 strata 的答案，理由是「『没什么可查』正是这条规则的存在要让它不能悄悄发生的那个状态」。**而进入那个状态的另一条路，是把 strata 留在原地、把词改掉**，那时这条规则早已 return。
+
+**为什么是根因不是表象。** 表象修法是给这两个方法各写一条特判。按**本包自己的门闩**把表量出来（不是按语料猜），十一处门闩守着九个块：
+
+```
+differential_error         → {differential_regression_calibration}
+differential_outcome_error → {differential_outcome_correction}
+recovered_ate              → {missing_data_recovery_gformula}
+post_stratification        → {transport_post_stratification}
+selection_recovery_numeric → {selection_backdoor_recovery}
+simex                      → {simex}
+over_identification        → {iv_2sls_overid}
+regression_calibration     → {regression_calibration}
+measurement_correction     → {measurement_error_correction,
+                              exposure_measurement_error_correction,
+                              combined_measurement_error_correction}
+```
+
+**`measurement_correction` 是三对一，这一行把设计定死了。** 处理端校正、暴露端校正、合并路线都写这个块，而**三处门闩谁也不知道另外两处**。在每处门闩各加一句「块在、方法不认就拒」，会让诚实的暴露端答案**以处理端那条规则的名义**被拒。对应关系是多对一，所以它必须被写在**能看见全部**的一个地方。
+
+**这张表重述的是本包自己的门闩，不是生产端的决定。** 每一行都是某条规则**已经**在说的话（「方法不是这个我就不读这个块」）；这里没有新声明任何估计器该写什么块。没有门闩守的块不在表里，规则对它一言不发——那是「还没有人认领这个块」的诚实状态，不是一个靠猜键名去补的沉默。
+
+**问法从「词」翻成「块」。** 十一处门闩问的是「词说了是我吗」，这条规则问的是反向：**在场的块说出哪些方法写它，而这次运行自报的词必须是其中之一**。拒绝消息两边都点名、都不指认谁是伪造的那一个——规则没法知道——但它说出代价：*with the audit of the block switched off*。
+
+**测试里两处是量完才改对的，两处是同一个毛病。**
+
+1. **闸口名单不能用正则扫源码**：第一版正则扫中了**新模块自己 docstring 里引用的那句话**。改成按 AST 语法找（`Compare` / `NotEq` / `.get("method")`），并要求被 `.get` 的对象名是 `estimate` / `ne`——bounds 行也带 method，但那是另一个词表。**prose 描述一道闸口不是一道闸口。**
+2. **词表要从它自己的路径读**：第一版把 schema 里所有叫 `method` 的 enum 并起来，扫进了 `balke_pearl_iv` 这种 bounds 方法——伪造在 validator 那一步就被挡掉，**会记成「被抓住了」而其实没有任何规则被问过**。改成只读 `properties.numeric_estimate.properties.method.enum`（49 个）。
+
+两处都是**把「被拒了」当成「被我这条规则拒了」**。同理，扫的那 994 次不走公开门只问规则本身（走门会被别的规则先拒，数的就不是这条规则的覆盖了），另配一条单独的测试证明它**确实接在公开门上**。计数是算出来的：21 个携带块的答案里 14 个块只有一个写者（各扫 48）、7 个是共享块（各扫 46），`14×48 + 7×46 = 994`。
+
+**实测。** 余项 **668 → 665（关 3 片）**，0 NEW holes，语料 252 行 **0 误拒**；`numeric_estimate.method` 这一族归零。分档：`_NOTHING` **381 → 378**，其余五档未动——这一族三片全都落在「两份文档谁也没写第二遍」那一档里，而能押住它们的东西压根不是第二遍书写。
+
+**方法论沉淀**：(468)**一个字段如果是别的规则的开关，它的「被押住」就不只是它自己的事——改它会把抓它的那条规则一起关掉。** 判据：看到 `if <字段> != X: return` 这种写法，就去问「谁押住这个字段」；押不住时，这个字段不是漏了一条检查，是**漏了一条检查，外加它守着的那条检查也随时可以被关掉**。(469)**一道门闩只看得见自己站着那一侧。** `verify_post_stratification` 明写着它要让「没什么可查」不能悄悄发生，而它只堵住了「方法说是我、块不在」；反向的「块在、方法不认」它看不见，因为那时它已经 return 了。判据：读到一条规则声称它封死了某个状态，**列出进入那个状态的所有路**，再看它站的位置能看见几条。(470)**多对一的对应关系不能写在每个站点上。** 三个方法写同一个块，每处站点只知道自己那一个，逐站点加检查会让诚实答案以别处的名义被拒。判据：动手前先数**反向的重数**——一对一才可以就地加，多对一必须集中声明。(471)**测试里「被拒了」不等于「被我这条规则拒了」。** 两次踩在同一处：正则扫中自己的 docstring、词表并进了别的词表导致 validator 抢先拒。判据：新规则的覆盖率**直接问规则**（归因唯一），**另配一条**测试证明它接在公开门上；两件事分开测。
+
+### #741 规则已经打开了那个 mapping，只读了里面的一半（2026-09-22）
 
 **现象。** `missing_information[].observable.population` 5 片（语料 6 行），**18 个弯全过**——伪造拼法、空串、陌生名各 6，没有任何门拒。读者看到的是一张购物清单：「去 `rct_us` 这个人群把 `P_rct_us(y=True|x=True,z1=True)` 收集回来」。对一个 `needs_investigation` 的答案来说，**这个块就是答案本身**——没有数，只有这张清单。人群可以被改写成任何字符串，包括空串。
 
