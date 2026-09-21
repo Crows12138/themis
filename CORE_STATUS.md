@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-28071 passed / 534 skipped, warning-clean
+28077 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,26 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #733 一个词表只装了一根轴，另一根轴上的两个词就什么也说不出（2026-09-21）
+
+**现象。** `status` 是声明余项里最大的单一形状：一行一片，252 行占 80 行。逐行量存活弯折，分族分得干干净净——43 片 `counterfactual_solved → numerically_solved`、**24 片 `structurally_solved → needs_investigation`**、**8 片 `needs_investigation → outside_language`**，其余 5 片杂项。中间两族的信封读数互为反面：24 片一律 `shown={chain,structure}` 而**一件要去查的事都没列**；8 片一律 `shown=∅` 而**各自列着要去查的事**。
+
+**根因：`Shown` 的五个成员全在一根轴上。** `themis/verifier/status_rules.py` 的两条规则分工清楚——一条读「信封在给什么」（`STATUS_CLAIMS` 的 `carries`/`withholds`，词表是 `Shown`），一条读「问题问了什么」（`_ANSWERS_WITH`）。`Shown` 的 point / interval / number / structure / chain **全是「这次跑到了哪一级」**，没有一个成员说得出「这次没跑到，而该去做什么」。于是两个说「没跑到」的词，一个**否认不了差事**（`outside_language.withholds` 写的是「每一级台阶」，而一份把问题认到能说出缺什么的差事不是台阶），一个**什么也不承诺**（`needs_investigation` 只有 `withholds={POINT, NUMBER}`，于是带着结构判定和整条推导链、什么也没列要去查的答案照样能叫它）。
+
+**为什么是根因不是表象。** 表象修法是给这两个词各写一条特判，那是在规则里再钉两次地址；而这个包已经把「一个词声称什么」收进 `STATUS_CLAIMS`、把「信封在给什么」收进 `Shown`。**缺的不是两条检查，是词表少了一个词。** 补上 `Shown.ASK`——`types.MissingItem` 自己的原话「one thing the kernel needed and did not have」——两条主张都从既有声明里自己长出来，**verifier 一个新函数没加**。
+
+**⚠️ 那句写下来的「押不住」说的是另一条规则。** 测试文件的注释写着「拒绝留下的词对每个问题都开放，所以没有名册收得紧它们」，然后就停在那里，仿佛没有名册管得着的词就是没人管得着的词。**那句话是对的，而且对的是名册那条规则**；能押住它们的是另一条，它押不住是因为它读的词表里没有能说这件事的词。
+
+**改动。** `themis/types.py`：`Shown` 增 `ASK`；`STATUS_CLAIMS[NEEDS_INVESTIGATION]` 增 `carries=(frozenset({Shown.ASK}),)`。`OUTSIDE_LANGUAGE.withholds = frozenset(Shown)` **一个字没改**——写成「整份词表」的否认，在词表长出新成员的那天自己就否认了它。`status_rules`：确定读法 `_shown` 在 `investigation_requests` / `missing_information` 非空时升 `ASK`；宽松读法 `_might_be_showing` **额外**在记了 `estimator_failure` 时升它——`refusals.Kind` 自己的话是 "What the reader should do about a refusal"，一次拒绝本身就是给读者的一件事。
+
+**当场声明的取舍：5 片不关。** 24 片里有 5 片（proximal_effect）识别成立、随后估计器因数据原因拒绝。把承诺的读法收窄成「只认那两个 ask 字段」能把 24 片全关，但会拒掉一个**本身诚实**的形态——识别成立、估计器跑不动、答案说 `needs_investigation` 是公道的。该模块自己的规矩是「拒掉一个诚实答案比它关掉的洞更坏」，所以取 19，并把这 5 片数成 `IDENTIFIED_THEN_REFUSED` 钉在测试里。
+
+**实测。** **余项 795 → 768（关 27 片），0 NEW holes**；定点模拟与全量重建逐字一致。语料 252 行 **0 误拒**。**全量 28077 passed / 534 skipped，26:30**，warning-clean。**叶子数预测全中，行数没有**：216 → **200**，因为这 27 片里有 16 片是所在行在声明文件里仅剩的一片，关掉就整行退出（另 11 行还有别的叶子）。**一个叶子数预测的是叶子数；一行除了这片还剩什么，是关于那一行的事实。**整词表换名单：`SURVIVING` 83 → **56**，`SURVIVORS` 里 `needs_investigation → outside_language` 整条消失、`structurally_solved → needs_investigation` 24 → 5；该规则单独问到的 `(refused, passed)` 由 (1072, 440) 移到 **(1116, 396)**。分档「nothing either document writes」**480 → 453**。
+
+**一条既有测试红了，红得对。** `test_a_block_that_is_present_and_empty_is_read_both_ways` 用 `needs_investigation` 当「否认 NUMBER 的那个词」的探针，而那个词现在还承诺一件事，于是合成信封在另一半上翻了。修法是**把缺的那一半补给探针**（给它一条 `investigation_requests`），不是把主张放宽——测试要押的是「空区域块不被当成数」，那条主张一字未动。
+
+**方法论沉淀**：(440)**一条写下来的「这押不住」，要先问它说的是哪条规则。** 一个字段常有两条规则管，理由往往只对其中一条成立；「这条规则管不了」和「没人管得了」是两句话，而注释里写的常常是前者、被后来的人读成后者。⇒ 拿到「押不住」的理由，先把它归到那条规则名下，再去问另一条为什么也不行。(441)**一个词表只装了一根轴上的成员时，另一根轴上的词一条主张也写不出来，而那份短缺读起来像「无规则可写」。** 补词表，不补规则：新成员一进去，写成「整份词表」的否认自己就长过去了——**写成名单的否认停在它被写下的那天，写成「全部」的否认跟着语言长**。(442)**一份为「试规则的这一半」拼出来的合成信封，在另一半长出新要求的那天就不再是它的探针。** 修法是把缺的那一半补上，不是把主张放宽——那份信封是脚手架，不是被测的主张。
 
 ### #732 公式说得出自己是哪一臂，而没人问过（2026-09-21）
 

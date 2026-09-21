@@ -66,6 +66,30 @@ The claims table denies nothing to ``numerically_solved`` or
 interval and a structure can all be true of one answer at once, so for
 those two words there is nothing on the envelope that contradicts them.
 Their content is the positive half, and it is checked.
+
+The rungs above are all one axis — how far the run got — and the two words
+that say it did not get there are not claims on that axis. They are claims
+about what is to be done instead, and until ``Shown`` had a member for it
+neither could be held to anything: ``outside_language`` denied every rung
+and so denied nothing an unfinished answer actually carries, and
+``needs_investigation`` promised nothing whatever. An answer carrying a
+settled structure and the chain that reached it could lead with the second
+while naming no errand at all, and one naming a page of errands could lead
+with the first. Both halves come out of the vocabulary gaining
+:attr:`~themis.types.Shown.ASK` and neither needed a rule of its own.
+
+The two readings differ over it, and here the generous one is generous for
+a stated reason rather than by accident. A denial is held against what is
+certainly there, which for an ask is the caller's side of the envelope:
+the requests and the missing items, both fields whose whole content is
+what somebody has to go and get. A promise is satisfied by anything that
+might be one, and a recorded refusal is — :class:`themis.refusals.Kind` is
+in its own words "what the reader should do about a refusal", so an
+envelope carrying one has told the reader what to do even where no ask was
+written out. The cost is declared: five stored answers identify cleanly and
+then refuse at the estimator for want of data, and this rule does not stop
+them calling that needing investigation, because on those five it would
+not be a lie.
 """
 from __future__ import annotations
 
@@ -130,6 +154,9 @@ def _shown(result: Mapping) -> frozenset[Shown]:
         out.add(Shown.STRUCTURE)
     if result.get("derivation") is not None:
         out.add(Shown.CHAIN)
+    if result.get("investigation_requests") or result.get(
+            "missing_information"):
+        out.add(Shown.ASK)
     return frozenset(out)
 
 
@@ -142,15 +169,27 @@ def _might_be_showing(result: Mapping) -> frozenset[Shown]:
     counterfactual cell is a point — and reading that far would put this
     function back to enumerating the answers its author had seen.
 
+    A recorded refusal counts as an ask for the same reason and with the
+    same polarity. :class:`themis.refusals.Kind` is, in its own words,
+    what the reader should do about a refusal — the graph has to change,
+    or the data, or what was sent — so an envelope carrying one has said
+    what is to be done whether or not an ask was also written out. Five
+    stored answers are the difference: they identify, then refuse at the
+    estimator for want of data, and calling that needing investigation is
+    not a lie.
+
     This is the reading a promise is satisfied by, so what it costs when
     it is too generous is a lie left standing, and what it would cost if
     it were too strict is an honest answer refused.
     """
     extensions = result.get("extensions")
     extensions = extensions if isinstance(extensions, Mapping) else {}
+    out = set(_shown(result))
     if _ANSWER_BLOCKS & extensions.keys():
-        return _shown(result) | {Shown.NUMBER}
-    return _shown(result)
+        out.add(Shown.NUMBER)
+    if result.get("estimator_failure") is not None:
+        out.add(Shown.ASK)
+    return frozenset(out)
 
 
 #: How each rung is said in the refusal, so the sentence names what a
@@ -161,6 +200,7 @@ _AS_WRITTEN: dict[Shown, str] = {
     Shown.NUMBER: "a number",
     Shown.STRUCTURE: "a structural result",
     Shown.CHAIN: "a reasoning chain",
+    Shown.ASK: "something for the reader to go and find out",
 }
 
 

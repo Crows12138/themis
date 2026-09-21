@@ -2405,9 +2405,23 @@ def test_the_declared_remainder_is_what_it_is():
     question names an intervention per conjunct and none at the top. Four
     rows left this file entirely, which is why the row count moves for the
     first time in five frontiers.
+
+    Then twenty-seven, out of the vocabulary a status is claimed in. Every
+    member of it said how far the run got, and the two words that say it
+    did not get there are not claims about that -- so one denied every
+    rung, which is nothing an unfinished answer carries, and the other
+    promised nothing whatever. An ask is the member they were missing, and
+    the denial written as every rung there is denied it the day it
+    existed. Five are left standing on purpose: those answers identify and
+    then refuse at the estimator for want of data, and there the word is
+    not a lie. Twenty-seven leaves were predicted and twenty-seven closed;
+    the rows were not, and fell 216 to 200, because sixteen of these
+    answers had this one leaf and nothing else left in the file. A leaf
+    count predicts a leaf count, and what a row has BESIDES the leaf is a
+    fact about the row.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 795, total
+    assert total == 768, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

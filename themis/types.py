@@ -1331,6 +1331,16 @@ class Shown(StrEnum):
     a dose-response curve and three probabilities of causation each keep
     theirs under a key of their own — and a status is not a claim about
     that. It is a claim about whether the run got one.
+
+    TWO AXES, and the second arrived late. Five members say how far the run
+    got, and a word claiming one of them says the run reached it. ``ASK``
+    says the other thing an answer can hold out to a reader: not a rung
+    reached but a thing the run needed and did not have. It is here because
+    the words that say the run did NOT get there are words about exactly
+    that, and a vocabulary with nothing but rungs in it left them nothing
+    to be held to — ``outside_language`` denied every rung and could not
+    deny an errand, ``needs_investigation`` promised nothing at all. Both
+    read as claims about the same axis and neither was on it.
     """
 
     POINT = "point"
@@ -1338,6 +1348,12 @@ class Shown(StrEnum):
     NUMBER = "number"
     STRUCTURE = "structure"
     CHAIN = "chain"
+
+    #: One thing the kernel needed and did not have, handed back to the
+    #: caller as something to go and do. :class:`MissingItem`'s own words
+    #: for itself, and what an :class:`InvestigationRequest` is the action
+    #: form of.
+    ASK = "ask"
 
 
 #: A quantity arrived, at the only grain at which a word may be made to
@@ -1423,9 +1439,22 @@ class StatusClaim:
 #: a structure and an interval can all be true of one answer at once, and
 #: ``counterfactual_solved`` denies nothing for the same reason.
 STATUS_CLAIMS: dict[ResultStatus, StatusClaim] = {
+    # "Nothing was reached", written as every rung there is — so the ask
+    # joined it the day the vocabulary gained one, without this line
+    # changing, and that is the right answer rather than a lucky one: an
+    # answer able to say what is missing from a question has read the
+    # question far enough for it to be inside the language.
     ResultStatus.OUTSIDE_LANGUAGE: StatusClaim(
         withholds=frozenset(Shown)),
+    # The word that sends a reader away to go and do something, and for as
+    # long as the vocabulary held only rungs the one thing it could not
+    # claim was that there is something to do. It claimed nothing: a denial
+    # of the two rungs a number sits at and no promise, so an answer
+    # carrying a settled structure and the whole chain that reached it
+    # could lead with this word, and a reader would go looking for an
+    # errand the envelope never names.
     ResultStatus.NEEDS_INVESTIGATION: StatusClaim(
+        carries=(frozenset({Shown.ASK}),),
         withholds=frozenset({Shown.POINT, Shown.NUMBER})),
     # No dispatcher produces this one (see the comment on the member), so
     # the corpus cannot check it. Declared anyway, for the reason

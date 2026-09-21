@@ -88,7 +88,7 @@ RULE_QUESTION = "answer_status_question_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 83
+SURVIVING = 56
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -139,10 +139,24 @@ SURVIVING = 83
 #: the diagnosis that also carries an answer block, where a quantity
 #: really is on the envelope and what is wrong with the word is something
 #: else.
+#:
+#: Twenty-seven more went in #733, and the paragraph three above this one
+#: was half right for the wrong reason. Words a refusal leaves ARE open to
+#: every question, so no roster narrows them — and the sentence stopped
+#: there, as though a word no roster narrows is a word nothing holds. What
+#: holds them is the other rule, and it could not, because the vocabulary
+#: it reads in had nothing but rungs in it. A word that says the run did
+#: not get there is not a claim about rungs; it is a claim about what is
+#: to be done instead. ``Shown.ASK`` is that, and with it
+#: ``outside_language`` denies an answer that says what is missing from
+#: the question — eight of these — and ``needs_investigation`` promises
+#: that something is missing, which nineteen answers carrying a settled
+#: structure and its whole chain did not. The five that remain identify
+#: and then refuse at the estimator for want of data, and this rule leaves
+#: them alone on purpose: on those five the word would not be a lie.
 SURVIVORS = {
     "counterfactual_solved -> numerically_solved": 43,
-    "structurally_solved -> needs_investigation": 24,
-    "needs_investigation -> outside_language": 8,
+    "structurally_solved -> needs_investigation": 5,
     "counterfactual_bounded -> counterfactual_solved": 2,
     "counterfactual_bounded -> numerically_solved": 2,
     "needs_investigation -> structurally_solved": 2,
@@ -277,12 +291,13 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (1072, 440), (refused, passed)
+    assert (refused, passed) == (1116, 396), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [
     ("needs_investigation", Shown.POINT),
     ("outside_language", Shown.CHAIN),
+    ("outside_language", Shown.ASK),
     ("structurally_solved", Shown.POINT),
     ("counterfactual_bounded", Shown.POINT),
 ])
@@ -306,6 +321,91 @@ def test_a_word_that_claims_what_is_not_there(status):
     """The other half, on an answer showing nothing at all."""
     forged = {"status": status, "query_id": "q", "query_kind": "effect"}
     with pytest.raises(VerificationError, match="claims"):
+        verify_answer_status(forged)
+
+
+# --- the other axis: what is to be done instead --------------------------------
+
+
+def _with(**fields):
+    return {"status": "needs_investigation", "query_id": "q",
+            "query_kind": "effect", **fields}
+
+
+@pytest.mark.parametrize("field", ["investigation_requests",
+                                   "missing_information"])
+def test_an_ask_is_read_off_the_fields_whose_whole_content_is_one(field):
+    """The denial's reading, and it is held to what is certainly there.
+
+    Two fields carry an ask and nothing else does: one is the thing the
+    kernel needed and did not have, the other is the action form of it.
+    Neither is a rung, which is the point — a status that says the run got
+    nowhere is not making a claim about rungs.
+    """
+    assert Shown.ASK in _shown(_with(**{field: [{"any": "row"}]}))
+    assert Shown.ASK not in _shown(_with(**{field: []}))
+    assert Shown.ASK not in _shown(_with())
+
+
+def test_a_recorded_refusal_is_an_ask_to_the_promise_and_not_to_the_denial():
+    """The two readings part company here, for the reason they always do.
+
+    ``themis.refusals.Kind`` is in its own words what the reader should do
+    about a refusal — change the graph, get other data, fix what was sent
+    — so an envelope carrying one has told the reader what to do even
+    where no ask was written out. That is enough to satisfy a promise and
+    not enough to sustain a denial, which is the polarity the whole module
+    is built on.
+    """
+    envelope = _with(estimator_failure={"kind": "data", "estimator": "e"})
+    assert Shown.ASK not in _shown(envelope)
+    assert Shown.ASK in _might_be_showing(envelope)
+
+
+def test_a_question_with_no_representation_here_cannot_say_what_it_lacks():
+    """``outside_language`` says the form of the question has no reading in
+    this system yet. An answer that can name what is missing from the
+    question has read it far enough for it to be inside the language."""
+    forged = _with(status="outside_language",
+                   investigation_requests=[{"action": "supply_input"}])
+    with pytest.raises(VerificationError, match="says the run did not"):
+        verify_answer_status(forged)
+
+
+def test_a_word_that_sends_the_reader_away_says_where_to():
+    """And the promise. An answer carrying a settled structure and the
+    chain that reached it, naming nothing to go and find out, is not an
+    answer that needs investigating — it is one that got there."""
+    forged = _with(structural_result={"value": True},
+                   derivation=[{"rule": "backdoor"}])
+    with pytest.raises(VerificationError, match="claims"):
+        verify_answer_status(forged)
+
+
+#: The stored answers that identify cleanly and then refuse at the
+#: estimator for want of data. The promise leaves them alone — on these
+#: the word is not a lie — and the number is here so that a corpus which
+#: stopped carrying the shape says so rather than reading as a win.
+IDENTIFIED_THEN_REFUSED = 5
+
+
+def test_the_answers_that_identify_and_then_refuse_keep_the_word():
+    """The declared cost of reading a refusal as an ask, counted.
+
+    Narrowing the promise to the two ask fields would close these five as
+    well. It would also refuse a shape that is honest: identification
+    succeeded, the estimator could not run on this sample, and "needs
+    investigation" is a fair thing for such an answer to say.
+    """
+    kept = [name for name, row in SHAPES.items()
+            if str(row["result"].get("status")) == "structurally_solved"
+            and not row["result"].get("investigation_requests")
+            and not row["result"].get("missing_information")
+            and row["result"].get("estimator_failure") is not None]
+    assert len(kept) == IDENTIFIED_THEN_REFUSED, sorted(kept)
+    for name in kept:
+        forged = copy.deepcopy(SHAPES[name]["result"])
+        forged["status"] = "needs_investigation"
         verify_answer_status(forged)
 
 
@@ -508,7 +608,15 @@ def test_a_block_that_is_present_and_empty_is_read_both_ways():
 
     # The denial that would fire if the block were read as a number, and
     # the promise that would fire if it were read as nothing. Neither may.
-    verify_answer_status({**empty, "status": "needs_investigation"})
+    #
+    # The first word promises an ask as well, which is a claim on the
+    # other axis and not what is under test here, so the envelope is given
+    # one. An envelope assembled to exercise one half of a rule stops
+    # being a probe for it the day the other half gains a requirement, and
+    # what is wanted then is the missing half supplied rather than the
+    # claim weakened.
+    asked = {**empty, "investigation_requests": [{"action": "supply_input"}]}
+    verify_answer_status({**asked, "status": "needs_investigation"})
     verify_answer_status({**empty, "status": "numerically_solved"})
 
     # And with the block gone, both of those become refusals again — so

@@ -562,13 +562,20 @@ def test_the_remainder_split_is_what_it_is():
     question names it, and a table reading the question by name holds it
     without comparing anything. That heading is now a statement about what
     comparing can reach and nothing else, which is what it always said.
+
+    Thirtieth use, twenty-seven leaves, every one out of the FIRST
+    heading, and the same sentence is what let them go. A status has no
+    second writing on the envelope in any shape a comparison reaches. It
+    has a MEANING, and what holds it is a table saying what each word
+    claims -- which is not comparing, and was never going to be reported
+    here as anything but nothing either document writes.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 109,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 162,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 480,
+        gate._NOTHING: 453,
         gate._EVERY_READING_MATCHES: 33,
     }
 
