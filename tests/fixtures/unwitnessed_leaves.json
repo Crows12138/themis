@@ -1,12 +1,5 @@
 {
  "aipw": [
-  "data_gap_report.gaps.[].describes.[].said.high",
-  "data_gap_report.gaps.[].describes.[].said.low",
-  "data_gap_report.gaps.[].describes.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].said.outside",
-  "data_gap_report.gaps.[].describes.[].said.share",
-  "data_gap_report.gaps.[].describes.[].said.total",
-  "data_gap_report.gaps.[].describes.[].said.upper",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
@@ -247,13 +240,6 @@
   "estimation_context.random_state"
  ],
  "ipw_stabilized": [
-  "data_gap_report.gaps.[].describes.[].said.high",
-  "data_gap_report.gaps.[].describes.[].said.low",
-  "data_gap_report.gaps.[].describes.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].said.outside",
-  "data_gap_report.gaps.[].describes.[].said.share",
-  "data_gap_report.gaps.[].describes.[].said.total",
-  "data_gap_report.gaps.[].describes.[].said.upper",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
@@ -753,17 +739,8 @@
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#2ec0e3": [
   "bounds_results.[].ci_lower",
-  "data_gap_report.gaps.[].describes.[].said.high",
-  "data_gap_report.gaps.[].describes.[].said.low",
-  "data_gap_report.gaps.[].describes.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].said.outside",
-  "data_gap_report.gaps.[].describes.[].said.share",
-  "data_gap_report.gaps.[].describes.[].said.total",
-  "data_gap_report.gaps.[].describes.[].said.upper",
   "estimation_context.random_state",
-  "numeric_estimate.fitted_overlap.p_min",
-  "numeric_estimate.outcome_saturation.p_max",
-  "numeric_estimate.outcome_saturation.p_min"
+  "numeric_estimate.fitted_overlap.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#3f18c7": [
   "estimation_context.data_contract_warnings.[].said.named",
@@ -1270,13 +1247,6 @@
   "status"
  ],
  "tmle": [
-  "data_gap_report.gaps.[].describes.[].said.high",
-  "data_gap_report.gaps.[].describes.[].said.low",
-  "data_gap_report.gaps.[].describes.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].said.outside",
-  "data_gap_report.gaps.[].describes.[].said.share",
-  "data_gap_report.gaps.[].describes.[].said.total",
-  "data_gap_report.gaps.[].describes.[].said.upper",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",

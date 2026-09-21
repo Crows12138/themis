@@ -491,6 +491,18 @@ def test_the_remainder_is_counted_rather_than_described():
     between the value and its spelling. These are not renderings: how
     many intervals bound one quantity, and how many instruments the graph
     offered, are ``str`` of a length whose list is on the same envelope.
+
+    And 28 more that ARE that rendering, which is the sentence above
+    finding its limit rather than being wrong about it. A formatting step
+    between a value and its spelling puts the spelling out of reach of
+    anything comparing values -- and not out of reach of printing the
+    value the same way and comparing the printings. The two fitted
+    diagnostics fill their block and their sentence from one set of
+    numbers, so the share, the counts, the band and the range a reader is
+    shown are that block written out, and the rule that holds them says
+    which field each slot is printed from and with which format. A
+    forgery in any of the seven now names a fit the block beside it
+    describes differently.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -505,7 +517,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2319, 129), (refused, accepted)
+    assert (refused, accepted) == (2347, 101), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

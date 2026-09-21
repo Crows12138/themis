@@ -541,13 +541,25 @@ def test_the_remainder_split_is_what_it_is():
     series at all -- rightly, measured: a dose's interval and the run's are
     two different intervals. One row is the step's own, and the step names
     it by the point it reports.
+
+    Twenty-eighth use, thirty leaves, and every one of them out of
+    "nothing either document writes" -- which is the third frontier to
+    spend the caveat this heading carries, and the first to spend it on a
+    second writing that is right there on the envelope. A gap's sentence
+    shows a reader the numbers the diagnostic found, and the estimator
+    PRINTS them: a share as "36.3%", a fitted range to three places. A
+    comparison looking for the same value finds nothing, correctly, and
+    the leaf is held anyway by asking whether that string is that number
+    written that way. So this heading now has three escapes rather than
+    two: recompute it, read it by name out of the question, or print the
+    record and compare the printing.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 109,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 162,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 510,
+        gate._NOTHING: 480,
         gate._EVERY_READING_MATCHES: 56,
     }
 

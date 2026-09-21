@@ -62,6 +62,28 @@ the strata must exist and silence therefore has to be a refusal. Presence
 here is the schema's to require, and it does: a block arriving without its
 counts is refused at the public door one gate before this one.
 
+**AND THE SENTENCE THE READER ACTUALLY READS.** Everything above holds the
+BLOCK: its share against its counts, its line against the constant, its
+warning against its share. The paragraphs above say twice, in passing, who
+else reads these numbers — the counts were "spoken to the reader inside the
+gap's own sentence", and the moved line was re-read by "the ledger, the
+gap's own sentence". That reader was never asked anything. The estimator
+fills the block and fills the sentence from one set of numbers, so the
+sentence is a second writing of the block, printed; and until now a report
+could tell a reader that 40 of 4000 units fell outside a band whose block
+says 1453, and every door agreed. Which is the sharper hole of the two:
+the block is what an auditor divides out, and the sentence is what a person
+reads.
+
+The correspondence is not a table of sentence ids. Each diagnostic declares
+below what it found, which warning it raises, and which statement it speaks,
+because those are three facts about one check; and the slots are one map for
+both, because one writer fills both sentences from the same numbers. The
+PRINTING is part of it rather than decoration — a share shown as "36.3%" and
+a range shown to three places are what a reader compares against the band,
+so a rule that accepted any rendering of the right number would accept a
+share printed a hundred times too small.
+
 **Independence pin:** this module MUST NOT import from
 ``themis.estimation``. The identities are restated from what a fitted range
 means.
@@ -84,13 +106,41 @@ _TOL = 1e-9
 #: pinning them equal is what makes moving a line something somebody declares
 #: rather than something that happens. The independence pin below is the same
 #: argument said generally.
-_DIAGNOSTICS: dict[str, tuple[dict[str, float], str | None]] = {
+#: The third entry is the STATEMENT this diagnostic speaks when it warns.
+#: A kind is not enough to find it: the overlap condition has two witnesses
+#: filing one kind, and only one of them is this block — so a rule that took
+#: the first entry of the right kind would hold the fitted range to the
+#: counting witness's sentence, which is about strata and says none of these
+#: numbers.
+_DIAGNOSTICS: dict[str, tuple[dict[str, float], str | None, str | None]] = {
     "fitted_overlap": ({"band_lower": 0.05, "band_upper": 0.95,
                         "threshold": 0.05},
-                       "propensity_overlap_violation"),
+                       "propensity_overlap_violation",
+                       "the_fitted_propensity_leaves_part_of_the_sample"
+                       "_unsupported"),
     "outcome_saturation": ({"band_lower": 0.01, "band_upper": 0.99,
                             "threshold": 0.10},
-                           "outcome_model_quasi_separation"),
+                           "outcome_model_quasi_separation",
+                           "the_outcome_model_is_quasi_separated"),
+}
+
+#: Every number one of those statements shows, the field of the block it was
+#: printed from, and how. One map for both, because one estimator-side writer
+#: fills the block and both sentences from the same numbers; the slots it
+#: does not fill are held by nobody here and say so in the declared
+#: remainder.
+#:
+#: An empty format means the number itself, written out. The two that are not
+#: empty are the two the writer formats, and they are the reason the printing
+#: is part of the claim rather than beside it.
+_SPOKEN: dict[str, tuple[str, str]] = {
+    "outside": ("n_outside", ""),
+    "total": ("n_total", ""),
+    "lower": ("band_lower", ""),
+    "upper": ("band_upper", ""),
+    "share": ("share_outside", ".1%"),
+    "low": ("p_min", ".3f"),
+    "high": ("p_max", ".3f"),
 }
 
 #: The clip's floor is NOT here, and the difference is who draws the line.
@@ -117,7 +167,7 @@ _LINE_NAMES = frozenset({"band_lower", "band_upper", "threshold"})
 #: different fitted model; the band is what tells them apart — which is also
 #: what tells them apart from the clip summary, so this is read off the
 #: registry rather than kept beside it.
-_FITTED = tuple(name for name, (lines, _) in _DIAGNOSTICS.items()
+_FITTED = tuple(name for name, (lines, _, _says) in _DIAGNOSTICS.items()
                 if "band_lower" in lines)
 
 
@@ -367,10 +417,75 @@ def _the_clip_is_disclosed_once(estimate: dict) -> None:
                 f"about {units!r}")
 
 
-def _warned(result: dict) -> set:
+def _the_gaps(result: dict) -> tuple:
+    """The report's entries, as entries.
+
+    One reader of the report, and it hands over the gaps rather than a set
+    of their kinds. Reducing them to kinds on the way in is what left the
+    statements below unread: what a gap SAYS cannot be asked of a set of
+    words naming which gaps there were.
+    """
     report = result.get("data_gap_report")
     gaps = report.get("gaps") if isinstance(report, dict) else None
-    return {g.get("kind") for g in (gaps or ()) if isinstance(g, dict)}
+    return tuple(g for g in (gaps or ()) if isinstance(g, dict))
+
+
+def _warned(gaps: tuple) -> set:
+    return {g.get("kind") for g in gaps}
+
+
+def _printed(value, spec: str) -> str | None:
+    """This number, written the way the statement writes it."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not spec:
+        return str(value)
+    try:
+        return format(value, spec)
+    except (TypeError, ValueError):
+        return None
+
+
+def _the_statement_says_what_the_block_found(estimate: dict,
+                                             gaps: tuple) -> None:
+    """The sentence a reader is shown, against the block it was printed from.
+
+    Asked only of the statement each diagnostic declares itself to speak, so
+    the second witness of the overlap condition — which files the same kind
+    and talks about strata — is not held to numbers it never claimed.
+
+    A slot the statement does not carry, or a field the block does not
+    record, is not a disagreement: the writer fills what it has, and a
+    statement that says less than it could is not a statement that says
+    something false. What it does say must be this block's.
+    """
+    for name, (_lines, warns, says) in _DIAGNOSTICS.items():
+        block = estimate.get(name)
+        if says is None or not isinstance(block, dict):
+            continue
+        for gap in gaps:
+            if gap.get("kind") != warns:
+                continue
+            for entry in gap.get("describes") or ():
+                if not isinstance(entry, dict) \
+                        or entry.get("sentence") != says:
+                    continue
+                said = entry.get("said")
+                if not isinstance(said, dict):
+                    continue
+                for slot, (field, spec) in _SPOKEN.items():
+                    if slot not in said or field not in block:
+                        continue
+                    want = _printed(block[field], spec)
+                    if want is None or str(said[slot]) == want:
+                        continue
+                    _refuse(
+                        f"data_gap_report {warns} {says}.{slot}",
+                        f"the report tells a reader {said[slot]!r} and "
+                        f"numeric_estimate.{name}.{field} is "
+                        f"{block[field]!r}, which is written {want!r}; the "
+                        f"sentence and the block are one fitted range "
+                        f"described twice")
 
 
 def _the_verdicts(estimate: dict, warned: set) -> None:
@@ -388,7 +503,7 @@ def _the_verdicts(estimate: dict, warned: set) -> None:
     model is fitted, so the fitted block on the envelope is itself the
     statement that the other witness had nothing to say.
     """
-    for name, (_lines, warns) in _DIAGNOSTICS.items():
+    for name, (_lines, warns, _says) in _DIAGNOSTICS.items():
         if warns is None:
             continue
         block = estimate.get(name)
@@ -461,8 +576,10 @@ def verify_fitted_diagnostics(result: dict) -> None:
     disagree about whether anything fell outside the band, when a clip count
     and the range it was clipped from disagree, when a diagnostic describes
     units the estimate was not computed on, when a block judges against a
-    line other than the one this system draws, or when what a diagnostic
-    found and what the report warns of are two different runs.
+    line other than the one this system draws, when what a diagnostic found
+    and what the report warns of are two different runs, or when the
+    sentence the report shows a reader puts different numbers on the page
+    than the block it was printed from.
     """
     if not isinstance(result, dict):
         return
@@ -477,6 +594,8 @@ def verify_fitted_diagnostics(result: dict) -> None:
     _propensity_summary(estimate, sample_size)
     _the_lines(estimate, "numeric_estimate", "numeric_estimate")
     _the_clip_is_disclosed_once(estimate)
-    warned = _warned(result)
+    gaps = _the_gaps(result)
+    warned = _warned(gaps)
     _the_verdicts(estimate, warned)
     _stratum_support(estimate, warned)
+    _the_statement_says_what_the_block_found(estimate, gaps)

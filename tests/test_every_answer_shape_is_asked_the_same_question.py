@@ -2383,9 +2383,19 @@ def test_the_declared_remainder_is_what_it_is():
     triple was already read and the interval half — what a reader is told
     about how sure the number is — was read by nothing. 848 and 220 were
     predicted exactly.
+
+    Then thirty, out of the sentence a person actually reads. Everything a
+    fitted diagnostic could be asked was asked of its BLOCK -- its share
+    against its counts, its band against the constant, its warning against
+    its share -- and the report's own sentence about it, which the estimator
+    fills from the same numbers and prints, was read by nothing. Twenty-eight
+    of the thirty are those printed numbers; the other two are the block's
+    own endpoints, held now BY the sentence, which is the first time a
+    reader's copy has been what holds the record rather than the other way
+    round. 818 and 220 were predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 848, total
+    assert total == 818, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

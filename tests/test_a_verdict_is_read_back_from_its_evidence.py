@@ -35,6 +35,7 @@ import pytest
 import themis
 from themis.estimation import dispatch
 from themis.verifier.errors import VerificationError
+from themis.gaps import Sentence
 from themis.verifier.fitted_diagnostic_rules import (
     _DIAGNOSTICS, verify_fitted_diagnostics,
 )
@@ -273,3 +274,19 @@ def test_a_caller_who_asked_for_a_different_clip_is_not_refused_for_it():
         "assumptions": ["propensity_clipped_to_floor_0.2_on_31"],
         "propensity_summary": {"floor": 0.2, "n_trimmed": 31},
     }})
+
+
+def test_the_statement_each_diagnostic_speaks_is_the_producer_s():
+    """The third entry of the registry, pinned the way the first one is.
+
+    It is a restatement, and a restatement nothing pins is a copy that can
+    drift -- after which the rule matches no statement, finds nothing to
+    compare, and passes every answer for the same reason a rule that was
+    never written passes them. Renaming a sentence is allowed; doing it in
+    one place is what this refuses.
+    """
+    assert _DIAGNOSTICS["fitted_overlap"][2] == (
+        Sentence.THE_FITTED_PROPENSITY_LEAVES_PART_OF_THE_SAMPLE_UNSUPPORTED
+        .value)
+    assert _DIAGNOSTICS["outcome_saturation"][2] == (
+        Sentence.THE_OUTCOME_MODEL_IS_QUASI_SEPARATED.value)

@@ -23,6 +23,16 @@ arithmetic a fitted range obeys whatever model produced it: a share is a
 count over a count, a range lying inside its band is a count of zero
 outside it, a diagnostic is about the units the estimate is about, and the
 propensity range this answer discloses twice is one range.
+
+AND THE SENTENCE. All of the above is about the block, which is what an
+auditor divides out. What a PERSON reads is the report's sentence, and the
+estimator writes both from one set of numbers — so the sentence is the block
+printed, and nothing asked it anything. Measured through the public door
+before the tests below existed: a report telling a reader that 40 of 4000
+units fell outside a band whose block says 1453 was accepted by every door.
+The printing is part of the claim, because a share shown as a plain 0.363
+where the reader expects 36.3% is a hundredfold understatement of how badly
+the data fails.
 """
 from __future__ import annotations
 
@@ -35,6 +45,9 @@ import pytest
 import themis
 from themis.verifier import verify_fitted_diagnostics
 from themis.verifier.errors import VerificationError
+from themis.verifier.fitted_diagnostic_rules import (
+    _DIAGNOSTICS, _SPOKEN, _printed,
+)
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SHAPES = json.loads(
@@ -304,3 +317,155 @@ def test_an_answer_with_no_such_diagnostic_is_left_alone():
     verify_fitted_diagnostics(
         {"numeric_estimate": {"method": "backdoor_linear", "point": 1.0,
                               "sample_size": 500}})
+
+
+# ============================== the sentence, against the block it is printed from
+
+
+def _statements():
+    """(block, gap kind, statement) for every diagnostic that speaks one."""
+    return [(name, warns, says)
+            for name, (_lines, warns, says) in _DIAGNOSTICS.items()
+            if says is not None]
+
+
+def _rows_that_warn(block: str, kind: str):
+    return sorted(
+        name for name, pair in SHAPES.items()
+        if isinstance((pair["result"].get("numeric_estimate") or {})
+                      .get(block), dict)
+        and any(g.get("kind") == kind
+                for g in ((pair["result"].get("data_gap_report") or {})
+                          .get("gaps") or ())))
+
+
+def _the_said(result, kind: str, says: str):
+    for gap in (result.get("data_gap_report") or {}).get("gaps") or ():
+        if gap.get("kind") != kind:
+            continue
+        for entry in gap.get("describes") or ():
+            if entry.get("sentence") == says:
+                return entry["said"]
+    return None
+
+
+@pytest.mark.parametrize("block,kind,says", _statements())
+def test_every_diagnostic_that_warns_has_a_row_speaking_its_statement(
+        block, kind, says):
+    """The corpus carries both, so the tests below are about answers this
+    build gives rather than answers only this file writes."""
+    rows = _rows_that_warn(block, kind)
+    assert rows, (block, kind)
+    assert any(_the_said(SHAPES[r]["result"], kind, says) for r in rows), says
+
+
+@pytest.mark.parametrize("block,kind,says", _statements())
+@pytest.mark.parametrize("slot", sorted(_SPOKEN))
+def test_a_slot_that_disagrees_with_the_block_is_refused(block, kind, says,
+                                                         slot):
+    """One number, moved where a reader reads it and nowhere else. The block
+    stays exactly as consistent as it was, so what this puts to the test is
+    the correspondence and not any of the arithmetic above it."""
+    row = next((r for r in _rows_that_warn(block, kind)
+                if (_the_said(SHAPES[r]["result"], kind, says) or {})
+                .get(slot) is not None), None)
+    if row is None:
+        pytest.skip(f"no answer in the corpus speaks {says}.{slot}")
+    bad = copy.deepcopy(SHAPES[row]["result"])
+    said = _the_said(bad, kind, says)
+    said[slot] = "0.4321" if "." in str(said[slot]) else "4321"
+    with pytest.raises(VerificationError, match="described twice"):
+        themis.verify(SHAPES[row]["program"], bad)
+
+
+@pytest.mark.parametrize("block,kind,says", _statements())
+def test_the_right_number_printed_the_wrong_way_is_refused(block, kind, says):
+    """A share is shown as a percentage because that is what the band is read
+    against. The same number written out plain is the same number and a
+    hundredth of the warning, so the printing is held and not only the
+    value."""
+    row = next((r for r in _rows_that_warn(block, kind)
+                if (_the_said(SHAPES[r]["result"], kind, says) or {})
+                .get("share") is not None), None)
+    if row is None:
+        pytest.skip(f"no answer in the corpus speaks {says}.share")
+    bad = copy.deepcopy(SHAPES[row]["result"])
+    share = bad["numeric_estimate"][block]["share_outside"]
+    _the_said(bad, kind, says)["share"] = f"{share:.3f}"
+    with pytest.raises(VerificationError, match="described twice"):
+        themis.verify(SHAPES[row]["program"], bad)
+
+
+def test_the_other_witness_of_one_kind_is_not_held_to_this_block():
+    """The overlap condition has two witnesses filing one kind: a count of
+    one-armed strata, and the fitted score where there are no cells to count.
+    Only the second is this block. A rule that took the first entry of the
+    right kind would hold a fitted range to a sentence about strata, which
+    says none of these numbers — so the statement is matched by its own name
+    and the corpus is asked whether that ever mattered."""
+    kind = _DIAGNOSTICS["fitted_overlap"][1]
+    others = {
+        entry.get("sentence")
+        for name, pair in SHAPES.items()
+        for gap in ((pair["result"].get("data_gap_report") or {})
+                    .get("gaps") or ())
+        if gap.get("kind") == kind
+        for entry in gap.get("describes") or ()
+    } - {_DIAGNOSTICS["fitted_overlap"][2]}
+    assert others, "one kind, one statement: this test has nothing to hold"
+
+
+def test_a_slot_the_statement_never_carries_is_not_demanded():
+    """The writer fills what it has. A statement saying less than it could is
+    not one saying something false, so an absent slot is left alone — which
+    is what keeps this from refusing the day a sentence drops a number."""
+    block, kind, says = _statements()[0]
+    row = _rows_that_warn(block, kind)[0]
+    bad = copy.deepcopy(SHAPES[row]["result"])
+    said = _the_said(bad, kind, says)
+    for slot in list(_SPOKEN):
+        said.pop(slot, None)
+    verify_fitted_diagnostics(bad)
+
+
+def test_the_roster_names_fields_the_block_actually_records():
+    """Both halves of the correspondence, against the corpus rather than
+    against my reading of the producer: a slot pointing at a field no block
+    carries is a comparison that never runs, and it would look exactly like a
+    comparison that always passes."""
+    for block, kind, _says in _statements():
+        rows = _rows_that_warn(block, kind)
+        carried = set()
+        for row in rows:
+            carried |= set(SHAPES[row]["result"]["numeric_estimate"][block])
+        missing = {field for field, _spec in _SPOKEN.values()} - carried
+        assert not missing, (block, sorted(missing))
+
+
+def test_every_slot_is_printed_the_way_this_build_prints_it():
+    """The formats, pinned against what the producer actually wrote.
+
+    ``.1%`` and ``.3f`` are restatements of two literals inside an f-string,
+    which cannot be imported and so cannot be compared to their originals
+    directly. The corpus is the comparison: every answer that speaks one of
+    these statements agrees, slot by slot, with the block printed this way.
+
+    The denominator is asserted because it is the thing that fails
+    silently. A slot no corpus answer carries is a format nothing checked,
+    and it reads in a passing test exactly like a format that is right.
+    """
+    checked = {slot: 0 for slot in _SPOKEN}
+    for block, kind, says in _statements():
+        for row in _rows_that_warn(block, kind):
+            result = SHAPES[row]["result"]
+            said = _the_said(result, kind, says)
+            if not said:
+                continue
+            fitted = result["numeric_estimate"][block]
+            for slot, (field, spec) in _SPOKEN.items():
+                if slot not in said or field not in fitted:
+                    continue
+                checked[slot] += 1
+                assert str(said[slot]) == _printed(fitted[field], spec), (
+                    row, says, slot)
+    assert all(checked.values()), checked
