@@ -345,6 +345,42 @@ def variables_named_by(program: Any) -> frozenset[tuple[str, tuple[str, ...]]]:
     return frozenset(found)
 
 
+def populations_of(program: Any) -> frozenset[str]:
+    """Every population the PROGRAM names, in either role.
+
+    The rosters above are four readings of one register: what the program
+    said about a variable, whether it knows a name at all, whether it
+    knows a whole atom, and which grounded variables a reader could be
+    sent to. This is the first about the OTHER register. A population is
+    not a variable, so not one of them has a row to hand back for one, and
+    the program names one wherever a selection node says which source
+    domain it is about, or a question says which target its answer is to
+    be carried to.
+
+    Read off the statements rather than off the answer, because a
+    population on a reader's list is a PLACE somebody is being sent to,
+    and an answer able to name the place would be the only witness to
+    where it sent them. The gap-sentence door reads the same declaration
+    through its verification context, which is what that door is handed; a
+    test holds the two readings equal on every answer the corpus carries.
+
+    Walked by attribute rather than by statement kind, for the reason
+    :func:`predicates_of` is: a roster needing an edit whenever a
+    statement kind is added is the shape of the defect these exist to
+    close.
+    """
+    found: set[str] = set()
+    for statement in getattr(program, "statements", ()) or ():
+        source = getattr(statement, "source_population", None)
+        if isinstance(source, str) and source:
+            found.add(source)
+        target = getattr(getattr(statement, "query", None),
+                         "target_population", None)
+        if isinstance(target, str) and target:
+            found.add(target)
+    return frozenset(found)
+
+
 def _agree(declared: Any, shown: Any) -> bool:
     """Whether a declaration's value and the envelope's copy of it match.
 
@@ -967,6 +1003,70 @@ def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
         )
 
 
+#: How a parameter key says which population it is about: ``P_trial(…)``.
+#: Matched to ask WHICH population a key names, never to take the key
+#: apart — a key whose grammar this does not recognise leaves the second
+#: half of the check below silent rather than wrong.
+_A_KEYS_POPULATION = re.compile(r"^P_([A-Za-z0-9_]+)\(")
+
+
+def _check_the_population_this_row_sends_a_reader_to(
+    where: str, row: Mapping, populations: frozenset[str],
+) -> None:
+    """The place a reader is told to go, against the places this problem
+    has — and against the key beside it, which names one too.
+
+    An observable says WHAT to measure and WHERE. What is held by
+    :func:`_check_the_row_says_one_thing_three_times`, against the key on
+    the same row; where was held by nothing, so a row could send a reader
+    to a population this problem never heard of and every door said yes.
+
+    The record is the program. A population is a name out of the other
+    register, and the program names one wherever a selection node says
+    which source domain it is about or the question says which target its
+    answer is carried to. An answer may not edit either of those.
+
+    And the key beside it names one as well, in its subscript, so the two
+    are one fact written twice on one row. Asked second and separately,
+    because it catches a different lie: a forgery moving the place in both
+    writings agrees with itself, and only the program notices it.
+
+    Silent where the row names no population at all, where the program
+    names none — inventing the roster out of the list being judged would
+    be reading the authority off the thing being read — and where the
+    key's grammar is not the one above.
+
+    A place spelled as NOWHERE is not one of those silences. A row
+    carrying the field and leaving it blank still sends a reader
+    somewhere, and the somewhere is not a place this problem has; reading
+    the empty string as an absent field would have let the one lie
+    through that needs no invention at all.
+    """
+    observable = row.get("observable")
+    if not isinstance(observable, Mapping):
+        return
+    population = observable.get("population")
+    if not isinstance(population, str):
+        return
+    if populations and population not in populations:
+        _reject(
+            f"{where} sends a reader to collect data in {population!r}, and "
+            f"the populations this program names are {sorted(populations)}; "
+            f"a reader working the list goes to a place this problem does "
+            f"not have"
+        )
+    said = row.get("said")
+    key = said.get("key") if isinstance(said, Mapping) else None
+    named = _A_KEYS_POPULATION.match(key) if isinstance(key, str) else None
+    if named is not None and named.group(1) != population:
+        _reject(
+            f"{where} is short of {key!r} and sends a reader to "
+            f"{population!r}; the key says which population the parameter "
+            f"belongs to, and the two being one fact means one of them "
+            f"sends them to the wrong table"
+        )
+
+
 def _check_the_name_this_row_is_filed_under(
     where: str, row: Mapping,
 ) -> None:
@@ -1259,6 +1359,10 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         if isinstance(item, Mapping)
         and isinstance(target := item.get("target"), str)
     )
+    #: Where this problem has places at all. A row naming one is held to
+    #: it; a program naming none leaves the question unasked rather than
+    #: answered out of the list being judged.
+    populations = populations_of(program)
     for mi, row in enumerate(result.get("missing_information") or ()):
         if isinstance(row, Mapping):
             # The narrower one first. Both hold the name, and where a
@@ -1272,6 +1376,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
                 f"missing_information[{mi}]", row)
             _check_the_row_is_worth_what_its_species_is(
                 f"missing_information[{mi}]", row)
+            _check_the_population_this_row_sends_a_reader_to(
+                f"missing_information[{mi}]", row, populations)
     #: The species this answer's own report says it found. ``None`` where
     #: there is no report to ask — an answer that reported nothing is not
     #: an answer whose asks point at the wrong thing, and telling those two

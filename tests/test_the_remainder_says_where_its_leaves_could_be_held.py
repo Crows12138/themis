@@ -626,9 +626,18 @@ def test_the_remainder_split_is_what_it_is():
     each method can fit. This table says where a value is written, and
     three frontiers running have been closed by something that is not a
     writing at all.
+
+    Thirty-eighth use, five leaves, and out of the heading that says
+    another field of the ANSWER writes this value under the same name.
+    Right again, and this time being right was a warning rather than a
+    direction: the second writing it points at is a gap sentence's own
+    population slot, which is a copy the same hand wrote and the same
+    hand can move. What holds the leaf is the program, which no answer
+    edits, and the key on the row beside it. A heading that says a value
+    is written twice does not say which of the two writings is a record.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 92,
+        gate._ANSWER_ALIKE: 87,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,

@@ -894,9 +894,6 @@
   "estimation_context.random_state",
   "numeric_estimate.controlled_direct_effect.levels_observed"
  ],
- "structurally_solved:effect:identify_via_transport": [
-  "missing_information.[].observable.population"
- ],
  "structurally_solved:effect:identify_via_transport#34ca6e": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -904,19 +901,14 @@
   "estimation_context.sample_size",
   "estimator_failure.recorded.n_control",
   "estimator_failure.recorded.n_treated",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "missing_information.[].observable.population"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "structurally_solved:effect:identify_via_transport#c8a187": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimation_context.sample_size",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "missing_information.[].observable.population"
- ],
- "structurally_solved:effect:identify_via_transport#f3260c": [
-  "missing_information.[].observable.population"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "structurally_solved:effect:identify_via_transport#f57dd6": [
   "estimation_context.ci_bootstrap",
@@ -924,8 +916,7 @@
   "estimation_context.random_state",
   "estimation_context.sample_size",
   "estimator_failure.recorded.stratum.z",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "missing_information.[].observable.population"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "structurally_solved:identify:identify_via_iv": [
   "extensions.identification.pattern",
