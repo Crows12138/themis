@@ -263,11 +263,19 @@ def _stratum_of(query: dict) -> list:
 #: ``verify_answer_names_its_question`` holds the answer's variable NAMES to
 #: the query. A question is not only its variables. An effect query names a
 #: value of the target and a discrete correction reports the risk of that
-#: value; a counterfactual query names FOUR — which arm was observed, what
-#: was intervened to, which outcome the probability is of, and what the
-#: factual outcome was — and the cell block shows all four back, which is the
-#: whole of what says which cell of the four a reader is looking at. The name
-#: half was held and the value half was not.
+#: value; a counterfactual query names which arm was observed, what was
+#: intervened to, which outcome the probability is of, and what the factual
+#: outcome was, and the cell block shows all of them back. The name half was
+#: held and the value half was not.
+#:
+#: That list was written as FOUR, and called the whole of what says which
+#: cell a reader is looking at. It is not the whole. A question may also
+#: state the assumption its answer is identified under, and whether
+#: monotonicity was assumed decides whether the cell is a point or only a
+#: range — so it says which quantity the number is as surely as the
+#: coordinates say which cell it is. What makes it belong below rather than
+#: in this row is that the question spells it the same way whatever the kind
+#: is, so copying it into every row would be writing one fact four times.
 #:
 #: A field appears here under whatever the answer calls it, so one fact
 #: written at two layers is two rows: a correction block spells the outcome
@@ -277,16 +285,24 @@ def _stratum_of(query: dict) -> list:
 #: An effect question names one more thing a number is about: the stratum it
 #: is conditioned on. A conditional estimate writes that back as ``given``,
 #: and a contrast taken within another stratum, or over the whole population,
-#: re-derives to itself from its own records all the same.
+#: re-derives to itself from its own records all the same. That one is read
+#: from ``_ASKED_OF_THE_ANSWER`` below rather than from here, for a reason
+#: this table's own premise makes plain: a field appears here under whatever
+#: the answer calls it, which holds only while a name means one thing.
+#: ``given`` does not. The answer's own layer writes a stratum there, as
+#: ``[[predicate, value], ...]``; a selection recovery writes the columns it
+#: conditioned on, as bare names; a formula term writes its conditioning set.
+#: They are three facts sharing a word, and only the first is the one the
+#: question named.
 #:
-#: A kind absent here supplies nothing and its leaves stay unheld, which the
-#: sweep gate reports, rather than being held to a guess.
+#: A kind absent here supplies nothing of its own and its leaves stay unheld,
+#: which the sweep gate reports, rather than being held to a guess. What every
+#: kind does supply is below.
 _ASKED_VALUES: dict[str, dict[str, Any]] = {
     "effect": {
         "target_value": lambda q: _value_of(q.get("target")),
         "outcome_high": lambda q: _value_of(q.get("target")),
         "treatment_high": lambda q: _value_of(q.get("intervention")),
-        "given": _stratum_of,
     },
     "counterfactual": {
         "observed_x": lambda q: _value_of(q.get("observed")),
@@ -300,13 +316,46 @@ _ASKED_VALUES: dict[str, dict[str, Any]] = {
     },
 }
 
+#: And the ones a question spells the same way whatever kind it is: the
+#: assumptions it grants. A block that shows one back shows back something
+#: the caller said, never something a route discovered — the cell solver
+#: reads ``query.assumptions.monotonicity`` and files that very value, and
+#: says in its own words that a declared monotonicity is a constraint on
+#: every route rather than a finding. So a block naming an assumption the
+#: question did not grant is an answer to a question nobody asked, whichever
+#: kind of question it was.
+_EVERY_KIND: dict[str, Any] = {
+    "monotonicity": lambda q: (q.get("assumptions") or {}).get("monotonicity"),
+}
+
+#: And the readings that are the ANSWER's own claim rather than any block's.
+#: Which stratum a number is about is a fact about that number, so it is
+#: asked where the block IS the answer and nowhere else. Written as a table
+#: of its own rather than as an exception, because the difference is real:
+#: a cell block says which cell IT reports and every copy of it must agree,
+#: while no block but the answer says which people the answer's number is
+#: about.
+_ASKED_OF_THE_ANSWER: dict[str, dict[str, Any]] = {
+    "effect": {"given": _stratum_of},
+}
+
 
 def _asked_values(program: Any, query_id: Any) -> dict[str, Any]:
     """The values the question named, by the field that shows each back."""
     query = query_of(program, query_id) if isinstance(program, dict) else None
     if not isinstance(query, dict):
         return {}
-    reads = _ASKED_VALUES.get(str(query.get("kind"))) or {}
+    reads = {**_EVERY_KIND,
+             **(_ASKED_VALUES.get(str(query.get("kind"))) or {})}
+    return {field: read(query) for field, read in reads.items()}
+
+
+def _asked_of_the_answer(program: Any, query_id: Any) -> dict[str, Any]:
+    """The ones only the answer's own layer answers for."""
+    query = query_of(program, query_id) if isinstance(program, dict) else None
+    if not isinstance(query, dict):
+        return {}
+    reads = _ASKED_OF_THE_ANSWER.get(str(query.get("kind"))) or {}
     return {field: read(query) for field, read in reads.items()}
 
 
@@ -838,8 +887,8 @@ def _the_seed(result: dict, estimate: dict) -> None:
 # ------------------------------------------------------------------- the door
 
 
-def _every_layer(estimate: dict):
-    """The answer, and every block on it, named.
+def _every_layer(result: Any, estimate: dict):
+    """The answer, and every block it publishes, named.
 
     The answer's own outermost labels are claims of exactly the kinds asked
     below — which levels its contrast ran between, which outcome level its
@@ -847,11 +896,26 @@ def _every_layer(estimate: dict):
     one layer in. Yielded first so a rule that reads the estimate AND the
     block sees them as the same dict there, which is what it means for the
     answer to be the block a question is about.
+
+    Which SECTION publishes a block is likewise no part of what the block
+    claims. The counterfactual cell is written under the estimate and again
+    under ``extensions``, the same four coordinates and the same assumption
+    both times; walking only the estimate left the second copy with no
+    reader at all, so a forged cell had only to be forged in the half nobody
+    read. Both sections are walked, and the extensions are named with their
+    section so a refusal says which copy it read. This is what
+    ``_one_run_written_twice`` already does for the whole envelope, and for
+    the same reason: what is asked about here is a shape, not a family.
     """
     yield "numeric_estimate", estimate
     for name, block in estimate.items():
         if isinstance(block, dict):
             yield name, block
+    extensions = result.get("extensions") if isinstance(result, dict) else None
+    if isinstance(extensions, dict):
+        for name, block in extensions.items():
+            if isinstance(block, dict):
+                yield f"extensions.{name}", block
 
 
 def verify_a_column_is_one_node(result: Any, graph: Any) -> None:
@@ -982,10 +1046,14 @@ def verify_frame(result: Any, program: Any, *, query_id: Any) -> None:
 
     domains = _declared_domains(program)
     asked = _asked_values(program, query_id)
+    of_the_answer = _asked_of_the_answer(program, query_id)
     _the_stratum_is_written(estimate, program, query_id)
-    for name, block in _every_layer(estimate):
+    for name, block in _every_layer(result, estimate):
         _the_names(estimate, block, name)
-        _the_values(estimate, block, name, domains, asked)
+        # The answer answers for its own claims as well as a block's; every
+        # other block answers only for a block's.
+        _the_values(estimate, block, name, domains,
+                    {**asked, **of_the_answer} if block is estimate else asked)
         _the_positions(block, name)
         _the_flags(block, name)
         _the_matrices(block, name)

@@ -2,16 +2,24 @@
 
 An effect question can be conditioned on a stratum -- its ``given`` -- and a
 conditional plug-in writes that stratum back on the estimate as
-``given: [[predicate, value], ...]``. ``frame_rules._ASKED_VALUES`` holds each
-value a numeric block shows back against the value the question named, and
-held the target's and the intervention's but not the stratum's: on the two
-corpus answers carrying it, both halves of every pair could be rewritten and
-the door took them. A contrast taken within another stratum re-derives to
-itself from its own records all the same.
+``given: [[predicate, value], ...]``. ``frame_rules`` holds each value a
+numeric block shows back against the value the question named, and held the
+target's and the intervention's but not the stratum's: on the two corpus
+answers carrying it, both halves of every pair could be rewritten and the
+door took them. A contrast taken within another stratum re-derives to itself
+from its own records all the same.
 
 What is held is a stratum that is written. An answer whose route writes none
 is not refused for writing none: the back-door route answers a conditional
 question without the field, and holding its absence would refuse that.
+
+This one reading lives in ``_ASKED_OF_THE_ANSWER`` rather than beside the
+others, and the reason is the word. ``given`` names three different facts on
+one envelope -- the answer's stratum, the columns a selection recovery
+conditioned on, a formula term's conditioning set -- so a table that reads
+by name alone reads the wrong one as soon as it is asked of anything but the
+answer. Which people a number is about is the answer's own claim, and asking
+it of the answer is not a narrowing: no block but the answer makes it.
 """
 from __future__ import annotations
 
@@ -23,7 +31,7 @@ import pytest
 
 from tests.answer_corpus import the_door_for
 from themis.verifier.errors import VerificationError
-from themis.verifier.frame_rules import _ASKED_VALUES
+from themis.verifier.frame_rules import _ASKED_OF_THE_ANSWER
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SHAPES = json.loads(
@@ -44,7 +52,7 @@ def test_the_corpus_writes_a_stratum_on_two_answers_and_each_is_the_question_s()
     assert len(CARRIERS) == 2, CARRIERS
     for name in CARRIERS:
         written = SHAPES[name]["result"]["numeric_estimate"]["given"]
-        assert written == _ASKED_VALUES["effect"]["given"](_question(name))
+        assert written == _ASKED_OF_THE_ANSWER["effect"]["given"](_question(name))
         program, result = SHAPES[name]["program"], copy.deepcopy(SHAPES[name]["result"])
         the_door_for(result)(program, result)
 

@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-27775 passed / 534 skipped, warning-clean
+27791 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,40 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #729 一个格子写了两遍，只有一遍被读（2026-09-21）
+
+**现象。** `extensions.counterfactual_cell` 的五个字段各 4 片、共 **20 片**坐在余项里；同一个格子在 `numeric_estimate.counterfactual_cell` 下**逐字再写一遍**，而那一份的前四个字段**已经被押住**。第五个字段 `monotonicity` 两份都没人押（4 + 4 片），另有 `derivation.steps[].inputs.monotonicity` 1 片。
+
+**根因一：读者的地址是「位置」，不是「主张」。** `frame_rules.verify_frame` 用 `_every_layer(estimate)` 扫块，而那个走法的定义是「`numeric_estimate` 及其直接子块」。答案却把块发布在两节里——`numeric_estimate` 一份、`extensions` 一份，同样的四个坐标、同样的假设。**伪造一个格子只要伪造没人读的那一半就行。**
+
+**根因二：那张表少了第五个坐标，而它自称是全部。** `_ASKED_VALUES` 上面的注释写着「a counterfactual query names **FOUR** … which is **the whole of** what says which cell of the four a reader is looking at」。可问题还能声明 `assumptions.monotonicity`——**有没有这条假设决定这个格子是点识别还是只有界**（语料里带 `non_decreasing` 的两行落 `sampling` 区间，不带的那行落 `outer_band`），所以它说的是「这个数是哪个量」，和四个坐标说「这是哪个格子」一样承重。它在**每种问法里拼法相同**，于是按 kind 分行的表里一行都没写它。
+
+**为什么是根因不是表象。** 表象修法是给 `extensions.counterfactual_cell` 单独补一条检查——那是把位置再钉死一次，第三处发布时照样没人读。而且**这个模块自己已经写下过正确的原则**：`_one_run_written_twice` 的 docstring 说它「asked of the whole envelope at every depth, because carrying one's own sufficient statistics is **a shape and not a family**」。窄扫描才是那个例外，而它就在宽扫描下面几十行。这条前沿所在的测试文件 `test_a_claim_is_asked_wherever_it_is_written.py` 的 docstring 更是把同一句话说在低一层上：「which layer got asked was decided by which of two walks owned the question. **Neither decision has anything to do with the defect**」。**层 → 节，同一个判断。**
+
+**改动。** 三处，都并进既有文件（D1）：
+
+1. `_every_layer(result, estimate)` 也产出 `extensions` 的子块，名字带上节区（`extensions.counterfactual_cell`），**这样拒绝消息说得出它读的是哪一份副本**。
+2. 新增 `_EVERY_KIND` —— 问题在每种 kind 里拼法相同的那些读法（今天只有 `assumptions.monotonicity`），`_asked_values` 把它并进按 kind 的那张表。**写一次，不是抄四遍**；没有自己那一行的 kind 也照样拿得到。
+3. 新增 `_ASKED_OF_THE_ANSWER`，`given` 从按块读的那张表**移进来，只问答案层**。这一条是被全量逼出来的，见下。
+
+生产端坐实了这不是「发现型」的量：`counterfactual_cell.py` 写的就是 `query.assumptions.monotonicity.value`，模块自己还写着「a declared monotonicity is an extra CONSTRAINT on every route, never a ...」。
+
+**实测，以及一次被全量推翻的结论。** **余项 905 → 881（关 24 片），行 220 不变，0 NEW holes，预测全中。**
+
+误拒这一侧我先量的是语料：252 行全过，新加的点名测试又逐行跑了 **218 个发布了 extensions 块的答案**，一个都没被拒。**这个结论是真的，也是不够的。** 全量跑出 **3 个失败**，全是同一个诚实答案被拒：`extensions.selection_recovery.given` 是 `['b']`——它条件所用的**列名**——而 `_ASKED_VALUES["effect"]["given"]` 读的是问题的**分层** `[['b', True]]`。
+
+根因是这张表自己的前提：注释写着「A field appears here under whatever the answer calls it」，**而那只在一个名字只指一件事时成立**。`given` 指三件：答案层的分层、选择恢复条件所用的列名、公式项的条件集。扩宽之前这条读法**从没够到过答案层以外的任何 `given`**（语料里估计的子块一个都不带这个词），所以这个前提一直没被检验过。修法不是把 `selection_recovery` 排除在扫描外（地址例外表），也不是比较前嗅探值的形状（伪造成另一种形状就能逃）：**「这个数是关于哪些人的」是答案整体做的主张，「这是哪个格子」是块做的主张**，两类混在一张表里，一直靠「没有块碰巧用这个词」侥幸成立。拆成两张表之后，`given` 问答案层、其余问每一块，**对 `given` 而言射程和改动前完全一样**——没有收窄，只是把一直以来的事实写了出来。
+
+修完：相关测试文件 75 条（+16）全绿，事件循环那一段 314 条全绿，其余 27477 条全绿。
+
+**分档只动两处，而其中一处值得单说**：「另有同名字段」119 → 115、**「一个标志或一个缺席，任何读法都对得上」76 → 56**。后面这一档的判据是 `not _comparable(value)`——布尔和空值**本身不携带身份**，一个 `True` 和信封上每个 `True` 都一样，所以**比较**找不到它的第二份书写，这一档如实说了这件事。而关掉这 20 片的不是比较：格子的四个坐标是**按名字从问题里读出来的**（这个字段写回「观察到哪条臂」，那个写回「干预到什么」），**它们的第二份书写根本不在信封上**。于是第六档和第五档站到了一起：两档说的都是「比较能够到哪里」，都不是关于那片叶子本身。剩下 4 片来自「同名」档，说的是更窄的一件事——假设在两份副本里都写着、值确实复现、这一档承诺的比较**本来就能写**，只是从来没人写。这段已补进 `_where_the_truth_of` 的 caveat 段落：那里原本只列了一条逃生路（从充分统计量重算，#728 兑现的那条），现在有两条。
+
+**方法论沉淀**：(429)**同一个模块里若有两条射程不同的扫描，宽的那条往往已经把正确的理由写下来了——去读它，别自己重新论证。** 本条里 `_one_run_written_twice`（全信封、每一层）和 `_every_layer`（只走估计）并排放着，前者的 docstring 明写「a shape and not a family」，而后者是例外。这是 (422)「选中这个检查的依据，是不是这个命题的一部分」的同一个判断换了一种地址：那次是**路由**，这次是**节区**。判据不变：**一个检查的射程用地址写着时，问一句这个地址是不是它所押主张的一部分。** (430)**一张按类别分的读法表，要逐行问它的键是不是真的随类别变化。** 不变的那些抽出来写一次；否则一个事实被写 N 遍，而**少写的那一遍就是洞**——`monotonicity` 在四行里一行都没写，两份副本因此都没人押。反过来说，一个字段若在每一行里都长一样，它就不属于任何一行。(431)**扩大一条检查的射程时，语料上的「0 误拒」不足以定案。** 语料是**被收集过的**答案，而测试会**自己造**答案——造出来的更富，正好带着语料里没有的字段。本条量了 252 行语料、又逐行跑了 218 个带 extensions 块的答案，全过；套件里自建的选择恢复答案一跑就红。判据：**射程一扩，就把全量当成测量而不是验收，并且预期它会红**；红的地方就是语料没覆盖到的形状。这条和 (429) 是一对——(429) 说去读旁边那条宽扫描已经写下的理由，(431) 说那条理由**在你这次的射程里仍要重新量**。
+
+**仍开着（本条明确不收）**：`derivation.steps[].inputs.monotonicity` 1 片。步骤输入里 `inputs.given` 有 **48 次诚实分歧**（那是公式的条件集，不是问题的分层，同名不同词），把扫描整体扩到步骤输入会误拒；只为一个字段开口子就是例外表。另记一笔量到的事：`verify_frame` 在 `result["numeric_estimate"]` 不是 dict 时**直接返回**，而语料里 **133 行**发布了 extensions 块却没有数值估计——这道门的入口条件是「这次运行算出了数」，它要押的主张对没算出数的答案同样成立。本条没动它，理由是量出来**今天一片也关不掉**（那些行的余项叶子都不在这两张读法表里），放宽入口是结构上对但需要单独一轮误拒测量。
+
+**全量 27791 passed / 534 skipped**，warning-clean —— 分两段跑而不是一次：本机 aTrust 客户端偶发丢回环 SYN，凡是要建 asyncio 事件循环的测试都会永久挂死在 `socketpair` 上。会建事件循环的 13 个文件单独一段（314 条，11 秒），其余一段（27477 条，28:06），两段恰好划分整套，收集数 28325 相加无缺。
 
 ### #728 一条臂记下五块二阶矩，重放只取了三块（2026-09-21）
 

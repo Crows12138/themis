@@ -60,12 +60,6 @@
  "counterfactual_cell_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.counterfactual_cell.counterfactual_x",
-  "extensions.counterfactual_cell.factual_y",
-  "extensions.counterfactual_cell.monotonicity",
-  "extensions.counterfactual_cell.observed_x",
-  "extensions.counterfactual_cell.target_y",
-  "numeric_estimate.counterfactual_cell.monotonicity",
   "numeric_result.interval.high",
   "numeric_result.interval.low"
  ],
@@ -684,34 +678,16 @@
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate": [
   "derivation.steps.[].inputs.instrument_levels.items.[]",
   "estimation_context.random_state",
-  "extensions.counterfactual_cell.counterfactual_x",
-  "extensions.counterfactual_cell.factual_y",
-  "extensions.counterfactual_cell.monotonicity",
-  "extensions.counterfactual_cell.observed_x",
-  "extensions.counterfactual_cell.target_y",
-  "numeric_estimate.counterfactual_cell.monotonicity",
   "numeric_result.interval.high",
   "numeric_result.interval.low"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#365c81": [
   "estimation_context.random_state",
-  "extensions.counterfactual_cell.counterfactual_x",
-  "extensions.counterfactual_cell.factual_y",
-  "extensions.counterfactual_cell.monotonicity",
-  "extensions.counterfactual_cell.observed_x",
-  "extensions.counterfactual_cell.target_y",
-  "numeric_estimate.counterfactual_cell.monotonicity",
   "numeric_result.value"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#b627d2": [
   "estimation_context.random_state",
-  "extensions.counterfactual_cell.counterfactual_x",
-  "extensions.counterfactual_cell.factual_y",
-  "extensions.counterfactual_cell.monotonicity",
-  "extensions.counterfactual_cell.observed_x",
-  "extensions.counterfactual_cell.target_y",
   "extensions.mechanism_audit.mechanisms.[].target",
-  "numeric_estimate.counterfactual_cell.monotonicity",
   "numeric_result.value"
  ],
  "numerically_solved:effect:identify_via_transport": [

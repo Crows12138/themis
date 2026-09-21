@@ -592,6 +592,15 @@ def _where_the_truth_of(program, result) -> dict:
     safe: a leaf with a second writing under its own name is one a
     comparison CAN be written for.
 
+    ``_EVERY_READING_MATCHES`` is the same kind of statement about a value
+    that carries no identity: a ``True`` matches every other ``True``, so
+    no comparison can say which of them is this leaf's second writing. It
+    is not a statement about the leaf either. A table that reads a field
+    BY NAME — this one shows back which arm the question observed, that
+    one what it intervened to — holds such a leaf without comparing
+    anything, and the second writing it reads may not be on the envelope
+    at all.
+
     Computed rather than stored. A classification kept in a file beside
     the thing it classifies is a copy that states no relationship to it,
     which is the defect this repository keeps finding; re-read every run,
@@ -2349,9 +2358,21 @@ def test_the_declared_remainder_is_what_it_is():
     arms' rows adding to the sample, and the standard error re-derived
     from the very blocks that had no reader. 905 and 220 were predicted
     exactly.
+
+    Then twenty-four, for a reason with nothing to do with arithmetic. A
+    counterfactual answer writes its cell — which arm was observed, what
+    was intervened to, which outcome the number is the probability of,
+    what the factual outcome was — under the estimate and again under the
+    extensions, the same values both times. The walk that held those
+    values to the question visited the estimate's blocks, so the second
+    copy was read by nothing, and a forged cell had only to be forged in
+    the half nobody read. The assumption the question grants was missing
+    from the reading table altogether, and it is not a coordinate but it
+    decides whether the cell is a point or a range, so it was unheld in
+    both copies. 881 and 220 were predicted exactly.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 905, total
+    assert total == 881, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

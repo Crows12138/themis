@@ -502,14 +502,33 @@ def test_the_remainder_split_is_what_it_is():
     recurrence is not what held them; the sum they belong to and the
     figure they feed are. Five frontiers now: accurate about recurrence,
     silent about what decides.
+
+    Twenty-sixth use, 24 leaves, and 20 of them out of the sixth heading:
+    "a flag or an absence, which every reading matches". That heading is
+    the honest one -- a ``True`` matches every other ``True``, so no
+    comparison can find where such a leaf is written a second time, and it
+    says so. What held them was not a comparison. A counterfactual cell's
+    four coordinates are booleans, and each one is read BY NAME out of the
+    question: this field shows back which arm was observed, that one what
+    was intervened to. The second writing was never on the envelope at
+    all. So the sixth heading joins the fifth: both are statements about
+    what comparing can reach, and neither is a statement about the leaf.
+
+    The remaining 4 came from "alike", and say something narrower. The
+    assumption a question grants is written in both copies of the cell, so
+    each one's value did recur -- under its own name, in the other copy --
+    and that recurrence is exactly what the heading promises a comparison
+    could use. Nobody had written the comparison. Six frontiers now, and
+    for the first time one of them found a leaf where the heading was
+    right and the work was simply undone.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 119,
+        gate._ANSWER_ALIKE: 115,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 189,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 510,
-        gate._EVERY_READING_MATCHES: 76,
+        gate._EVERY_READING_MATCHES: 56,
     }
 
 
