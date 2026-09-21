@@ -587,13 +587,21 @@ def test_the_remainder_split_is_what_it_is():
     model's own arithmetic, so the absence of the first says the second was
     taken. A heading that asks where a value is WRITTEN cannot see that,
     and is not wrong to be unable to.
+
+    Thirty-third use, seven leaves, and from the same heading twice
+    running. Right again, and again not the end of it: a rendering is not
+    WRITTEN anywhere a second time, it is BUILT, and what builds it is on
+    both documents in pieces -- the outcome and the variable in the
+    question, the arm in the shape word beside the value. Twice in three
+    frontiers the thing that held a leaf was not a second writing of it,
+    which is what this heading can see and the whole of what it can see.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 92,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 157,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 410,
+        gate._NOTHING: 403,
         gate._EVERY_READING_MATCHES: 33,
     }
 

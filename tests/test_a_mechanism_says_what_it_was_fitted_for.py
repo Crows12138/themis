@@ -49,7 +49,9 @@ from tests.answer_corpus import the_door_for
 from tests.answer_corpus import reads, verify_honestly
 from themis.verifier.errors import VerificationError
 from themis.verifier.mechanism_rules import (
-    _RENDERS_ITS_TARGET, outcome_the_question_names, verify_mechanism_target,
+    FITS, _RENDERS_ITS_TARGET, _the_link_a_slope_is_taken_through,
+    _the_slope_as_spelt, outcome_the_question_names,
+    treatment_the_question_intervenes_on, verify_mechanism_target,
 )
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
@@ -84,6 +86,26 @@ def _verify_with(method, mutate):
     program, result = _pair(method)
     mutate(_mechanisms(result)[0], result)
     themis.verify(program, result)
+
+
+def _asked_of(name):
+    """What the question offers a renderer, taken the way the rule takes it."""
+    program, result = _pair(name)
+    captured = []
+    import themis.kernel as kernel
+    real = kernel.verify_mechanism_target
+
+    def spy(res, context):
+        captured.append((outcome_the_question_names(context),
+                         treatment_the_question_intervenes_on(context)))
+        return real(res, context)
+
+    kernel.verify_mechanism_target = spy
+    try:
+        the_door_for(result)(program, result)
+    finally:
+        kernel.verify_mechanism_target = real
+    return captured[-1] if captured else (None, None)
 
 
 # ------------------------------------------------- the facts this rests on
@@ -215,16 +237,18 @@ def test_the_authority_is_the_question_not_the_answers_copy_of_it():
                      lambda m, r: m.update(target="z"))
 
 
-# ------------------------------------------- what the rule does not reach
+# ------------------------------------- what is spelled is spelled again
 
 
-def test_the_routes_that_render_their_target_are_named():
+def test_the_routes_that_spell_their_target_are_named():
     """A rendering is not a reference, and there are four of them.
 
     A measurement-error route models a SLOPE, and the slot has no way to
     say "the derivative of ``y`` with respect to ``w``" except by
     spelling it. Pinned by name so a fifth is a red suite rather than a
-    quiet fifth.
+    quiet fifth — and a fifth that spells some OTHER sentence would be
+    read against this one, which is why arriving here has to be a decision
+    somebody makes rather than a line somebody adds.
     """
     assert _RENDERS_ITS_TARGET == frozenset({
         "differential_outcome_correction",
@@ -236,6 +260,87 @@ def test_the_routes_that_render_their_target_are_named():
         assert method in CARRIERS, f"{method} names no answer shape"
         target = _mechanisms(SHAPES[method]["result"])[0]["target"]
         assert target != _outcome_of(method)
+
+
+def test_what_each_route_spells_is_what_the_question_spells():
+    """The measurement the reading rests on, kept where it can go stale.
+
+    Every stored answer on one of these routes, rendered from its own
+    question and compared with what it stored. A route whose producer
+    changes its wording arrives here rather than as an honest answer the
+    kernel refuses at its exit.
+    """
+    seen = 0
+    for name in CARRIERS:
+        if _method_of(name) not in _RENDERS_ITS_TARGET:
+            continue
+        outcome, treatment = _asked_of(name)
+        mechanism = _mechanisms(SHAPES[name]["result"])[0]
+        assert _the_slope_as_spelt(
+            _the_link_a_slope_is_taken_through(mechanism["form"]),
+            outcome, treatment) == mechanism["target"]
+        seen += 1
+    assert seen == 7, seen
+
+
+@pytest.mark.parametrize("bend", ["_forged", "", "xz"])
+def test_a_slope_spelled_some_other_way_is_refused(bend):
+    """The three lies a free string can be told, each put to the sentence
+    the question spells. The blank is refused by the check that runs ahead
+    of every reading; the other two by the reading itself."""
+    target = _mechanisms(SHAPES["simex"]["result"])[0]["target"]
+    with pytest.raises(VerificationError):
+        _verify_with("simex", lambda m, r: m.update(
+            target=target + bend if bend == "_forged" else bend))
+
+
+def test_a_slope_taken_through_another_variable_is_refused():
+    """The lie this reading exists for: a sentence that is well formed,
+    names variables the problem declares, and is about a different
+    derivative than the one asked for."""
+    with pytest.raises(VerificationError, match="nobody asked"):
+        _verify_with("regression_calibration", lambda m, r: m.update(
+            target="dE[y|do(z),Z]/dz"))
+
+
+def test_the_arm_a_slope_is_taken_through_is_read_off_its_shape_word():
+    """Every shape these four routes may declare, and what each spells.
+
+    Driven over ``FITS`` rather than over the corpus: the corpus holds one
+    simex shape of six, and a table built from it would send this to green
+    while refusing the other five at the kernel's exit.
+    """
+    for method in sorted(_RENDERS_ITS_TARGET):
+        for form in sorted(FITS[method]):
+            link = _the_link_a_slope_is_taken_through(form)
+            assert link == ("logit " if "logistic" in form.split("_") else "")
+    assert sorted(FITS["simex"]) == [
+        "simex_linear_linear", "simex_linear_quadratic",
+        "simex_linear_rational", "simex_logistic_linear",
+        "simex_logistic_quadratic", "simex_logistic_rational"]
+
+
+def test_a_shape_word_is_not_read_as_a_substring_of_itself():
+    """``logistic`` is a WORD of a form, not a run of letters in it. A
+    reading by substring would find the arm inside a route that merely
+    mentions it, and a route named after the arm it is NOT would be read
+    as the arm it is."""
+    assert _the_link_a_slope_is_taken_through("simex_logistic_rational")
+    assert not _the_link_a_slope_is_taken_through("unlogistic_linear_rational")
+    assert not _the_link_a_slope_is_taken_through(
+        "regression_calibration_backdoor_linear")
+
+
+def test_a_question_that_intervenes_on_nothing_leaves_nothing_to_spell():
+    """The silence this reading keeps, and it is the same silence the rule
+    beside it keeps: a slope is a slope OF something, and a question with
+    no intervention names no variable to differentiate through."""
+    assert treatment_the_question_intervenes_on(object()) is None
+    verify_mechanism_target(
+        {"extensions": {"mechanism_audit": {"mechanisms": [
+            {"method": "simex", "form": "simex_logistic_rational",
+             "target": "anything at all"}]}}},
+        object())
 
 
 def test_a_question_with_no_single_outcome_leaves_nothing_to_compare():

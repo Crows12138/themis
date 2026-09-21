@@ -2446,9 +2446,20 @@ def test_the_declared_remainder_is_what_it_is():
     bounded a counterfactual are held against this word now and can still
     be called solved instead, which is a lie the same leaf tells another
     way, so the leaf stays.
+
+    Then seven, where a slot holds a rendering instead of a reference. A
+    measurement-error route models a slope, and the only way a record of
+    it can say "the derivative of y with respect to w" is to spell it. The
+    rule that reads these compares a target against the outcome the
+    question names; a spelled sentence equals no outcome, and four routes
+    were exempted from being read at all rather than read another way.
+    What is spelled can be spelled again -- the question names both parts
+    and the shape word beside the target names the arm -- so the exemption
+    became a second reading. An exemption is a reading declining to run,
+    and the answer to one is another reading rather than a looser first.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 703, total
+    assert total == 696, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

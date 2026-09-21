@@ -60,14 +60,12 @@
  "differential_outcome_correction": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.differential_outcome_error.sufficient_statistics.var_y",
   "outcome_error.sufficient_statistics.n"
  ],
  "differential_regression_calibration": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target"
+  "estimation_context.random_state"
  ],
  "dose_response_causal_forest_dml": [
   "estimation_context.ci_bootstrap",
@@ -666,20 +664,17 @@
  "numerically_solved:effect:numeric_measurement_correction_estimate": [
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y",
   "numeric_estimate.regression_calibration.validation_df.w"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#15550d": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#3d858a": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#57ba98": [
@@ -860,7 +855,6 @@
  "regression_calibration": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.regression_calibration.sufficient_statistics.var_y"
  ],
  "rmst_kaplan_meier": [
@@ -876,7 +870,6 @@
  ],
  "simex": [
   "estimation_context.ci_bootstrap",
-  "extensions.mechanism_audit.mechanisms.[].target",
   "numeric_estimate.simex.error_variance"
  ],
  "structurally_solved:cause:cause_via_directed_path#aae237": [

@@ -28,14 +28,24 @@ copy.
 WHAT THE REMAINING FIVE ARE, AND WHY THEY ARE TWO KINDS. Four are
 renderings rather than references: a measurement-error route models a
 SLOPE, and the slot has no way to say "the derivative of ``y`` with
-respect to ``w``" except by spelling it, ``dE[y|do(w),Z]/dw``. Those are
-named below and the reason they are not caught by a looser rule is that
-a looser rule is what the note above already tried. The fifth is not a
-gap at all: a counterfactual conjunction asks about no single outcome,
-so there is nothing for a target to be equal to. That silence is keyed
-on the ASKED side of the envelope, which is what makes it safe to be
-silent about — an answer cannot edit the question into having no
-outcome.
+respect to ``w``" except by spelling it, ``dE[y|do(w),Z]/dw``. A looser
+rule is what the note above already tried, and a looser rule is not what
+these want. A rendering is SPELLED, and what is spelled can be spelled
+again: the question names the outcome and the variable intervened on,
+the shape word beside the target names the arm the slope is taken
+through, and the sentence those three make is the one the route writes.
+So the four are read now, by writing the sentence a second time and
+comparing — the set below names which routes spell their target, and
+naming a route there no longer means nothing reads it.
+
+The fifth is a gap of another kind. A counterfactual conjunction asks
+about no single outcome, so there is nothing for its target to be EQUAL
+to; its target is a rendering as well, of the events the question
+carries, and reading it is the same move made against a different
+sentence. That is not done here yet, and until it is, the silence stays
+keyed on the ASKED side of the envelope, which is what makes it a safe
+thing to be silent about — an answer cannot edit the question into
+having no outcome.
 
 ``form`` — the shape word beside the target — was the fourth, and the
 note here said it was "a function of ``method`` across the corpus
@@ -185,9 +195,11 @@ def shape_the_method_cannot_fit(method: object, form: object) -> str | None:
 #: already held to each other, so reaching this exemption dishonestly
 #: costs a second lie about which estimator ran.
 #:
-#: A route added here is a route whose target no rule reads. The list is
-#: pinned by name in the tests so that arriving at five is a red suite
-#: rather than a quiet fifth.
+#: A route here is a route whose target is read by being spelled again,
+#: from the question rather than from the answer's record of it. The list
+#: is pinned by name in the tests so that arriving at five is a red suite
+#: rather than a quiet fifth — a route that spells some other sentence
+#: would be read against this one and refused for spelling its own.
 _RENDERS_ITS_TARGET: frozenset[str] = frozenset({
     "differential_outcome_correction",
     "differential_regression_calibration",
@@ -255,6 +267,59 @@ def outcome_the_question_names(context: Any) -> str | None:
     return str(predicate) if isinstance(predicate, str) else None
 
 
+def treatment_the_question_intervenes_on(context: Any) -> str | None:
+    """The variable this question intervenes on, or ``None`` where it
+    intervenes on none.
+
+    The other half of what a slope is a slope OF. ``None`` is a fact about
+    the question for the same reason its sibling's is: a question that
+    intervenes on nothing has no variable to differentiate through, and
+    the caller is silent there rather than guessing one.
+    """
+    query = getattr(context, "query", None)
+    intervention = getattr(query, "intervention", None)
+    if intervention is None:
+        return None
+    atom = getattr(intervention, "atom", intervention)
+    predicate = getattr(atom, "predicate", None)
+    return str(predicate) if isinstance(predicate, str) else None
+
+
+def _the_slope_as_spelt(link: str, outcome: str, treatment: str) -> str:
+    """How a slope route spells the thing it was fitted for.
+
+    A function rather than a template with holes in it, and the difference
+    is what this repository means by a template. A string that gets FILLED
+    is a sentence, and a sentence a reader gets belongs to the language
+    layer, which is why nothing in this package fills one by hand. This is
+    not one: it is a machine rendering that has to come out character for
+    character the way the producer writes it, and a translated derivative
+    would be the one thing it cannot be.
+
+    Written out here rather than imported from the producer, for the reason
+    every table in this package is restated: a verifier that renders with
+    the producer's own function agrees with it by construction. Both parts
+    come from the QUESTION — the outcome it names and the variable it
+    intervenes on — and never from the estimate's own record of them,
+    which is the copy this module's opening note was refused seventeen
+    honest results for reading.
+    """
+    return f"d{link}E[{outcome}|do({treatment}),Z]/d{treatment}"
+
+
+def _the_link_a_slope_is_taken_through(form: object) -> str:
+    """The arm a slope is taken through, read off the shape word beside it.
+
+    A form names the route, the arm and, where there is one, the
+    extrapolant, so the arm is a WORD of it and not a substring of it. The
+    three routes with a single shape each take the line; the sixfold one
+    says which arm it fitted. :data:`FITS` is what makes reading it total
+    — every shape a method may declare is enumerated there, and a shape
+    outside it is refused before this is asked.
+    """
+    return "logit " if "logistic" in str(form).split("_") else ""
+
+
 def verify_mechanism_target(result: Mapping, context: Any) -> None:
     """Hold each disclosed mechanism to the question it was fitted for.
 
@@ -266,6 +331,7 @@ def verify_mechanism_target(result: Mapping, context: Any) -> None:
     audit = (result.get("extensions") or {}).get("mechanism_audit") or {}
     mechanisms = audit.get("mechanisms") or ()
     outcome = outcome_the_question_names(context)
+    treatment = treatment_the_question_intervenes_on(context)
     for i, mechanism in enumerate(mechanisms):
         if not isinstance(mechanism, Mapping):
             continue
@@ -282,9 +348,28 @@ def verify_mechanism_target(result: Mapping, context: Any) -> None:
                 step_index=None,
                 rule=_RULE,
             )
+        if str(mechanism.get("method")) in _RENDERS_ITS_TARGET:
+            # Spelled, so spelled again. Silent where the question names
+            # no outcome or intervenes on nothing, which is the same
+            # silence the rule below keeps and for the same reason.
+            if outcome is None or treatment is None:
+                continue
+            spelt = _the_slope_as_spelt(
+                _the_link_a_slope_is_taken_through(mechanism.get("form")),
+                outcome, treatment)
+            if target == spelt:
+                continue
+            raise VerificationError(
+                f"mechanism_audit says the shape behind this number was "
+                f"fitted for {target!r}; this route models a slope and "
+                f"spells what it was fitted for, and what the question "
+                f"spells is {spelt!r}; a reader weighing whether the shape "
+                f"is a fair one is weighing it against a sentence nobody "
+                f"asked",
+                step_index=None,
+                rule=_RULE,
+            )
         if outcome is None or target == outcome:
-            continue
-        if mechanism.get("method") in _RENDERS_ITS_TARGET:
             continue
         raise VerificationError(
             f"mechanism_audit says the shape behind this number was "
