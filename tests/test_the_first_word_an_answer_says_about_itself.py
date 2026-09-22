@@ -106,7 +106,7 @@ RULE_ROAD = "answer_status_road_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 7
+SURVIVING = 5
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -198,10 +198,18 @@ SURVIVING = 7
 #: investigation, and the one that did not close stops being able to call
 #: itself numerically solved.
 #:
-#: What is left is seven, all of one shape: a word a refusal leaves against
-#: the word that says a structure was reached. Two carry a structural
-#: result whose verdict is false and five identify and then refuse at the
-#: estimator, and the word ``structural_result`` is a container too.
+#: Two more went in #751, and the seven left over were not one shape
+#: after all. All seven set a word a refusal leaves against the word that
+#: says a structure was reached, and the two halves of that pair are not
+#: the same claim. Five identify cleanly and then refuse at the estimator
+#: for want of data: calling that needing investigation is not a lie, and
+#: this is the cost the rule reading the envelope already declares. The
+#: other two settle nothing structurally and ASK FOR STRUCTURE, and a word
+#: promising the very rung an errand beside it is sending the reader out
+#: to get is a contradiction in the answer rather than a limit of the
+#: reading. What reached them is a join between two vocabularies that were
+#: each complete and had never been put side by side: exactly one kind of
+#: errand names a rung.
 #: The questions with one world and one road, whose answers say the
 #: estimating road's word without owing an estimate for it.
 ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
@@ -209,7 +217,6 @@ ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
     if kind not in _ACROSS_WORLDS and _THE_ESTIMATORS_WORD in words)
 
 SURVIVORS = {
-    "needs_investigation -> structurally_solved": 2,
     "structurally_solved -> needs_investigation": 5,
 }
 

@@ -444,6 +444,19 @@ Public surface (re-exports from sub-modules):
   do, not about what was asked. The roster is collected from every result
   the suite causes this system to build rather than read off the
   producers, because a roster one entry short refuses an honest answer)
+- The same word against what the answer is asking FOR:
+  ``verify_no_status_promises_a_rung_an_errand_asks_for`` (two closed
+  vocabularies meet on an envelope and neither is about the other —
+  ``Shown`` says how far a run got and each word promises one of its
+  rungs, ``MissingKind`` says what the run needed and did not have.
+  Exactly one kind names a rung, and where it does the two sentences
+  contradict: an answer cannot have reached a structural result and be
+  sending the reader out to find one. The reading of what an envelope
+  SHOWS is coarse about this on purpose, because a promise may only be
+  read off a total reading; the errand's own kind is a second declaration
+  rather than a guess at a shape. One direction only — an estimand can be
+  identified and its data still be missing, and thirteen stored answers
+  are)
 - The structural verdict, against what the same answer already committed:
   ``verify_structural_verdict`` (one slot carries ten propositions and
   which one is the question's to say, so auditing it was the ROUTE
@@ -1029,6 +1042,7 @@ from .statement_rules import (
 from .status_rules import (
     verify_answer_status,
     verify_answer_status_fits_its_question,
+    verify_no_status_promises_a_rung_an_errand_asks_for,
 )
 from .step_name_rules import verify_the_chain_names_its_steps
 from .verdict_rules import verify_structural_verdict
@@ -1085,6 +1099,7 @@ __all__ = [
     "verify_answer_tier",
     "verify_answer_status",
     "verify_answer_status_fits_its_question",
+    "verify_no_status_promises_a_rung_an_errand_asks_for",
     "verify_structural_verdict",
     "verify_statements_carry_their_facts",
     "verify_statements_repeat_what_decided_them",

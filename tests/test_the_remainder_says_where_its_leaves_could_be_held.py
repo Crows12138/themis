@@ -716,13 +716,23 @@ def test_the_remainder_split_is_what_it_is():
     program says does not apply -- the complaint already written for the
     block's ABSENCE, said about its contents for the first time. The names
     are route ids, and the schema says where a reader looks one up.
+
+    Forty-seventh use, two leaves, and the first word an answer says about
+    itself. Two closed vocabularies sit on one envelope and neither is
+    about the other: one says how far the run got, the other what it
+    needed and did not have, and exactly one kind of errand names a rung
+    the words promise. Nothing put them side by side, so an answer
+    settling no structural question could ask for structure and still
+    lead with the word saying that question was answered. Making the
+    coarse reading finer is what its own module warns against; the join
+    was already declared next door.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 149,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 366,
+        gate._NOTHING: 364,
         gate._EVERY_READING_MATCHES: 24,
     }
 

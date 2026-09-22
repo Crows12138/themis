@@ -116,7 +116,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from ..types import STATUS_CLAIMS, ResultStatus, Shown
+from ..types import STATUS_CLAIMS, MissingKind, ResultStatus, Shown
 from .errors import VerificationError
 
 _RULE = "answer_status_check"
@@ -426,4 +426,94 @@ def verify_answer_status(result: Mapping) -> None:
             f"that word says the run did not get there, so a reader who "
             f"reads it stops looking at what is sitting beside it",
             rule=_RULE,
+        )
+
+
+#: A third name, for the third reason a word can be wrong beside what it
+#: stands next to.
+_RULE_ERRAND = "answer_status_errand_check"
+
+#: The rung an errand asks for, where it asks for one.
+#:
+#: Two closed vocabularies meet here and neither is about the other.
+#: :class:`themis.types.Shown` says how far a run got;
+#: :class:`themis.types.MissingKind` says what it needed and did not have.
+#: Exactly one kind names a rung: an answer asking for STRUCTURE is asking
+#: for the thing ``structurally_solved`` promises, and the two sentences
+#: are then a contradiction a reader has to resolve by guessing which one
+#: to believe.
+#:
+#: Written as a join rather than as another column of ``STATUS_CLAIMS``,
+#: for the reason ``QUERY_KIND_OF`` gives about itself: the two sets are
+#: declared and the join belongs beside them rather than inside either.
+#: What follows from it is read OFF ``STATUS_CLAIMS`` and names no word,
+#: so a status added later that promises a structural result is covered
+#: without being mentioned.
+_THE_RUNG_AN_ERRAND_ASKS_FOR: dict[str, Shown] = {
+    str(MissingKind.STRUCTURE): Shown.STRUCTURE,
+}
+
+#: And the kinds that ask for an INPUT or a PREMISE, neither of which is a
+#: rung. Named rather than left as the absence of the five above, so that
+#: a seventh kind has to be classified instead of joining nothing quietly
+#: — the shape ``_every_status_says_what_it_claims`` uses on the table
+#: this one reads.
+_ASKS_FOR_NO_RUNG: frozenset[str] = frozenset({
+    str(MissingKind.PARAMETER), str(MissingKind.OBSERVATION),
+    str(MissingKind.SAMPLE), str(MissingKind.ASSUMPTION),
+    str(MissingKind.FRAMING),
+})
+
+
+def verify_no_status_promises_a_rung_an_errand_asks_for(
+    result: Mapping,
+) -> None:
+    """The word an answer leads with, against what it is asking for.
+
+    The rule above reads what the envelope SHOWS, and deliberately coarsely
+    — where a number lives is the query kind's fact and a status is not a
+    claim about that. That coarseness is why ``ASK`` says only that there
+    is an errand: a promise may only be read off a total reading, and
+    "some errand is written here" is total where "an errand of this shape"
+    would be a list of the ones its author had seen.
+
+    The errand's own ``kind`` is not that. It is a closed vocabulary
+    declared beside the rungs, so asking which rung an errand is for is
+    reading a second declaration rather than guessing at a shape. Two
+    stored answers are what it costs not to: they settle nothing
+    structurally, ask for structure, and could lead with the word that
+    says the structural question was answered.
+
+    Not the same complaint as a word that withholds a rung the envelope
+    shows. That one is about a run having got somewhere its word denies.
+    This is about a word promising the very thing the answer is sending
+    the reader away to go and get, which is a contradiction in one
+    direction only: an answer may be structurally solved and still ask for
+    the DATA to evaluate it, and thirteen stored answers are.
+
+    Returns ``None`` on accept. Raises
+    :class:`~themis.verifier.errors.VerificationError` otherwise.
+    """
+    word = result.get("status")
+    if not isinstance(word, str) or word not in set(ResultStatus):
+        return
+    promised: set[Shown] = set()
+    for wanted in STATUS_CLAIMS[ResultStatus(word)].carries:
+        promised |= set(wanted)
+    if not promised:
+        return
+    for item in result.get("missing_information") or ():
+        if not isinstance(item, Mapping):
+            continue
+        kind = item.get("kind")
+        rung = (_THE_RUNG_AN_ERRAND_ASKS_FOR.get(kind)
+                if isinstance(kind, str) else None)
+        if rung is None or rung not in promised:
+            continue
+        raise VerificationError(
+            f"the answer says it is {word!r}, which claims {_AS_WRITTEN[rung]}, "
+            f"and asks the reader for {_AS_WRITTEN[rung]}; a reader is told "
+            f"that word before anything else, and an answer cannot both have "
+            f"reached a thing and be sending somebody to go and get it",
+            rule=_RULE_ERRAND,
         )

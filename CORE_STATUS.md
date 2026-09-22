@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-29728 passed / 534 skipped, warning-clean
+30003 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,7 +1559,28 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
-﻿﻿﻿### #750 声明了回路之后，还剩下什么可以宣称（2026-09-22）
+﻿﻿﻿### #751 一个词不能承诺它自己正在讨要的那一级（2026-09-22）
+
+**现象。** `status` 还开着 7 片。两个 `needs_investigation:effect:none` 答案——结构结论是 `structural_result = {"value": false}`、缺口种类是 `structure`——可以自称 **`structurally_solved`**，`themis.verify` 与 `verify_answer_claims` 两道门全收。读者拿到的第一句话会变成「结构问题已经解决」，而这个答案正在把他支出去找结构。
+
+**根因：两套封闭词表各自完整，从没被并排放在一起。** `verify_answer_status` 按 `STATUS_CLAIMS` 的 `carries`/`withholds` 押这个词，读的是「信封展示了什么」的那个**粗粒度 rung 集合**；`Shown.ASK` 只说「有待办」，不说**待办要的是哪一级**。于是 `structurally_solved`（承诺 STRUCTURE、只否 POINT）与一条「还缺 structure」的待办并排站着，两条声明都不冲突。缺的既不是规则也不是字段，是 `Shown`（跑到哪一级）与 `MissingKind`（缺什么）之间的一个 **join**——六个 kind 里恰好只有一个命名了一个 rung。
+
+**为什么是根因不是表象——两个显然的补法当场被测量推翻。**
+- ①「结构结论是 false 就不许自称 solved」：**误拒 3 个**。`structurally_solved:cause:no_directed_path` 就是「x 是不是 y 的因？答：不是」——**问完了，答案是否**，在本仓这个词的意思是「结构问题被结算了」，不是「答案是肯定的」。
+- ②「自称 solved 就不许带待办」：**误拒 13 个**。中介与传输那一批识别出了估计量、然后要**数据**，那是合法的。
+- 而 `_shown` 的粗粒度**不能动**：模块自己写着 "The reading is deliberately coarse"，并警告 **promise 只能写在完全的读法上**——把 ASK 按形状细化，就是当年那版把 `counterfactual_solved` 要求成 POINT、结果误拒 13 个区域答案的同一个错。**待办自己的 `kind` 不是那种细化**：它是另一份**声明**，不是对形状的猜测。
+
+**结构。**
+1. **join 声明成一对，另五个明确声明「不要任何 rung」**（参数／观测／样本要的是**输入**，假设与 framing 要的是**前提**），对着 `MissingKind` 钉死：并集相等、交集为空——加第七个 kind 不分类就红，与 `_every_status_says_what_it_claims` 同形。
+2. **规则从 `STATUS_CLAIMS` 读出「这个词承诺了哪些 rung」，不点名任何一个词。** 将来任何承诺 `Shown.STRUCTURE` 的新词自动被覆盖，两边都不用提它。
+3. **方向只有一个**，所以另外五片留着：它们识别干净、然后在估计器处因缺数据而拒，称之为需要调查**不是谎**——那是信封那条规则**已经声明过的代价，数目一样是五**。
+4. **第三处 pin。** 这一族叶子另有一本账在数：`test_the_first_word_an_answer_says_about_itself.py` 的 `SURVIVING` / `SURVIVORS` 与那段逐条记账的叙事，7 → 5。
+
+**实测。** 余项 626 → **624（关 2 片）**，0 NEW holes，语料 252 行 **0 误拒**；13 个答案「已结构解决且仍欠待办」照常通过；改标签闸口的存活数 7 → 5。分档：两片来自「两份文件都没写的」366 → 364，其余五档不动——这个词的真值源既不在信封别处也不在程序，而是**两套词表撞出来的一个矛盾**，只能靠声明去读。
+
+**方法论沉淀**：(494)**两个各自完整的封闭词表并排放在一份文件上时，缺的往往是它们之间的 join，而不是任何一边的新成员。** 判据：一条规则读着词表 A 却对词表 B 一无所知，就先问「B 里有没有成员命名了 A 里的东西」——常常只有一个，而那一个就是全部的漏洞。(495)**一个被声明为「有意粗」的读法，不要去细化它；去它旁边找那份已经细好的声明。** `Shown.ASK` 的粗是有理由的（promise 只能建在完全的读法上），而 `MissingKind` 就在隔壁、是封闭的、且是**声明**不是推断。(496)**同一族叶子可能有第二本账。** 「两处 pin」是下限：凡这一族的路径名或字段名，去 `tests/` 全文 grep，看有没有另一个闸口在数同一批东西——这次是改标签闸口的存活数。
+
+### #750 声明了回路之后，还剩下什么可以宣称（2026-09-22）
 
 **现象。** `extensions.feedback_loop.withdrew.[]` 三个答案各 1 片，每一种弯（`_forged` / `""` / 陌生名）都活着；`iv_2sls` 的 `extensions.identification.pattern` 还能从 `instrumental_variable` 改成 `backdoor`。共 **4 片**。
 

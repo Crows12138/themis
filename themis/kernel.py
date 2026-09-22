@@ -145,6 +145,7 @@ from .verifier import (
     verify_longitudinal_option_copy,
     verify_answer_status,
     verify_answer_status_fits_its_question,
+    verify_no_status_promises_a_rung_an_errand_asks_for,
     verify_structural_verdict,
     verify_answer_tier,
     verify_statements_carry_their_facts,
@@ -1708,6 +1709,10 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # tells two words showing the same thing apart. Ordered after the kind
     # is held, because it reads the kind.
     verify_answer_status_fits_its_question(result)
+    # And against what it is asking for, which the reading above coarsens
+    # away on purpose: a word cannot promise the rung an errand beside it
+    # is sending the reader out to get.
+    verify_no_status_promises_a_rung_an_errand_asks_for(result)
 
     # And the other thing an answer says about itself in one slot: the
     # structural verdict, whose proposition is the question's to name. That
