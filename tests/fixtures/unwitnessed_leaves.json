@@ -705,17 +705,6 @@
   "estimation_context.ci_bootstrap",
   "numeric_estimate.simex.error_variance"
  ],
- "structurally_solved:cause:cause_via_directed_path#aae237": [
-  "data_gap_report.gaps.[].describes.[].said.algorithm",
-  "data_gap_report.gaps.[].describes.[].said.alpha",
-  "data_gap_report.gaps.[].describes.[].said.n"
- ],
- "structurally_solved:cause:no_directed_path": [
-  "data_gap_report.gaps.[].describes.[].said.algorithm",
-  "data_gap_report.gaps.[].describes.[].said.alpha",
-  "data_gap_report.gaps.[].describes.[].said.n",
-  "data_gap_report.gaps.[].describes.[].words.violations.[].said.skew"
- ],
  "structurally_solved:counterfactual_conjunction:id_star_identification#bc863b": [
   "derivation.steps.[].inputs.formula.body.terms.[].body.body.body.body.terms.[].given.[].value",
   "formula.body.terms.[].body.body.body.body.terms.[].given.[].value"

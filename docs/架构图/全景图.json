@@ -10,7 +10,7 @@
       "url": "https://github.com/Crows12138/themis",
       "provider": "github",
       "link_mode": "local-only",
-      "revision": "1f1d3ab1ed9885707b904d4225a9ee8ca63fc245"
+      "revision": "97cd05451960e342a912e22a5ba213bddcb38c17"
     },
     "views": [
       {
@@ -55,7 +55,7 @@
           "gaprules",
           "probe"
         ],
-        "note": "94 个 rule 名、125 个 verify_* 入口；不 import themis.output"
+        "note": "94 个 rule 名、126 个 verify_* 入口；不 import themis.output"
       },
       {
         "id": "loop",
@@ -427,7 +427,7 @@
       "sublabel": "verify.py 8728 行",
       "row": 1,
       "col": 6,
-      "tag": "125 个入口",
+      "tag": "126 个入口",
       "sources": [
         {
           "path": "themis/verifier/verify.py",
@@ -438,8 +438,8 @@
     {
       "id": "gaprules",
       "type": "security",
-      "label": "缺口八道门",
-      "sublabel": "T10-1 … T10-9",
+      "label": "缺口 {gates} 道门",
+      "sublabel": "T10-1 … T10-10",
       "row": 2,
       "col": 6,
       "tag": "#615 #617 #618",

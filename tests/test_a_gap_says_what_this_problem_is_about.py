@@ -544,6 +544,14 @@ def test_the_remainder_is_counted_rather_than_described():
     one ask can file one need for five coefficients at once. The gap's
     own citation says which, and the audit that resolves it kept only
     whether it landed.
+
+    And 7 more once a gap's disclosure of a LEARNED graph is held to the
+    run that learned it. Those live in neither place the two rosters look:
+    the record is in the caller's own document, under
+    ``extensions.discovery_metadata``, and the sentences print it rather
+    than copy it -- the algorithm in a reader's letters where the record
+    keeps the token's, a count as text where the record keeps a number. A
+    forgery in one of them now discloses a run that did not happen.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -558,7 +566,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2423, 25), (refused, accepted)
+    assert (refused, accepted) == (2430, 18), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

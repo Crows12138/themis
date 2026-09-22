@@ -1,6 +1,6 @@
 """Phase 10 §10.4 — independent verification of DataGapReport.
 
-Seven rules audit a generated DataGapReport for honesty:
+Nine rules audit a generated DataGapReport for honesty:
 
 - **T10-1 ``data_gap_provenance_check``** — every ref in every gap's
   provenance array must point at something that is there. What "there"
@@ -52,6 +52,11 @@ Seven rules audit a generated DataGapReport for honesty:
   sentence says sat between them with one author. The two documents spell
   the word differently — ``token`` here and ``need`` there — which is why
   no reading of values ever paired them.
+- **T10-10 ``data_gap_discovery_check``** — what a gap says about a graph
+  that was learned rather than declared must be what the run that learned
+  it recorded. The algorithm, the threshold, the row count and the
+  assumptions the run found broken are all declared under the one site
+  those gaps cite, and T10-1 asks only whether that site is there.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -851,6 +856,152 @@ def _hold_one_reason(gap: Mapping, gap_index: int, why: Mapping,
             f"investigation request it cites needs that; the gap and the "
             f"ask it points at are about two different things",
             step_index=None, rule=_REASON_RULE,
+        )
+
+
+# ===================================== T10-10, what the run itself recorded
+#
+# A gap disclosing a learned graph prints the run's own settings into the
+# sentences a reader is handed: which algorithm, at which threshold, on how
+# many rows, and which of the algorithm's assumptions the run found broken.
+# Each is a value the caller's own document declares, at one fixed site --
+# and ``discovery_metadata`` appears nowhere else in this package, so every
+# one of those printings had one author.
+
+#: Where a program declares the run that learned its graph. Those gaps
+#: cite this site in their provenance too, and reading the record THROUGH
+#: that citation was the first draft of this rule. A citation is what
+#: picks out WHICH record only where there are several; there is one run
+#: here, at one path, so requiring the citation bought no precision and
+#: left a way out -- drop the ref and the sentences answer to nobody.
+_THE_RUN_THAT_LEARNED_IT = ("extensions", "discovery_metadata")
+
+#: T10-10's own name, so a refusal says which question failed.
+_DISCOVERY_RULE = "data_gap_discovery_check"
+
+#: Per sentence about that run: the hole it prints, and the field of the
+#: metadata that hole is a printing of. The two names part company on the
+#: last -- a sentence says ``n`` where the record says ``sample_size`` --
+#: which is why no reading of values pairs them, and why the pairing is
+#: written down rather than found.
+_WHAT_THE_RUN_RECORDED: dict[str, tuple[str, str]] = {
+    _gaps.Sentence.THE_GRAPH_WAS_LEARNED_BY_AN_ALGORITHM.value:
+        ("algorithm", "algorithm"),
+    _gaps.Sentence.DISCOVERY_USED_THIS_SIGNIFICANCE_THRESHOLD.value:
+        ("alpha", "alpha"),
+    _gaps.Sentence.DISCOVERY_RAN_ON_THIS_MANY_ROWS.value:
+        ("n", "sample_size"),
+}
+
+#: The one sentence of that group whose hole is not a word but the
+#: statements the run itself filed, and the field they are read from.
+_THE_ASSUMPTIONS_IT_BROKE = (
+    _gaps.Sentence.THE_ALGORITHMS_ASSUMPTIONS_WERE_VIOLATED_ON_THIS_DATA
+    .value)
+_WHAT_IT_FOUND_BROKEN = "assumption_violations"
+
+
+def _as_printed(value: object) -> str:
+    """A recorded value as a sentence prints it.
+
+    A hole is filled with text and the record keeps a number, so the two
+    are read as a reader reads them. A whole number recorded as one prints
+    without its point; everything else prints as it stands.
+    """
+    if isinstance(value, float) and value == int(value):
+        return str(int(value))
+    return str(value)
+
+
+def verify_a_gap_says_what_the_run_recorded(result: object,
+                                            program: object) -> None:
+    """T10-10: a learned graph's disclosure, against the run that learned it.
+
+    A gap whose graph was discovered rather than declared tells the reader
+    how it was discovered -- by which algorithm, at which threshold, on how
+    many rows, and which of that algorithm's assumptions the run itself
+    found broken. Every one of those is a printing of a value the caller's
+    own document declares, at the one site where a run is recorded.
+
+    Nothing had read it. ``discovery_metadata`` occurs nowhere else in this
+    package: such a gap cites that site and T10-1 asks whether it is THERE
+    and stops, so the four printings had one author between them and a
+    disclosure naming an algorithm the run never used passed every door.
+
+    Read at its site rather than through that citation. The two coincide
+    exactly on the stored answers -- every gap making one of these
+    sentences cites it, and no gap citing it makes none of them -- so the
+    citation picked out nothing a fixed path does not, and asking for it
+    would have meant a forgery could drop the ref and say what it liked.
+
+    What is held is the printing and not the spelling: a sentence prints
+    the algorithm in a reader's letters where the record keeps the token's,
+    and a count recorded as a number is printed as text. What is NOT held
+    is whether a sentence filled its holes at all, nor whether the cited
+    site is there -- the first belongs to whoever writes the sentences and
+    the second is T10-1's, and a second author for either would be two
+    answers that disagree the first time one of them moves.
+    """
+    if not isinstance(program, Mapping):
+        raise TypeError(
+            "verify_a_gap_says_what_the_run_recorded needs the program "
+            f"document itself; got {type(program).__name__}")
+    if not isinstance(result, Mapping):
+        return
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    recorded: object = program
+    for step in _THE_RUN_THAT_LEARNED_IT:
+        recorded = (recorded.get(step) if isinstance(recorded, Mapping)
+                    else None)
+    if not isinstance(recorded, Mapping):
+        return
+
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, Mapping):
+            continue
+        for described in gap.get("describes") or ():
+            if isinstance(described, Mapping):
+                _hold_one_printing(gap_index, described, recorded)
+
+
+def _hold_one_printing(gap_index: int, described: Mapping,
+                       recorded: Mapping) -> None:
+    """One sentence of that gap, against the field it is a printing of."""
+    sentence = described.get("sentence")
+    if sentence in _WHAT_THE_RUN_RECORDED:
+        hole, field = _WHAT_THE_RUN_RECORDED[sentence]
+        said = described.get("said")
+        if not isinstance(said, Mapping) or hole not in said:
+            return
+        if field not in recorded:
+            return
+        shown, declared = said[hole], recorded[field]
+        if str(shown).casefold() != _as_printed(declared).casefold():
+            raise VerificationError(
+                f"T10-10: gap[{gap_index}] tells a reader {sentence!r} with "
+                f"{hole}={shown!r}, and the discovery metadata it cites "
+                f"records {field}={declared!r}; that sentence is a printing "
+                f"of that record, and a reader is entitled to be told the "
+                f"run that happened",
+                step_index=None, rule=_DISCOVERY_RULE,
+            )
+        return
+    if sentence != _THE_ASSUMPTIONS_IT_BROKE:
+        return
+    words = described.get("words")
+    shown = words.get("violations") if isinstance(words, Mapping) else None
+    if shown is None or _WHAT_IT_FOUND_BROKEN not in recorded:
+        return
+    declared = recorded[_WHAT_IT_FOUND_BROKEN]
+    if shown != declared:
+        raise VerificationError(
+            f"T10-10: gap[{gap_index}] shows {shown!r} as what the run found "
+            f"broken, and the discovery metadata it cites records "
+            f"{declared!r}; the statements under that sentence are the run's "
+            f"own, shown rather than composed",
+            step_index=None, rule=_DISCOVERY_RULE,
         )
 
 

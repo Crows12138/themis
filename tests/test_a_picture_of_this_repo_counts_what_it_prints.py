@@ -90,13 +90,19 @@ def test_every_number_the_picture_prints_was_measured():
 
 
 def test_no_count_is_typed_into_a_label():
-    """A digit reaches a label through a placeholder, or it is named.
+    """A number reaches a label through a placeholder, or it is named.
 
     A number written straight into a sublabel is a count with no
-    declaration site — the thing this script exists to stop. Digits that
+    declaration site — the thing this script exists to stop. Numbers that
     are not counts (a port, a gate's name, a CORE_STATUS entry number)
     are allowed, but each has to be listed in ``NOT_A_COUNT`` beside the
     reason, so a new one cannot arrive unnoticed.
+
+    Written as a word as well as in digits. A label saying a package has
+    eight doors is the same claim as one saying it has 8, and this read
+    only the second until a ninth door arrived and the label stayed as it
+    was. A word that merely contains such a character is a word, and says
+    so in the exemption beside it.
     """
     import re
     offenders = []
@@ -104,7 +110,8 @@ def test_no_count_is_typed_into_a_label():
         for text in (label, sublabel, tag):
             if not text or text in ARCH.NOT_A_COUNT:
                 continue
-            if re.search(r"\d", re.sub(r"\{[a-z_]+\}", "", text)):
+            if re.search(r"[\d一二三四五六七八九十百千]",
+                         re.sub(r"\{[a-z_]+\}", "", text)):
                 offenders.append((cid, text))
     assert not offenders, offenders
 

@@ -158,6 +158,7 @@ from .verifier import (
     verify_envelope_arithmetic,
     verify_gap_names,
     verify_a_gap_says_what_its_request_says,
+    verify_a_gap_says_what_the_run_recorded,
     verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
@@ -1831,6 +1832,12 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # which algorithm, how often it survived resampling — is that
     # annotation read aloud.
     verify_gap_edge_statements(result, ast)
+
+    # And what a gap says about a graph that was LEARNED. The site above is
+    # found and never read there either: which algorithm ran, at which α, on
+    # how many rows, and what it found broken are declared under that one
+    # site, and the sentences a reader is handed are printings of them.
+    verify_a_gap_says_what_the_run_recorded(result, ast)
 
     # And which edges have such a gap. What a proposal-edge gap says was
     # held above and whether it exists was not: removed with its ledger

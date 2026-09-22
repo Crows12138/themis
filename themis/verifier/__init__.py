@@ -756,6 +756,16 @@ Public surface (re-exports from sub-modules):
   ref rather than found from the values; and it is as strict as the ref is
   precise, because one ask can file one need for five coefficients at
   once and values alone would pair a gap with the wrong sibling)
+- And whether what a gap says about a graph that was LEARNED is what the
+  run that learned it recorded: ``verify_a_gap_says_what_the_run_recorded``
+  (T10-1 finds the site such a gap cites and stops there. The algorithm,
+  the threshold α, the number of rows and the assumptions the run itself
+  filed as broken are all declared at that site, and the sentences a reader
+  is handed are printings of them — the record was read by nothing in this
+  package, so a disclosure could name an algorithm the run never ran. Held
+  at the site rather than through the citation: one program records one
+  run, so the ref picked out nothing a fixed path does not, and wanting it
+  would have let a forgery drop the ref and then say what it liked)
 - And whether what a gap says about the edge it cites is what that edge
   says: ``verify_gap_edge_statements`` (the site above is named after
   ``annotations.source`` and only that field's presence was asked; a
@@ -1066,6 +1076,7 @@ from .dose_response_routing_rules import (
 )
 from .data_gap_rules import (
     verify_a_gap_says_what_its_request_says,
+    verify_a_gap_says_what_the_run_recorded,
     verify_answer_tier,
     verify_collider_caveats_are_owed,
     verify_gap_edge_statements,
@@ -1151,6 +1162,7 @@ __all__ = [
     "verify_gap_names",
     "verify_gap_program_sites",
     "verify_a_gap_says_what_its_request_says",
+    "verify_a_gap_says_what_the_run_recorded",
     "verify_gap_edge_statements",
     "verify_proposed_edges_are_disclosed",
     "verify_collider_caveats_are_owed",

@@ -154,10 +154,14 @@ def t10_gates() -> list[str]:
     Counting ``_verify_t10_N`` definitions instead would lose T10-4,
     which is a gate under the name ``verify_answer_tier`` with its own
     entry point.
+
+    A gate's number is as wide as it needs to be, and is sorted as a
+    number rather than as text: read one digit wide, T10-10 came back as
+    a second T10-1 and the last gate stayed the one before it.
     """
     import re
     source = _read(THEMIS / "verifier" / "data_gap_rules.py")
-    return sorted(set(re.findall(r"T10-(\d)", source)))
+    return sorted(set(re.findall(r"T10-(\d+)", source)), key=int)
 
 
 def imports_from_output(package: str) -> list[str]:
@@ -205,6 +209,7 @@ def measure() -> dict[str, int]:
         "derivation": len(derivation_rules()),
         "verifier_rules": len(verifier_rule_names()),
         "verify_entries": len(verify_entries()),
+        "gates": len(t10_gates()),
         "last_gate": int(t10_gates()[-1]),
     }
 
@@ -282,7 +287,7 @@ COMPONENTS: list[tuple] = [
     ("verify", "security", "复核入口", "verify.py {verify_lines} 行",
      "{verify_entries} 个入口", (1, 6),
      [("themis/verifier/verify.py", "顶层复核")]),
-    ("gaprules", "security", "缺口八道门", "T10-1 … T10-{last_gate}",
+    ("gaprules", "security", "缺口 {gates} 道门", "T10-1 … T10-{last_gate}",
      "#615 #617 #618", (2, 6),
      [("themis/verifier/data_gap_rules.py", "缺口审计")]),
     ("probe", "security", "语义探针", "随机 SCM 对真值", None, (3, 6),
@@ -360,6 +365,7 @@ GRID_COLS = 7
 #: ``{placeholder}`` filled from :func:`measure`, so a number cannot get
 #: onto the picture without something having measured it first.
 NOT_A_COUNT = {
+    "唯一权威": "「唯一」是一个词，不是数出来的个数",
     "themis.web :8000": "端口号",
     "T10-1 … T10-{last_gate}": "闸门的名字，只有末位是数出来的",
     "#615 #617 #618": "CORE_STATUS 条目编号",

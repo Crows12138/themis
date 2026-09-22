@@ -1250,7 +1250,12 @@ _PRINTED_FROM: Mapping[tuple[str | None, str], tuple[str, Any]] = {
 #: the answer and the decoded problem, and the decoded problem is the
 #: causal question rather than a copy of the caller's side channels -- so
 #: the record those three print is out of reach from here, and a reader
-#: holding only the answer cannot check them either.
+#: holding only the answer cannot check them either. Which says where they
+#: are held and not that they are unheld: a rule that is handed the
+#: program holds them there, against the metadata that records the run --
+#: :func:`themis.verifier.verify_a_gap_says_what_the_run_recorded`, which
+#: also holds the fourth sentence of that group, the violations the run
+#: itself filed.
 #:
 #: The two ``threshold`` slots print a CONSTANT of the check rather than a
 #: record of this run. Restating a producer constant here is a different

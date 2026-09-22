@@ -874,13 +874,30 @@ def test_the_remainder_split_is_what_it_is():
     values, and it is as strict as the ref is precise: an id naming one
     item holds the gap to that item, an id naming the whole ask holds it
     to carrying one of them.
+
+    Fifty-eighth use, seven leaves, three headings, and one of them wrong
+    in a way worth keeping. A gap disclosing a graph that was LEARNED
+    prints the run that learned it: the algorithm, the threshold it ran
+    at, the rows it saw, and what it found broken. The two under the first
+    heading are the algorithm, and the twin they were filed for is another
+    sentence of the SAME answer -- a second print by the same producer,
+    which closes a leaf a gate bending one at a time can reach and still
+    says nothing about whether either print is true. The one under the
+    heading that reads the program was right outright: what the run found
+    broken is filed there word for word. The four under the heading that
+    says nothing either document writes are the threshold and the row
+    count, and both ARE written, in the program, as 0.05 and 1000 -- while
+    the sentences print them as "0.05" and "1000". A reading that pairs by
+    value cannot see a number through the text of it, so on this heading
+    "nothing writes this" is what "nothing writes this the same way" looks
+    like, and the leaves under it are not all of one kind.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 33,
-        gate._PROGRAM_ALIKE: 4,
+        gate._ANSWER_ALIKE: 31,
+        gate._PROGRAM_ALIKE: 3,
         gate._ANSWER_OTHERWISE: 133,
         gate._PROGRAM_OTHERWISE: 3,
-        gate._NOTHING: 336,
+        gate._NOTHING: 332,
         gate._EVERY_READING_MATCHES: 23,
     }
 
