@@ -268,9 +268,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#17bf1c": [
-  "confidence",
-  "confidence_sources.[].confidence",
-  "confidence_sources.[].is_weakest",
   "confidence_sources.[].slot_label",
   "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.confidence",
@@ -685,9 +682,6 @@
   "extensions.mediation_joint_decomposition.numeric.cde_status.cap"
  ],
  "numerically_solved:effect:numeric_result#3a0b20": [
-  "confidence",
-  "confidence_sources.[].confidence",
-  "confidence_sources.[].is_weakest",
   "confidence_sources.[].slot_label"
  ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
@@ -847,9 +841,6 @@
   "numeric_estimate.simex.error_variance"
  ],
  "structurally_solved:cause:cause_via_directed_path#aae237": [
-  "confidence",
-  "confidence_sources.[].confidence",
-  "confidence_sources.[].is_weakest",
   "confidence_sources.[].slot_label",
   "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.algorithm",

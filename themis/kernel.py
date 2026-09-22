@@ -150,6 +150,7 @@ from .verifier import (
     verify_statements_carry_their_facts,
     verify_statements_repeat_what_decided_them,
     verify_confidence_level,
+    verify_the_composite_is_its_weakest_source,
     verify_envelope_arithmetic,
     verify_gap_names,
     verify_gap_edge_statements,
@@ -2280,6 +2281,12 @@ def _hold_what_the_estimate_calls_for(
     # out of. A line this system draws rather than one a caller may draw, so
     # it is held to the constant, restated on the verifier's side.
     verify_confidence_level(result)
+    # The other number that word names, and the one a reader takes as how
+    # far to trust the answer at all. It is the minimum across the slots
+    # the answer rests on and the list of those slots is beside it, so the
+    # whole of the check is arithmetic the envelope already carries —
+    # which is why nothing else could have been standing in for it.
+    verify_the_composite_is_its_weakest_source(result)
     # And the one answer whose own chain records no estimation at all. The
     # transport route ends its derivation at the identification and attaches
     # a number beside it, so the copy check above found no second copy and

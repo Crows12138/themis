@@ -505,6 +505,18 @@ Public surface (re-exports from sub-modules):
   ``numeric_estimate``; the separate question of why a budget is ABSENT is
   put only across the subtree whose producer promises one, because that
   question reads a promise rather than the envelope)
+- How far the answer trusts what it was given, against the list it was
+  taken over: ``verify_the_composite_is_its_weakest_source`` (the other
+  confidence, and a different fact wearing the same letters. What binds
+  the pair is declared where the pair is — the composite is the minimum
+  across the slots the answer rests on, and ``is_weakest`` is true of a
+  source exactly when it sits at that minimum — and nothing read the
+  sources at all, so on every stored answer carrying the pair the number
+  could be rewritten, a source's confidence moved, and a weak link's mark
+  flipped off, at both doors. Arithmetic over what is already there, so
+  there is no second opinion to form; exactly equal rather than nearly,
+  because the producer's own comparison is, and a tolerance would flag a
+  source the producer did not)
 - The level every interval on the envelope is stated at:
   ``verify_confidence_level`` (asked wherever the word appears, and held to
   the constant this system draws rather than to a second copy of itself.
@@ -944,6 +956,9 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .confidence_source_rules import (
+    verify_the_composite_is_its_weakest_source,
+)
 from .data_gap_rules import (
     verify_answer_tier,
     verify_collider_caveats_are_owed,
@@ -1019,6 +1034,7 @@ __all__ = [
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",
     "verify_confidence_level",
+    "verify_the_composite_is_its_weakest_source",
     "verify_envelope_arithmetic",
     "verify_gap_names",
     "verify_gap_program_sites",

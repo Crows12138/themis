@@ -653,14 +653,24 @@ def test_the_remainder_split_is_what_it_is():
     family. A table asking where a value is written sees the container's
     key, which is on the envelope whether the run reached a number or
     wrote down that it could not.
+
+    Forty-first use, nine leaves: the recompute escape, with the arithmetic
+    declared where the pair is. The number a reader takes as how far to
+    trust the answer at all, and the list of slots it was taken over, reach
+    them together; the contract says in as many words that the number is
+    the minimum across that list, and that a source's mark is true exactly
+    when it sits at that minimum. Nothing read the list. The word was
+    already spoken for in this package by a rule about the LEVEL an
+    interval is stated at -- a different fact wearing the same letters --
+    which is how asking whether this was held could come back yes.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 87,
+        gate._ANSWER_ALIKE: 81,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 375,
-        gate._EVERY_READING_MATCHES: 33,
+        gate._EVERY_READING_MATCHES: 30,
     }
 
 
