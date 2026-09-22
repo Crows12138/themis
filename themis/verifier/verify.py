@@ -3631,6 +3631,30 @@ def verify_measurement_correction_numeric(estimate: dict) -> None:
     if abs(naive - float(claimed_naive)) > _MEASUREMENT_CORRECTION_TOL * (1 + abs(naive)):
         _fail(f"naive_point mismatch — re-derived {naive}, recorded {claimed_naive}")
 
+    # The two other channels have called this since it was written. This one
+    # did not, and it is the channel whose per-arm table is the one a reader
+    # of a detection-bias correction is shown.
+    _check_block_matrices_match(mc, suff, _fail)
+
+
+def _as_contents(value):
+    """``value`` with every number read as one.
+
+    What two copies of a record have to agree about is their contents and
+    not how whoever wrote each one spelled them: a level written ``1`` and
+    a level written ``1.0`` are one cell. So are a ``False`` and a ``0``,
+    which is not a concession -- it is what the producer means, where
+    ``_level_key`` keys the inverse maps so that a bool level matches the
+    0/1 the contract coerced the column into.
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, (list, tuple)):
+        return [_as_contents(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _as_contents(v) for k, v in value.items()}
+    return value
+
 
 #: Where the same matrix is written twice: the ``measurement_correction`` block
 #: (what an auditor reads) and its ``sufficient_statistics`` (what the verifier
@@ -3643,13 +3667,23 @@ _MATRIX_WRITTEN_TWICE = (
 
 
 def _check_block_matrices_match(mc: dict, suff: dict, fail) -> None:
-    """The matrices the block shows must be the matrices the number came from.
+    """The records the block shows must be the records the number came from.
 
     Only the sufficient-statistics copy is re-inverted, so without this the
     block's copy is decorative: an envelope could display one channel to a
     reader while the point was computed from another, and every numeric check
     would still pass because every numeric check reads the other copy. Found by
     a tamper probe that changed the displayed matrix and was not rejected.
+
+    A per-cell record is compared whole, and not matrix by matrix. The first
+    version of this compared the matrix, because a matrix is what the probe
+    that found it had changed — but the coordinate written beside a matrix,
+    the arm or the covariate level or the outcome value, says which cell
+    that matrix governs, and it is written twice for the same reason the
+    matrix is. A right matrix filed under the wrong cell is a mislabelled
+    channel, and the reader has no second copy to notice it against.
+    Comparing the record is also what keeps a field added to one of these
+    later from arriving unread.
     """
     for block_key, suff_key in _MATRIX_WRITTEN_TWICE:
         shown = mc.get(block_key)
@@ -3683,13 +3717,19 @@ def _check_block_matrices_match(mc: dict, suff: dict, fail) -> None:
             f"entries; the set that was inverted has {len(used_sets)}"
         )
     for shown, used in zip(shown_sets, used_sets):
-        if [[float(v) for v in row] for row in shown.get("matrix", ())] != [
-            [float(v) for v in row] for row in used.get("matrix", ())
-        ]:
-            fail(
-                "a matrix in measurement_correction.confusion_matrices is not "
-                "the one the inversion used"
-            )
+        if _as_contents(shown) == _as_contents(used):
+            continue
+        differs = sorted(
+            key for key in set(shown) | set(used)
+            if _as_contents(shown.get(key)) != _as_contents(used.get(key))
+        )
+        fail(
+            f"a record in measurement_correction.confusion_matrices is not "
+            f"the record the inversion used — they differ at {differs}; a "
+            f"matrix says what the misreading was and the coordinate beside "
+            f"it says which cell was misread that way, so either one alone "
+            f"is half the claim"
+        )
 
 
 def _check_recorded_risks(mc: dict, corrected, naive, close, fail) -> None:

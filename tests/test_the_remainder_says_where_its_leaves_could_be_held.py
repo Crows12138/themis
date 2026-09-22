@@ -802,14 +802,30 @@ def test_the_remainder_split_is_what_it_is():
     graph has lost none of the run's graph. So the caveat now reads: no
     COMPARISON finds a second writing, and a word can still be refused by
     something that follows from what the two documents say.
+
+    Fifty-fourth use, three leaves, and two headings answered by one
+    question. A differential misclassification correction shows a per-cell
+    table -- a matrix for each exposure arm, or each covariate level, or
+    each outcome value, with a coordinate saying which cell each matrix
+    governs. Two of the three coordinates sat under the first heading,
+    which had said all along where the second writing was: in the block's
+    own sufficient statistics, under the same name, in the hand of the
+    rule that reads it. The third was a bool, and to a reading that
+    compares VALUES a bool is a flag, so it went under the sixth. One
+    question settled both -- the record shown and the record inverted are
+    one record, compared whole rather than matrix by matrix. Which is the
+    sixth heading answered without a second writing of its own: the flag
+    travelled inside an object whose other fields were held, and a leaf
+    that is part of a held object is held whatever a reading of values can
+    see from outside it.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 56,
+        gate._ANSWER_ALIKE: 54,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 134,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 339,
-        gate._EVERY_READING_MATCHES: 24,
+        gate._EVERY_READING_MATCHES: 23,
     }
 
 

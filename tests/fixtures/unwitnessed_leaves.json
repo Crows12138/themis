@@ -589,18 +589,15 @@
  "numerically_solved:effect:numeric_measurement_correction_estimate#7b2034": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.confusion_matrices.[].arm",
   "numeric_estimate.measurement_correction.out_of_simplex"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#a72f27": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.confusion_matrices.[].level"
+  "estimation_context.random_state"
  ],
  "numerically_solved:effect:numeric_measurement_correction_estimate#dae267": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.measurement_correction.confusion_matrices.[].outcome"
+  "estimation_context.random_state"
  ],
  "numerically_solved:effect:numeric_result#2c4d0f": [
   "derivation.steps.[].output.items.cde_status.items.cap",
