@@ -706,13 +706,23 @@ def test_the_remainder_split_is_what_it_is():
     belongs to the question -- a conditional one is IDC's, and IDC can fail
     where the unconditional criterion succeeds -- and nothing on the block
     says which shape of question produced it.
+
+    Forty-sixth use, four leaves, and two of them were a field whose truth
+    was never in either document. A declared loop takes the ordinary
+    routes away, and what the envelope says about that reached a reader as
+    two unheld sentences: which routes went, and which criterion was used
+    instead. The loop is a statement and not an edge, so every graph-level
+    reading is handed an acyclic picture and agrees with a criterion the
+    program says does not apply -- the complaint already written for the
+    block's ABSENCE, said about its contents for the first time. The names
+    are route ids, and the schema says where a reader looks one up.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 149,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 370,
+        gate._NOTHING: 366,
         gate._EVERY_READING_MATCHES: 24,
     }
 

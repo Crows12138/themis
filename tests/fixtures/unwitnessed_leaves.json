@@ -103,8 +103,6 @@
  "iv_2sls": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.feedback_loop.withdrew.[]",
-  "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count"
  ],
  "iv_2sls_overid": [
@@ -239,8 +237,7 @@
  "needs_investigation:effect:none#055e4a": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
-  "estimation_context.random_state",
-  "extensions.feedback_loop.withdrew.[]"
+  "estimation_context.random_state"
  ],
  "needs_investigation:effect:none#06d3b8": [
   "estimation_context.ci_bootstrap",
@@ -294,9 +291,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "extensions.selection_recovery.search_budget"
- ],
- "needs_investigation:effect:none#451831": [
-  "extensions.feedback_loop.withdrew.[]"
  ],
  "needs_investigation:effect:none#4beb47": [
   "estimation_context.ci_bootstrap",

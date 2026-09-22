@@ -180,6 +180,7 @@ from .verifier import (
     verify_post_stratification,
     verify_a_block_names_the_method_that_wrote_it,
     verify_feedback_loop,
+    verify_no_acyclic_criterion_is_claimed_under_a_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
     verify_numeric_display_agrees,
@@ -248,6 +249,15 @@ def _audit_identification(facts: "_RouteFacts") -> None:
     surface = facts.carries("identification")
     instrument = facts.carries("iv_identification")
     if surface is not None:
+        # First, whether the criterion it names is one this model admits
+        # at all. The re-derivation below runs on a graph the declared
+        # loop is not an edge of, so it agrees with a back-door claim the
+        # program's own declaration contradicts — and where the picture is
+        # wrong, a complaint that the front-door criterion fails ON that
+        # picture is a complaint about the wrong thing.
+        verify_no_acyclic_criterion_is_claimed_under_a_loop(
+            surface, facts.graph, facts.feedback, facts.query,
+            "identification")
         verify_identification_pattern(
             surface, facts.graph, facts.bidirected, facts.query)
         verify_the_conditioning_a_question_asks_is_named(
@@ -262,6 +272,12 @@ def _audit_joint_identification(facts: "_RouteFacts") -> None:
     this one, so which people the question is about is owed here."""
     block = facts.carries("joint_identification")
     if block is not None:
+        # Both of this block's words name an acyclic criterion and it has
+        # no escape word, so the whole vocabulary is asked here — and
+        # first, for the reason the scalar surface gives.
+        verify_no_acyclic_criterion_is_claimed_under_a_loop(
+            block, facts.graph, facts.feedback, facts.query,
+            "joint_identification")
         verify_joint_identification(
             block, facts.graph, facts.bidirected, facts.query)
         verify_the_conditioning_a_question_asks_is_named(

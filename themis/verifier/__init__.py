@@ -87,12 +87,24 @@ Public surface (re-exports from sub-modules):
   not the conditioning is the sentence for the question about everybody.
   The variables are owed here; the values beside them are the estimate's to
   show) /
+  ``verify_no_acyclic_criterion_is_claimed_under_a_loop`` (and whether the
+  criterion named there is one this model admits at all. Five of the six
+  pattern words, across both identification surfaces, are theorems about
+  an ACYCLIC graph; a declared loop is a statement and not an edge, so
+  every reading above is handed an acyclic picture and agrees with a
+  criterion the program's own declaration contradicts. Asked of the
+  program — the loops it declares and whether they reach this estimand —
+  before the criterion is re-derived, since a complaint that a criterion
+  fails ON a picture is about the wrong thing once the picture is known to
+  be wrong) /
   ``verify_feedback_loop`` (the reason a reader is given for an answer the
   DAG did not compute — the loop is re-derived from the PROGRAM, since a
   block citing one nobody declared would license the swap of a correct
   adjustment answer for an instrument resting on linearity; the query's
   two ends, the loop reaching them, and the Haavelmo reduction are
-  re-derived beside it) /
+  re-derived beside it, and the routes it says went are held to being
+  route ids this build declares, which is a different question from which
+  routes went) /
   ``verify_loop_withdrawal_is_owed`` (whether that block is there at all.
   An effect answer computed from the DAG, beside a program declaring a loop
   its estimand reaches, passed every door; which answers owe the block is
@@ -990,6 +1002,9 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .acyclic_criterion_rules import (
+    verify_no_acyclic_criterion_is_claimed_under_a_loop,
+)
 from .answer_slot_rules import (
     verify_the_generic_slot_restates_the_answer,
 )
@@ -1075,6 +1090,7 @@ __all__ = [
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",
     "verify_confidence_level",
+    "verify_no_acyclic_criterion_is_claimed_under_a_loop",
     "verify_the_generic_slot_restates_the_answer",
     "verify_which_object_a_run_decided_pair_is",
     "verify_the_composite_is_its_weakest_source",

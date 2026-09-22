@@ -6275,10 +6275,14 @@ def verify_feedback_loop(
     equations, so an IV answer here without the reduction is an answer
     whose reader was not told the quantity changed.
 
-    ``withdrew`` stays the producer's word. It names route ids, and a
-    verifier that recomputed which routes a loop takes away would be
-    reading the producer's route table — agreeing by construction, which is
-    what an independent re-derivation is defined against.
+    WHICH routes a loop takes away stays the producer's word: recomputing
+    that would read the producer's route table and agree with it by
+    construction, which is what an independent re-derivation is defined
+    against. What is held is the other half of ``withdrew``, and the two
+    are different questions — that these are route ids AT ALL. The schema
+    says where they are declared, so a name that is not one of them is a
+    name no reader and no tool can look up, and asking that is not asking
+    which routes went.
     """
 
     from .rules import _atom_label_verifier as _label
@@ -6331,6 +6335,18 @@ def verify_feedback_loop(
         _err("names no reduction beside an answer that reached an "
              "instrument; under a loop an instrument identifies a "
              "coefficient of the two-equation system or nothing at all")
+
+    from .. import routing
+
+    known = {row.id for row in routing.EFFECT_ROUTES}
+    strays = sorted(
+        str(name) for name in (block.get("withdrew") or ())
+        if not isinstance(name, str) or name not in known)
+    if strays:
+        _err(f"says it withdrew {strays}, and this build dispatches no "
+             f"route by those names; the ids are declared in "
+             f"themis.routing, which is where the schema sends a reader "
+             f"to look one up")
 
 
 def _stopped_by_the_framing_gate(result: object, program: object,
