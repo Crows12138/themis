@@ -762,9 +762,21 @@ def test_the_remainder_split_is_what_it_is():
     reconstructed, because two arrangements of one cover can disagree and
     a copy of the word cannot. The heading says where a second writing can
     be found; it has never said the second writing is the best route to it.
+
+    Fifty-first use, twelve leaves, all of them out of the first heading
+    again -- and this time the heading was the whole finding. The numbers a
+    sieve fixes when it turns a column into a set of functions had been
+    filed here for as long as this reading has run, and the note beside
+    them said they could not be held: not in the program, and not
+    recomputable without the rows. Both were measured and both were true.
+    What neither asked was how many times one column is standardised in one
+    run, and the answer is twice, because two bridges expand the same proxy
+    from opposite sides. The second writing sat in another sub-block under
+    another name, which is the one place a reading keyed on the FIELD would
+    have missed it and this one did not.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 68,
+        gate._ANSWER_ALIKE: 56,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 135,
         gate._PROGRAM_OTHERWISE: 5,

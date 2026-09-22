@@ -6312,6 +6312,89 @@ def _bridge_design_matches(design, declared, name: str, field: str,
         )
 
 
+#: What fixes a family's constants. The three named here fit MOMENTS of the
+#: column -- its centre and spread, or its range -- and ask the dimension
+#: nothing, so the numbers they record belong to the column and not to the
+#: design that asked for them. The two left out place KNOTS, and a family
+#: that places more of them as the dimension grows records different numbers
+#: for the same column at two widths, honestly. Transcribed from the
+#: contract's own list of families rather than imported, and held to it by
+#: ``test_one_column_is_standardised_once.py``: a family this table does not
+#: name is a family nothing below can say anything about.
+_CONSTANTS_FIXED_BY_THE_COLUMN = frozenset({
+    "polynomial", "hermite", "fourier"})
+
+
+def _one_column_one_standardisation(channel, rule: str, step_index) -> None:
+    """One column standardised twice in one run is two scales called one.
+
+    A sieve records, per factor, the constants its family fitted -- and the
+    same column is expanded by more than one design here: the outcome
+    bridge's span and the treatment bridge's moments are both functions of
+    W, and its moments and the treatment bridge's span are both functions of
+    Z. Nothing recomputes a constant, because "the mean of this column" is
+    not something an envelope carries the rows to re-derive. What it does
+    carry is the other design that fitted the same column, and the two have
+    to be the same measurement of the same data.
+
+    Read across every design the channel holds rather than per design, so
+    which regime ran -- a contrast, a curve, a matrix plug-in, a null test
+    -- cannot decide how much of this record is audited. A channel with no
+    designs passes, which is the honest shape of "this regime records no
+    sieve" and not a check that quietly did nothing.
+    """
+    designs = _bridge_designs(channel)
+    fitted: dict = {}
+    for label, design in designs:
+        for column in design:
+            for factor in column:
+                variable = factor.get("variable")
+                family = str(factor.get("family") or "")
+                constants = tuple(factor.get("constants") or ())
+                # Always by the three together: a knot family places its
+                # knots for the width it was asked for. Additionally by the
+                # column alone where the family's constants are moments,
+                # which is what makes the two bridges comparable at all.
+                keys: "list[tuple]" = [
+                    (variable, family, factor.get("dimension"))]
+                if family in _CONSTANTS_FIXED_BY_THE_COLUMN:
+                    keys.append((variable, family))
+                for key in keys:
+                    seen = fitted.get(key)
+                    if seen is None:
+                        fitted[key] = (label, constants)
+                        continue
+                    first, before = seen
+                    if before != constants:
+                        raise RuleCheckFailed(
+                            f"measurement_channel: {variable!r} is "
+                            f"standardised as {before} in {first} and as "
+                            f"{constants} in {label}; a {family} basis fixes "
+                            f"its constants from the column, so one run "
+                            f"gives one answer and two mean the designs were "
+                            f"not fitted on the same data",
+                            step_index=step_index, rule=rule,
+                        )
+
+
+def _bridge_designs(channel) -> "list[tuple[str, Any]]":
+    """Every design a channel records, named the way the record names it."""
+    if not isinstance(channel, dict):
+        return []
+    out: "list[tuple[str, Any]]" = []
+    for label, design in (("w_basis", channel.get("w_basis")),
+                          ("z_basis", channel.get("z_basis"))):
+        if isinstance(design, (list, tuple)):
+            out.append((label, design))
+    bridge = channel.get("treatment_bridge")
+    if isinstance(bridge, dict):
+        for name in ("span_basis", "moment_basis"):
+            design = bridge.get(name)
+            if isinstance(design, (list, tuple)):
+                out.append((f"treatment_bridge.{name}", design))
+    return out
+
+
 def _bridge_coefficients(g, c, ridge: float):
     """``(G + λI)⁻¹c``, or ``None`` where the penalised system will not solve.
 
@@ -6687,6 +6770,8 @@ def _rule_numeric_proximal_estimate(
     path through it.
     """
     rule = "numeric_proximal_estimate"
+    _one_column_one_standardisation(
+        inputs.get("measurement_channel"), rule, step_index)
     point, sample_size = _proximal_numeric_prelude(
         inputs, step_index, rule, frozenset({"proximal_matrix"}))
 
@@ -6830,6 +6915,8 @@ def _rule_numeric_proximal_null_test(
     from ..estimation.proximal_null_test import solve_null_test
 
     rule = "numeric_proximal_null_test"
+    _one_column_one_standardisation(
+        inputs.get("measurement_channel"), rule, step_index)
     sample_size = _proximal_numeric_licence(
         inputs, step_index, rule, frozenset({"proximal_null_test"}))
     channel = _require(inputs, "measurement_channel", step_index, rule)
@@ -7417,6 +7504,11 @@ def _rule_numeric_proximal_bridge_estimate(
             f"cross-moments the bridge was solved from",
             step_index=step_index, rule=rule,
         )
+    # Before the regime is read, because the answer to "which designs does
+    # this record hold" is the same one either way and a check that sat on
+    # one side of the split would be auditing the regime rather than the
+    # record. Thirty lines is all it took last time.
+    _one_column_one_standardisation(channel, rule, step_index)
     # Which shape this is, read off the RECORD and not off which keys the
     # step happens to carry. A producer choosing the shape by omitting a
     # key would be choosing which identity gets to check it.

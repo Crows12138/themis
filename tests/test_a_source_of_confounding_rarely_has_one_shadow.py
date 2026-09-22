@@ -486,8 +486,30 @@ def test_a_design_that_swaps_a_factor_of_one_term_is_refused(
 
 def test_a_design_that_renames_a_variable_is_refused(stratified_frame):
     """The half a family check would miss. Same families, same dimensions,
-    same width — a different column of the frame."""
+    same width — a different column of the frame.
+
+    Renamed to a column NO other design expands, so this is the tie to the
+    query and nothing else. The obvious forgery — renaming it to a column
+    that IS expanded somewhere else — is refused one check earlier, by the
+    one below, and a test that let the earlier check answer for this one
+    would leave the comparison it is about with no witness at all.
+    """
     forged = copy.deepcopy(_answered(_interacted(), stratified_frame))
-    _factor_record(forged, "w_basis", 0, 0)["variable"] = "c"
+    _factor_record(forged, "w_basis", 0, 0)["variable"] = "y"
     assert "the bridge is assumed to lie among" in _refused_by_verify(
         forged, _interacted())
+
+
+def test_a_rename_onto_a_column_already_standardised_is_refused_sooner(
+        stratified_frame):
+    """And the record contradicts itself before the query is consulted.
+
+    ``c`` sits in this term already, beside the factor being renamed, with
+    the constants ITS column fitted. Two scales for one column is a
+    statement about the data rather than about the declaration, so it is
+    refused without reading the query — which is why the check sits above
+    the split between the two bridge regimes rather than inside either.
+    """
+    forged = copy.deepcopy(_answered(_interacted(), stratified_frame))
+    _factor_record(forged, "w_basis", 0, 0)["variable"] = "c"
+    assert "is standardised as" in _refused_by_verify(forged, _interacted())
