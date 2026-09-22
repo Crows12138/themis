@@ -591,10 +591,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
- "numerically_solved:effect:numeric_result#2c4d0f": [
-  "derivation.steps.[].output.items.cde_status.items.cap",
-  "extensions.mediation_joint_decomposition.numeric.cde_status.cap"
- ],
  "numerically_solved:effect:numeric_result#5cb6d1": [
   "derivation.steps.[].inputs.monotonicity",
   "extensions.iv_identification.alternatives_count",

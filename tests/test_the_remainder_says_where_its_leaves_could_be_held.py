@@ -840,9 +840,25 @@ def test_the_remainder_split_is_what_it_is():
     was written, which is why no reading of what is already there could
     have found it -- and it is affordable only because a test already holds
     the producer's side to being one site.
+
+    Fifty-sixth use, two leaves, one heading, and the heading had been
+    right since the day it was written. Both are the cap on how many
+    reference points a controlled-effect grid may hold, written once where
+    a reader reads it and once in the step that decided it -- another field
+    of the answer, named alike, which is what this reading said of them.
+    What a reading of values cannot say is why a rule that already walks
+    both documents never met them. It walks both, and it stops at
+    different depths: the reader's side descends to a leaf and asks the
+    record for the leaf's name joined to its block's, while the record's
+    side expands a step's output one level and keeps a recorded mapping
+    whole. Neither side was looking in the wrong place. One of them was a
+    level short, and a spelling that had been offered all along had
+    nothing to match. The first heading answers a rule's reach as readily
+    as it answers a missing writing, and nothing in the file says which of
+    the two a leaf is waiting on.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 52,
+        gate._ANSWER_ALIKE: 50,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 133,
         gate._PROGRAM_OTHERWISE: 3,

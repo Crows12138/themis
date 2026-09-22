@@ -178,8 +178,15 @@ def _plain(value):
     reordered sampling grid would pass.
 
     A reference to another step is not data and stands for nothing here;
-    it comes back unchanged, and ``_comparable`` declines it rather than
-    call a block and a pointer to one two different runs.
+    it comes back unchanged. Nothing declines it and nothing has to: the
+    names such a reference is recorded under are the names of NESTED
+    blocks, and a nested block is not offered as a subject. Measured --
+    offer them and twenty-four comparisons of the stored answers land
+    opposite a pointer, every one of them an honest answer. This said for
+    a long time that a named helper declines it. There was no such
+    function, and a sentence pointing at a check is how a reader concludes
+    a case is handled that nothing handles; what keeps a block from being
+    called a pointer is where the walk on the reader's side stops.
     """
     if isinstance(value, list):
         # A sequence of serialised things is one too. Unwrapping stopped at
@@ -303,9 +310,17 @@ def _agree_directly(shown, recorded) -> bool:
     return shown == recorded
 
 
+#: The block whose own shapes the three checks at the foot of this module
+#: are asked of, and the first of :data:`_SUBJECTS`. Named because the two
+#: drifted: the refusal below carried this word hard-coded, and once a
+#: second subject was added, a disagreement inside THAT block printed a
+#: path no answer has. Every caller says which block it is talking about.
+_THE_ESTIMATE = "numeric_estimate"
+
+
 def _disagree(name, shown, recorded, step_index: int) -> NoReturn:
     raise VerificationError(
-        f"numeric_estimate.{name} is {shown!r} and the step that produced it "
+        f"{name} is {shown!r} and the step that produced it "
         f"recorded {recorded!r}; a reader and an auditor are being shown two "
         "different runs",
         rule=_RULE, step_index=step_index,
@@ -351,7 +366,52 @@ def _chain_record(steps) -> dict:
             named.update(produced["items"])
         for name, value in named.items():
             record[name] = (index, _plain(value))
+    record.update(_joined_names(record))
     return record
+
+
+def _joined_names(record: dict) -> dict:
+    """Each entry of a recorded mapping, under the name it is read by.
+
+    The walk on the reader's side stops at a leaf and asks the record for
+    ``f"{parent}_{leaf}"``, which is what a derivation input carries where
+    a block is a sub-answer. The expansion above goes one level, so a
+    mapping the chain recorded sits here whole and no joined spelling ever
+    reached inside it: why a controlled-effect grid was not solved is
+    recorded as one mapping and shown as three fields, and not one of them
+    was compared with anything.
+
+    Only PREFIXED names are added, and that is the difference between this
+    and offering the nested block itself as a subject on the reader's
+    side. The other way was measured and is wrong: a nested block's name
+    is its role in its parent, so a decomposition's ``cde`` is a table of
+    intervals where the step's ``cde`` is the cell values it was
+    summarised from, and comparing them calls an honest answer two
+    different runs.
+
+    A name the chain really recorded is never displaced by one derived
+    here, and a joined name two mappings both produce is dropped rather
+    than arbitrated -- an ambiguity is not a disagreement, which is the
+    rule the spelling side already follows.
+
+    A typed wrapper is skipped: its keys are ``kind`` and a pointer, and
+    ``kind`` is not the name of anything it contains.
+    """
+    out: dict = {}
+    clashed: set = set()
+    for name, (index, value) in record.items():
+        if not isinstance(value, dict) or "kind" in value:
+            continue
+        for leaf, inner in value.items():
+            joined = f"{name}_{leaf}"
+            if joined in record or joined in clashed:
+                continue
+            if joined in out:
+                del out[joined]
+                clashed.add(joined)
+                continue
+            out[joined] = (index, _plain(inner))
+    return out
 
 
 def _named_subjects(estimate: dict, path: tuple = ()):
@@ -396,7 +456,7 @@ def _named_subjects(estimate: dict, path: tuple = ()):
 #: shown — the same mistake this module already records making one level
 #: down, when asking only the envelope's outer keys made the reach a fact
 #: about how deep an estimator nests.
-_SUBJECTS = ("numeric_estimate", "extensions")
+_SUBJECTS = (_THE_ESTIMATE, "extensions")
 
 
 def _subjects(result: dict):
@@ -581,10 +641,11 @@ def _check_prefixed_view(view, inputs: dict, name: str, prefix: str,
         if key not in inputs:
             if not total:
                 continue
-            _disagree(f"{name}.{leaf}", shown,
+            _disagree(f"{_THE_ESTIMATE}.{name}.{leaf}", shown,
                       f"<nothing: the step records no {key}>", at)
         if not _agree(shown, _plain(inputs[key])):
-            _disagree(f"{name}.{leaf}", shown, _plain(inputs[key]), at)
+            _disagree(f"{_THE_ESTIMATE}.{name}.{leaf}", shown,
+                      _plain(inputs[key]), at)
 
 
 def _check_the_entry_the_step_produced(estimate: dict, inputs: dict,
@@ -615,7 +676,7 @@ def _check_the_entry_the_step_produced(estimate: dict, inputs: dict,
         if len(found) != 1:
             continue
         row = found[0]
-        where = f"{view}[{named_there}={wanted!r}]"
+        where = f"{_THE_ESTIMATE}.{view}[{named_there}={wanted!r}]"
         for field in fields:
             if field not in inputs or field not in row:
                 continue
@@ -638,12 +699,13 @@ def _check_stratum_table(estimate: dict, inputs: dict, at: int) -> None:
     table = estimate.get("stratified_wald")
     if not isinstance(table, dict):
         return
+    subject = f"{_THE_ESTIMATE}.stratified_wald"
     for leaf, key in _STRATUM_AGGREGATES.items():
         if key not in inputs:
-            _disagree(f"stratified_wald.{leaf}", table.get(leaf),
+            _disagree(f"{subject}.{leaf}", table.get(leaf),
                       f"<nothing: the step records no {key}>", at)
         if not _same_number(table.get(leaf), inputs[key]):
-            _disagree(f"stratified_wald.{leaf}", table.get(leaf),
+            _disagree(f"{subject}.{leaf}", table.get(leaf),
                       inputs[key], at)
 
     rows = table.get("strata") or ()
@@ -653,10 +715,10 @@ def _check_stratum_table(estimate: dict, inputs: dict, at: int) -> None:
         items = recorded.get("items") if isinstance(recorded, dict) \
             else recorded
         if not isinstance(items, list):
-            _disagree(f"stratified_wald.strata[*].{leaf}", "shown",
+            _disagree(f"{subject}.strata[*].{leaf}", "shown",
                       f"<nothing: the step records no {key}>", at)
         if len(items) != len(rows):
-            _disagree("stratified_wald.strata", f"{len(rows)} rows",
+            _disagree(f"{subject}.strata", f"{len(rows)} rows",
                       f"{len(items)} entries in {key}", at)
         columns[leaf] = items
 
@@ -671,12 +733,12 @@ def _check_stratum_table(estimate: dict, inputs: dict, at: int) -> None:
     for index, row in enumerate(rows):
         values = (row or {}).get("values")
         if not isinstance(values, list) or len(values) != len(order):
-            _disagree(f"stratified_wald.strata[{index}].values", values,
+            _disagree(f"{subject}.strata[{index}].values", values,
                       f"one coordinate per conditioning variable "
                       f"{list(order)}", at)
         cell = tuple(values)
         if cell in seen:
-            _disagree(f"stratified_wald.strata[{index}].values", list(cell),
+            _disagree(f"{subject}.strata[{index}].values", list(cell),
                       "a cell no other row of this table already describes",
                       at)
         seen.add(cell)
@@ -684,19 +746,19 @@ def _check_stratum_table(estimate: dict, inputs: dict, at: int) -> None:
     sample_size = estimate.get("sample_size")
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
-            _disagree(f"stratified_wald.strata[{index}]", row, "an object", at)
+            _disagree(f"{subject}.strata[{index}]", row, "an object", at)
         for leaf, items in columns.items():
             if not _same_number(row.get(leaf), items[index]):
-                _disagree(f"stratified_wald.strata[{index}].{leaf}",
+                _disagree(f"{subject}.strata[{index}].{leaf}",
                           row.get(leaf), items[index], at)
         n_obs = row.get("n_obs")
         high, low = row.get("n_instrument_high"), row.get("n_instrument_low")
         if high is not None and low is not None and n_obs is not None:
             if int(high) + int(low) != int(n_obs):
-                _disagree(f"stratified_wald.strata[{index}].n_obs", n_obs,
+                _disagree(f"{subject}.strata[{index}].n_obs", n_obs,
                           f"{high} + {low} = {int(high) + int(low)}", at)
         if n_obs is not None and isinstance(sample_size, (int, float)) \
                 and sample_size:
             if not _same_number(row.get("weight"), n_obs / sample_size):
-                _disagree(f"stratified_wald.strata[{index}].weight",
+                _disagree(f"{subject}.strata[{index}].weight",
                           row.get("weight"), f"{n_obs}/{sample_size}", at)
