@@ -554,6 +554,28 @@ Public surface (re-exports from sub-modules):
   slots get a row is NOT held: for an edge that is the data-gap
   classifier's reading of what the answer rests on, and re-deriving it
   would hand that reading back to itself)
+- Where a dose-response request went, against the program it went in:
+  ``verify_where_a_dose_response_request_went`` (a ``dose_response_query``
+  names the curve and not the query to draw it for, so the estimation layer
+  picks one and leaves a note where the pick was not the obvious one. Four
+  of the six notes it can leave mean the curve was not drawn, and on those
+  answers the note IS the answer to what was asked. Five are propositions
+  about the program — that it holds no effect query, that every one of them
+  names a mediator, that an id it was handed matches nothing, that the id
+  names a mediation, that the first effect query was passed over for the
+  first eligible — and nothing read them. The SHAPE of each was held, and
+  the two sharing a hole have the same shape, so a run that skipped the
+  curve because the id pointed at a mediation could say the id matched
+  nothing and send a reader hunting for a typo in a name that is spelt
+  right. The PLAN is not re-run: which query a request resolves to is a
+  decision, and a second author for a decision is two decisions, so a
+  missing note is not an offence here and a test asserts that rather than
+  the prose claiming it. The sixth note is about a COLUMN, so its subject
+  is held — the name it calls the treatment is one a query here intervenes
+  on — and its refusal says the predicate is not asked. It is also the one
+  written into two slots, and the two are held to each other: that the
+  WRITER writes both is already held at the writer, and an envelope is a
+  document anyone can write)
 - The generic answer slot, against the block it restates:
   ``verify_the_generic_slot_restates_the_answer`` (``numeric_result`` is
   where a reader who does not read blocks finds the answer, so every
@@ -1028,6 +1050,9 @@ from .confidence_source_rules import (
     verify_the_composite_is_its_weakest_source,
     verify_the_names_beside_each_confidence,
 )
+from .dose_response_routing_rules import (
+    verify_where_a_dose_response_request_went,
+)
 from .data_gap_rules import (
     verify_answer_tier,
     verify_collider_caveats_are_owed,
@@ -1147,6 +1172,7 @@ __all__ = [
     "verify_counterfactual_conjunction",
     "verify_ctf_conjunction_numeric",
     "verify_dose_response_curve",
+    "verify_where_a_dose_response_request_went",
     "verify_acr_decomposition",
     "verify_e_value",
     "verify_effect_structural",

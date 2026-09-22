@@ -818,13 +818,35 @@ def test_the_remainder_split_is_what_it_is():
     travelled inside an object whose other fields were held, and a leaf
     that is part of a held object is held whatever a reading of values can
     see from outside it.
+
+    Fifty-fifth use, eight leaves, four headings, one question. A
+    dose-response request names the curve to draw and not the query to draw
+    it for, so where the pick was not the obvious one the run leaves a note
+    saying what happened, and five of the six notes it can leave are
+    propositions about the PROGRAM. Three of the four headings had pointed
+    the right way. The two under the first heading are the two slots one
+    note is written into, each the other's second writing, and holding them
+    to each other is what closed them. The three under the two headings that
+    say "otherwise" are query ids, sitting in the program and in the answer
+    under the names those documents call them by. The fourth heading is the
+    one that says nothing either document writes, due here for the fifth
+    time, and its three leaves close two different ways. One is a word whose
+    VALUE is written nowhere -- but the word is a sentence about the
+    program, and a sentence is held by asking whether it is so, not by
+    finding it written twice. The other two are the pair of words saying
+    which estimator the reader is actually being shown, and nothing writes
+    them twice because there is nothing to write twice: the pair is a
+    constant. Restating it is a second writing that did not exist until it
+    was written, which is why no reading of what is already there could
+    have found it -- and it is affordable only because a test already holds
+    the producer's side to being one site.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 54,
+        gate._ANSWER_ALIKE: 52,
         gate._PROGRAM_ALIKE: 4,
-        gate._ANSWER_OTHERWISE: 134,
-        gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 339,
+        gate._ANSWER_OTHERWISE: 133,
+        gate._PROGRAM_OTHERWISE: 3,
+        gate._NOTHING: 336,
         gate._EVERY_READING_MATCHES: 23,
     }
 

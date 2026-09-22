@@ -180,6 +180,7 @@ from .verifier import (
     verify_frame,
     verify_post_stratification,
     verify_a_block_names_the_method_that_wrote_it,
+    verify_where_a_dose_response_request_went,
     verify_feedback_loop,
     verify_no_acyclic_criterion_is_claimed_under_a_loop,
     verify_iv_surfaces,
@@ -2336,6 +2337,13 @@ def _hold_what_the_estimate_calls_for(
     # statement said it. What holds a name is the document it was copied
     # from, so this one is handed the program as well as the answer.
     verify_the_names_beside_each_confidence(result, ast)
+    # And the note beside the numbers that is not about a number at all:
+    # where a dose-response request went, which on four of its six words
+    # means the curve a reader asked for is not on the page. Handed the
+    # program for the reason the rule above is -- what the note claims is
+    # about the program -- and asking only whether the claim is so. The
+    # routing decision itself is not re-run, and the module says why.
+    verify_where_a_dose_response_request_went(result, ast)
     # And the one answer whose own chain records no estimation at all. The
     # transport route ends its derivation at the identification and attaches
     # a number beside it, so the copy check above found no second copy and

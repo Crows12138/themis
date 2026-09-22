@@ -475,11 +475,7 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate": [
-  "estimation_context.data_contract_warnings.[].said.treatment",
   "estimation_context.random_state",
-  "estimator_fallback.from",
-  "estimator_fallback.reason.said.treatment",
-  "estimator_fallback.to",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],
@@ -498,16 +494,12 @@
   "numeric_estimate.fitted_overlap.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#3f18c7": [
-  "estimation_context.data_contract_warnings.[].said.named",
-  "estimation_context.data_contract_warnings.[].token",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#428cc2": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.data_contract_warnings.[].said.chosen",
-  "estimation_context.data_contract_warnings.[].said.passed_over",
   "estimation_context.random_state"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#6ce8fb": [
