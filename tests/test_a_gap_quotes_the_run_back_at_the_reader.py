@@ -875,6 +875,15 @@ PRINTED_SITES = sorted(
 )
 
 
+#: The sites of the sentence THIS half of the file is about. The table
+#: the census above counts has rows for diagnostic numbers too, and every
+#: test below that forges a formula, swaps two sources or leans on a route
+#: is about the estimand rather than about the table. Left on the census
+#: they would take whichever row happened to sort first, which is how a
+#: check comes to answer for one it was never written about.
+FORMULA_SITES = [site for site in PRINTED_SITES if site[3] == "formula"]
+
+
 def _printing_for(site):
     """What the rule's own printer hands back for this sentence."""
     name, where, statement, key = site
@@ -917,8 +926,9 @@ def test_the_printings_this_rule_speaks_for():
     split: dict[str, int] = {}
     for _name, _where, _statement, key in PRINTED_SITES:
         split[key] = split.get(key, 0) + 1
-    assert split == {"formula": 8}, split
-    assert sum(1 for site in PRINTED_SITES if _printing_for(site)) == 8
+    assert split == {"bad": 1, "cells": 1, "confidence": 1, "df": 1,
+                     "f": 1, "formula": 8, "j": 2, "p": 2, "share": 1}, split
+    assert sum(1 for site in PRINTED_SITES if _printing_for(site)) == 18
 
 
 def test_the_second_hand_prints_what_the_first_one_printed():
@@ -947,7 +957,7 @@ def test_an_estimand_printed_some_other_way_is_refused():
     """Three gross lies per sentence — a forged spelling, an empty string,
     a set of variables this route never adjusted for."""
     refused = 0
-    for site in PRINTED_SITES:
+    for site in FORMULA_SITES:
         name, where, _statement, key = site
         honest = str(_said(SHAPES[name]["result"], where)[key])
         for lie in (honest + "_forged", "",
@@ -955,8 +965,9 @@ def test_an_estimand_printed_some_other_way_is_refused():
             assert lie != honest
             forged = copy.deepcopy(SHAPES[name]["result"])
             _said(forged, where)[key] = lie
-            with pytest.raises(VerificationError,
-                               match="sends a reader after"):
+            with pytest.raises(
+                    VerificationError,
+                    match="what that source's own transport formula prints"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
     assert refused == 24, refused
@@ -972,7 +983,7 @@ def test_the_record_is_the_source_this_sentence_names():
     for, and why one roster per answer would have taken the swap.
     """
     by_answer: dict[str, list] = {}
-    for name, where, _statement, key in PRINTED_SITES:
+    for name, where, _statement, key in FORMULA_SITES:
         by_answer.setdefault(name, []).append((where, key))
     pairs = sorted((name, sites) for name, sites in by_answer.items()
                    if len(sites) == 2)
@@ -983,7 +994,9 @@ def test_the_record_is_the_source_this_sentence_names():
         assert first != second, (name, first)
         _said(forged, one)[key_one] = second
         _said(forged, two)[key_two] = first
-        with pytest.raises(VerificationError, match="sends a reader after"):
+        with pytest.raises(
+                VerificationError,
+                match="what that source's own transport formula prints"):
             verify_gap_quotes(forged, CONTEXTS[name])
 
 
@@ -993,7 +1006,7 @@ def test_the_silence_is_real_where_the_route_prints_something_else():
     is the one to speak about it. Refusing here would refuse a gap's
     sentence for somebody else's mistake.
     """
-    name, where, _statement, key = PRINTED_SITES[0]
+    name, where, _statement, key = FORMULA_SITES[0]
     altered = copy.deepcopy(SHAPES[name]["result"])
     for route in altered["extensions"]["transport_identification"]["sources"]:
         if route.get("formula_repr") is not None:
@@ -1005,7 +1018,7 @@ def test_the_silence_is_real_where_the_route_prints_something_else():
 def test_the_silence_is_real_where_the_question_has_no_two_ends():
     """The two ends are the question's, and a question with none leaves
     the printer nothing to print from."""
-    name, where, _statement, key = PRINTED_SITES[0]
+    name, where, _statement, key = FORMULA_SITES[0]
     altered = copy.deepcopy(SHAPES[name]["result"])
     _said(altered, where)[key] = "anything at all"
     verify_gap_quotes(altered, _NAMES_NOTHING)

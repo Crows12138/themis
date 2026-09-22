@@ -774,13 +774,26 @@ def test_the_remainder_split_is_what_it_is():
     from opposite sides. The second writing sat in another sub-block under
     another name, which is the one place a reading keyed on the FIELD would
     have missed it and this one did not.
+
+    Fifty-second use, thirteen leaves, and twelve of them out of the
+    heading that says nothing either document writes -- which is this
+    reading's own caveat coming due for the third time. A gap prints a
+    diagnostic into the sentence a reader is handed: an F statistic as
+    `4.96`, a share of strata as `25.1%`. The number is on the envelope
+    under its own name and the printing is not equal to it, so no
+    comparison of values can pair them and this reading files the
+    printing under nothing. What holds it is not a comparison. It is the
+    record printed a second time, and the thirteenth leaf is the other
+    half of that: three fields of the support table left with the three
+    sentences that print them, because a printing held to a record
+    refuses a moved record as readily as a moved printing.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 56,
         gate._PROGRAM_ALIKE: 4,
-        gate._ANSWER_OTHERWISE: 135,
+        gate._ANSWER_OTHERWISE: 134,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 353,
+        gate._NOTHING: 341,
         gate._EVERY_READING_MATCHES: 24,
     }
 

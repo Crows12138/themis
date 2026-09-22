@@ -103,11 +103,6 @@
   "extensions.iv_identification.alternatives_count"
  ],
  "iv_2sls_overid": [
-  "data_gap_report.gaps.[].describes.[].said.df",
-  "data_gap_report.gaps.[].describes.[].said.j",
-  "data_gap_report.gaps.[].describes.[].said.j@blocks=interpretation,kind=overidentification_rejected,severity=important,sentence=the_homoskedastic_sargan_says_the_same",
-  "data_gap_report.gaps.[].describes.[].said.p",
-  "data_gap_report.gaps.[].describes.[].said.p@blocks=interpretation,kind=overidentification_rejected,severity=important,sentence=the_homoskedastic_sargan_says_the_same",
   "data_gap_report.gaps.[].describes.[].said.test",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -253,7 +248,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#17bf1c": [
-  "data_gap_report.gaps.[].describes.[].said.confidence",
   "data_gap_report.gaps.[].describes.[].said.threshold"
  ],
  "needs_investigation:effect:none#17db0b": [
@@ -475,17 +469,11 @@
   "extensions.missing_data_recovery.search_budget"
  ],
  "numerically_solved:effect:numeric_aipw_estimate": [
-  "data_gap_report.gaps.[].describes.[].said.bad",
-  "data_gap_report.gaps.[].describes.[].said.cells",
-  "data_gap_report.gaps.[].describes.[].said.share",
   "data_gap_report.gaps.[].describes.[].said.strata",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
-  "numeric_estimate.outcome_saturation.p_min",
-  "numeric_estimate.stratum_support.cells",
-  "numeric_estimate.stratum_support.extrapolated_share",
-  "numeric_estimate.stratum_support.supported"
+  "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate": [
   "estimation_context.data_contract_warnings.[].said.treatment",
@@ -546,7 +534,6 @@
   "estimation_context.sample_size"
  ],
  "numerically_solved:effect:numeric_iv_estimate": [
-  "data_gap_report.gaps.[].describes.[].said.f",
   "data_gap_report.gaps.[].describes.[].said.threshold",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",

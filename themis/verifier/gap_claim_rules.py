@@ -1104,6 +1104,82 @@ def _locates(statement: str | None, slot: str) -> tuple[str, Any] | None:
     return _LOCATES.get((statement, slot)) or _LOCATES.get((None, slot))
 
 
+def _at(node, *path):
+    """One record, by the road to it, or ``None`` where the road stops."""
+    for step in path:
+        if not isinstance(node, Mapping):
+            return None
+        node = node.get(step)
+        if node is None:
+            return None
+    return node
+
+
+def _two_places(value) -> str:
+    return f"{float(value):.2f}"
+
+
+def _four_figures(value) -> str:
+    return f"{float(value):.4g}"
+
+
+def _a_share(value) -> str:
+    return f"{float(value):.1%}"
+
+
+def _a_count(value) -> str:
+    return str(int(value))
+
+
+def _shouted(value) -> str:
+    return str(value).upper()
+
+
+def _as_written(value) -> str:
+    return str(value)
+
+
+def _prints(find, spell):
+    """A reader for :data:`_PRINTED_FROM`, out of WHERE and HOW.
+
+    The two are orthogonal and were entangled in the one entry this table
+    started with, whose reader assembled a formula and printed it in one
+    function. Separated because every entry beside it is the same record
+    read one way and spelt one way, and a table whose rows each carry a
+    bespoke function is a table nobody adds to -- which is the state this
+    one was in with a single row while thirteen measured pairs waited.
+    """
+    def read(result: Mapping, context, said: Mapping) -> set[str]:
+        value = find(result, context, said)
+        return set() if value is None else {spell(value)}
+    return read
+
+
+def _the_stratum_support(field: str):
+    return lambda result, _context, _said: _at(
+        result, "numeric_estimate", "stratum_support", field)
+
+
+def _the_overidentification(field: str):
+    return lambda result, _context, _said: _at(
+        result, "numeric_estimate", "over_identification", field)
+
+
+def _the_strata_with_one_arm(result: Mapping, _context, _said):
+    """How many cells held only one arm: the count beside the one recorded.
+
+    The envelope writes how many cells there were and how many had both
+    arms, and the sentence says how many did not. Subtraction rather than
+    a fourth field, because the fourth field would be the same fact a
+    third time.
+    """
+    cells = _at(result, "numeric_estimate", "stratum_support", "cells")
+    supported = _at(result, "numeric_estimate", "stratum_support", "supported")
+    if not isinstance(cells, int) or not isinstance(supported, int):
+        return None
+    return cells - supported
+
+
 #: What a ``said`` value is a PRINTING of, where what it prints is a
 #: record still on this envelope.
 #:
@@ -1129,7 +1205,63 @@ _PRINTED_FROM: Mapping[tuple[str | None, str], tuple[str, Any]] = {
     ("the_source_populations_stratified_conditional_is_missing", "formula"):
         ("what that source's own transport formula prints",
          _the_conditional_this_source_prints),
+    # --- a diagnostic a reader weighs the answer against -------------------
+    ("the_first_stage_is_weak", "f"):
+        ("the first stage this answer records",
+         _prints(lambda result, _c, _s: _at(
+             result, "numeric_estimate", "first_stage_f_stat"), _two_places)),
+    ("the_overidentification_test_refuted_the_instruments", "j"):
+        ("the statistic the robust test recorded",
+         _prints(_the_overidentification("hansen_j"), _two_places)),
+    ("the_overidentification_test_refuted_the_instruments", "df"):
+        ("the freedom the robust test recorded",
+         _prints(_the_overidentification("hansen_dof"), _a_count)),
+    ("the_overidentification_test_refuted_the_instruments", "p"):
+        ("the p-value the robust test recorded",
+         _prints(_the_overidentification("hansen_p_value"), _four_figures)),
+    ("the_homoskedastic_sargan_says_the_same", "j"):
+        ("the statistic Sargan's test recorded",
+         _prints(_the_overidentification("sargan_j"), _two_places)),
+    ("the_homoskedastic_sargan_says_the_same", "p"):
+        ("the p-value Sargan's test recorded",
+         _prints(_the_overidentification("sargan_p_value"), _four_figures)),
+    # --- how much of the sample the answer stands on -----------------------
+    ("every_stratum_should_have_both_arms_and_some_do_not", "cells"):
+        ("how many strata the support table counted",
+         _prints(_the_stratum_support("cells"), _a_count)),
+    ("every_stratum_should_have_both_arms_and_some_do_not", "share"):
+        ("the share the support table extrapolated over",
+         _prints(_the_stratum_support("extrapolated_share"), _a_share)),
+    ("every_stratum_should_have_both_arms_and_some_do_not", "bad"):
+        ("how many of those strata had one arm",
+         _prints(_the_strata_with_one_arm, _a_count)),
+    # --- how sure the answer says it is ------------------------------------
+    ("the_composite_confidence_is_below_the_threshold", "confidence"):
+        ("the confidence this answer carries",
+         _prints(lambda result, _c, _s: _at(result, "confidence"),
+                 _two_places)),
 }
+#: What is NOT here, and why, because a table with a silence in it reads
+#: like a table nobody finished.
+#:
+#: The three sentences about a learned graph print the algorithm, the
+#: level it ran at and how many rows it saw, and every one of those is in
+#: the PROGRAM's side channel and nowhere on the answer. This module reads
+#: the answer and the decoded problem, and the decoded problem is the
+#: causal question rather than a copy of the caller's side channels -- so
+#: the record those three print is out of reach from here, and a reader
+#: holding only the answer cannot check them either.
+#:
+#: The two ``threshold`` slots print a CONSTANT of the check rather than a
+#: record of this run. Restating a producer constant here is a different
+#: kind of claim from printing a record again, and it belongs with the
+#: rule that applies the threshold.
+#:
+#: The proximal bridge's negative share is on this envelope but inside a
+#: derivation step, in the wire form a chain is written in. Reading that
+#: from here would put the gap module in the business of decoding the
+#: chain; it belongs beside the block, which is what the paragraph above
+#: says about where these readings live.
 
 
 def _printed_from(statement: str | None,
@@ -1736,12 +1868,12 @@ def verify_gap_quotes(result: Mapping, context) -> None:
                 again = printer(result, context, said)
                 if again and str(value) not in again:
                     raise VerificationError(
-                        f"a gap sends a reader after {value!r} (at "
-                        f"{where}.{key}), and {says} is {sorted(again)}. "
-                        f"The sentence reaches them with that estimand "
-                        f"already assembled, so what they are told to go "
-                        f"and get is not the quantity this answer would "
-                        f"use if they came back with it",
+                        f"a gap prints {value!r} (at {where}.{key}) and "
+                        f"{says} prints {sorted(again)}. The sentence "
+                        f"reaches a reader with the value already "
+                        f"substituted in, so this printing is the whole of "
+                        f"what they are given and the record behind it says "
+                        f"something else",
                         step_index=None, rule=_RULE,
                     )
             entry = _copied_from(statement, str(key))

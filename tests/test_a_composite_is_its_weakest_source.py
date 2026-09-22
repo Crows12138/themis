@@ -159,15 +159,57 @@ def test_the_shapes_this_rule_says_nothing_about(envelope):
     verify(envelope)
 
 
+def _a_carrier_that_does_not_print_its_confidence() -> str:
+    """A carrier whose report does not also QUOTE the composite.
+
+    An answer whose confidence fell below the threshold says so in a gap,
+    and that sentence carries the number already formatted -- so on such
+    an answer a moved composite is refused by the rule holding the
+    printing to the record, one check before this one. Both refusals are
+    right and they are about different things: that one asks whether the
+    sentence a reader is handed matches the record, this one asks whether
+    the record is the weakest of the sources it was composed from. Taking
+    the first carrier alphabetically let the earlier rule answer for this
+    one, which is a test that stops witnessing what it is named after.
+    """
+    for name in _carriers():
+        report = json.dumps(SHAPES[name]["result"].get("data_gap_report")
+                            or {}, ensure_ascii=False)
+        if "the_composite_confidence_is_below_the_threshold" not in report:
+            return name
+    raise AssertionError("every carrier now quotes its own composite")
+
+
 def test_the_rule_is_reached_through_the_public_door():
     """A rule nothing calls is a rule that holds nothing, and the sweep
     that measures coverage goes through the doors."""
-    name = _carriers()[0]
+    name = _a_carrier_that_does_not_print_its_confidence()
     honest = SHAPES[name]["result"]
     forged = copy.deepcopy(honest)
     forged["confidence"] = 0.123
     with pytest.raises(VerificationError, match="weakest of the"):
         the_door_for(honest)(SHAPES[name]["program"], forged)
+
+
+def test_a_quoted_composite_is_answered_for_by_the_printing_rule():
+    """And the carrier left out is left out for a reason that holds.
+
+    Stated rather than assumed: on an answer that quotes its composite,
+    moving the composite IS refused -- by the other rule, naming the
+    printing. Neither of the two is silent here; they simply speak in the
+    order they are asked.
+    """
+    quoted = [name for name in _carriers()
+              if "the_composite_confidence_is_below_the_threshold"
+              in json.dumps(SHAPES[name]["result"].get("data_gap_report")
+                            or {}, ensure_ascii=False)]
+    assert quoted, "no carrier quotes its composite any more"
+    for name in quoted:
+        honest = SHAPES[name]["result"]
+        forged = copy.deepcopy(honest)
+        forged["confidence"] = 0.123
+        with pytest.raises(VerificationError, match="prints"):
+            the_door_for(honest)(SHAPES[name]["program"], forged)
 
 
 def test_every_honest_answer_keeps_its_composite_at_the_door():
