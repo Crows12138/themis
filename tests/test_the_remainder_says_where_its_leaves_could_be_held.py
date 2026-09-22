@@ -726,13 +726,24 @@ def test_the_remainder_split_is_what_it_is():
     lead with the word saying that question was answered. Making the
     coarse reading finer is what its own module warns against; the join
     was already declared next door.
+
+    Forty-eighth use, thirteen leaves, and a block that described itself
+    as wholly re-derived. The sensitivity numbers a reader weighs a
+    finding against are closed forms of the fit's recorded statistics, and
+    the rule said it rebuilt all of them while it rebuilt seven of nine --
+    two had arrived beside a third after the sentence was written. So what
+    is read and what is rebuilt became two sets held against the
+    contract's own field list, and the totality stopped being a sentence.
+    The three the rule reads are one fact written three times, which is a
+    question worth asking of any recorded number: not whether it can be
+    recomputed, but whether it and its neighbours owe an identity.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
-        gate._ANSWER_OTHERWISE: 149,
+        gate._ANSWER_OTHERWISE: 145,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 364,
+        gate._NOTHING: 355,
         gate._EVERY_READING_MATCHES: 24,
     }
 

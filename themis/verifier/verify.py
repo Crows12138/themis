@@ -1176,7 +1176,24 @@ def verify_numeric_estimate(
 _OVB_TOL = 1e-6
 
 
-def verify_ovb_sensitivity(block: dict) -> None:
+#: What the block records and this rule reads rather than rebuilds.
+#: ``covariate``, ``kd``, ``ky`` and the two partial R²s are the
+#: benchmark's half of the same list.
+_OVB_RECORDED = frozenset({
+    "estimate", "se", "t_statistic", "dof", "q", "alpha"})
+_OVB_BENCHMARK_RECORDED = frozenset({
+    "covariate", "kd", "ky", "r2dxj_x", "r2yxj_dx"})
+
+#: What this rule rebuilds from those. ``benchmarks`` is the list itself,
+#: rebuilt in the sense that every entry of it is.
+_OVB_REBUILT = frozenset({
+    "partial_r2", "robustness_value_q", "robustness_value_qa", "benchmarks"})
+_OVB_BENCHMARK_REBUILT = frozenset({
+    "r2dz_x", "r2yz_dx", "valid", "adjusted_estimate", "adjusted_se",
+    "adjusted_t"})
+
+
+def verify_ovb_sensitivity(block: dict, adjustment=None) -> None:
     """Independently re-derive a Cinelli-Hazlett OVB sensitivity block and
     reject on mismatch.
 
@@ -1190,6 +1207,38 @@ def verify_ovb_sensitivity(block: dict) -> None:
     genuine re-derivation: it catches tampering, serialization corruption,
     and any internal inconsistency between the raw statistics and the
     reported robustness value / partial R² / bounds.
+
+    THAT PARAGRAPH SAID EVERY NUMBER AND THE CODE REBUILT SEVEN OF NINE.
+    It was true of what it listed. ``adjusted_se`` and ``adjusted_t``
+    arrived beside ``adjusted_estimate`` afterwards and the loop stopped
+    at the one it already had, and a claim of totality kept in a docstring
+    cannot notice — the same defect this package met at
+    :func:`verify_proximal_estimand`. Sixteen declared leaves sat under
+    this block, every one a number the sentence covered and nothing asked
+    about, and a reader acts on exactly these: a forged ``adjusted_se``
+    makes a finding a benchmark confounder would overturn look like one it
+    would not. So what is recorded and what is rebuilt are named above as
+    two sets and held against the schema's own field list by a test. A
+    field this block gains has to join one of them or that test fails,
+    which is the totality the sentence could only assert.
+
+    The recorded six are not independent. An OLS t-value IS the
+    coefficient over its standard error, so ``estimate``, ``se`` and
+    ``t_statistic`` are one fact written three times and what the block
+    owes is the identity, not the values — none of the three is a closed
+    form of anything else here, and together they are checkable. Held as
+    ``estimate == t * se`` rather than as a quotient because the
+    degenerate fit among the stored answers records ``se`` at 1e-17, where
+    a quotient compares two roundings and the identity does not.
+
+    ``adjustment`` is the covariate list the estimate around this block
+    records. Each benchmark answers "a confounder kd/ky times as strong as
+    THIS covariate", so which covariate it names is the whole of what it
+    is about; the producer refuses a benchmark outside the adjustment set
+    (:mod:`themis.estimation.sensitivity_ovb`), and this holds it to the
+    same thing from the other side. Not one benchmark per covariate: the
+    producer takes a subset when asked for one, and a covariate no
+    benchmark names is its caller's choice rather than a broken block.
     """
     import math
     from scipy.stats import t as _t_dist
@@ -1227,6 +1276,30 @@ def verify_ovb_sensitivity(block: dict) -> None:
     alpha = block["alpha"]
     est = block["estimate"]
     se = block["se"]
+
+    # The three of these that are one fact. Multiplied rather than divided,
+    # for the reason the docstring gives.
+    _close(t * se, est, "estimate = t_statistic * se")
+
+    if adjustment is not None:
+        named = [b.get("covariate") for b in block.get("benchmarks", [])]
+        stray = [c for c in named if c not in list(adjustment)]
+        if stray:
+            raise VerificationError(
+                f"ovb_sensitivity: benchmarks name {stray!r}, which this "
+                f"estimate does not adjust for; a benchmark is a claim "
+                f"about how strong a confounder would be BESIDE a covariate "
+                f"that was adjusted for, so one naming anything else is "
+                f"measured against nothing",
+                step_index=None, rule="ovb_sensitivity",
+            )
+        if len(set(named)) != len(named):
+            raise VerificationError(
+                f"ovb_sensitivity: benchmarks name {named!r}, and a "
+                f"covariate benchmarked twice is one covariate with two "
+                f"answers to the same question",
+                step_index=None, rule="ovb_sensitivity",
+            )
 
     _close(_partial_r2(t, dof), block["partial_r2"], "partial_r2")
     _close(_rv(t, dof, q, 1.0), block["robustness_value_q"], "robustness_value_q")
@@ -1274,6 +1347,38 @@ def verify_ovb_sensitivity(block: dict) -> None:
             bias = bf * se * math.sqrt(dof)
             adj = math.copysign(1.0, est) * (abs(est) - bias)
             _close(adj, b["adjusted_estimate"], f"benchmark[{cov}].adjusted_estimate")
+            # Cinelli-Hazlett's adjusted standard error, transcribed from
+            # the paper beside the bias above: the residual variance the
+            # confounder would leave, over the treatment variation it would
+            # take away, with the degree of freedom it would spend.
+            adj_se = (se * math.sqrt((1.0 - r2yz) / (1.0 - r2dz))
+                      * math.sqrt(dof / (dof - 1.0)))
+            _close(adj_se, b["adjusted_se"], f"benchmark[{cov}].adjusted_se")
+            # And the t of the adjusted pair, which is the identity the
+            # block's own triple is held to, one row down.
+            if adj_se > 0:
+                _close(adj / adj_se, b["adjusted_t"],
+                       f"benchmark[{cov}].adjusted_t")
+            elif b["adjusted_t"] is not None:
+                raise VerificationError(
+                    f"ovb_sensitivity.benchmark[{cov}]: adjusted_se is "
+                    f"{adj_se!r} and the block still reports an adjusted "
+                    f"t of {b['adjusted_t']!r}",
+                    step_index=None, rule="ovb_sensitivity",
+                )
+        else:
+            # A bound that is defined but out of range buys no adjusted
+            # numbers, and the block says so by leaving all three empty.
+            # Without this the only field the verdict moved was the verdict.
+            filled = [k for k in ("adjusted_estimate", "adjusted_se",
+                                  "adjusted_t") if b.get(k) is not None]
+            if filled:
+                raise VerificationError(
+                    f"ovb_sensitivity.benchmark[{cov}]: the bound is out of "
+                    f"range so this covariate benchmarks nothing, and the "
+                    f"block still reports {filled!r}",
+                    step_index=None, rule="ovb_sensitivity",
+                )
 
 
 _EVALUE_TOL = 1e-6

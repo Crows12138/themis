@@ -497,8 +497,14 @@ _ENVELOPE_SURFACE_AUDITS = audits.bind_rerun({
 def _audit_ovb_sensitivity(estimate: dict) -> None:
     """The OVB rule is handed the block; every other one is handed the
     estimate around it. Adapted here so the table below can be read as one
-    kind of row."""
-    verify_ovb_sensitivity(estimate["ovb_sensitivity"])
+    kind of row.
+
+    The covariate list goes with it. A benchmark says how strong a
+    confounder would have to be BESIDE one covariate, so the covariate it
+    names is what the number is about, and the only writing of that list
+    is out here on the estimate."""
+    verify_ovb_sensitivity(
+        estimate["ovb_sensitivity"], estimate.get("adjustment"))
 
 
 @dataclass(frozen=True)

@@ -8,9 +8,6 @@
  "backdoor_linear": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate",
   "outcome_error.sufficient_statistics.n"
  ],
  "backdoor_logistic": [
@@ -517,9 +514,7 @@
   "estimator_fallback.reason.said.treatment",
   "estimator_fallback.to",
   "numeric_estimate.outcome_saturation.p_max",
-  "numeric_estimate.outcome_saturation.p_min",
-  "numeric_estimate.ovb_sensitivity.estimate",
-  "numeric_estimate.ovb_sensitivity.se"
+  "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#292d9a": [
   "estimation_context.ci_bootstrap",
@@ -528,10 +523,7 @@
   "numeric_estimate.outcome_saturation.p_min",
   "numeric_estimate.ovb_sensitivity.alpha",
   "numeric_estimate.ovb_sensitivity.dof",
-  "numeric_estimate.ovb_sensitivity.estimate",
-  "numeric_estimate.ovb_sensitivity.q",
-  "numeric_estimate.ovb_sensitivity.se",
-  "numeric_estimate.ovb_sensitivity.t_statistic"
+  "numeric_estimate.ovb_sensitivity.q"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#2ec0e3": [
   "bounds_results.[].ci_lower",
@@ -543,9 +535,7 @@
   "estimation_context.data_contract_warnings.[].token",
   "estimation_context.random_state",
   "numeric_estimate.outcome_saturation.p_max",
-  "numeric_estimate.outcome_saturation.p_min",
-  "numeric_estimate.ovb_sensitivity.estimate",
-  "numeric_estimate.ovb_sensitivity.se"
+  "numeric_estimate.outcome_saturation.p_min"
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#428cc2": [
   "estimation_context.ci_bootstrap",
@@ -564,10 +554,7 @@
  ],
  "numerically_solved:effect:numeric_backdoor_estimate#958dab": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_se",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].adjusted_t",
-  "numeric_estimate.ovb_sensitivity.benchmarks.[].covariate"
+  "estimation_context.random_state"
  ],
  "numerically_solved:effect:numeric_general_id_estimate": [
   "estimation_context.ci_bootstrap",

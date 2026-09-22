@@ -90,7 +90,16 @@ def test_an_e_value_is_re_derived_wherever_the_block_appears(
 
 
 @pytest.mark.parametrize("shape", OVB)
-@pytest.mark.parametrize("field", ["robustness_value_q", "partial_r2"])
+@pytest.mark.parametrize("field", [
+    "robustness_value_q", "partial_r2",
+    # The recorded three. None of them is a closed form of anything else
+    # in the block, so what refuses these is the identity between them --
+    # a t-value IS the coefficient over its standard error. Listed here
+    # rather than only where that identity was added, because this file's
+    # subject is which SHAPES a re-derivation reaches, and the answer has
+    # to stay the same for every field the block is held on.
+    "estimate", "se", "t_statistic",
+])
 def test_an_omitted_variable_bound_is_re_derived_wherever_it_appears(
         shape, field):
     pair = SHAPES[shape]
