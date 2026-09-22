@@ -878,11 +878,9 @@
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "structurally_solved:identify:identify_via_iv": [
-  "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count"
  ],
  "structurally_solved:identify:identify_via_iv#2b4cbe": [
-  "extensions.identification.pattern",
   "extensions.iv_identification.alternatives_count"
  ],
  "structurally_solved:proximal_effect:proximal_criterion": [

@@ -1477,6 +1477,90 @@ def _rule_vector_iv_criterion_check(
         )
 
 
+def _joint_treatments_of(query) -> frozenset:
+    """The treatment SET a JOINT question intervenes on; empty when the
+    question intervenes on one thing.
+
+    Read from the QUERY, never from a producer input, so a producer cannot
+    drop a treatment to make a harder joint effect look identifiable.
+    ``extra_interventions`` is an EffectQuery field and that query always
+    carries the primary ``intervention`` beside it, so the set is complete
+    exactly when the extras are.
+    """
+    intervention = getattr(query, "intervention", None)
+    if intervention is None:
+        return frozenset()
+    extras = getattr(query, "extra_interventions", None)
+    if not extras:
+        return frozenset()
+    return frozenset({intervention.atom, *(iv.atom for iv in extras)})
+
+
+def general_id_identifies(graph, bidirected, x, y, query) -> bool:
+    """Does the general ID algorithm identify the effect THIS question asks?
+
+    Which engine answers is a fact about the question's shape:
+
+    - ``P(Y | do(X))`` — the Tian-Shpitser c-factor algorithm.
+    - ``P(Y | do(X), Z)`` — Shpitser-Pearl IDC (the Rule-2 exchange plus the
+      ratio normalization). IDC is the load-bearing one: the unconditional
+      criterion can succeed where the conditional one FAILS, so a reading
+      that asked Tian about a conditional question would pass claims IDC
+      refuses. The conditioning is read from the QUERY, never from a
+      producer input, so it cannot be narrowed to dodge the stricter check.
+    - ``P(Y | do(A, B, ...))`` — the set-valued algorithm on the query's own
+      treatment set. A conditional JOINT effect is out of v1 scope: there is
+      no supported estimand, so nothing identifies it and the answer is
+      False rather than a call.
+
+    One transcription, two callers, for the reason :func:`iv_criterion_holds`
+    gives. The claim reaches a reader at two removes from the derivation
+    that established it: ``_rule_general_id_criterion`` audits the step
+    claiming identifiability, and
+    :func:`themis.verifier.verify.verify_identification_pattern` audits the
+    word ``c_factor`` in the block a reader is shown. Those are different
+    objects holding one fact, and a second transcription of the routing
+    would be one more place for them to disagree -- the more so because the
+    routing is where the question's own shape enters, and a block says
+    nothing about which shape produced it.
+
+    It re-runs the ID engine rather than reimplementing it; the deep,
+    fully-independent c-factor / IDC replay lives in
+    ``_rule_identify_via_tian`` / ``_rule_identify_via_idc`` on the
+    identify-query path.
+    """
+    from ..runtime import c_factor
+
+    intervention = getattr(query, "intervention", None)
+    # Identifiability is independent of the intervention value; use the
+    # query's value when available, else a boolean placeholder.
+    x_value = True if intervention is None else intervention.value
+    given = getattr(query, "given", None)
+    # An effect question holds values beside its conditioning and an
+    # identify question holds bare atoms. Both shapes reach here now that
+    # the block a reader is shown is audited against this routing too, and
+    # only one of them did while the step rule was the sole caller.
+    given_atoms = tuple(getattr(g, "atom", g) for g in given) if given else ()
+    treatments = _joint_treatments_of(query)
+
+    def identified(res) -> bool:
+        # An estimand, not a verdict: the three engines each report the
+        # word and the formula separately, and a run that says yes without
+        # one has licensed nothing.
+        return bool(res.identifiable and res.formula is not None)
+
+    if treatments and given_atoms:
+        return False
+    if treatments:
+        return identified(c_factor.identify_via_tian_joint(
+            graph, bidirected, dict.fromkeys(treatments, x_value), y))
+    if given_atoms:
+        return identified(c_factor.identify_via_idc(
+            graph, bidirected, x, y, given_atoms, x_value))
+    return identified(
+        c_factor.identify_via_tian(graph, bidirected, x, y, x_value))
+
+
 def _rule_general_id_criterion(
     ctx: VerificationContext,
     inputs: Mapping,
@@ -1487,43 +1571,27 @@ def _rule_general_id_criterion(
     (Tian–Shpitser c-factor) algorithm on this ADMG — the structural
     licence for a general-ID plug-in numeric estimate.
 
-    Routes on the query's conditioning, so it licenses BOTH data-path
-    plug-ins:
+    Confirms the engine the question routes to reports ``identifiable``
+    with a well-formed formula. This is the safety-critical check: a number
+    is produced ONLY for a genuinely identified effect, never for a hedge.
+    WHICH engine that is belongs to the question rather than to this step,
+    and is held once in :func:`general_id_identifies`, which the block a
+    reader is shown is audited against as well.
 
-    - Unconditional ``P(Y | do(X))`` — re-executes
-      ``c_factor.identify_via_tian``.
-    - Conditional ``P(Y | do(X), Z)`` — re-executes
-      ``c_factor.identify_via_idc`` (Shpitser–Pearl IDC: the Rule-2
-      exchange + ratio normalization). IDC is the load-bearing licence
-      here: the unconditional Tian criterion can succeed where the
-      conditional IDC one FAILS, so a conditional estimate must clear the
-      stricter IDC check. The conditioning set is read from the QUERY
-      (ctx.query.given), not from a producer input — a producer cannot
-      under-report ``given`` to dodge the IDC licence.
-    - Joint ``P(Y | do(A, B, …))`` — re-executes
-      ``c_factor.identify_via_tian_joint`` on the treatment SET read from
-      the QUERY (intervention ∪ extra_interventions). The set is taken from
-      ctx.query, never a producer input, so a producer cannot drop a
-      treatment to make a harder joint effect look identifiable. v1 joint
-      general-ID is unconditional only: a conditioning set on a joint query
-      recomputes False (no supported estimand).
+    The half that IS about this step is its declared x, held to the
+    treatment set the QUERY intervenes on: a producer that dropped a
+    treatment would otherwise have a harder joint effect licensed by an
+    easier one. A conditional joint question is out of v1 scope and
+    recomputes False whatever x says, so the step is refused there on the
+    verdict rather than on its inputs.
 
-    Confirms the routed engine reports ``identifiable`` with a well-formed
-    formula. This is the safety-critical check: a number is produced ONLY
-    for a genuinely identified effect, never for a hedge.
-
-    It re-runs the ID engine rather than reimplementing it — the deep,
-    fully-independent c-factor / IDC replay lives in ``_rule_identify_via_tian``
-    / ``_rule_identify_via_idc`` on the identify-query path. Here the relaxed
-    numeric audit confirms identifiability, matching the cost trade-off the
-    other numeric rules make (verify_numeric_estimate: numerical reproduction
-    is prohibitively expensive for a verifier pass).
+    Here the relaxed numeric audit confirms identifiability, matching the
+    cost trade-off the other numeric rules make (verify_numeric_estimate:
+    numerical reproduction is prohibitively expensive for a verifier pass).
 
     inputs: graph, x, y
     output: bool
     """
-    from ..runtime import c_factor
-
     graph = _require(inputs, "graph", step_index, "general_id_criterion")
     _assert_same_graph(graph, ctx.graph, step_index, "general_id_criterion")
     x = _require_atom(inputs, "x", step_index, "general_id_criterion")
@@ -1535,57 +1603,16 @@ def _rule_general_id_criterion(
             step_index=step_index, rule="general_id_criterion",
         )
 
-    bidir = ctx.bidirected
-    # Identifiability is independent of the intervention value; use the
-    # query's value when available, else a boolean placeholder.
-    x_value = True
-    given_atoms: tuple = ()
-    # The joint treatment SET is read from the QUERY (never a producer input),
-    # so a producer cannot drop a treatment to make a harder joint effect look
-    # identifiable. ``extra_interventions`` is an EffectQuery field, and that
-    # query always carries the primary ``intervention`` beside it, so the set
-    # is complete exactly when the extras are.
-    joint_treatments: frozenset = frozenset()
-    intervention = getattr(ctx.query, "intervention", None)
-    if intervention is not None:
-        x_value = intervention.value
-        extras = getattr(ctx.query, "extra_interventions", None)
-        if extras:
-            joint_treatments = frozenset(
-                {intervention.atom, *(iv.atom for iv in extras)}
-            )
-    given = getattr(ctx.query, "given", None)
-    if given:
-        given_atoms = tuple(g.atom for g in given)
+    treatments = _joint_treatments_of(ctx.query)
+    if (treatments and not getattr(ctx.query, "given", None)
+            and x not in treatments):
+        raise RuleCheckFailed(
+            "general_id_criterion: joint criterion's x must be one of the "
+            "query's joint treatments",
+            step_index=step_index, rule="general_id_criterion",
+        )
 
-    if joint_treatments and given_atoms:
-        # Conditional JOINT effect P(Y | do(A, B, …), Z): out of v1 scope —
-        # there is no supported estimand, so no derivation can ever license a
-        # number here. Recompute False so a tampered "identifiable" claim on
-        # a conditional joint query is rejected.
-        recomputed = False
-    elif joint_treatments:
-        # Joint intervention do(X, extras…) → set-valued Shpitser-Pearl ID.
-        # The declared primary x must be one of the query's joint treatments.
-        if x not in joint_treatments:
-            raise RuleCheckFailed(
-                "general_id_criterion: joint criterion's x must be one of the "
-                "query's joint treatments",
-                step_index=step_index, rule="general_id_criterion",
-            )
-        joint_res = c_factor.identify_via_tian_joint(
-            graph, bidir, dict.fromkeys(joint_treatments, x_value), y)
-        recomputed = bool(joint_res.identifiable and joint_res.formula is not None)
-    elif given_atoms:
-        # Conditional query → IDC licence (see docstring). Read the
-        # conditioning from the query itself, so the check is against the
-        # real P(Y | do(X), Z) — never a producer-narrowed one.
-        idc_res = c_factor.identify_via_idc(
-            graph, bidir, x, y, given_atoms, x_value)
-        recomputed = bool(idc_res.identifiable and idc_res.formula is not None)
-    else:
-        tian_res = c_factor.identify_via_tian(graph, bidir, x, y, x_value)
-        recomputed = bool(tian_res.identifiable and tian_res.formula is not None)
+    recomputed = general_id_identifies(graph, ctx.bidirected, x, y, ctx.query)
     if recomputed != bool(claimed_output):
         raise RuleCheckFailed(
             f"general_id_criterion claimed {claimed_output!r}, but the ID "

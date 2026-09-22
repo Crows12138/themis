@@ -76,9 +76,11 @@ Public surface (re-exports from sub-modules):
   with the set it is valid given, or the ID algorithm's general solution.
   The named sets are re-derived to satisfy the criterion the pattern
   names, by edge deletion plus the verifier's own m-separation rather than
-  the producer's path enumeration; and the general solution is held to
-  being general, so a back door or a front door that was there to be named
-  and was not is rejected) /
+  the producer's path enumeration; and the general solution is held both
+  to SOLVING it — the ID algorithm re-run on the question the answer asks,
+  which is IDC's where that question conditions — and to being general, so
+  a back door or a front door that was there to be named and was not is
+  rejected) /
   ``verify_the_conditioning_a_question_asks_is_named`` (the other half of
   that block, which the criterion cannot supply: a question conditioning on
   Z is about some of the people, and a sentence naming the criterion and

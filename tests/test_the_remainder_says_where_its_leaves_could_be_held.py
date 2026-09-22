@@ -696,13 +696,23 @@ def test_the_remainder_split_is_what_it_is():
     block a range belongs to is a fact about the route; asking whether ANY
     block carries the pair refuses the same forgeries and needs no table,
     and the cost of not asking which is written down where it is paid.
+
+    Forty-fifth use, two leaves, and the label was the strongest thing this
+    system says. A pattern can fail by being too modest and by being too
+    strong, and only the first was asked: the general solution was searched
+    for the structure it says is absent, never for the solution it says is
+    there. An instrument's graph has neither a back door nor a front door,
+    so the searches agreed with a forgery. Which engine settles the claim
+    belongs to the question -- a conditional one is IDC's, and IDC can fail
+    where the unconditional criterion succeeds -- and nothing on the block
+    says which shape of question produced it.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 149,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 372,
+        gate._NOTHING: 370,
         gate._EVERY_READING_MATCHES: 24,
     }
 

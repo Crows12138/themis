@@ -5205,12 +5205,16 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     path enumeration with a first-edge filter, and it uses the verifier's
     own m-separation rather than the runtime's.
 
-    A pattern can also fail by being too modest, and that failure is the
-    one this block was fixed for: ``c_factor`` claimed where a back door
-    or a front door was there to be named leaves a reader told nothing
-    when something could have been said. So the general solution is the
-    only label whose ABSENCE of structure is searched for rather than
-    taken on the producer's word.
+    A pattern can fail in two directions, and the general solution is the
+    label where both are asked. Too modest: ``c_factor`` claimed where a
+    back door or a front door was there to be named leaves a reader told
+    nothing when something could have been said, so the absence of that
+    structure is searched for rather than taken on the producer's word.
+    Too strong: it is the strongest identification claim this system
+    makes, and while only the searches were run, an effect an INSTRUMENT
+    identified could wear the label — an IV graph has neither a back door
+    nor a front door for a search to find, so both searches came back
+    empty and agreed. Solving it is now asked of the ID algorithm itself.
 
     The two front-door keys answer different questions and both are
     checked against the graph. ``covariate_set`` is what the criterion
@@ -5238,6 +5242,7 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
         _verifier_directed_descendants,
         _verifier_is_m_connected,
         _verifier_nodes_by_label,
+        general_id_identifies,
         iv_criterion_holds,
     )
 
@@ -5365,9 +5370,28 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     if pattern != "c_factor":
         _err(f"unknown pattern {pattern!r}")
 
-    # The general solution, claimed. Search for the structure it says is
-    # not there. Both searches are over subsets, the same shape of work
-    # the producer does, because the claim being checked is a negative.
+    # The general solution, claimed. Two things are owed and they are
+    # different questions: that it SOLVES this effect, and that nothing
+    # simpler would have. The positive half is asked first because it is
+    # the cheap one — the searches below are over subsets — and because
+    # neither of them can fire where it fails: a valid back-door set or a
+    # front door would identify the effect, so a graph on which the ID
+    # algorithm gives up has neither to find.
+    #
+    # Which engine answers is the question's fact, not this block's: a
+    # conditional question is IDC's and can fail where the unconditional
+    # criterion succeeds. The routing is read from the same transcription
+    # the derivation's own licence uses.
+    if not general_id_identifies(graph, bidir, x, y, query):
+        asked = (
+            f"P({y.predicate} | do({x.predicate}), "
+            f"{sorted(n.predicate for n in given)})" if given
+            else f"P({y.predicate} | do({x.predicate}))")
+        _err(f"claims the general solution while the ID algorithm does not "
+             f"identify {asked} on this graph")
+
+    # Then the negative half. Both searches are over subsets, the same
+    # shape of work the producer does, because that claim is a negative.
     from itertools import combinations
 
     descendants_x = _verifier_directed_descendants(graph, x)
