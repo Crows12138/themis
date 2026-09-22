@@ -38,9 +38,7 @@
  ],
  "counterfactual_cell_plugin": [
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_result.interval.high",
-  "numeric_result.interval.low"
+  "estimation_context.random_state"
  ],
  "ctf_conjunction_plugin": [
   "estimation_context.ci_bootstrap",
@@ -456,22 +454,17 @@
  ],
  "numerically_solved:causation:numeric_causation_estimate#6f97c5": [
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
-  "estimation_context.random_state",
-  "numeric_result.value"
+  "estimation_context.random_state"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate": [
   "derivation.steps.[].inputs.instrument_levels.items.[]",
-  "estimation_context.random_state",
-  "numeric_result.interval.high",
-  "numeric_result.interval.low"
+  "estimation_context.random_state"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#365c81": [
-  "estimation_context.random_state",
-  "numeric_result.value"
+  "estimation_context.random_state"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate#b627d2": [
-  "estimation_context.random_state",
-  "numeric_result.value"
+  "estimation_context.random_state"
  ],
  "numerically_solved:effect:identify_via_transport": [
   "estimation_context.random_state"

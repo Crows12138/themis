@@ -685,11 +685,22 @@ def test_the_remainder_split_is_what_it_is():
     an ambiguity is not a disagreement. What was missing is a reading that
     does not go through the record at all, and the roster naming these two
     pairs was already written -- read until now by the renderers alone.
+
+    Forty-fourth use, seven leaves, and the question was whose copy this
+    is. The slot a reader who reads no blocks takes the answer from records
+    nothing: the estimate is already on the envelope, so every number in it
+    is a second writing of a number beside it. The rule holding envelope
+    numbers to the derivation record reads the blocks a run writes its
+    numbers INTO, which this slot is not one of, and its field names would
+    not reach a record anyway. What it restates is the envelope. Which
+    block a range belongs to is a fact about the route; asking whether ANY
+    block carries the pair refuses the same forgeries and needs no table,
+    and the cost of not asking which is written down where it is paid.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
-        gate._ANSWER_OTHERWISE: 156,
+        gate._ANSWER_OTHERWISE: 149,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 372,
         gate._EVERY_READING_MATCHES: 24,

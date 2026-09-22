@@ -527,6 +527,17 @@ Public surface (re-exports from sub-modules):
   slots get a row is NOT held: for an edge that is the data-gap
   classifier's reading of what the answer rests on, and re-deriving it
   would hand that reading back to itself)
+- The generic answer slot, against the block it restates:
+  ``verify_the_generic_slot_restates_the_answer`` (``numeric_result`` is
+  where a reader who does not read blocks finds the answer, so every
+  number in it is the second writing of a number already on the envelope.
+  The rule holding envelope numbers to the derivation record reads
+  ``numeric_estimate`` and ``extensions``, which this slot is neither of,
+  and its field names would not reach a record anyway — ``value`` against
+  a step's ``point``. What it restates is the envelope beside it: a value
+  is the headline point, and a range is the range of one of the estimate's
+  own blocks. WHICH block is a fact about the route; asking whether any of
+  them carries the pair refuses the same forgeries without a route table)
 - Which of two objects a run-decided pair of endpoints is:
   ``verify_which_object_a_run_decided_pair_is`` (two pairs on this
   envelope are not one kind by virtue of where they sit — a probability of
@@ -977,6 +988,9 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .answer_slot_rules import (
+    verify_the_generic_slot_restates_the_answer,
+)
 from .interval_kind_rules import (
     verify_which_object_a_run_decided_pair_is,
 )
@@ -1059,6 +1073,7 @@ __all__ = [
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",
     "verify_confidence_level",
+    "verify_the_generic_slot_restates_the_answer",
     "verify_which_object_a_run_decided_pair_is",
     "verify_the_composite_is_its_weakest_source",
     "verify_the_names_beside_each_confidence",

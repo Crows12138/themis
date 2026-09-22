@@ -150,6 +150,7 @@ from .verifier import (
     verify_statements_carry_their_facts,
     verify_statements_repeat_what_decided_them,
     verify_confidence_level,
+    verify_the_generic_slot_restates_the_answer,
     verify_which_object_a_run_decided_pair_is,
     verify_the_composite_is_its_weakest_source,
     verify_the_names_beside_each_confidence,
@@ -2290,6 +2291,11 @@ def _hold_what_the_estimate_calls_for(
     # reaches one of the two and declines the other three leaves, because
     # one name answers three times there.
     verify_which_object_a_run_decided_pair_is(result)
+    # And the slot a reader who reads no blocks takes the answer from,
+    # which is the same number written a second time. Held to the estimate
+    # rather than to the record: the copy rule's subjects are the blocks a
+    # run writes its numbers into, and this one is a restatement of those.
+    verify_the_generic_slot_restates_the_answer(result)
     # The other number that word names, and the one a reader takes as how
     # far to trust the answer at all. It is the minimum across the slots
     # the answer rests on and the list of those slots is beside it, so the
