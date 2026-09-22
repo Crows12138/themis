@@ -20,7 +20,6 @@
   "numeric_estimate.outcome_saturation.p_min"
  ],
  "causation_plugin": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
@@ -182,7 +181,6 @@
   "estimation_context.random_state"
  ],
  "needs_investigation:causation:none": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
@@ -190,25 +188,9 @@
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject"
  ],
- "needs_investigation:causation:none#4f0014": [
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.expression",
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.lower",
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.quantity",
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.upper",
-  "data_gap_report.gaps.[].describes.[].words.why.words.detail.[].said.value"
- ],
  "needs_investigation:counterfactual:none#308829": [
   "estimator_failure.recorded.intervention",
   "estimator_failure.recorded.interventional_risk"
- ],
- "needs_investigation:counterfactual:none#3e4e9e": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.arm",
-  "data_gap_report.gaps.[].describes.[].words.why.said.note"
- ],
- "needs_investigation:counterfactual:none#7e6ebf": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.arm",
-  "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.level_index",
-  "data_gap_report.gaps.[].describes.[].words.why.words.note.words.refusal.said.statistic"
  ],
  "needs_investigation:effect:none": [
   "bounds_results.[].ci_lower",
@@ -266,9 +248,6 @@
  "needs_investigation:effect:none#1df86c": [
   "extensions.missing_data_recovery.search_budget"
  ],
- "needs_investigation:effect:none#28ee90": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.detail"
- ],
  "needs_investigation:effect:none#2dff45": [
   "extensions.missing_data_recovery.search_budget"
  ],
@@ -325,7 +304,6 @@
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#6d8fe1": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.time",
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state"
@@ -359,9 +337,6 @@
   "estimator_failure.remedies.[].remedy",
   "estimator_failure.remedies.[].subject",
   "estimator_failure.remedies.[].subject@remedy=use_method"
- ],
- "needs_investigation:effect:none#a58bcc": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.total"
  ],
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].ci_lower",
@@ -424,12 +399,10 @@
   "estimation_context.sample_size"
  ],
  "numerically_solved:causation:numeric_causation_estimate": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
  "numerically_solved:causation:numeric_causation_estimate#6f97c5": [
-  "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.random_state"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate": [

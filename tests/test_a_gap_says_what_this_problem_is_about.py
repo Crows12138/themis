@@ -535,6 +535,15 @@ def test_the_remainder_is_counted_rather_than_described():
     needs, a set having one question in it. The set is a mapping now, and
     a forgery in one of them names a procedure this question's own
     reading does not.
+
+    And 22 more once the reason a gap gives for itself is held to the ask
+    it cites. Those were not a roster short of a column or a sentence
+    nobody re-derived: the second writing was in the other document all
+    along, under the same field names, and what no reading of values
+    could supply was WHICH of the ask's statements a gap answers to --
+    one ask can file one need for five coefficients at once. The gap's
+    own citation says which, and the audit that resolves it kept only
+    whether it landed.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -549,7 +558,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2401, 47), (refused, accepted)
+    assert (refused, accepted) == (2423, 25), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

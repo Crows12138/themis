@@ -157,6 +157,7 @@ from .verifier import (
     verify_the_names_beside_each_confidence,
     verify_envelope_arithmetic,
     verify_gap_names,
+    verify_a_gap_says_what_its_request_says,
     verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
@@ -1885,14 +1886,28 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # two above: what a block says is a fact about the answer.
     verify_mechanism_target(result, ctx)
 
-    # What the reader is told to go and supply. The two rules that touch
-    # investigation_requests use it as a denominator — gap provenance
+    # What the reader is told to go and supply. Two rules used to touch
+    # investigation_requests as a denominator only — gap provenance
     # resolves against its targets, and each item must be cited — so
-    # nothing ever read an item, and the second turn takes its skeleton
+    # nothing read an item, and the second turn takes its skeleton
     # verbatim as the patch. Takes the PROGRAM rather than the context:
     # the patch's fields are answerable only against what the program
     # declares, which is the one side an answer cannot edit.
     verify_investigation_items(result, prog)
+
+    # And the reason a gap gives for ITSELF, against the ask it points at.
+    # T10-1 resolves that ref and so knows which request; T10-8 knows which
+    # sentences the species allows. What the sentence says sat between
+    # them with one author, and every hole of it could be changed with no
+    # door refusing. Result-only: both documents are on the envelope.
+    #
+    # After the ask's own audit, not before. This compares two documents
+    # and cannot tell which of them moved, so run first it answers a
+    # malformed ask with "these two disagree" — true, and the wrong thing
+    # to hand a reader who has a broken ask. Each document is held to
+    # itself first, and what is left for this one is the disagreement
+    # between two documents that are each all right on their own.
+    verify_a_gap_says_what_its_request_says(result)
 
     # Every ROUTE block, re-derived. The family is the repo's own name for
     # the blocks that say where a number came from, and the binding is what

@@ -146,6 +146,20 @@ def _first_item(result, group):
     raise AssertionError(f"no {group} item")
 
 
+def _the_gaps_reason(result):
+    """The reason the gap filed from this ask shows for itself.
+
+    A third copy of one sentence, and the one that was missed: the two
+    above are both on the ask, and this is on the report.
+    """
+    for gap in (result.get("data_gap_report") or {}).get("gaps") or ():
+        for described in gap.get("describes") or ():
+            words = described.get("words")
+            if isinstance(words, dict) and isinstance(words.get("why"), dict):
+                return words["why"]
+    raise AssertionError("no gap here shows a reason")
+
+
 def _verify_with(method, mutate):
     program, result = _pair(method)
     mutate(result)
@@ -440,18 +454,23 @@ def test_a_note_may_honestly_be_empty_and_is_not_read():
     answer. Prose is declared, not asked — the same line drawn one
     frontier earlier for a gap's ``note``.
 
-    Rewritten in both places the answer writes it. The request over this
-    one ask carries the ask's species and occasion as its own note, and
-    two copies that disagree are a different claim from what either says.
+    Rewritten in all THREE places the answer writes it. The request over
+    this one ask carries the ask's species and occasion as its own note,
+    and the gap filed from that ask shows the same sentence as its reason
+    — this said "both places" until the third was held, and the rewrite
+    that missed it was refused, which is the rule under test working.
+    Copies that disagree are a different claim from what any of them says.
     """
     result = SHAPES["causation_plugin"]["result"]
     request, item = _first_item(result, "assumption")
     assert item["said"] == {"note": ""}
     assert request["note"]["said"] == {"note": ""}
+    assert _the_gaps_reason(result)["said"] == {"note": ""}
 
     def rewrite(r):
         request, item = _first_item(r, "assumption")
-        for said in (item["said"], request["note"]["said"]):
+        for said in (item["said"], request["note"]["said"],
+                     _the_gaps_reason(r)["said"]):
             said.update(note="anything at all")
 
     _verify_with("causation_plugin", rewrite)

@@ -856,9 +856,27 @@ def test_the_remainder_split_is_what_it_is():
     nothing to match. The first heading answers a rule's reach as readily
     as it answers a missing writing, and nothing in the file says which of
     the two a leaf is waiting on.
+
+    Fifty-seventh use, seventeen leaves, all of them out of the first
+    heading, and the heading was right about where and could not have been
+    right about which. A gap that came of an investigation request shows
+    the reader a reason for itself, and the request states the same
+    reason: the holes are spelt alike on both sides, which is what files
+    these here. But the word above them is not -- the gap calls it
+    ``token`` and the ask calls it ``need`` -- so no reading of values
+    reaches the pairing, and worse, values alone would reach the wrong
+    one. An ask can be a single need filed for five things at once, five
+    coefficients of one structural model, and five statements then carry
+    the same word with different holes. What says which of them a gap
+    answers to is the citation the gap already makes, and the audit that
+    resolves that citation kept only whether it landed. So the
+    correspondence is written from the ref rather than found from the
+    values, and it is as strict as the ref is precise: an id naming one
+    item holds the gap to that item, an id naming the whole ask holds it
+    to carrying one of them.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 50,
+        gate._ANSWER_ALIKE: 33,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 133,
         gate._PROGRAM_OTHERWISE: 3,

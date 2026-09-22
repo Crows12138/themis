@@ -46,6 +46,12 @@ Seven rules audit a generated DataGapReport for honesty:
   about itself must be one its species declares. The field a reader reads
   first was typed at 78 sites out of a vocabulary of 88 and declared
   nowhere; a species says between one and ten of them.
+- **T10-9 ``data_gap_reason_check``** — the reason a gap shows for itself
+  must be the one the investigation request it cites gives. T10-1 knows
+  WHICH request, T10-8 knows which sentences are allowed; what the
+  sentence says sat between them with one author. The two documents spell
+  the word differently — ``token`` here and ``need`` there — which is why
+  no reading of values ever paired them.
 
 **Independence pin:** This module MUST NOT import from
 ``themis.output.data_gap_report`` or any generator-side module. The audit
@@ -683,6 +689,169 @@ _EDGE_SITES: dict[str, tuple[str, str, str]] = {
 #: for this module's independence pin — ``orientation_ledger_rules`` reads
 #: the same marker the same way.
 _LEARNED_BY = "discovery:"
+
+
+#: The ref kind whose artifact carries a statement worth reading back.
+_REQUEST_REF = "investigation_request"
+
+#: T10-9's own name, so a refusal says which question failed.
+_REASON_RULE = "data_gap_reason_check"
+
+
+def _the_statements_a_request_carries(requests: object) -> dict:
+    """Which statements answer to each target a ref can cite.
+
+    T10-1 gathers the same ids into a flat set and asks only whether a ref
+    lands in it. That answers whether the artifact a gap cites is there,
+    and throws away WHICH one it was -- the half this needs.
+
+    An id is either an item's or a request's, and the difference is the
+    whole precision of the question. An item's target names ONE statement,
+    so a gap citing it is held to that statement and no other. A request's
+    target names the ask as a whole -- its own note, and the items it is
+    made of -- so a gap citing it is held to carrying one of them.
+
+    Measured, reading the first as the second: a gap citing one
+    coefficient of a five-coefficient request was compared against the
+    four siblings too, which carry the same need with other holes, and two
+    honest answers were refused. A citation read as vaguer than it is
+    makes the rule stricter than the truth.
+    """
+    out: dict = {}
+    if not isinstance(requests, list):
+        return out
+    for request in requests:
+        if not isinstance(request, Mapping):
+            continue
+        items = [i for i in (request.get("items") or ())
+                 if isinstance(i, Mapping)]
+        for item in items:
+            target = item.get("target")
+            if isinstance(target, str):
+                out.setdefault(target, []).append(item)
+        whole = list(items)
+        note = request.get("note")
+        if isinstance(note, Mapping):
+            whole.append(note)
+        target = request.get("target")
+        if isinstance(target, str):
+            out.setdefault(target, []).extend(whole)
+    return out
+
+
+def verify_a_gap_says_what_its_request_says(result: object) -> None:
+    """T10-9: the reason a gap shows is the one the request it cites gives.
+
+    A gap that came of an investigation request shows the reader a reason
+    for itself, and the request that asked for the same thing states the
+    same reason: one sentence, written into two documents by one run. The
+    two spell it differently -- the gap calls the word ``token`` and the
+    request calls it ``need`` -- which is the whole of why no comparison
+    of values ever paired them, and why this is written as a
+    correspondence rather than found by a reading.
+
+    Nothing had asked. T10-1 resolves the ref and so knows which request
+    a gap is about; T10-8 holds which sentences a gap's species may make.
+    Between them sits what the sentence SAYS, and on the stored answers
+    every hole of it could be changed with no door refusing: the level a
+    test was run at, the arm a stratum is missing, the bounds a quantity
+    was given. A reader who reads the gap and a reader who reads the
+    request are entitled to read one thing.
+
+    The comparison is of the statement and not of its top holes alone. A
+    reason with a detail under it is one statement, and holding only the
+    holes leaves the detail with a single author -- measured: five more
+    leaves of the stored answers, and they are the interval a quantity
+    was bounded to.
+
+    Silent where a gap cites no request, which is most of them: whether a
+    gap OWES a citation is T10-2's question, and a second author for it
+    would be two answers that disagree the first time either moves.
+    """
+    if not isinstance(result, Mapping):
+        return
+    report = result.get("data_gap_report")
+    if not isinstance(report, Mapping):
+        return
+    carried = _the_statements_a_request_carries(
+        result.get("investigation_requests"))
+    if not carried:
+        return
+
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, Mapping):
+            continue
+        cited: list = []
+        for ref in gap.get("provenance") or ():
+            if (isinstance(ref, Mapping)
+                    and ref.get("ref_kind") == _REQUEST_REF):
+                cited.extend(carried.get(ref.get("ref_id"), ()))
+        if not cited:
+            continue
+        for described in gap.get("describes") or ():
+            if not isinstance(described, Mapping):
+                continue
+            words = described.get("words")
+            why = words.get("why") if isinstance(words, Mapping) else None
+            if not isinstance(why, Mapping):
+                continue
+            _hold_one_reason(gap, gap_index, why, cited)
+
+
+def _hold_one_reason(gap: Mapping, gap_index: int, why: Mapping,
+                     cited: list) -> None:
+    """One shown reason, against the statements the cited requests carry.
+
+    One of the statements has to be it, not all of them: an id that names
+    a whole request names every item in it, and a gap answers for the one
+    it was filed from. Where the id names a single item, "one of them" is
+    that one, and the question is as strict as the citation is precise.
+    """
+    token = why.get("token")
+    named = [s for s in cited if s.get("need") == token]
+    if any(s.get("said") == why.get("said")
+           and s.get("words") == why.get("words")
+           and ("gap" not in s or gap.get("kind") is None
+                or s["gap"] == gap.get("kind"))
+           for s in named):
+        return
+    answered = False
+    for statement in named:
+        answered = True
+        if statement.get("said") != why.get("said"):
+            raise VerificationError(
+                f"T10-9: gap[{gap_index}] shows {token!r} as its reason "
+                f"filled in with {why.get('said')!r}, and the investigation "
+                f"request it cites asks for the same thing saying "
+                f"{statement.get('said')!r}; one sentence went into both "
+                f"documents, so two readers reading different documents are "
+                f"entitled to read one thing",
+                step_index=None, rule=_REASON_RULE,
+            )
+        if why.get("words") != statement.get("words"):
+            raise VerificationError(
+                f"T10-9: gap[{gap_index}] shows {token!r} as its reason "
+                f"with {why.get('words')!r} beneath it, and the "
+                f"investigation request it cites carries "
+                f"{statement.get('words')!r}; what a reason says below its "
+                f"own holes is part of the same sentence",
+                step_index=None, rule=_REASON_RULE,
+            )
+        if ("gap" in statement and gap.get("kind") is not None
+                and statement["gap"] != gap.get("kind")):
+            raise VerificationError(
+                f"T10-9: gap[{gap_index}] is a {gap.get('kind')!r} and the "
+                f"investigation request it cites filed the same need as a "
+                f"{statement['gap']!r}",
+                step_index=None, rule=_REASON_RULE,
+            )
+    if not answered:
+        raise VerificationError(
+            f"T10-9: gap[{gap_index}] shows {token!r} as its reason and no "
+            f"investigation request it cites needs that; the gap and the "
+            f"ask it points at are about two different things",
+            step_index=None, rule=_REASON_RULE,
+        )
 
 
 def _the_statements_cited(program: Mapping, ref_id: str) -> list:

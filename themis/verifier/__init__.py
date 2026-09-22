@@ -745,6 +745,17 @@ Public surface (re-exports from sub-modules):
   saying it declares none, which are the same count read both ways. An
   unrecognised spelling is refused, or the hole comes back one spelling
   at a time)
+- And whether the reason a gap gives for ITSELF is the one the ask it
+  cites gives: ``verify_a_gap_says_what_its_request_says`` (T10-1 resolves
+  that ref, so which ask a gap is about was held; T10-8 holds which
+  sentences its species may make. What the sentence SAYS sat between them
+  with one author, and every hole of it moved with no door refusing — the
+  level a test ran at, the arm a stratum has none of, the bounds a
+  quantity was given. The two documents spell the word differently,
+  ``token`` here and ``need`` there, so the pairing is written from the
+  ref rather than found from the values; and it is as strict as the ref is
+  precise, because one ask can file one need for five coefficients at
+  once and values alone would pair a gap with the wrong sibling)
 - And whether what a gap says about the edge it cites is what that edge
   says: ``verify_gap_edge_statements`` (the site above is named after
   ``annotations.source`` and only that field's presence was asked; a
@@ -1054,6 +1065,7 @@ from .dose_response_routing_rules import (
     verify_where_a_dose_response_request_went,
 )
 from .data_gap_rules import (
+    verify_a_gap_says_what_its_request_says,
     verify_answer_tier,
     verify_collider_caveats_are_owed,
     verify_gap_edge_statements,
@@ -1138,6 +1150,7 @@ __all__ = [
     "verify_envelope_arithmetic",
     "verify_gap_names",
     "verify_gap_program_sites",
+    "verify_a_gap_says_what_its_request_says",
     "verify_gap_edge_statements",
     "verify_proposed_edges_are_disclosed",
     "verify_collider_caveats_are_owed",
