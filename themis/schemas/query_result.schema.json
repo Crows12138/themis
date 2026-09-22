@@ -189,7 +189,7 @@
             "search_budget": {
               "type": "integer",
               "minimum": 0,
-              "description": "The largest adjustment set the recoverability search looked at. A recoverable=false verdict is the claim 'no selection-backdoor admissible Z of this size or smaller exists', not 'none exists' — the quantifier is part of the verdict, and a reader given the verdict without it is given a stronger claim than the one that was checked. verify_selection_recovery reads it and re-searches to the same bound, so its independent re-derivation refutes THIS claim rather than one that merely happens to share a constant with it."
+              "description": "The bound this verdict is quantified over: the largest adjustment set the recoverability search was allowed to consider, recorded on every verdict including the ones no search ran for. It is that bound and not the largest set actually examined, which is smaller wherever the graph offers fewer candidates than the bound does room. A recoverable=false verdict is the claim 'no selection-backdoor admissible Z of this size or smaller exists', not 'none exists' — the quantifier is part of the verdict, and a reader given the verdict without it is given a stronger claim than the one that was checked. verify_selection_recovery reads it and re-searches to the same bound, so its independent re-derivation refutes THIS claim rather than one that merely happens to share a constant with it."
             },
             "reference": { "x-text": "citation", "type": "string" }
           }
@@ -238,7 +238,7 @@
             "search_budget": {
               "type": "integer",
               "minimum": 0,
-              "description": "The largest conditioning set the ordered-factorization search looked at. Twin of selection_recovery.search_budget and carrying the same quantifier: a recoverable=false verdict means no recovering factorization exists with conditioning sets this large or smaller, which is weaker than non-recoverability. Read by verify_missing_data_recovery."
+              "description": "The bound this verdict is quantified over: the largest conditioning set the ordered-factorization search was allowed to consider, recorded on every verdict including the ones no search ran for, and not the largest set actually examined. Twin of selection_recovery.search_budget and carrying the same quantifier: a recoverable=false verdict means no recovering factorization exists with conditioning sets this large or smaller, which is weaker than non-recoverability. Read by verify_missing_data_recovery."
             },
             "reference": { "type": "string" },
             "adjustment_set": { "type": "array", "items": { "type": "string" }, "description": "The back-door adjustment set Z whose marginal P(Z) the estimand also needs. Empty when no adjustment is required." },

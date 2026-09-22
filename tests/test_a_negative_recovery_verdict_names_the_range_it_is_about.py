@@ -12,11 +12,23 @@ ever searched wider, the verifier would have confirmed a false negative
 instead of catching it, which is the one direction that matters.
 
 ``search_budget`` gives the quantifier a slot: the producer records the
-range it actually searched, the verifiers re-search to the recorded range,
-and both reader faces say the number out loud. The tests below hold each
-of those, and the two behavioural ones are counterexamples: the same block
+bound it was run under, the verifiers re-search to the recorded bound, and
+both reader faces say the number out loud. The tests below hold each of
+those, and the two behavioural ones are counterexamples: the same block
 verified against two different recorded ranges gets two different verdicts,
 which a verifier holding its own constant could not produce.
+
+The bound is not the largest set anybody looked at, and the difference is
+not pedantry. Both searches stop at whichever is smaller, the bound or the
+candidates the graph offers, and both producers write the bound at every
+return site -- including the ones that answer before any search runs. So on
+a graph with two candidates and a bound of four, nothing ever examined a set
+of four, and a contract calling this field "the largest set the search
+looked at" describes a quantity neither producer computes. What the number
+is for is the verdict it qualifies: no recovering set of THIS SIZE OR
+SMALLER exists, which is exactly what a verifier re-searching to it
+re-derives. :func:`test_the_bound_is_the_bound_and_not_what_was_reached`
+is that stated where it can fail.
 """
 from __future__ import annotations
 
@@ -110,7 +122,7 @@ _TWO_CONFOUNDERS = [
 
 
 @pytest.mark.parametrize("budget", [0, 1, 2, 5])
-def test_the_selection_producer_records_the_range_it_searched(budget):
+def test_the_selection_producer_records_the_bound_it_was_run_under(budget):
     g = _graph(_TWO_PATHS_TO_S)
     for produce in (recover_conditional, recover_effect):
         rec = produce(g, A("x"), A("y"), (A("s"),), max_size=budget)
@@ -118,7 +130,7 @@ def test_the_selection_producer_records_the_range_it_searched(budget):
 
 
 @pytest.mark.parametrize("budget", [0, 1, 3])
-def test_the_missing_data_producer_records_the_range_it_searched(budget):
+def test_the_missing_data_producer_records_the_bound_it_was_run_under(budget):
     g = _graph([("x", "y")])
     rec = analyze_missing_data(
         g, [_mi("y", caused_by=("x",))], [A("y")], [A("x")], max_cond=budget)
@@ -126,6 +138,35 @@ def test_the_missing_data_producer_records_the_range_it_searched(budget):
     est = analyze_missing_data_estimand(
         g, [_mi("y", caused_by=("x",))], A("y"), A("x"), max_cond=budget)
     assert est.conditional.search_budget == budget
+
+
+def test_the_bound_is_the_bound_and_not_what_was_reached():
+    """The field is the bound, on a graph that cannot reach it.
+
+    Two candidates and a bound of four: no set of three was ever built,
+    let alone one of four, and both producers still record four. Stated
+    here because the contract said the opposite for as long as nothing
+    asked -- and because which of the two it is decides whether a reader
+    handed a larger number has been told a lie about the run or a
+    stronger claim about the graph.
+    """
+    g = _graph(_TWO_PATHS_TO_S)  # candidates for Z: a, b
+    rec = recover_conditional(g, A("x"), A("y"), (A("s"),), max_size=4)
+    assert rec.search_budget == 4
+    assert len(rec.adjustment_set) <= 2
+
+    md = analyze_missing_data(
+        g, [_mi("y", caused_by=("x",))], [A("y")], [A("x")], max_cond=4)
+    assert md.search_budget == 4
+
+    schema = json.loads(
+        (_ROOT / "schemas" / "query_result.schema.json")
+        .read_text(encoding="utf-8"))
+    ext = schema["properties"]["extensions"]["properties"]
+    for name in ("selection_recovery", "missing_data_recovery"):
+        said = ext[name]["properties"]["search_budget"]["description"]
+        assert "looked at" not in said, name
+        assert "quantified over" in said, name
 
 
 def test_the_range_travels_on_the_block_and_the_schema_demands_it():

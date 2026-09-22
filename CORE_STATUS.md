@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31431 passed / 534 skipped, warning-clean
+31432 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,22 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #757 一个搜索预算是界，不是够到过的地方（2026-09-22）
+
+**不是关缺口——是普查余项时追出来的真缺陷，并给余项做了一次逐弯普查。** 声明余项 564 一片不动（这条改的是契约散文，不是规则）。
+
+**现象**：`search_budget` 这一个字段，三份文件给了三个含义。契约 schema（两处孪生）说它是「the largest adjustment / conditioning set the search **looked at**」；两个生产端的 dataclass 注释说它是「**how this analysis was configured**，Recorded on every verdict, **including the ones the search never ran for**」；闸口的声明说「a range that passes is a true statement **about the graph**, whichever one it is」。分别是「运行的事实」「配置的事实」「主张的量词」。
+
+**根因**：代码把 `search_budget=max_cond` 写在**每一个**返回点，含搜索根本没跑的早退分支（`missing_data.py:406`、`selection_recovery.py:298/307/321`），而实际看过的最大集合是 `min(len(candidates), max_cond)`。**契约描述的是一个两个生产端都不计算的量。** 语料当场证伪：图里只有 2 个候选条件变量，`search_budget` 一律是 4，size-4 的集合一次都没被建出来过。连那份专讲这个字段的测试，名字都写着 `..._records_the_range_it_**searched**`，而它在 2 候选的图上用 budget=5 断言记录是 5——**测试自己演示了那个落差，名字却在主张相反的事**。
+
+**为什么不是措辞问题**：这个字段的含义**决定了「把 4 改成 9」算不算谎**。按契约算是谎（关于运行的假陈述）；按闸口算不是（验证器会真的搜到 9，搜不到才放行，于是「不存在 size ≤ 9 的恢复」是被独立验证过的真命题）。**余项里那 10 片到底是洞还是诚实余项，取决于这句话怎么写。**
+
+**修法**：把含义定成**它被实际使用的那一个**——验证器按它重搜、主张按它量化 ⇒ 它是「这个判定被量化在哪个界上」，是关于主张的事实。两处孪生描述改成这个意思（量词那半句本来就对，保留），并加 `test_the_bound_is_the_bound_and_not_what_was_reached` 把语义钉在会失败的地方：2 候选的图上跑到 budget=4，断言记录是 4，并断言契约不再说 “looked at”。读者面前那句话（`_SEARCH_RANGE`：「搜索范围：最多 {n} 个变量的集合」）本来就对，没动。
+
+**方法论沉淀**：(515)**一个词表里只要有兜底词（other / object / misc / unknown），它的成员就押不住。** 兜底词在语义上能装下其他任何词的值，从信封外面无法证伪——挑前沿时先看词表有没有兜底词，有就跳过，别再去找第二份记录。`dtype_kind` 六个词里后三个是兜底词，三条成立的重算路（生产者自己的纯函数孪生 / `observed_values` 的 JSON 类型 / `bool ⇒ n_unique ≤ 2`）加起来 **0/21**。 (516)**单边不等式押不住叶子。** 闸口要求**每一种**物质性的弯都被拒，而 `X ≤ Y` 形状的关系只覆盖一半的弯——`sample_size` 的 `n_unique ≤ sample_size`、`search_budget` 的「够大才能装下已找到的集合」都只挡往小弯。 (517)**按「还差几种弯没人拒」排序，不按族的大小挑前沿。** 新量法：逐叶列出存活的弯。564 片里 26 片「唯一的那种弯就存活」、49 片只差一种弯、197 片四种以上全存活。以前按族大小挑，等于把「三条路都成立但一片关不掉」和「只差一次读法」混在一起看。 (518)**一个弯完之后信封仍然为真的弯，不是洞。** 闸口自己写着「a lie has to be a LIE」，但余项的数里混着两类：押不住的洞，和**量过之后决定接受的真话**。`status` 那 5 片（模块明写「on those five it would not be a lie」）和 `search_budget` 那 10 片（弯出来的是更强的真命题，验证器会去独立验证它）都属于后者。**数余项时别把它们当待办。**
+
+**📊 逐弯普查的结论（probe774b/d/e/f/g/h/j/k/m/n/p/q/r）**：**325 / 564（58%）已量死并写下逐片理由**——`estimation_context` 247 片（`random_state` 120 / `ci_bootstrap` 87 / `model_preference` 40，七条逃生路全量过，`random_state` 是 **480/480 弯全存活**，覆盖率为零；程序侧也没有，40 个形状里 32 个的程序连 `options` 块都没有）、`outcome_saturation` / `fitted_overlap` 的 `p_min`/`p_max` 23 片（原值 + `.1f~.6f` + `.0%~.2%` + `.4g` 全建模，第二份书写哪儿都没有）、`dtype_kind` 21 片、`sample_size` 19 片、`search_budget` 10 片、`status` 5 片。**余下 239 片散在约 170 个族里，最大一族 7 片。**
 
 ### #756 一个被打印出来的数，就是那份记录被打印了一遍（2026-09-22）
 
