@@ -4859,9 +4859,30 @@ def verify_longitudinal_numeric(estimate: dict) -> None:
 #: and of the agreement tolerance. Transcribed rather than imported: the
 #: point of this audit is to hold the producer to a standard it did not
 #: also write, and a shared constant is a shared belief.
+#: One of the two, spelled once because a rule below asks for it by name:
+#: it is the only one of the pair that is a claim about the GRAPH, and so
+#: the only one a second document can answer.
+_TRANSPORT_OFF_DIAGRAM = "treatment_or_outcome_off_diagram"
 _TRANSPORT_BLOCKED_KINDS = frozenset({
-    "treatment_or_outcome_off_diagram", "no_s_admissible_set"})
+    _TRANSPORT_OFF_DIAGRAM, "no_s_admissible_set"})
 _TRANSPORT_SOURCES_TOL = 1e-9
+
+
+def _both_ends_of_the_question_are_on(graph, query) -> bool:
+    """Whether the run's graph carries the treatment and the outcome.
+
+    Read the way every rule here reads a question, so that a query whose
+    ends this reading cannot find is a question this rule says nothing
+    about rather than one it convicts.
+    """
+    if graph is None:
+        return False
+    x = getattr(getattr(query, "intervention", None), "atom", None)
+    target = getattr(query, "target", None)
+    y = getattr(target, "atom", target)
+    if x is None or y is None:
+        return False
+    return x in graph and y in graph
 
 
 def _transport_atom_shape(atom):
@@ -4884,7 +4905,7 @@ def _transport_atom_shape(atom):
     return (predicate, names) if isinstance(predicate, str) else None
 
 
-def verify_transport_sources(block: dict, selection_nodes, steps,
+def verify_transport_sources(block: dict, graph, selection_nodes, steps,
                              query) -> None:
     """Hold the multi-source transport verdict, and every name it shows.
 
@@ -4935,6 +4956,22 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
       only ever compared through a formula string that the two domains
       share whenever their adjustment sets agree.
     - which population the answer is for is the question's.
+    - and the graph is the run's. A route that does not transport names
+      which of two things stopped it, and one of them -- that the
+      question's treatment or outcome is not a node of this source's
+      diagram -- is a claim about the GRAPH rather than about the search.
+      This rule was the one of the three over this kind of block that was
+      handed no graph, and that word was accordingly the one reason a
+      route could give and be believed. A selection diagram is the run's
+      graph with this source's selection nodes added, and adding nodes
+      takes none away, so a question whose two ends are on the graph is on
+      every diagram built from it.
+
+    The other reason is not re-derived and the difference is the shape of
+    the work: whether an S-admissible set exists is a search over subsets,
+    and a rule that ran it would be re-deriving the verdict rather than
+    holding the word. Where the graph does not carry the question's ends
+    this says nothing, because there the word may be true.
 
     One route is not held to a step and says so: a program declaring no
     selection diagram gets the one no-boundary route, whose estimand is
@@ -5015,6 +5052,14 @@ def verify_transport_sources(block: dict, selection_nodes, steps,
                 _err(f"source {source!r} does not transport and names "
                      f"{route.get('blocked_by')!r}, which is not one of the "
                      f"ways a source domain can be blocked")
+            if (str(route.get("blocked_by")) == _TRANSPORT_OFF_DIAGRAM
+                    and _both_ends_of_the_question_are_on(graph, query)):
+                _err(f"source {source!r} says the question's treatment or "
+                     f"outcome is off its diagram, and this run's graph "
+                     f"carries both; this source's diagram is that graph "
+                     f"with its own selection nodes added, and adding a "
+                     f"node takes none away, so the reader is sent after a "
+                     f"variable that is there")
             if numeric is not None:
                 _err(f"source {source!r} does not transport and still carries "
                      f"a number")

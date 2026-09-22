@@ -341,14 +341,16 @@ def _audit_transport_identification(facts: "_RouteFacts") -> None:
 
     The rest of the block is a copy, so the premises go in with it: the
     selection diagrams are the program's, the estimand each route prints
-    is the chain's, and which population the answer is for is the
-    question's. These were in hand here and not passed, which is how the
-    variables that block names came to be held by nothing.
+    is the chain's, which population the answer is for is the question's,
+    and the graph is the run's. These were in hand here and not passed,
+    which is how the variables that block names came to be held by
+    nothing -- and the graph was the last of them, which is how a route
+    could blame a diagram for missing a variable the graph declares.
     """
     block = facts.carries("transport_identification")
     if block is not None:
         verify_transport_sources(
-            block,
+            block, facts.graph,
             [s for s in facts.program.statements
              if isinstance(s, SelectionNode)],
             (facts.result.get("derivation") or {}).get("steps") or (),

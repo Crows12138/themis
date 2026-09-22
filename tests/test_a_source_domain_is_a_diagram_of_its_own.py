@@ -138,9 +138,9 @@ def _audit(program: dict, result: dict) -> None:
     and every forgery below would be held by a rule reading its own
     subject's word for what it is a copy of.
     """
-    _ast, prog, query_stmt, _ctx = _premises_of(program, result)
+    _ast, prog, query_stmt, ctx = _premises_of(program, result)
     verify_transport_sources(
-        _block(result),
+        _block(result), ctx.graph,
         [s for s in prog.statements if isinstance(s, SelectionNode)],
         (result.get("derivation") or {}).get("steps") or (),
         query_stmt.query)

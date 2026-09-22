@@ -787,13 +787,28 @@ def test_the_remainder_split_is_what_it_is():
     half of that: three fields of the support table left with the three
     sentences that print them, because a printing held to a record
     refuses a moved record as readily as a moved printing.
+
+    Fifty-third use, two leaves, and the fourth time the heading that says
+    nothing either document writes has come due. The three routes it has
+    been answered with so far were a number recomputed from sufficient
+    statistics, a name read from the other document, and a record printed
+    a second time. This is a fourth, and it is not a writing at all. A
+    route that did not transport names one of two reasons it was stopped,
+    and one of those is a claim about the GRAPH: that the question's
+    treatment or outcome is off this source's diagram. Nothing on either
+    document equals that word, which is why this reading files it here.
+    What refuses it is a proposition the two documents jointly entail --
+    a diagram built by adding this source's selection nodes to the run's
+    graph has lost none of the run's graph. So the caveat now reads: no
+    COMPARISON finds a second writing, and a word can still be refused by
+    something that follows from what the two documents say.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 56,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 134,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 341,
+        gate._NOTHING: 339,
         gate._EVERY_READING_MATCHES: 24,
     }
 
