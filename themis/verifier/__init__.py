@@ -527,6 +527,17 @@ Public surface (re-exports from sub-modules):
   slots get a row is NOT held: for an edge that is the data-gap
   classifier's reading of what the answer rests on, and re-deriving it
   would hand that reading back to itself)
+- Which of two objects a run-decided pair of endpoints is:
+  ``verify_which_object_a_run_decided_pair_is`` (two pairs on this
+  envelope are not one kind by virtue of where they sit — a probability of
+  causation and a counterfactual cell each hold the point's bootstrap
+  interval where a point came out and a band on the identified interval
+  where none did, and ``ci_width_is`` is the word that says which.
+  ``themis.intervals`` declares both of them and only the renderers read
+  it. Re-derived from whether a point came out, which is the recovery a
+  PRODUCER may not make and a verifier exists to make; the copy rule
+  reaches the cell's word and declines the three probability-of-causation
+  ones, correctly, because three leaves there answer to that one name)
 - The level every interval on the envelope is stated at:
   ``verify_confidence_level`` (asked wherever the word appears, and held to
   the constant this system draws rather than to a second copy of itself.
@@ -966,6 +977,9 @@ from .program_copy_rules import (
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
+from .interval_kind_rules import (
+    verify_which_object_a_run_decided_pair_is,
+)
 from .confidence_source_rules import (
     verify_the_composite_is_its_weakest_source,
     verify_the_names_beside_each_confidence,
@@ -1045,6 +1059,7 @@ __all__ = [
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",
     "verify_confidence_level",
+    "verify_which_object_a_run_decided_pair_is",
     "verify_the_composite_is_its_weakest_source",
     "verify_the_names_beside_each_confidence",
     "verify_envelope_arithmetic",

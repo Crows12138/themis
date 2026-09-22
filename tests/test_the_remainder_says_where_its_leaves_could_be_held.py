@@ -673,14 +673,26 @@ def test_the_remainder_split_is_what_it_is():
     row must carry that statement's confidence and its source. Which slots
     got a row is not held and says so: for an edge that is another
     reading's, and re-deriving it would hand that reading back to itself.
+
+    Forty-third use, nine leaves, and the first where what was in the way
+    was another rule declining ON PURPOSE. One pair of keys holds two
+    different objects on two blocks of this envelope -- a point's
+    bootstrap interval where a point came out, a band on the identified
+    interval where none did -- and a word beside the pair says which. The
+    copy rule reaches that word on one block and, on the other, offers a
+    deep leaf its bare name only where nothing else on the envelope
+    answers to it; three leaves answer to this one. That rule is right:
+    an ambiguity is not a disagreement. What was missing is a reading that
+    does not go through the record at all, and the roster naming these two
+    pairs was already written -- read until now by the renderers alone.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 81,
+        gate._ANSWER_ALIKE: 78,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
         gate._NOTHING: 372,
-        gate._EVERY_READING_MATCHES: 30,
+        gate._EVERY_READING_MATCHES: 24,
     }
 
 

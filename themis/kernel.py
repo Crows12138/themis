@@ -150,6 +150,7 @@ from .verifier import (
     verify_statements_carry_their_facts,
     verify_statements_repeat_what_decided_them,
     verify_confidence_level,
+    verify_which_object_a_run_decided_pair_is,
     verify_the_composite_is_its_weakest_source,
     verify_the_names_beside_each_confidence,
     verify_envelope_arithmetic,
@@ -2282,6 +2283,13 @@ def _hold_what_the_estimate_calls_for(
     # out of. A line this system draws rather than one a caller may draw, so
     # it is held to the constant, restated on the verifier's side.
     verify_confidence_level(result)
+    # And the other half of what a pair of endpoints means, on the two
+    # pairs whose slot does not settle it: which of two objects this one
+    # is. Beside the level for that reason, and re-derived from whether a
+    # point came out rather than compared with the record — the copy rule
+    # reaches one of the two and declines the other three leaves, because
+    # one name answers three times there.
+    verify_which_object_a_run_decided_pair_is(result)
     # The other number that word names, and the one a reader takes as how
     # far to trust the answer at all. It is the minimum across the slots
     # the answer rests on and the list of those slots is beside it, so the

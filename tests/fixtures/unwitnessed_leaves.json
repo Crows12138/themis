@@ -25,10 +25,7 @@
  "causation_plugin": [
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.probabilities_of_causation.pn.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.pns.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.ps.ci_width_is"
+  "estimation_context.random_state"
  ],
  "cde_linear": [
   "estimation_context.ci_bootstrap",
@@ -455,17 +452,11 @@
  "numerically_solved:causation:numeric_causation_estimate": [
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.ci_bootstrap",
-  "estimation_context.random_state",
-  "numeric_estimate.probabilities_of_causation.pn.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.pns.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.ps.ci_width_is"
+  "estimation_context.random_state"
  ],
  "numerically_solved:causation:numeric_causation_estimate#6f97c5": [
   "data_gap_report.gaps.[].describes.[].words.why.said.note",
   "estimation_context.random_state",
-  "numeric_estimate.probabilities_of_causation.pn.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.pns.ci_width_is",
-  "numeric_estimate.probabilities_of_causation.ps.ci_width_is",
   "numeric_result.value"
  ],
  "numerically_solved:counterfactual:numeric_counterfactual_cell_estimate": [
