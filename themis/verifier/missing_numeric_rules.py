@@ -126,12 +126,55 @@ def _gformula_from_stats(factor: dict, n_zvars: int, label: str) -> float:
     return ate
 
 
+#: The one field this rule reads rather than derives: the per-stratum
+#: record the g-formula sum was built from. Everything in the set below is
+#: a function of it.
+_RECOVERED_ATE_READ = frozenset({"sufficient_statistics"})
+
+#: What this rule holds against that record. The two sums were here from
+#: the start; the rest is what a reader is shown BESIDE them and what
+#: nothing looked at -- the covariate list written twice over, the columns
+#: the recovery was needed for, and the five counts that say how much data
+#: the answer stands on.
+_RECOVERED_ATE_HELD = frozenset({
+    "point", "naive_listwise_ate", "adjustment", "missing_columns",
+    "n_total", "n_marginal_rows", "n_conditional_rows",
+    "n_complete_case", "n_strata"})
+
+#: Not this rule's, and named so the three sets are a PARTITION of the
+#: contract rather than a selection from it. Which rule holds them is not
+#: asserted here: the test beside this module checks that none of them
+#: sits in the declared remainder, which is the same claim without a
+#: second author for it.
+_RECOVERED_ATE_ELSEWHERE = frozenset({
+    "ci_lower", "ci_upper", "precision_budget"})
+
+
 def verify_missing_data_numeric(result: dict) -> None:
     """Re-derive a ``missing_data_recovery_gformula`` numeric_estimate.
 
     Raises :class:`VerificationError` on any mismatch; returns ``None`` on a
     truthful block. A result that carries no such numeric_estimate is a no-op
     (nothing to audit).
+
+    THAT SENTENCE SAID THE ESTIMATE AND THE CODE RE-DERIVED TWO SUMS. The
+    sufficient statistics are load-bearing -- the point is rebuilt from
+    them and the marginal counts are already held to summing to their own
+    total -- so every count printed beside the point had a witness sitting
+    next to it that nothing was reading. Fourteen declared leaves, and the
+    two a reader acts on hardest: ``n_total`` against ``n_complete_case``
+    is how much of the sample went missing, and a recovery standing on
+    three fifths of its rows reads exactly like one standing on all of
+    them once those two numbers are free.
+
+    Each count answers to the factor it was computed on, which is the
+    whole of what the recoverability argument says: the conditional table
+    is estimated where the outcome was observed and the marginal table on
+    every row, so ``n_conditional_rows`` and ``n_marginal_rows`` differ on
+    an honest block and differ by exactly what went missing.
+    ``n_complete_case`` belongs to the naive factor and is asked only when
+    that factor is recorded, the way this package holds anything present
+    on one side and not the other.
     """
     ne = result.get("numeric_estimate")
     if (
@@ -179,3 +222,47 @@ def verify_missing_data_numeric(result: dict) -> None:
         _require(abs(naive_re - float(naive_reported)) <= _ATOL,
                  f"naive listwise ATE mismatch: re-derived {naive_re}, recorded "
                  f"{naive_reported}")
+
+    # --- 3. the covariate list, written on both sides of one block ---
+    if "adjustment" in ra:
+        declared = list(ra.get("adjustment") or ())
+        used = list(suff.get("adjustment_vars") or ())
+        _require(declared == used,
+                 f"recovered_ate.adjustment {declared} is not the "
+                 f"adjustment_vars {used} the strata were cut on; the two are "
+                 f"one list and a reader is shown the first")
+
+    # --- 4. the counts, each against the factor it was computed on ---
+    def _count(field: str, expected: int, how: str) -> None:
+        if field not in ra:
+            return
+        got = ra.get(field)
+        _require(isinstance(got, int) and not isinstance(got, bool)
+                 and got == expected,
+                 f"recovered_ate.{field} is {got!r}; {how} gives {expected}")
+
+    rows_marginal = int(recovered["marginal_total"])
+    rows_conditional = sum(int(s["n"])
+                           for s in recovered.get("conditional_strata", ()))
+    _count("n_total", rows_marginal, "the recovered marginal total")
+    _count("n_marginal_rows", rows_marginal, "the recovered marginal total")
+    _count("n_conditional_rows", rows_conditional,
+           "the recovered conditional strata summed")
+    _count("n_strata", len(recovered.get("marginal_counts") or ()),
+           "the recovered marginal strata counted")
+    if naive is not None:
+        _count("n_complete_case", int(naive["marginal_total"]),
+               "the naive marginal total")
+
+    # --- 5. a column can only go missing from the table it is in ---
+    columns = ne.get("data_columns")
+    if isinstance(columns, list) and "missing_columns" in ra:
+        missing = list(ra.get("missing_columns") or ())
+        stray = [c for c in missing if c not in columns]
+        _require(not stray,
+                 f"recovered_ate.missing_columns names {stray}, which this "
+                 f"estimate did not read; a column absent from the table is "
+                 f"not a column the recovery was needed for")
+        _require(len(set(missing)) == len(missing),
+                 f"recovered_ate.missing_columns is {missing}, and a column "
+                 f"listed twice is one column counted twice")

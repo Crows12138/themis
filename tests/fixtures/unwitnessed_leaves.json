@@ -474,25 +474,11 @@
  "numerically_solved:effect:none#6587a8": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
-  "extensions.missing_data_recovery.search_budget",
-  "numeric_estimate.recovered_ate.adjustment.[]",
-  "numeric_estimate.recovered_ate.missing_columns.[]",
-  "numeric_estimate.recovered_ate.n_complete_case",
-  "numeric_estimate.recovered_ate.n_conditional_rows",
-  "numeric_estimate.recovered_ate.n_marginal_rows",
-  "numeric_estimate.recovered_ate.n_strata",
-  "numeric_estimate.recovered_ate.n_total"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "numerically_solved:effect:none#859dfc": [
   "estimation_context.random_state",
-  "extensions.missing_data_recovery.search_budget",
-  "numeric_estimate.recovered_ate.adjustment.[]",
-  "numeric_estimate.recovered_ate.missing_columns.[]",
-  "numeric_estimate.recovered_ate.n_complete_case",
-  "numeric_estimate.recovered_ate.n_conditional_rows",
-  "numeric_estimate.recovered_ate.n_marginal_rows",
-  "numeric_estimate.recovered_ate.n_strata",
-  "numeric_estimate.recovered_ate.n_total"
+  "extensions.missing_data_recovery.search_budget"
  ],
  "numerically_solved:effect:numeric_aipw_estimate": [
   "data_gap_report.gaps.[].describes.[].said.bad",

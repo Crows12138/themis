@@ -737,13 +737,26 @@ def test_the_remainder_split_is_what_it_is():
     The three the rule reads are one fact written three times, which is a
     question worth asking of any recorded number: not whether it can be
     recomputed, but whether it and its neighbours owe an identity.
+
+    Forty-ninth use, fourteen leaves, and the same defect one block along.
+    A recovery from missing data re-derived its two sums and stopped, and
+    the counts printed beside them -- how many rows there were, how many
+    had an outcome, how many strata the sum ran over -- answered to
+    nothing, though the per-stratum record they count is the same one the
+    sums are rebuilt from. Those two numbers ARE the argument for running
+    a recovery instead of deleting the incomplete rows, so a recovery
+    standing on three fifths of its sample read like one standing on all
+    of it. Ten of the fourteen were filed here as named otherwise and two
+    as written nowhere, which is what a heading is for: it says where a
+    second writing could be found, and a count rebuilt from a table needs
+    no second writing at all.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 78,
+        gate._ANSWER_ALIKE: 76,
         gate._PROGRAM_ALIKE: 4,
-        gate._ANSWER_OTHERWISE: 145,
+        gate._ANSWER_OTHERWISE: 135,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 355,
+        gate._NOTHING: 353,
         gate._EVERY_READING_MATCHES: 24,
     }
 
