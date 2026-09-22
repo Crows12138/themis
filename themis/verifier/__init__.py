@@ -517,6 +517,16 @@ Public surface (re-exports from sub-modules):
   there is no second opinion to form; exactly equal rather than nearly,
   because the producer's own comparison is, and a tolerance would flag a
   source the producer did not)
+- The names beside those numbers, against the document they were copied
+  from: ``verify_the_names_beside_each_confidence`` (which slot a number
+  came out of and whose statement said it are names, and what holds a name
+  is the program. Each row's label is spelled again here the producer's
+  three ways — an edge by its predicates, a parameter by the probability it
+  fixes, an observation by its ground atom and value — and the row must
+  carry the confidence and source the program wrote at that slot. Which
+  slots get a row is NOT held: for an edge that is the data-gap
+  classifier's reading of what the answer rests on, and re-deriving it
+  would hand that reading back to itself)
 - The level every interval on the envelope is stated at:
   ``verify_confidence_level`` (asked wherever the word appears, and held to
   the constant this system draws rather than to a second copy of itself.
@@ -958,6 +968,7 @@ from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
 from .confidence_source_rules import (
     verify_the_composite_is_its_weakest_source,
+    verify_the_names_beside_each_confidence,
 )
 from .data_gap_rules import (
     verify_answer_tier,
@@ -1035,6 +1046,7 @@ __all__ = [
     "verify_the_chain_names_its_steps",
     "verify_confidence_level",
     "verify_the_composite_is_its_weakest_source",
+    "verify_the_names_beside_each_confidence",
     "verify_envelope_arithmetic",
     "verify_gap_names",
     "verify_gap_program_sites",

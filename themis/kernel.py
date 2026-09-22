@@ -151,6 +151,7 @@ from .verifier import (
     verify_statements_repeat_what_decided_them,
     verify_confidence_level,
     verify_the_composite_is_its_weakest_source,
+    verify_the_names_beside_each_confidence,
     verify_envelope_arithmetic,
     verify_gap_names,
     verify_gap_edge_statements,
@@ -2287,6 +2288,11 @@ def _hold_what_the_estimate_calls_for(
     # whole of the check is arithmetic the envelope already carries —
     # which is why nothing else could have been standing in for it.
     verify_the_composite_is_its_weakest_source(result)
+    # And the names beside those numbers, which no arithmetic over the
+    # envelope can reach: which slot a confidence came out of, and whose
+    # statement said it. What holds a name is the document it was copied
+    # from, so this one is handed the program as well as the answer.
+    verify_the_names_beside_each_confidence(result, ast)
     # And the one answer whose own chain records no estimation at all. The
     # transport route ends its derivation at the identification and attaches
     # a number beside it, so the copy check above found no second copy and

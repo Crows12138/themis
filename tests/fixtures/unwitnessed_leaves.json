@@ -268,8 +268,6 @@
   "missing_information.[].observable.variables.[]"
  ],
  "needs_investigation:effect:none#17bf1c": [
-  "confidence_sources.[].slot_label",
-  "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.confidence",
   "data_gap_report.gaps.[].describes.[].said.threshold"
  ],
@@ -681,9 +679,6 @@
   "derivation.steps.[].output.items.cde_status.items.cap",
   "extensions.mediation_joint_decomposition.numeric.cde_status.cap"
  ],
- "numerically_solved:effect:numeric_result#3a0b20": [
-  "confidence_sources.[].slot_label"
- ],
  "numerically_solved:effect:numeric_result#3a2c8e": [
   "extensions.transport_identification.sources.[].blocked_by"
  ],
@@ -841,8 +836,6 @@
   "numeric_estimate.simex.error_variance"
  ],
  "structurally_solved:cause:cause_via_directed_path#aae237": [
-  "confidence_sources.[].slot_label",
-  "confidence_sources.[].source",
   "data_gap_report.gaps.[].describes.[].said.algorithm",
   "data_gap_report.gaps.[].describes.[].said.alpha",
   "data_gap_report.gaps.[].describes.[].said.n"

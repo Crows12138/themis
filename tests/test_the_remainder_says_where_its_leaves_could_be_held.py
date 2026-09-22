@@ -663,13 +663,23 @@ def test_the_remainder_split_is_what_it_is():
     already spoken for in this package by a rule about the LEVEL an
     interval is stated at -- a different fact wearing the same letters --
     which is how asking whether this was held could come back yes.
+
+    Forty-second use, five leaves, and the first of these to hold a NAME.
+    Nothing arithmetic reaches one: every number beside a confidence source
+    can be right while the slot it says the number came out of, and the
+    statement it says said so, are both invented. What holds a name is the
+    document it was copied from, which here is the program -- so the label
+    is spelled again the producer's three ways and looked up there, and the
+    row must carry that statement's confidence and its source. Which slots
+    got a row is not held and says so: for an edge that is another
+    reading's, and re-deriving it would hand that reading back to itself.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 81,
-        gate._PROGRAM_ALIKE: 6,
+        gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 375,
+        gate._NOTHING: 372,
         gate._EVERY_READING_MATCHES: 30,
     }
 
