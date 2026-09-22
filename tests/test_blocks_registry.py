@@ -17,6 +17,8 @@ import pytest
 import themis
 from themis import blocks
 
+from . import schema_walk
+
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PACKAGE = REPO / "themis"
 REGISTRY = PACKAGE / "blocks.py"
@@ -315,6 +317,50 @@ def test_a_block_naming_a_carrier_names_something_that_exists():
                 f"declared block nor a field of the result"
             )
             target = blocks.BY_NAME[name].carried_by
+
+
+def test_the_family_that_is_the_quantity_says_where_the_quantity_is():
+    """A block is a container, and its key is an address.
+
+    The family whose job is the quantity itself is the one a reader asks
+    "did a number arrive", and the key is on the envelope either way — a
+    confidence region is written whether or not it closed. So every member
+    of that family declares the slot and no member of another declares
+    one, which the registry refuses at import. Asserted here as well,
+    because the import guard only ever sees the members that exist.
+    """
+    for block in blocks.Block:
+        owes = block.read_as is blocks.Family.ANSWER
+        assert bool(block.arrives_at) is owes, (
+            f"{block!r} is read as {block.read_as} and "
+            f"{'says nothing about' if owes else 'declares'} where a "
+            f"quantity of its own arrives"
+        )
+        for path in block.arrives_at:
+            assert path and all(isinstance(step, str) and step
+                                for step in path), block
+
+
+def test_a_slot_a_block_declares_is_a_place_the_contract_has():
+    """The declaration is where a quantity IS, so it has to be somewhere
+    the envelope can put one.
+
+    The same shape as the carrier check above and the same reason: the
+    registry cannot read the schema from inside, so what it declares is
+    held against the schema here. A path nothing can fill is a reading
+    that answers "no quantity" on every answer ever written.
+    """
+    have = {".".join(path) for path, _sub, _c in schema_walk.RESULT.walk()}
+    declared = {
+        ".".join(("extensions", str(block)) + path)
+        for block in blocks.declared_as(blocks.Family.ANSWER)
+        for path in block.arrives_at}
+    invented = sorted(declared - have)
+    assert not invented, (
+        f"{invented} are declared as where a quantity arrives and the "
+        f"result schema has no such place; a slot may not be one only the "
+        f"registry believes in"
+    )
 
 
 def test_the_record_says_which_surface_bound_it():

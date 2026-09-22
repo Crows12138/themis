@@ -53,6 +53,10 @@ What is asserted here:
 - that the promise half is not satisfied by the block that exists to say
   a quantity was NOT reached, and that the one word whose answer may be
   that range still admits it — both sides put to honest answers
+- that a block of the answer family is read at the slot its own
+  declaration names and not at the key it sits behind — the region that
+  closed against the one that did not, a probability that came out as a
+  point against one that came out as the bounds standing in for it
 - the numbers: what each rule reaches, what they refuse, and what they do
   not — the survivors are named, because a gate that reports its own
   blindness as coverage is the failure this whole line of work is about
@@ -74,9 +78,9 @@ from themis.types import (
 from themis.verifier import VerificationError
 from themis.estimation import dispatch
 from themis.verifier.status_rules import (
-    _ACROSS_WORLDS, _ANSWER_BLOCKS, _ANSWERS_WITH, _REFUSAL_WORDS,
-    _THE_ESTIMATORS_WORD, _might_be_showing, _shown, verify_answer_status,
-    verify_answer_status_fits_its_question)
+    _ACROSS_WORLDS, _ANSWERS_WITH, _REFUSAL_WORDS, _THE_ESTIMATORS_WORD,
+    _THE_QUANTITY_IN, _a_quantity_arrived_in, _might_be_showing, _shown,
+    verify_answer_status, verify_answer_status_fits_its_question)
 
 from . import schema_walk
 from .answer_corpus import the_door_for, verify_honestly
@@ -102,7 +106,7 @@ RULE_ROAD = "answer_status_road_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 11
+SURVIVING = 7
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -182,11 +186,22 @@ SURVIVING = 11
 #: forty-three counterfactual points and two bounded ones stop being able
 #: to call themselves numerically solved.
 #:
-#: What is left is eleven, of two shapes. Nine relabel into or out of a word
-#: a refusal leaves, which is open to every question by construction. Two
-#: are between the two words the computing road itself ends in, where the
-#: roster admits both, the road is one, and the envelope shows a quantity
-#: either way.
+#: Four more went in #743, and the sentence just above was wrong in its own
+#: last words. "The envelope shows a quantity either way" was not a reading
+#: of the envelope; it was a reading of the KEY. A block of the answer
+#: family is a container — a confidence region is written whether or not it
+#: closed, and probabilities of causation are written whether they came out
+#: as points or as the bounds standing in where none did — and each says
+#: which it is, at the slot the registry now declares. Read there, two
+#: bounded probabilities stop being able to call themselves solved, the
+#: region that closed stops being able to call itself needing
+#: investigation, and the one that did not close stops being able to call
+#: itself numerically solved.
+#:
+#: What is left is seven, all of one shape: a word a refusal leaves against
+#: the word that says a structure was reached. Two carry a structural
+#: result whose verdict is false and five identify and then refuse at the
+#: estimator, and the word ``structural_result`` is a container too.
 #: The questions with one world and one road, whose answers say the
 #: estimating road's word without owing an estimate for it.
 ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
@@ -194,10 +209,7 @@ ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
     if kind not in _ACROSS_WORLDS and _THE_ESTIMATORS_WORD in words)
 
 SURVIVORS = {
-    "counterfactual_bounded -> counterfactual_solved": 2,
-    "needs_investigation -> numerically_solved": 1,
     "needs_investigation -> structurally_solved": 2,
-    "numerically_solved -> needs_investigation": 1,
     "structurally_solved -> needs_investigation": 5,
 }
 
@@ -333,7 +345,7 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (1116, 396), (refused, passed)
+    assert (refused, passed) == (1125, 387), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [
@@ -454,7 +466,13 @@ def test_the_answers_that_identify_and_then_refuse_keep_the_word():
 #: How many stored answers hold a range and no quantity, and how many
 #: say the run reached one. Both sides of the asymmetry, counted, so a
 #: corpus that stopped exercising either says so here.
-ANSWERS_HOLDING_ONLY_A_RANGE = 41
+#:
+#: The range comes in two shapes and they are counted apart, because the
+#: second is the one a reading of the KEY could not see: an answer whose
+#: whole quantity is the interval on its headline result, sitting in a
+#: field whose other slot is where a point would have gone.
+ANSWERS_HOLDING_ONLY_A_RANGE = 42
+ANSWERS_WHOSE_RANGE_IS_THE_HEADLINE = 3
 ANSWERS_SAYING_THE_RUN_GOT_THERE = 141
 
 
@@ -462,29 +480,36 @@ def test_the_two_rungs_the_promise_dropped_were_never_adding_to_it():
     """``POINT`` and ``INTERVAL`` sat in ``A_QUANTITY``, and one of them
     was the whole hole. A point is only ever read out of a block that
     holds a quantity, and so is an estimate's interval, so both imply
-    ``NUMBER``. The single reading they added is the one interval that is
-    not a quantity at all."""
+    ``NUMBER``. What they added is the interval that is not a quantity at
+    all, which arrives in two shapes: the bounds rows, and a headline
+    result whose point slot is empty."""
     assert A_QUANTITY == frozenset({Shown.NUMBER})
     for envelope in ({"numeric_estimate": {"point": 1.0}},
                      {"numeric_result": {"value": 1.0}},
-                     {"numeric_estimate": {"ci_lower": 0.0}},
-                     {"numeric_result": {"interval": [0.0, 1.0]}}):
+                     {"numeric_estimate": {"ci_lower": 0.0}}):
         assert Shown.NUMBER in _shown(envelope), envelope
     assert _shown({"bounds_results": [{}]}) == frozenset({Shown.INTERVAL})
+    assert _shown({"numeric_result": {"interval": [0.0, 1.0]}}) == frozenset(
+        {Shown.INTERVAL})
     assert A_QUANTITY_OR_THE_RANGE_STANDING_IN == frozenset(
         {Shown.NUMBER, Shown.INTERVAL})
 
 
 @pytest.mark.parametrize("shape", sorted(SHAPES))
-def test_no_stored_answer_tells_the_old_reading_from_the_new_one(shape):
+def test_the_two_readings_differ_only_where_a_range_is_the_whole_of_it(shape):
     """Which is what made the old set the second sentence under the first
-    one's name: over every stored answer, "any of the three rungs" and "a
-    number, or else a range" answer the same."""
+    one's name: "any of the three rungs" and "a number, or else a range"
+    answer the same on every stored answer except the ones whose range is
+    all there is. A range arrives in two shapes — the bounds rows an
+    effect question gets, and a headline result whose point slot is empty
+    — and neither of them is a quantity."""
     result = SHAPES[shape]["result"]
     might = _might_be_showing(result)
     three = frozenset({Shown.POINT, Shown.INTERVAL, Shown.NUMBER})
-    assert bool(three & might) == (
-        Shown.NUMBER in might or bool(result.get("bounds_results")))
+    outcome = result.get("numeric_result")
+    a_range = bool(result.get("bounds_results")) or (
+        isinstance(outcome, dict) and outcome.get("interval") is not None)
+    assert bool(three & might) == (Shown.NUMBER in might or a_range)
 
 
 @pytest.mark.parametrize("word", ["numerically_solved",
@@ -517,6 +542,14 @@ def test_both_sides_of_the_asymmetry_are_exercised_by_honest_answers():
     assert len(only_a_range) == ANSWERS_HOLDING_ONLY_A_RANGE
     assert {SHAPES[n]["result"]["status"] for n in only_a_range} == {
         "needs_investigation"}
+    headline = sorted(
+        name for name, row in SHAPES.items()
+        if Shown.NUMBER not in _might_be_showing(row["result"])
+        and Shown.INTERVAL in _might_be_showing(row["result"])
+        and not row["result"].get("bounds_results"))
+    assert len(headline) == ANSWERS_WHOSE_RANGE_IS_THE_HEADLINE
+    assert {SHAPES[n]["result"]["status"] for n in headline} == {
+        "counterfactual_bounded"}
     got_there = sorted(
         name for name, row in SHAPES.items()
         if row["result"].get("status") in ("numerically_solved",
@@ -546,7 +579,7 @@ def test_the_reading_answers_off_the_blocks_and_not_off_a_summary():
     assert _shown({"numeric_result": {"value": 1.0}}) == frozenset(
         {Shown.NUMBER, Shown.POINT})
     assert _shown({"numeric_result": {"interval": [0.0, 1.0]}}) == frozenset(
-        {Shown.NUMBER, Shown.INTERVAL})
+        {Shown.INTERVAL})
     assert _shown({"bounds_results": [{}]}) == frozenset({Shown.INTERVAL})
     assert _shown({"structural_result": {}}) == frozenset({Shown.STRUCTURE})
     assert _shown({"derivation": []}) == frozenset({Shown.CHAIN})
@@ -562,9 +595,93 @@ def test_the_roster_of_blocks_a_quantity_can_arrive_in_is_pinned():
     so a new answer block arrives as a red suite — the alternative is a
     reading that silently stops covering somewhere a number now lives, which
     is how this rule came to refuse thirteen honest answers.
+
+    The column is pinned with the names, and it is the half that was
+    missing: the restatement copied WHICH blocks carry a quantity and not
+    WHERE each of them puts it, so the reading under it could ask nothing
+    finer than whether the key was on the envelope.
     """
-    declared = {str(b) for b in blocks.declared_as(blocks.Family.ANSWER)}
-    assert _ANSWER_BLOCKS == declared
+    assert _THE_QUANTITY_IN == {
+        str(b): b.arrives_at
+        for b in blocks.declared_as(blocks.Family.ANSWER)}
+
+
+def test_a_block_is_read_at_its_slot_and_not_at_its_key():
+    """The difference between a place a number could be and one it is.
+
+    Both envelopes carry the same key. One region closed and one did not,
+    and a region that did not close excludes nothing at all — so a reading
+    of the key calls both of them a quantity, which is the one thing two
+    of the words differ over.
+    """
+    closed = {"extensions": {"anderson_rubin_region": {
+        "region": {"shape": "bounded", "point": [1.0, 2.0]}}}}
+    open_ = {"extensions": {"anderson_rubin_region": {
+        "region": {"shape": "unbounded", "point": None}}}}
+    assert Shown.NUMBER in _shown(closed)
+    assert Shown.NUMBER not in _might_be_showing(open_)
+
+
+def test_a_quantity_per_estimand_counts_wherever_it_arrived():
+    """Any of the slots, because a block may carry one per estimand: three
+    probabilities of causation are identified or bounded one at a time, and
+    reaching one of them is reaching a quantity."""
+    assert _a_quantity_arrived_in(
+        {"pn": {"point": None}, "ps": {"point": 0.25},
+         "pns": {"point": None}}, _THE_QUANTITY_IN["causation"])
+    assert not _a_quantity_arrived_in(
+        {"pn": {"point": None, "lower": 0.5, "upper": 1.0}},
+        _THE_QUANTITY_IN["causation"])
+
+
+def test_a_way_to_a_slot_that_is_not_a_mapping_reaches_no_value():
+    """A block is somebody else's document and arrives in whatever shape it
+    arrives in; a walk that assumed the shape would raise inside a rule
+    whose job is to refuse in sentences."""
+    assert not _a_quantity_arrived_in(
+        {"region": "unbounded"}, _THE_QUANTITY_IN["anderson_rubin_region"])
+    assert not _a_quantity_arrived_in(
+        {}, _THE_QUANTITY_IN["scm_counterfactual"])
+
+
+def test_the_headline_result_is_read_for_the_slot_it_filled():
+    """It has a point slot and a range slot and says which one it filled.
+    Read for its presence, it tells a reader a number arrived on the
+    envelope that wrote down that none did."""
+    bounded = {"numeric_result": {"value": None,
+                                  "interval": {"low": 0.5, "high": 1.0}}}
+    assert Shown.NUMBER not in _shown(bounded)
+    assert Shown.NUMBER in _shown({"numeric_result": {"value": 0.5}})
+
+
+def test_the_word_that_says_a_quantity_arrived_is_refused_a_range():
+    """The case this reading is for, and the case it must not touch: the
+    same envelope under the word whose answer may BE the range."""
+    envelope = {
+        "status": "counterfactual_solved",
+        "numeric_result": {"value": None,
+                           "interval": {"low": 0.5, "high": 1.0}},
+        "extensions": {"causation": {
+            "pn": {"point": None, "lower": 0.5, "upper": 1.0}}}}
+    with pytest.raises(VerificationError, match="claims a number") as err:
+        verify_answer_status(envelope)
+    assert err.value.rule == RULE
+    verify_answer_status({**envelope, "status": "counterfactual_bounded"})
+
+
+def test_the_region_that_closed_cannot_say_the_run_did_not_get_there():
+    """The other direction of the same reading. A word that sends a reader
+    away to go and do something denies the rungs a number sits at, and the
+    block says whether one is there."""
+    envelope: dict = {
+        "status": "needs_investigation",
+        "investigation_requests": [{"need": "more data"}],
+        "extensions": {"anderson_rubin_region": {"region": {"point": [1.0]}}}}
+    with pytest.raises(VerificationError, match="did not get there") as err:
+        verify_answer_status(envelope)
+    assert err.value.rule == RULE
+    envelope["extensions"]["anderson_rubin_region"]["region"]["point"] = None
+    verify_answer_status(envelope)
 
 
 def test_the_words_a_refusal_leaves_are_the_refusal_kinds_own():
@@ -704,33 +821,36 @@ def test_a_refusal_word_is_open_to_every_question(kind):
             {"status": word, "query_kind": kind})
 
 
-def test_a_block_that_is_present_and_empty_is_read_both_ways():
-    """The counterexample each reading has to give the opposite answer on.
+def test_a_block_that_is_present_and_says_it_holds_nothing():
+    """The counterexample the two readings used to have to differ over.
 
     A confidence region that came back unbounded is a block holding the
-    statement that these data do not constrain the effect. Read as a number
-    it makes the denial refuse an honest answer; read as nothing it makes
-    the promise refuse one. So it is neither: certainly nothing, possibly
-    something, and each half asks the reading that errs toward accepting.
+    statement that these data do not constrain the effect. Read for its
+    key it is a number, and the denial refuses an honest answer; read as
+    nothing at all it is the promise that refuses one. Neither of those is
+    a reading of the block. It says which it is, and both halves ask it.
+
+    The first word promises an ask as well, which is a claim on the other
+    axis and not what is under test here, so the envelope is given one. An
+    envelope assembled to exercise one half of a rule stops being a probe
+    for it the day the other half gains a requirement, and what is wanted
+    then is the missing half supplied rather than the claim weakened.
     """
     empty = {"extensions": {"anderson_rubin_region": {"region": {}}}}
     assert _shown(empty) == frozenset()
-    assert _might_be_showing(empty) == frozenset({Shown.NUMBER})
+    assert _might_be_showing(empty) == frozenset()
 
-    # The denial that would fire if the block were read as a number, and
-    # the promise that would fire if it were read as nothing. Neither may.
-    #
-    # The first word promises an ask as well, which is a claim on the
-    # other axis and not what is under test here, so the envelope is given
-    # one. An envelope assembled to exercise one half of a rule stops
-    # being a probe for it the day the other half gains a requirement, and
-    # what is wanted then is the missing half supplied rather than the
-    # claim weakened.
     asked = {**empty, "investigation_requests": [{"action": "supply_input"}]}
     verify_answer_status({**asked, "status": "needs_investigation"})
-    verify_answer_status({**empty, "status": "numerically_solved"})
-
-    # And with the block gone, both of those become refusals again — so
-    # what is being accepted above is the block and not the leniency.
     with pytest.raises(VerificationError, match="claims"):
-        verify_answer_status({"status": "numerically_solved"})
+        verify_answer_status({**empty, "status": "numerically_solved"})
+
+    # The same key, the other word inside it, and both answers swap — so
+    # what decides is the block and not the leniency.
+    closed = {"extensions": {"anderson_rubin_region": {
+        "region": {"shape": "bounded", "point": [1.0, 2.0]}}}}
+    verify_answer_status({**closed, "status": "numerically_solved"})
+    with pytest.raises(VerificationError, match="did not get there"):
+        verify_answer_status({
+            **closed, "status": "needs_investigation",
+            "investigation_requests": [{"action": "supply_input"}]})

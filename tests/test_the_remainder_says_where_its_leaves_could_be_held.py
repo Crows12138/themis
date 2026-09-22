@@ -644,13 +644,22 @@ def test_the_remainder_split_is_what_it_is():
     copy of the word; it is the work the word claims, and the difference
     between a run that left the work and one that only says it did is
     invisible to a table asking where a value is written.
+
+    Fortieth use, three leaves, out of the same heading and with the
+    heading's question wrong again in the same way. What holds the word is
+    not a second writing of it anywhere; it is whether the thing the word
+    claims is on the envelope, and that is inside a CONTAINER — a headline
+    result with a point slot and a range slot, a block of the answer
+    family. A table asking where a value is written sees the container's
+    key, which is on the envelope whether the run reached a number or
+    wrote down that it could not.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 87,
         gate._PROGRAM_ALIKE: 6,
         gate._ANSWER_OTHERWISE: 156,
         gate._PROGRAM_OTHERWISE: 5,
-        gate._NOTHING: 378,
+        gate._NOTHING: 375,
         gate._EVERY_READING_MATCHES: 33,
     }
 

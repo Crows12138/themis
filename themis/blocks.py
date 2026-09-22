@@ -52,6 +52,16 @@ they bind: a block that claims a renderer is checked against the surfaces,
 and a block that names a carrier is checked against the table the carrier
 is in.
 
+One family says more than which of the questions it answers. A block is a
+container, and a reader asking whether a quantity ARRIVED can see the key
+and not the content: a confidence region is written whether or not it
+closed, and probabilities of causation are written whether they came out
+as points or as the bounds that stand in where none did. Each says which
+it is, inside itself. So the members of that family declare WHERE, and a
+rule that has to know whether a number is on the envelope reads the slot
+instead of the key it sits behind.
+
+
 Both registries are ``enum``\\ s rather than runs of module constants, for
 the reason the refusal species are. Gathering the constants into an
 ``ALL`` set said this file was complete; nothing said that
@@ -194,14 +204,34 @@ class Block(EnvelopeName):
     import a name in neither, so neither can be spelled into being.
     """
 
+    arrives_at: tuple[tuple[str, ...], ...]
+    """Where this block's quantity is, on the answers that reached one.
+
+    Required of the ANSWER family and empty everywhere else, which the
+    loop below the class enforces both ways: a route or an assumption
+    carries no quantity, and a slot declared for one would be a place
+    nobody has a reason to look.
+
+    A key is an address. Whether a number is AT it is inside the block,
+    and every member of this family writes that down in its own words —
+    a region records whether it closed, a probability of causation
+    records the point beside the bounds standing in where there is none.
+    Each path here is that word, spelled as the keys to walk from the
+    block's own root; the quantity arrived when any of them holds a
+    value. Several paths and not one, because a block may carry a
+    quantity per estimand and reaching any of them is reaching one.
+    """
+
     def __new__(
         cls, value: str, holds: str, read_as: Family, carried_by: str | None,
+        arrives_at: tuple[tuple[str, ...], ...] = (),
     ) -> "Block":
         block = str.__new__(cls, value)
         block._value_ = value
         block.holds = holds
         block.read_as = read_as
         block.carried_by = carried_by
+        block.arrives_at = arrives_at
         return block
 
     # --- ROUTE: how the estimand was identified -----------------------------
@@ -332,6 +362,10 @@ class Block(EnvelopeName):
         # and the interval optional there — which is the same as saying the
         # field no longer promises them.
         None,
+        # The region is written whether or not it closed, and an open one
+        # excludes nothing: the point it is centred on is what is there
+        # when the data constrained the coefficients at all.
+        (("region", "point"),),
     )
     CAUSATION = (
         "causation",
@@ -339,6 +373,10 @@ class Block(EnvelopeName):
         "interventional risks they are computed from",
         Family.ANSWER,
         None,
+        # Three probabilities, each identified or else bounded, and each
+        # writes its point beside the bounds that stand in where there is
+        # none. Reaching any one of them is reaching a quantity.
+        (("pn", "point"), ("ps", "point"), ("pns", "point")),
     )
     COUNTERFACTUAL_CELL = (
         "counterfactual_cell",
@@ -350,6 +388,7 @@ class Block(EnvelopeName):
         # where the cell is the estimate's own field and an answer shape
         # already renders it.
         "numeric_estimate",
+        (("point",),),
     )
     SCM_COUNTERFACTUAL = (
         "scm_counterfactual",
@@ -357,6 +396,9 @@ class Block(EnvelopeName):
         "copy of the value the audited estimate must agree with",
         Family.ANSWER,
         None,
+        # The whole counterfactual assignment is beside it, and the one
+        # value that is the ANSWER is the target's.
+        (("target_value",),),
     )
 
     # --- ASSUMPTION: what has to hold ---------------------------------------
@@ -434,6 +476,24 @@ for _block in Block:
             f"declared block nor one of {sorted(CARRIER_FIELDS)}"
         )
 del _block, _carrier
+
+for _block in Block:
+    _owes_a_slot = _block.read_as is Family.ANSWER
+    if _owes_a_slot and not _block.arrives_at:
+        raise ValueError(
+            f"{_block!r} is read as the quantity itself and says nowhere "
+            f"where that quantity would be; the key it sits behind is on "
+            f"the envelope whether the run reached a number or wrote down "
+            f"that it could not, so a reader asking which would have only "
+            f"the address to look at"
+        )
+    if not _owes_a_slot and _block.arrives_at:
+        raise ValueError(
+            f"{_block!r} says where a quantity of its own arrives and is "
+            f"read as {_block.read_as}, which answers a different question "
+            f"({_block.read_as.tells})"
+        )
+del _block, _owes_a_slot
 
 
 def declared_as(family: Family) -> tuple[Block, ...]:

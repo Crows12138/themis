@@ -46,23 +46,41 @@ above being prose. The blocks a quantity can arrive in are not something
 this module gets to guess: ``themis.blocks`` groups them by the reader's
 question they answer, and ``Family.ANSWER`` is exactly "the quantity, on
 the paths that put it beside the estimate rather than in it".
-:data:`_ANSWER_BLOCKS` is that family, restated here for the reason every
-table in this package is restated, and pinned to it by a test — so a new
-place a number can live arrives as a red suite rather than as an honest
-answer this rule refuses.
+:data:`_THE_QUANTITY_IN` is that family, restated here for the reason
+every table in this package is restated, and pinned to it by a test — so
+a new place a number can live arrives as a red suite rather than as an
+honest answer this rule refuses.
+
+That roster was the names alone, and the reading under it was the KEY: a
+block of the family is on the envelope, so a quantity might be. A key is
+an address. Whether a number is at it is inside the block, and each of
+these says so — a confidence region records whether it closed,
+probabilities of causation record the point beside the bounds that stand
+in where there is none. Two of the words differ over exactly that, and to
+a reading of the key the two envelopes are one: a run that reached only
+bounds could call itself solved, and a run that reached a region could
+call itself needing investigation. So the family declares WHERE its
+quantity arrives, this roster carries that column, and the reading moves
+from the generous half to the certain one — a block is no longer a place a
+number might be, it is a place that says.
 
 One envelope is then read TWICE, at two strictnesses, and the reason is
 the whole design of this rule. A promise and a denial are wrong in
 opposite directions. Reading too little makes a promise refuse an answer
 that kept its number somewhere the reading missed; reading too much makes
-a denial refuse an answer whose block is present and empty — and a region
-that came back unbounded is exactly that, a block whose whole content is
-that these data do not constrain the effect. Both refuse an honest answer,
-which this rule may never do. So each half is read in the direction that
-errs toward accepting: a denial is held only against what the envelope
-CERTAINLY shows, and a promise is satisfied by anything the envelope MIGHT
-be showing. Same principle, opposite polarity, and nothing in between
-needs deciding.
+a denial refuse an answer whose block is present and holds nothing — and a
+region that came back unbounded was exactly that, a block whose whole
+content is that these data do not constrain the effect. Both refuse an
+honest answer, which this rule may never do. So each half is read in the
+direction that errs toward accepting: a denial is held only against what
+the envelope CERTAINLY shows, and a promise is satisfied by anything the
+envelope MIGHT be showing. Same principle, opposite polarity, and nothing
+in between needs deciding.
+
+What is left in the generous half is the ask, and that is the whole of it.
+The unbounded region was the reason a block could not be read for a
+denial, and the block answers it now, so where a quantity is stopped being
+a guess and became the certain reading above.
 
 The claims table denies nothing to ``numerically_solved`` or
 ``counterfactual_solved``, and that is not an omission: a number, an
@@ -111,16 +129,47 @@ _RULE = "answer_status_check"
 _RULE_QUESTION = "answer_status_question_check"
 _RULE_ROAD = "answer_status_road_check"
 
-#: The extension blocks that hold a quantity the estimate fields have no
-#: room for. ``themis.blocks.declared_as(Family.ANSWER)``, restated rather
-#: than imported: a verifier that reads the producer's own roster agrees
-#: with it by construction. A test pins the two together.
-_ANSWER_BLOCKS = frozenset({
-    "anderson_rubin_region",
-    "causation",
-    "counterfactual_cell",
-    "scm_counterfactual",
-})
+#: Where each block that holds a quantity the estimate fields have no room
+#: for puts it. ``themis.blocks``' own ``arrives_at``, restated rather than
+#: imported: a verifier that reads the producer's own roster agrees with it
+#: by construction. A test pins the two together, this column included.
+#:
+#: Read for the value and not for the key, which is the difference between
+#: a block that could be holding a number and one that is. The same
+#: question the tier channel in :mod:`themis.verifier.data_gap_rules` asks
+#: when it declines to call an open region an interval — asked here for the
+#: other reader, and out of the declaration rather than inline, because
+#: each block has its own way of saying it and a reader that spells one of
+#: them knows about one block.
+_THE_QUANTITY_IN: dict[str, tuple[tuple[str, ...], ...]] = {
+    "anderson_rubin_region": (("region", "point"),),
+    "causation": (("pn", "point"), ("ps", "point"), ("pns", "point")),
+    "counterfactual_cell": (("point",),),
+    "scm_counterfactual": (("target_value",),),
+}
+
+
+def _a_quantity_arrived_in(
+    block: Mapping, slots: tuple[tuple[str, ...], ...],
+) -> bool:
+    """Whether any of one block's declared slots holds a value.
+
+    Any, because a block may carry a quantity per estimand — three
+    probabilities of causation are identified or bounded one at a time —
+    and reaching one of them is reaching a quantity. ``None`` is the
+    block's own word for "not this one": the slot is written on every
+    answer of that shape and filled on the ones that got there.
+    """
+    for path in slots:
+        node: object = block
+        for step in path:
+            if not isinstance(node, Mapping):
+                node = None
+                break
+            node = node.get(step)
+        if node is not None:
+            return True
+    return False
 
 
 def _shown(result: Mapping) -> frozenset[Shown]:
@@ -136,18 +185,38 @@ def _shown(result: Mapping) -> frozenset[Shown]:
     for a number rather than for any of the three
     (:data:`themis.types.A_QUANTITY`).
 
-    Certainly: every rung here is a value sitting in a field, not a block
-    that would hold one. This is the reading a denial is held against, and
-    a denial is the half that must not see what is not there.
+    Certainly: every rung here is a value sitting in a field, and the two
+    places a quantity can sit are asked for the value rather than for
+    themselves. A headline result has a point slot and a range slot and it
+    says which one it filled; a block of the ANSWER family says the same
+    thing at the slot :data:`_THE_QUANTITY_IN` names. Reading either one's
+    presence tells a reader a number arrived on every envelope that wrote
+    down that none did, which is the one thing two of the words differ
+    over.
+
+    The estimate field is the exception and is read for its presence,
+    because there the presence IS the reading that is total: it is where an
+    estimator that ran puts what it got, under whichever key its own shape
+    decides, and no list of those keys is total over the shapes to come.
+
+    This is the reading a denial is held against, and a denial is the half
+    that must not see what is not there.
     """
     estimate = result.get("numeric_estimate")
     outcome = result.get("numeric_result")
     estimate = estimate if isinstance(estimate, Mapping) else None
     outcome = outcome if isinstance(outcome, Mapping) else None
+    extensions = result.get("extensions")
+    extensions = extensions if isinstance(extensions, Mapping) else {}
 
     out: set[Shown] = set()
-    if estimate is not None or outcome is not None:
+    if estimate is not None or (
+            outcome is not None and outcome.get("value") is not None):
         out.add(Shown.NUMBER)
+    for name, slots in _THE_QUANTITY_IN.items():
+        block = extensions.get(name)
+        if isinstance(block, Mapping) and _a_quantity_arrived_in(block, slots):
+            out.add(Shown.NUMBER)
     if (estimate is not None and estimate.get("point") is not None) or (
             outcome is not None and outcome.get("value") is not None):
         out.add(Shown.POINT)
@@ -166,32 +235,27 @@ def _shown(result: Mapping) -> frozenset[Shown]:
 
 
 def _might_be_showing(result: Mapping) -> frozenset[Shown]:
-    """That, plus every block a quantity could be sitting inside.
+    """That, plus the refusal that is an ask with none written out.
 
-    An answer block counts here and contributes a number and nothing
-    finer. What shape the quantity took inside it is that block's own
-    business — a region projects an interval per coefficient, a
-    counterfactual cell is a point — and reading that far would put this
-    function back to enumerating the answers its author had seen.
+    :class:`themis.refusals.Kind` is, in its own words, what the reader
+    should do about a refusal — the graph has to change, or the data, or
+    what was sent — so an envelope carrying one has said what is to be
+    done whether or not an ask was also written out. Five stored answers
+    are the difference: they identify, then refuse at the estimator for
+    want of data, and calling that needing investigation is not a lie.
 
-    A recorded refusal counts as an ask for the same reason and with the
-    same polarity. :class:`themis.refusals.Kind` is, in its own words,
-    what the reader should do about a refusal — the graph has to change,
-    or the data, or what was sent — so an envelope carrying one has said
-    what is to be done whether or not an ask was also written out. Five
-    stored answers are the difference: they identify, then refuse at the
-    estimator for want of data, and calling that needing investigation is
-    not a lie.
+    The answer blocks were the other half of this and are not any more.
+    "A block a quantity could be sitting inside" was a guess this function
+    had to make, because the alternative was a list of keys that could
+    only ever be the answers its author had seen. The family declares the
+    slot now, so what a block shows is certain and is read above. What
+    stays here is the one thing still inferred rather than read.
 
     This is the reading a promise is satisfied by, so what it costs when
     it is too generous is a lie left standing, and what it would cost if
     it were too strict is an honest answer refused.
     """
-    extensions = result.get("extensions")
-    extensions = extensions if isinstance(extensions, Mapping) else {}
     out = set(_shown(result))
-    if _ANSWER_BLOCKS & extensions.keys():
-        out.add(Shown.NUMBER)
     if result.get("estimator_failure") is not None:
         out.add(Shown.ASK)
     return frozenset(out)

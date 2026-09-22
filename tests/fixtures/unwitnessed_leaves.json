@@ -39,12 +39,6 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state"
  ],
- "counterfactual_bounded:causation:causation_probability_bounds": [
-  "status"
- ],
- "counterfactual_bounded:causation:causation_probability_bounds#660a20": [
-  "status"
- ],
  "counterfactual_cell_plugin": [
   "estimation_context.ci_bootstrap",
   "estimation_context.random_state",
@@ -238,8 +232,7 @@
   "estimation_context.random_state",
   "extensions.anderson_rubin_region.instruments.[]",
   "extensions.anderson_rubin_region.outcome",
-  "extensions.type_reconciliation.checks.[].dtype_kind",
-  "status"
+  "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#045841": [
   "estimation_context.ci_bootstrap",

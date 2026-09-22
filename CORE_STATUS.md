@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-28234 passed / 534 skipped, warning-clean
+28240 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1559,7 +1559,36 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
 
-﻿﻿﻿### #742 那个词是开关，改掉它等于把抓它的规则一起关掉（2026-09-22）
+﻿﻿﻿### #743 键是地址，「里面有没有量」写在块自己里（2026-09-22）
+
+**现象。** `status` 3 片（本轮实际参与的是 10 片里的这 3 片）。这个词是读者看到的第一句话、也是 `verify` 分派用的词，活着的弯全是**合法词之间的互换**：两个只拿到区间的因果概率答案可以自称 `counterfactual_solved`（跑到点了），一个 AR 置信区间**夹住了**的答案可以自称 `needs_investigation`（没跑到、请去补数据）。
+
+**根因：「信封上有没有一个量」被读成了「那个容器在不在」。** 两处：
+
+```python
+if estimate is not None or outcome is not None:      # numeric_result 的契约只有
+    out.add(Shown.NUMBER)                            # value / interval / unit 三个槽
+if _ANSWER_BLOCKS & extensions.keys():               # ANSWER 族四个块，只看键
+    out.add(Shown.NUMBER)
+```
+
+`numeric_result` **自己就说了这次填的是哪个槽**——`{"value": null, "interval": {...}}` 是「只拿到区间」，按字段在不在读就成了「拿到了一个数」。ANSWER 族那四个块同理：AR 区间块自己写着 `region.shape="unbounded" / point=None`（什么都没夹住），因果概率块自己写着 `pn.point=None`（只有界）。**键是地址；数在不在那个地址上，是块里面的事。**
+
+**为什么是根因不是表象。** 表象修法是给 causation 这一对单写特判。真正的事实是：`counterfactual_bounded` 与 `counterfactual_solved` 的**全部差别**正是「点到了没有」，而按键读的人看这两个信封**完全一样**。而且这条判据**本仓已经有人在用**——`data_gap_rules._an_answer_the_point_is_not`（tier 通道）就地读 `region.bounded is False`，拒绝把一个没闭合的区间叫做「区间在手」。同一个问题，另一个读者问了，status 这个读者没问。
+
+**而名册转述时少抄了一栏（#739 第二次）。** `_ANSWER_BLOCKS` 是 `blocks.declared_as(Family.ANSWER)` 的转述——抄了**哪些块带量**，没抄**各自把量放在哪个槽**（那一栏当时还不存在）。判据只能粗到「键在不在」，是因为它手上只有那一栏。
+
+**结构性改动。** `themis.blocks.Block` 增一栏 `arrives_at`：ANSWER 族必填、其余三族必空，两个方向都在 import 期闸口上；四个块各自声明自己的量槽（`region.point` / `pn|ps|pns.point` / `point` / `target_value`），每条槽路径再被一条测试钉回 schema——**声明一个信封里不存在的位置，等于对所有答案都回答「没有量」**。`status_rules` 把 `_ANSWER_BLOCKS` 换成带这一栏的 `_THE_QUANTITY_IN`（照既有纪律转述 + 钉住，不 import）。
+
+**于是宽松那半缩了。** 「块里可能装着一个数」本来必须待在**宽松**半边（promise 读它、denial 不读），理由是规则不知道块里是什么——**那是无知的度量，不是设计**。块自己一开口，同一件事就从「可能」变成「确定」，挪进 denial 也读的那半；宽松半边只剩下唯一还在推断的那一项（记录下来的拒答＝一句没写出来的「请去做什么」）。
+
+**一条历史测量因此变假，重测并改写。** `A_QUANTITY` 的 docstring 写着「全语料实测，『三个梯级任取其一』与『一个数、或者顶替它的那个区间』在每个答案上都一致」——那句一致**本身就是按键读出来的**。现在两种读法在 3 个答案上分开（全是 `counterfactual_bounded`），那句话连同对应的测试一起改写。
+
+**实测。** 余项 **665 → 662（关 3 片）**，0 NEW holes，语料 252 行 **0 误拒**；1512 次换词里，单问这条规则的拒答 1116 → **1125**，两扇公开门都放过去的 11 → **7**（`counterfactual_bounded → counterfactual_solved` 2 条、`needs_investigation → numerically_solved` 1 条、`numerically_solved → needs_investigation` 1 条同时闭掉）。剩下的 7 条是同一个形状：**`structural_result` 也是个容器**，两个答案的裁决写着 `false`、五个是识别完了在估计端拒答——那是下一条。分档：`_NOTHING` **378 → 375**，其余五档未动。
+
+**方法论沉淀**：(472)**容器的键是地址，「里面有没有东西」是内容里的事。** 判据：看到 `if <block> in extensions` / `if <field> is not None` 被当成「有个数」，就去问这个块自己有没有就这件事说过话——本仓四个 ANSWER 块全都说了（`shape`/`bounded`/`point` 都是块自己的词）。(473)**转述一张表时少抄一栏，读者的粒度就被钉死在那一栏以上**（#739 第二次，同一处名册）。判据：转述前先问「原表还有哪些列、我这条规则要回答的问题需要哪一列」；这次需要的那一列**上游也还没有**，所以先声明再转述。(474)**两档读法里的「宽松半」是无知的度量，不是设计。** 判据：看到 might/certain 两档，逐项问「这一项放在宽松半边，是因为事实本身不确定，还是因为读者没去问」——后者一旦去问，这一项就该整项搬家，而不是在宽松半边打补丁。(475)**改动使一条历史测量失效时，必须重测并改写那句话。** 判据：动 `_shown` 这种被 docstring 引用过实测结论的读法时，grep 那条结论；prose 里的「实测一致」带着当时的读法，读法变了，那句话就是错的而不是旧的。
+
+### #742 那个词是开关，改掉它等于把抓它的规则一起关掉（2026-09-22）
 
 **现象。** `numeric_estimate.method` 3 片。这个字段有封闭词表，陌生名和空串在 validator 那一步就被挡掉（不算叶子的弯），**活着的弯是 `→ 'aipw'`**：答案可以声称自己跑的是 aipw，而实际跑的是运输后分层（`transport_post_stratification`）或选择偏倚恢复（`selection_backdoor_recovery`）。三个答案里**两个带着完整推导链、`verify` 也读了它们**，弯照样活。
 

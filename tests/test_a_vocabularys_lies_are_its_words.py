@@ -25,10 +25,13 @@ That clearest case is closed. #735 held the word to the road the answer
 came by -- four questions are about more than one world and reach a number
 two ways, and the estimating road leaves an estimate behind -- so a
 counterfactual point that estimated nothing can no longer call itself
-numerically solved. The paragraph above is what this instrument FOUND, and
-it stays as it was measured; what is still open is the pair below it. That
-distinction is the whole difference between a file about an instrument and
-a file about the rules the instrument measured.
+numerically solved. A second closed in #743, one step further in: a
+diagnosis whose confidence region did not close was calling itself
+numerically solved on the strength of the block's KEY, and the block
+records whether it closed. The paragraph above is what this instrument
+FOUND, and it stays as it was measured; what is still open is the pair
+below it. That distinction is the whole difference between a file about an
+instrument and a file about the rules the instrument measured.
 
 Asking every word is affordable up to a point and the point is measured
 rather than chosen: the vocabularies this contract declares come in two
@@ -50,12 +53,13 @@ import tests.test_every_answer_shape_is_asked_the_same_question as gate
 #: The pairs the measurement found that are still holes, as (honest word,
 #: word that survives). Each is a word the old sample never asked about.
 #:
-#: The measurement found three. The first of them -- a counterfactual point
-#: calling itself numerically solved -- was closed in #735, and what a
-#: closed pair would do here is fail the two tests below, which put every
-#: pair to the doors rather than trusting this list.
+#: The measurement found three and two are closed: a counterfactual point
+#: calling itself numerically solved, in #735, and a diagnosis whose
+#: region did not close calling itself the same, in #743. What a closed
+#: pair does here is fail the two tests below, which put every pair to the
+#: doors rather than trusting this list -- which is how each of them came
+#: off it.
 SURVIVING = (
-    ("needs_investigation", "numerically_solved"),
     ("structurally_solved", "needs_investigation"),
 )
 
@@ -155,7 +159,6 @@ def test_the_pairs_this_file_still_finds_a_hole_for():
     this tuple and a tuple gone empty is a pair of green tests asking
     nothing at all."""
     assert SURVIVING == (
-        ("needs_investigation", "numerically_solved"),
         ("structurally_solved", "needs_investigation"),
     )
 

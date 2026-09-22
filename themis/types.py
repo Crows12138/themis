@@ -1381,10 +1381,14 @@ class Shown(StrEnum):
 #: they were named for: ``bounds_results`` raises ``INTERVAL`` while
 #: carrying no quantity at all, and it is, in the reading's own words,
 #: "where an answer that could not reach a point keeps what it did
-#: reach". Measured over every stored answer, "any of the three" and "a
-#: number, or else a range" agreed on all of them — so the set was the
-#: second sentence under the first one's name, and 42 answers holding
-#: nothing but Manski bounds could call themselves numerically solved.
+#: reach". Measured over every stored answer of the day, "any of the
+#: three" and "a number, or else a range" agreed on all of them — so the
+#: set was the second sentence under the first one's name, and 42 answers
+#: holding nothing but Manski bounds could call themselves numerically
+#: solved. They agree on all but three of them now, and the three are the
+#: same sentence one level in: a headline result has a point slot and a
+#: range slot, and a reading that took the FIELD for a number was calling
+#: a bounded counterfactual a solved one.
 A_QUANTITY: frozenset[Shown] = frozenset({Shown.NUMBER})
 
 #: …or the range that stands in where none arrived, which one word's
