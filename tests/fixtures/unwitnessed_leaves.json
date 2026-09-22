@@ -115,9 +115,7 @@
   "extensions.type_reconciliation.checks.[].dtype_kind",
   "numeric_estimate.over_identification.sufficient_statistics.s0.[].[]",
   "numeric_estimate.over_identification.sufficient_statistics.s1.[].[]",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.cluster_robust",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.kind",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.point"
+  "numeric_estimate.robust_anderson_rubin_confidence_set.cluster_robust"
  ],
  "iv_acr": [
   "bounds_results.[].ci_lower",
@@ -220,8 +218,6 @@
  "needs_investigation:effect:none": [
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
-  "extensions.anderson_rubin_region.instruments.[]",
-  "extensions.anderson_rubin_region.outcome",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#045841": [
@@ -377,8 +373,6 @@
  "needs_investigation:effect:none#a9f370": [
   "bounds_results.[].ci_lower",
   "estimation_context.random_state",
-  "extensions.anderson_rubin_region.instruments.[]",
-  "extensions.anderson_rubin_region.outcome",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#af79f6": [
@@ -574,9 +568,7 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.cluster_robust",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.kind",
-  "numeric_estimate.robust_anderson_rubin_confidence_set.point"
+  "numeric_estimate.robust_anderson_rubin_confidence_set.cluster_robust"
  ],
  "numerically_solved:effect:numeric_joint_backdoor_estimate": [
   "estimation_context.ci_bootstrap",

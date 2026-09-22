@@ -750,9 +750,21 @@ def test_the_remainder_split_is_what_it_is():
     as written nowhere, which is what a heading is for: it says where a
     second writing could be found, and a count rebuilt from a table needs
     no second writing at all.
+
+    Fiftieth use, eight leaves, every one of them out of the first heading
+    -- the words a weak-instrument answer uses for itself. Each of the
+    eight is written twice somewhere: the set's point is the estimate's
+    point, the region's instruments and outcome are the columns its moment
+    tables were built on, and the name of a cover is a word this document
+    uses wherever it records a cover. But the strongest of the eight was
+    not held by the comparison this heading names. The word for what a set
+    covers was rebuilt from the segments the rule had already
+    reconstructed, because two arrangements of one cover can disagree and
+    a copy of the word cannot. The heading says where a second writing can
+    be found; it has never said the second writing is the best route to it.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 76,
+        gate._ANSWER_ALIKE: 68,
         gate._PROGRAM_ALIKE: 4,
         gate._ANSWER_OTHERWISE: 135,
         gate._PROGRAM_OTHERWISE: 5,

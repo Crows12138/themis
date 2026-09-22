@@ -2778,10 +2778,27 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
     # robust matrices Ŝ(β0) = S0 − β0·S1 + β0²·S2 (never the producer's evaluator),
     # then (a) confirms each reported crossing is on the boundary AR_r ≈ crit, (b)
     # re-derives crit = χ²(q) and the shared tail asymptote (1/n)·zx'S2⁻¹zx, (c)
-    # rebuilds the segments from the crossings + asymptote and matches them + the
-    # kind, and (d) runs an INDEPENDENT dense-grid membership scan (a different
-    # method from the producer's exact polynomial roots) to confirm no crossing
-    # was missed and the tails are right. Conditional on the block being present.
+    # rebuilds the segments from the crossings + asymptote and matches them, (d)
+    # names the cover with the vocabulary the estimator's module declares and
+    # matches the kind, (e) holds the block's own copy of the 2SLS point to the
+    # beta re-derived above, and (f) runs an INDEPENDENT dense-grid membership
+    # scan (a different method from the producer's exact polynomial roots) to
+    # confirm no crossing was missed and the tails are right. Conditional on the
+    # block being present.
+    #
+    # (d) and (e) were in this comment before they were in the code. The
+    # homoskedastic set thirty lines up checks both, and this one -- written
+    # afterwards for the same family, and the one a reader of a weak-instrument
+    # answer actually gets -- rebuilt the cover and never named it. An `empty`
+    # relabelled `bounded` says the data pins the effect down when the truth is
+    # that nothing was ruled out.
+    #
+    # `cluster_robust` is NOT held here and is not an oversight. It restates
+    # `cluster is not None`, and this envelope writes the word `cluster` exactly
+    # once -- in that key. A rule comparing it to itself is the third copy
+    # dispatch._attach_* deleted for the same reason; the two directions the
+    # fact IS audited from are estimation_context and the estimator's own
+    # assumption sentence, which verifier.cluster_inference_rules reads.
     rar = estimate.get("robust_anderson_rubin_confidence_set")
     if isinstance(rar, dict) and rar.get("kind") is not None:
         try:
@@ -2865,6 +2882,46 @@ def verify_iv_overid_numeric(estimate: dict) -> None:
             _fail(
                 f"robust AR segments inconsistent with crossings+asymptote — "
                 f"rebuilt {rebuilt}, recorded {reported_segs}"
+            )
+
+        # (d) Name the cover. The words are the estimator module's own
+        # declaration (themis.estimation.iv, module docstring): a bounded
+        # interval, two rays as `disconnected`, one ray either way, the whole
+        # line, nothing, and more than two pieces as a `union`. Read off the
+        # REBUILT cover rather than off the producer's root case-split, so the
+        # two arrangements can disagree.
+        def _name_the_cover(segs) -> str:
+            if not segs:
+                return "empty"
+            rays = [(lo, hi) for lo, hi in segs if lo is None or hi is None]
+            if len(segs) == 1:
+                lo, hi = segs[0]
+                if lo is None and hi is None:
+                    return "whole_line"
+                if lo is None:
+                    return "unbounded_below"
+                if hi is None:
+                    return "unbounded_above"
+                return "bounded"
+            if len(segs) == 2 and len(rays) == 2:
+                return "disconnected"
+            return "union"
+
+        named = _name_the_cover(rebuilt)
+        if named != rar.get("kind"):
+            _fail(
+                f"robust AR kind mismatch — the rebuilt cover {rebuilt} is "
+                f"{named!r}, recorded {rar.get('kind')!r}"
+            )
+
+        # (e) The set is centred on the same 2SLS point the headline carries,
+        # and the block keeps its own copy of it.
+        claimed_rpt = rar.get("point")
+        if claimed_rpt is None or abs(beta - float(claimed_rpt)) > (
+                _IV_OVERID_TOL * (1 + abs(beta))):
+            _fail(
+                f"robust AR point mismatch — 2SLS x'P_Z y / x'P_Z x = {beta}, "
+                f"recorded {claimed_rpt}"
             )
 
         # (d) INDEPENDENT dense-grid membership scan (a different method from the
@@ -2994,6 +3051,43 @@ def verify_vector_iv_region(block: dict) -> None:
             _fail(f"{where}.treatments {said!r} is not the order the moments "
                   f"are in ({names}); every coordinate below would then be "
                   f"about a different coefficient")
+
+    # The treatments were held to the moments and the other two names beside
+    # them were not, though a region is a statement about WHICH instruments
+    # bracketed WHICH outcome and the moment tables count both. Held to the
+    # columns this block says were read, and to each other: the four roles are
+    # disjoint because a column cannot be its own instrument or be adjusted for
+    # while being explained.
+    columns = [str(c) for c in (block.get("data_columns") or ())]
+    instruments = [str(z) for z in (block.get("instruments") or ())]
+    outcome = block.get("outcome")
+    conditioning = [str(w) for w in (block.get("conditioning") or ())]
+    if columns:
+        for role, said in (("instruments", instruments),
+                           ("outcome", [outcome] if outcome is not None else [])):
+            stray = [c for c in said if c not in columns]
+            if stray:
+                _fail(f"{role} names {stray}, which this region did not read; "
+                      f"the columns it declares are {columns}")
+    if len(instruments) != q:
+        _fail(f"instruments {instruments} number {len(instruments)} and the "
+              f"moment tables are built on q = {q} of them; the region would "
+              f"be read off a different first stage than the one recorded")
+    if len(set(instruments)) != len(instruments):
+        _fail(f"instruments {instruments} names one column twice, which is one "
+              f"instrument counted as two")
+    if outcome is not None:
+        clash = [role for role, members in (("a treatment", names),
+                                            ("an instrument", instruments),
+                                            ("conditioned on", conditioning))
+                 if str(outcome) in members]
+        if clash:
+            _fail(f"outcome {outcome!r} is also {clash[0]}; the coefficient "
+                  f"this region is about would be the outcome on itself")
+    overlap = sorted(set(instruments) & (set(names) | set(conditioning)))
+    if overlap:
+        _fail(f"instruments {overlap} are also a treatment or conditioned on; "
+              f"an instrument partialled out or explained is not one")
 
     m_denom = n - n_exog - q - 1
     if m_denom < 1:
