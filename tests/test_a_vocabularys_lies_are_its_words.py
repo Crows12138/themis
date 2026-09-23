@@ -28,10 +28,15 @@ counterfactual point that estimated nothing can no longer call itself
 numerically solved. A second closed in #743, one step further in: a
 diagnosis whose confidence region did not close was calling itself
 numerically solved on the strength of the block's KEY, and the block
-records whether it closed. The paragraph above is what this instrument
-FOUND, and it stays as it was measured; what is still open is the pair
-below it. That distinction is the whole difference between a file about an
-instrument and a file about the rules the instrument measured.
+records whether it closed. The third closed in #766, and on the other
+thing the word is about: an answer that identified and then refused at the
+estimator was calling itself one that needs investigating, which says
+nothing false about how far the run got and does say the structural
+question is still open while the slot beside it says it is settled. The
+paragraph above is what this instrument FOUND, and it stays as it was
+measured. That distinction is the whole difference between a file about an
+instrument and a file about the rules the instrument measured -- and it is
+why a closed pair stays on the roster below rather than coming off it.
 
 Asking every word is affordable up to a point and the point is measured
 rather than chosen: the vocabularies this contract declares come in two
@@ -50,18 +55,30 @@ import pytest
 
 import tests.test_every_answer_shape_is_asked_the_same_question as gate
 
-#: The pairs the measurement found that are still holes, as (honest word,
-#: word that survives). Each is a word the old sample never asked about.
+#: Every pair the measurement found, as (honest word, word that survives,
+#: the frontier that closed it or None). Each is a word the old sample
+#: never asked about.
 #:
-#: The measurement found three and two are closed: a counterfactual point
-#: calling itself numerically solved, in #735, and a diagnosis whose
-#: region did not close calling itself the same, in #743. What a closed
-#: pair does here is fail the two tests below, which put every pair to the
-#: doors rather than trusting this list -- which is how each of them came
-#: off it.
-SURVIVING = (
-    ("structurally_solved", "needs_investigation"),
+#: All three are closed now: a counterfactual point calling itself
+#: numerically solved, in #735; a diagnosis whose region did not close
+#: calling itself the same, in #743; and an answer that identified and
+#: then refused at the estimator calling itself one that needs
+#: investigating, in #766. A pair used to come OFF this list when it
+#: closed, and the last one leaving would have left the tests below
+#: parametrized over nothing -- green, and asking nothing. So a closed
+#: pair stays, with the measurement below reading its entry rather than
+#: trusting it: the same discipline that took each of them off the open
+#: half in the first place.
+FOUND = (
+    ("counterfactual_solved", "numerically_solved", "#735"),
+    ("needs_investigation", "numerically_solved", "#743"),
+    ("structurally_solved", "needs_investigation", "#766"),
 )
+
+#: ...and the half this file is about, which is empty by measurement.
+SURVIVING = tuple((honest, survives)
+                  for honest, survives, closed_by in FOUND
+                  if closed_by is None)
 
 
 # ============================================ what the contract declares
@@ -155,37 +172,41 @@ def _answers_saying(word):
 
 
 def test_the_pairs_this_file_still_finds_a_hole_for():
-    """Named and counted, because the two tests below are parametrized over
-    this tuple and a tuple gone empty is a pair of green tests asking
-    nothing at all."""
-    assert SURVIVING == (
-        ("structurally_solved", "needs_investigation"),
-    )
+    """Named and counted, because the test below is parametrized over the
+    roster and a roster gone empty is a green test asking nothing at all.
+
+    Which is why the open half is derived and the roster is not: three
+    pairs were found, all three are closed, and both halves of that
+    sentence are asserted rather than one of them being an absence."""
+    assert len(FOUND) == 3
+    assert SURVIVING == ()
 
 
-@pytest.mark.parametrize("honest,survives", SURVIVING)
+@pytest.mark.parametrize("honest,survives,closed_by", FOUND)
 def test_the_word_that_survives_is_one_the_sweep_now_asks_about(
-        honest, survives):
+        honest, survives, closed_by):
     """First, because a test that a forgery passes proves nothing about
-    an instrument that never put it."""
+    an instrument that never put it. Asked of the closed pairs too: what
+    closed them was a rule, and an instrument that stopped asking would
+    report the same green."""
     assert survives in gate._from_domain(honest, gate._DOMAIN["status"])
 
 
-@pytest.mark.parametrize("honest,survives", SURVIVING)
-def test_the_word_the_sample_skipped_survives_and_is_now_declared(
-        honest, survives):
+@pytest.mark.parametrize("honest,survives,closed_by", FOUND)
+def test_each_pair_is_on_the_side_of_the_line_this_file_files_it_on(
+        honest, survives, closed_by):
     """The measurement itself, through the doors the sweep uses, and then
     the file that has to say so.
 
-    Not every answer saying the honest word is one this passes on -- what
-    a rule holds depends on what else the answer carries -- so this finds
-    the first that it does and stops. Finding none would mean the pair was
-    never a hole, and the assertion below says so rather than passing
-    quietly on an empty loop.
+    Not every answer saying the honest word is one a bend passes on --
+    what a rule holds depends on what else the answer carries -- so this
+    finds the first that it does and stops. For a pair still open, finding
+    none would mean it was never a hole; for a closed one, finding any
+    means the frontier named beside it did not close what it says it did.
 
     This file is about the instrument, not about the rules that read
-    ``status``: the point is that a coverage number said held while this
-    was true.
+    ``status``: the point is that a coverage number said held while these
+    were true.
     """
     found = None
     for name in _answers_saying(honest):
@@ -199,8 +220,11 @@ def test_the_word_the_sample_skipped_survives_and_is_now_declared(
         if not any(gate._refuses(door, program, forged) for door in doors):
             found = name
             break
-    assert found is not None, (honest, survives)
-    assert "status" in gate.UNWITNESSED.get(found, ()), found
+    if closed_by is None:
+        assert found is not None, (honest, survives)
+        assert "status" in gate.UNWITNESSED.get(found, ()), found
+    else:
+        assert found is None, (honest, survives, closed_by, found)
 
 
 # ======================================== what is still measured by sample

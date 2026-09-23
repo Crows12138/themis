@@ -473,6 +473,18 @@ Public surface (re-exports from sub-modules):
   sits; a gap of the one declared kind that says it failed; and a point
   estimate, which is what identification is for. Nothing is re-derived:
   what this catches is an answer contradicting itself)
+- The word an answer leads with, against that verdict:
+  ``verify_no_refusing_word_stands_beside_a_settled_verdict``
+  (``refusals.Kind`` gives each kind the status a result takes when the
+  refusal is ALL the result contains, and says what a result carrying more
+  does: one that also carries an identification answer has a status about
+  that. So the two words a refusal leaves are open to an answer carrying a
+  verdict only where the verdict is that a gap remains. The rule above
+  reads a verdict for its presence, because a denial held against a short
+  reading cannot invent a lie; this reads what it SAYS, which is what tells
+  the answer whose structural question is settled from the one whose
+  remaining gap is that question. Safe to read because the verdict is held
+  by the rule above it, which needs no route)
 - What an answer calls the steps of its chain:
   ``verify_the_chain_names_its_steps`` (a name exists to be pointed at, and
   the reader of an answer holds no second record of what its producer liked
@@ -1090,6 +1102,7 @@ from .statement_rules import (
 from .status_rules import (
     verify_answer_status,
     verify_answer_status_fits_its_question,
+    verify_no_refusing_word_stands_beside_a_settled_verdict,
     verify_no_status_promises_a_rung_an_errand_asks_for,
 )
 from .step_name_rules import verify_the_chain_names_its_steps
@@ -1149,6 +1162,7 @@ __all__ = [
     "verify_answer_status_fits_its_question",
     "verify_no_status_promises_a_rung_an_errand_asks_for",
     "verify_structural_verdict",
+    "verify_no_refusing_word_stands_beside_a_settled_verdict",
     "verify_statements_carry_their_facts",
     "verify_statements_repeat_what_decided_them",
     "verify_the_chain_names_its_steps",

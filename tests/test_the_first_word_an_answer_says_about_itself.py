@@ -19,7 +19,7 @@ the meaning is declared beside the word
 (:data:`themis.types.STATUS_CLAIMS`), the audit reads the blocks for
 itself, and the two have to agree.
 
-Three things can hold the word and the other two are here too. What the
+Four things can hold the word and the other three are here too. What the
 envelope SHOWS stops where two words show the same thing — a
 counterfactual point and an estimated one are one rung. What the question
 ASKED separates them, and which words a question's answer may lead with is
@@ -33,6 +33,15 @@ number — estimate it from data, or compute it from the structural model
 the program itself declares — so their roster lists the words of both
 roads and holds neither. Which ROAD an answer came by is the third thing,
 read off the estimate the estimating road leaves behind.
+
+The fourth is the VERDICT beside the word, where an answer carries one.
+``refusals.Kind`` gives each kind the status a result takes when the
+refusal is ALL the result contains, and says in the same breath what a
+result carrying more does: one that also carries an identification answer
+has a status about THAT. So a word a refusal leaves is open to an answer
+carrying a verdict only where the verdict is that a gap remains — and the
+five relabellings this file called an honest limit of the reading were
+the other case.
 
 What is asserted here:
 
@@ -57,6 +66,9 @@ What is asserted here:
   declaration names and not at the key it sits behind — the region that
   closed against the one that did not, a probability that came out as a
   point against one that came out as the bounds standing in for it
+- that a word a refusal leaves is refused beside a verdict saying the
+  structural question came out settled, kept beside one saying a gap
+  remains, and silent where the answer carries no verdict at all
 - the numbers: what each rule reaches, what they refuse, and what they do
   not — the survivors are named, because a gate that reports its own
   blindness as coverage is the failure this whole line of work is about
@@ -80,7 +92,8 @@ from themis.estimation import dispatch
 from themis.verifier.status_rules import (
     _ACROSS_WORLDS, _ANSWERS_WITH, _REFUSAL_WORDS, _THE_ESTIMATORS_WORD,
     _THE_QUANTITY_IN, _a_quantity_arrived_in, _might_be_showing, _shown,
-    verify_answer_status, verify_answer_status_fits_its_question)
+    verify_answer_status, verify_answer_status_fits_its_question,
+    verify_no_refusing_word_stands_beside_a_settled_verdict)
 
 from . import schema_walk
 from .answer_corpus import the_door_for, verify_honestly
@@ -93,6 +106,7 @@ SHAPES = json.loads(
 RULE = "answer_status_check"
 RULE_QUESTION = "answer_status_question_check"
 RULE_ROAD = "answer_status_road_check"
+RULE_VERDICT = "answer_status_verdict_check"
 
 #: What one relabelling of every answer comes to. Stated so that a
 #: narrowing shows up as a number: 1458 swaps, of which 673 survived both
@@ -106,7 +120,13 @@ RULE_ROAD = "answer_status_road_check"
 #: new survivors relabels an identification as needing investigation, as
 #: 19 already did.
 SWAPS = 1512
-SURVIVING = 5
+SURVIVING = 0
+
+#: The questions with one world and one road, whose answers say the
+#: estimating road's word without owing an estimate for it.
+ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
+    kind for kind, words in _ANSWERS_WITH.items()
+    if kind not in _ACROSS_WORLDS and _THE_ESTIMATORS_WORD in words)
 
 #: Which relabellings the envelope cannot tell apart, and how many of each.
 #:
@@ -210,15 +230,24 @@ SURVIVING = 5
 #: reading. What reached them is a join between two vocabularies that were
 #: each complete and had never been put side by side: exactly one kind of
 #: errand names a rung.
-#: The questions with one world and one road, whose answers say the
-#: estimating road's word without owing an estimate for it.
-ONE_WORLD_QUESTIONS_ANSWERING_WITH_IT = sorted(
-    kind for kind, words in _ANSWERS_WITH.items()
-    if kind not in _ACROSS_WORLDS and _THE_ESTIMATORS_WORD in words)
-
-SURVIVORS = {
-    "structurally_solved -> needs_investigation": 5,
-}
+#:
+#: The last five went in #766, and what this file wrote about them was a
+#: judgement rather than a limit. "Calling that needing investigation is
+#: not a lie" was measured against what the envelope SHOWS, where the word
+#: denies two rungs and an answer holding neither denies nothing — true,
+#: and not the only thing the word is about. ``refusals.Kind`` gives each
+#: kind the status a result takes when the refusal is ALL the result
+#: contains, and says in the same breath what a result carrying more does:
+#: one that also carries an identification answer has a status about THAT.
+#: So on those five the word says nothing false about how far the run got
+#: and does say something false about which question is still open, with
+#: the slot beside it saying the structural one is settled.
+#:
+#: Nothing survives now. An empty table is the shape this file warns
+#: about, so the count above is what says it is empty by measurement
+#: rather than by silence, and the swap total beside it is what says the
+#: corpus is still being relabelled.
+SURVIVORS: dict[str, int] = {}
 
 
 # --- the word means something, and every word has a meaning -------------------
@@ -355,6 +384,21 @@ def test_what_this_rule_reaches_on_its_own():
     assert (refused, passed) == (1125, 387), (refused, passed)
 
 
+def test_what_the_verdict_rule_reaches_on_its_own():
+    """And the fourth, for the reason the two above are counted: what a
+    rule reaches at the door is whatever the rules before it left, which
+    measures the order they run in rather than the rule."""
+    refused = passed = 0
+    for _name, _program, _honest, forged, _was, _now in _swaps():
+        try:
+            verify_no_refusing_word_stands_beside_a_settled_verdict(forged)
+        except VerificationError:
+            refused += 1
+        else:
+            passed += 1
+    assert (refused, passed) == (240, 1272), (refused, passed)
+
+
 @pytest.mark.parametrize("status,rung", [
     ("needs_investigation", Shown.POINT),
     ("outside_language", Shown.CHAIN),
@@ -445,8 +489,10 @@ def test_a_word_that_sends_the_reader_away_says_where_to():
 
 #: The stored answers that identify cleanly and then refuse at the
 #: estimator for want of data. The promise leaves them alone — on these
-#: the word is not a lie — and the number is here so that a corpus which
-#: stopped carrying the shape says so rather than reading as a win.
+#: the word says nothing false about how far the run got — and the number
+#: is here so that a corpus which stopped carrying the shape says so
+#: rather than reading as a win. What refuses them is the fourth hold, on
+#: the other thing the word is about, and both are put to the same five.
 IDENTIFIED_THEN_REFUSED = 5
 
 
@@ -454,9 +500,15 @@ def test_the_answers_that_identify_and_then_refuse_keep_the_word():
     """The declared cost of reading a refusal as an ask, counted.
 
     Narrowing the promise to the two ask fields would close these five as
-    well. It would also refuse a shape that is honest: identification
-    succeeded, the estimator could not run on this sample, and "needs
-    investigation" is a fair thing for such an answer to say.
+    well, and would refuse the honest half of what they are: the run
+    reached no number and the word denies none, so nothing it says about
+    how far the run got is false.
+
+    What is false is which question it leaves open, and that is the fourth
+    hold rather than a narrower promise -- the verdict beside the word says
+    the structural question is settled. Both readings are put to the same
+    five here, because what is worth keeping about this test is that they
+    answer differently on one envelope.
     """
     kept = [name for name, row in SHAPES.items()
             if str(row["result"].get("status")) == "structurally_solved"
@@ -468,6 +520,71 @@ def test_the_answers_that_identify_and_then_refuse_keep_the_word():
         forged = copy.deepcopy(SHAPES[name]["result"])
         forged["status"] = "needs_investigation"
         verify_answer_status(forged)
+        with pytest.raises(VerificationError, match="still to settle"):
+            verify_no_refusing_word_stands_beside_a_settled_verdict(forged)
+
+
+# --- the fourth hold: what the verdict beside the word says -------------------
+
+
+#: The stored answers that lead with a word a refusal leaves and carry a
+#: verdict as well. Counted so that a corpus which stopped carrying the
+#: shape says so: this rule would then be holding a case no answer of the
+#: day makes.
+A_REFUSING_WORD_BESIDE_A_VERDICT = 2
+
+
+def test_every_stored_answer_that_does_it_says_a_gap_remains():
+    """The case the rule must not refuse, read off the corpus rather than
+    written: a word a refusal leaves is honest beside a verdict when the
+    verdict is what the gap is about."""
+    beside = {name: row["result"]["structural_result"]["value"]
+              for name, row in SHAPES.items()
+              if str(row["result"].get("status")) in _REFUSAL_WORDS
+              and isinstance(row["result"].get("structural_result"), dict)}
+    assert len(beside) == A_REFUSING_WORD_BESIDE_A_VERDICT, sorted(beside)
+    assert set(beside.values()) == {False}, beside
+    for name in beside:
+        verify_no_refusing_word_stands_beside_a_settled_verdict(
+            SHAPES[name]["result"])
+
+
+@pytest.mark.parametrize("word", sorted(_REFUSAL_WORDS))
+def test_a_refusing_word_beside_a_settled_verdict_is_refused(word):
+    """Both words, because what holds them is one sentence about refusals
+    rather than a fact about either word."""
+    forged = _with(status=word, structural_result={"value": True})
+    with pytest.raises(VerificationError, match="still to settle") as raised:
+        verify_no_refusing_word_stands_beside_a_settled_verdict(forged)
+    assert raised.value.rule == RULE_VERDICT
+
+
+@pytest.mark.parametrize("word", sorted(_REFUSAL_WORDS))
+def test_a_refusing_word_beside_an_unsettled_verdict_is_kept(word):
+    """The half the rule exists to leave alone: a gap in the structural
+    question is what such a word is for."""
+    verify_no_refusing_word_stands_beside_a_settled_verdict(
+        _with(status=word, structural_result={"value": False}))
+
+
+@pytest.mark.parametrize("word", ["structurally_solved",
+                                  "numerically_solved"])
+def test_a_word_that_says_the_run_got_there_keeps_its_verdict(word):
+    """Settled is what those words are for; this rule is about the words a
+    refusal leaves and no others."""
+    verify_no_refusing_word_stands_beside_a_settled_verdict(
+        _with(status=word, structural_result={"value": True}))
+
+
+@pytest.mark.parametrize("verdict", [None, {}, {"value": None}, "yes"])
+def test_the_rule_says_nothing_where_no_verdict_is_written(verdict):
+    """An answer carrying no verdict, or one this build cannot read, is not
+    an answer contradicting itself. What a verdict has to look like is the
+    schema's question, and answering it here would be a second, weaker
+    enum check standing in front of the real one."""
+    fields = {} if verdict is None else {"structural_result": verdict}
+    verify_no_refusing_word_stands_beside_a_settled_verdict(
+        _with(status="needs_investigation", **fields))
 
 
 #: How many stored answers hold a range and no quantity, and how many

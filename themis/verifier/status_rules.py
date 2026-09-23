@@ -1,14 +1,17 @@
 """The first word an answer says about itself, against what can hold it.
 
-Three things can. What the envelope is SHOWING, which is most of this
+Four things can. What the envelope is SHOWING, which is most of this
 module; what the question ASKED, which separates two words that show the
-same; and, where a question has more than one road to an answer, which
-ROAD this one came by. None subsumes another: an answer showing nothing
-cannot be any of the solved words whatever was asked; an effect query's
-answer cannot be a counterfactual point however many numbers are beside
-it; and a question about two worlds is answered either by computing from
-the model the program declares or by estimating from data, where the word
-says which and the envelope shows which.
+same; where a question has more than one road to an answer, which ROAD
+this one came by; and what the VERDICT beside it SAYS, where the answer
+carries one. None subsumes another: an answer showing nothing cannot be
+any of the solved words whatever was asked; an effect query's answer
+cannot be a counterfactual point however many numbers are beside it; a
+question about two worlds is answered either by computing from the model
+the program declares or by estimating from data, where the word says
+which and the envelope shows which; and a word that says the run has an
+errand left is open to an answer whose structural question is still open,
+not to one whose slot beside it says it is settled.
 
 
 ``status`` is what a reader meets before anything else, and it decides
@@ -517,3 +520,60 @@ def verify_no_status_promises_a_rung_an_errand_asks_for(
             f"reached a thing and be sending somebody to go and get it",
             rule=_RULE_ERRAND,
         )
+
+
+#: A fourth name, for the word that stands beside a verdict instead of
+#: being about it.
+_RULE_VERDICT = "answer_status_verdict_check"
+
+
+def verify_no_refusing_word_stands_beside_a_settled_verdict(
+    result: Mapping,
+) -> None:
+    """The word an answer leads with, against the verdict beside it.
+
+    :class:`themis.refusals.Kind` gives each kind the status a result
+    takes "when this refusal is all the result contains", and says in the
+    same breath what a result carrying more than that does: one that also
+    carries an identification answer has a status about THAT — the data
+    end's refusals ride results whose status says the structural question
+    was answered, or that a gap in it remains. So the two words a refusal
+    leaves are open to an answer carrying a verdict on the second of those
+    readings only. Where the verdict is that there is no gap, a reader is
+    sent away to go and find something out, past the slot beside it saying
+    the structural question is done.
+
+    Not the first rule of this module with the verdict added. That one
+    reads what the envelope SHOWS and reads a verdict for its PRESENCE,
+    because a denial held against a short reading cannot invent a lie, and
+    a verdict of either polarity is a verdict shown. What is read here is
+    what the verdict SAYS, which is the one fact about it that tells the
+    answer whose structural question is settled from the answer whose
+    remaining gap IS the structural one — and the two stored answers that
+    lead with a refusing word beside a verdict are the second kind.
+
+    Safe to read the verdict, and only because it is held:
+    :func:`themis.verifier.verdict_rules.verify_structural_verdict` puts
+    it against the three places one answer commits to identification, none
+    of which needs a route. A forgery that flips the verdict AND this word
+    is refused there wherever one of those three is written, and where
+    none is, it is a forgery neither rule can see.
+
+    Returns ``None`` on accept. Raises
+    :class:`~themis.verifier.errors.VerificationError` otherwise.
+    """
+    word = result.get("status")
+    if not isinstance(word, str) or word not in _REFUSAL_WORDS:
+        return
+    verdict = result.get("structural_result")
+    if not isinstance(verdict, Mapping) or verdict.get("value") is not True:
+        return
+    raise VerificationError(
+        f"the answer leads with {word!r} and the structural verdict beside "
+        f"it says the proposition its question names holds; that word is "
+        f"what a result takes when a refusal is the whole of it, and this "
+        f"one carries the structural answer as well, so a reader is told "
+        f"there is a structural question still to settle while the slot "
+        f"under the word says it is settled",
+        rule=_RULE_VERDICT,
+    )

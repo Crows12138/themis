@@ -147,6 +147,7 @@ from .verifier import (
     verify_answer_status_fits_its_question,
     verify_no_status_promises_a_rung_an_errand_asks_for,
     verify_structural_verdict,
+    verify_no_refusing_word_stands_beside_a_settled_verdict,
     verify_answer_tier,
     verify_statements_carry_their_facts,
     verify_statements_repeat_what_decided_them,
@@ -1733,6 +1734,13 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # reason the rules above are here, and reading the kind for the same
     # reason: it is held to the program by now.
     verify_structural_verdict(result)
+    # And the word against that verdict, which the first status rule reads
+    # for its presence and cannot read for its sense: a word a refusal
+    # leaves is what a result takes when the refusal is the whole of it,
+    # and an answer carrying the structural answer as well leads with a
+    # word about THAT. After the line above, for the reason the kind is
+    # read after it is held.
+    verify_no_refusing_word_stands_beside_a_settled_verdict(result)
 
     # Which node each column of an accepted frame stood for. Asked of the
     # program's graph and ahead of every rule that reads a number: the

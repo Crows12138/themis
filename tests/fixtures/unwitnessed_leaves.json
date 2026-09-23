@@ -751,22 +751,19 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "status"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#146fcc": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "status"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#2777a5": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "status"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#535477": [
   "data_gap_report.gaps.[].describes.[].said.w_levels",
@@ -774,15 +771,13 @@
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "status"
+  "estimation_context.sample_size"
  ],
  "structurally_solved:proximal_effect:proximal_criterion#f57fe5": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
   "estimation_context.random_state",
-  "estimation_context.sample_size",
-  "status"
+  "estimation_context.sample_size"
  ],
  "tmle": [
   "estimation_context.ci_bootstrap",

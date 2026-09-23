@@ -913,13 +913,28 @@ def test_the_remainder_split_is_what_it_is():
     name is over. What no reading of values could add is that the rules
     already walking those rows read the second writing out of a field two
     of these rows do not carry, and the name carries it either way.
+
+    Sixty-first use, five leaves, the last heading again, and
+    the first time the heading was right about the leaf while the account
+    of those same five elsewhere in this suite was the thing that was
+    wrong. The word an answer leads with is written nowhere else on either
+    document, which is exactly what this heading says, and every hold on it
+    so far has been a comparison with something else the envelope shows.
+    What closed these is not a comparison either. It is a declaration of
+    what the word MEANS beside a block, written where the refusal kinds
+    are: a kind's outcome is the status a result takes when the refusal is
+    all the result contains, so a result carrying an identification answer
+    as well leads with a word about THAT. A heading here says where a
+    second writing of a VALUE is. It says nothing about a declaration
+    deciding which of two true readings of one word is the one being
+    made.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 28,
         gate._PROGRAM_ALIKE: 3,
         gate._ANSWER_OTHERWISE: 130,
         gate._PROGRAM_OTHERWISE: 3,
-        gate._NOTHING: 331,
+        gate._NOTHING: 326,
         gate._EVERY_READING_MATCHES: 23,
     }
 
