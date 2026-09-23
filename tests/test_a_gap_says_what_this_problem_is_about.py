@@ -552,6 +552,17 @@ def test_the_remainder_is_counted_rather_than_described():
     than copy it -- the algorithm in a reader's letters where the record
     keeps the token's, a count as text where the record keeps a number. A
     forgery in one of them now discloses a run that did not happen.
+
+    And 5 more once the share a bridge warning prints is held to the arm
+    it was counted on. Those are a rendering again, and this time the
+    record it renders is not beside the sentence but inside the chain, in
+    the wire form a derivation is written in -- which is why this package
+    had filed them as out of reach from where its other printings are
+    read. Out of reach from HERE, and not from a module whose subject is
+    that one count: it asks the serializer for the chain and holds the
+    warning's share, the level it names as worst and how many levels it
+    says there were against the arms of the bridge itself. A forgery in
+    one of them now tells a reader a share no arm of this answer counted.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -566,7 +577,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2430, 18), (refused, accepted)
+    assert (refused, accepted) == (2435, 13), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():

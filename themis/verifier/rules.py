@@ -6195,6 +6195,148 @@ def _bridge_sample_adds_up(channel, rule: str, step_index) -> None:
             )
 
 
+#: How far from whole a count of rows may land and still be one. A share
+#: reaches this record as a float, so multiplying it back by the rows it
+#: was counted over returns the count with the error one float costs;
+#: capped well under half a row, so the allowance stays a real constraint
+#: on a sample of any size.
+_A_WHOLE_ROW = 1e-6
+
+
+def _bridge_arm_numbers(value):
+    """One recorded block as rows of floats, or ``None`` if it is not one.
+
+    Shape is not this reader's question. The solve path builds every matrix
+    it uses through :func:`_bridge_matrix`, against widths counted off the
+    designs, and refuses there whatever is the wrong size with the width it
+    was counted against. What is asked here is only whether there are
+    numbers to compare at all.
+    """
+    if not isinstance(value, (list, tuple)) or not value:
+        return None
+    rows = []
+    for row in value:
+        if not isinstance(row, (list, tuple)) or not row:
+            return None
+        if any(not isinstance(x, (int, float)) or isinstance(x, bool)
+               for x in row):
+            return None
+        rows.append([float(x) for x in row])
+    if len({len(row) for row in rows}) != 1:
+        return None
+    return rows
+
+
+def _bridge_arm_share_is_a_count(arm, n, rule: str, step_index) -> None:
+    """How much of an arm the fitted bridge sent below zero.
+
+    The one figure on this record that no arithmetic here reproduces: it is
+    how many rows of this arm the solved q came out negative on, and rows
+    are what an envelope of moments does not carry. That is a true reason
+    not to re-derive it and not a reason to read nothing. What the envelope
+    does carry is how many rows the arm had, and some of them over all of
+    them is a fraction with that denominator -- so a share that does not
+    come back whole is a share of nothing anybody counted.
+    """
+    share = arm.get("q_negative_fraction")
+    if isinstance(share, bool) or not isinstance(share, (int, float)):
+        return
+    if isinstance(n, bool) or not isinstance(n, int) or n <= 0:
+        return
+    if not 0.0 <= share <= 1.0:
+        raise RuleCheckFailed(
+            f"measurement_channel.treatment_bridge: an arm reports the "
+            f"bridge going negative on {share!r} of its rows; a share of "
+            f"rows lies between none of them and all of them",
+            step_index=step_index, rule=rule,
+        )
+    counted = float(share) * n
+    if abs(counted - round(counted)) > min(0.25, _A_WHOLE_ROW * max(1.0,
+                                                                   counted)):
+        raise RuleCheckFailed(
+            f"measurement_channel.treatment_bridge: an arm of {n!r} rows "
+            f"reports the bridge going negative on {share!r} of them, which "
+            f"is {counted!r} rows; a share of rows is a count over a count "
+            f"and comes back whole",
+            step_index=step_index, rule=rule,
+        )
+
+
+def _bridge_arms_hold_their_own_records(channel, rule: str,
+                                        step_index) -> None:
+    """The fields an arm records that nothing re-solves.
+
+    ``M``, ``s`` and ``r`` are read because the operator is rebuilt out of
+    them. The rest of an arm was written and never taken, each for a reason
+    that is true and that answers a different question than the one a door
+    asks. ``gg`` goes unread because this module forms ``MᵀΩM`` for itself
+    rather than believing an operator -- which is right, and which leaves
+    the Gram the operator was formed FROM with no reader at all, it being a
+    different matrix. ``q_negative_fraction`` goes unread because it counts
+    rows where everything around it averages them. Neither says the field
+    cannot be held; both say it cannot be held by RE-SOLVING.
+
+    What holds ``gg`` is what the designs are. Every design on this channel
+    carries the constant in its first column -- that is the one shared
+    constant :func:`_bridge_design_width` adds back after dropping each
+    term's own copy -- so row 0 of ``gg`` and row 0 of ``M`` are the same
+    numbers written twice, this arm's mean of each span function over the
+    whole sample; and the leading entry of both is the mean of the constant
+    against itself, which is the share of the sample this arm is.
+
+    Through the same walk the row counts use, and for the same reason: an
+    arm is a record carrying its own cross-moments and its own row count,
+    so the contrast's spelling and the curve's are one reading here and a
+    third arrives already held.
+    """
+    bridge = channel.get("treatment_bridge") if isinstance(channel, dict) \
+        else None
+    if not isinstance(bridge, dict):
+        return
+    n_total = channel.get("n_total")
+    if isinstance(n_total, bool) or not isinstance(n_total, int) \
+            or n_total <= 0:
+        n_total = None
+    for arm in _bridge_treatment_arms(bridge):
+        n = arm.get("n")
+        m = _bridge_arm_numbers(arm.get("m"))
+        _bridge_arm_share_is_a_count(arm, n, rule, step_index)
+        if m is None:
+            continue
+        width = len(m[0])
+        gg = _bridge_arm_numbers(arm.get("gg"))
+        if gg is None or len(gg) != width or len(gg[0]) != width:
+            raise RuleCheckFailed(
+                f"measurement_channel.treatment_bridge: an arm of {n!r} rows "
+                f"records {width} moments of the span and a Gram of "
+                f"{arm.get('gg')!r}; the two are one design measured over one "
+                f"set of rows and are that design's width apiece",
+                step_index=step_index, rule=rule,
+            )
+        for j in range(width):
+            if abs(gg[0][j] - m[0][j]) > _NUMERIC_TOL * max(1.0,
+                                                            abs(m[0][j])):
+                raise RuleCheckFailed(
+                    f"measurement_channel.treatment_bridge: an arm of {n!r} "
+                    f"rows records gg[0][{j}]={gg[0][j]!r} beside "
+                    f"m[0][{j}]={m[0][j]!r}; both designs carry the constant "
+                    f"in their first column, so those two entries are this "
+                    f"arm's mean of one span function written twice",
+                    step_index=step_index, rule=rule,
+                )
+        if n_total is not None and isinstance(n, int) \
+                and not isinstance(n, bool):
+            share = n / n_total
+            if abs(gg[0][0] - share) > _NUMERIC_TOL:
+                raise RuleCheckFailed(
+                    f"measurement_channel.treatment_bridge: an arm of {n!r} "
+                    f"rows out of {n_total!r} records gg[0][0]={gg[0][0]!r}; "
+                    f"the constant against itself is the share of the sample "
+                    f"this arm is, which is {share!r}",
+                    step_index=step_index, rule=rule,
+                )
+
+
 def _bridge_standard_error(moments, n, g, c, w_bar, ridge: float) -> float:
     """The delta-method SE of ``w̄ᵀθ``, out of the moments alone.
 
@@ -7172,6 +7314,7 @@ def _check_proximal_bridge_curve(ctx, inputs: Mapping, channel: dict,
     # here rather than two, and one standard error per level, because what
     # varies along a curve is w̄ and nothing else.
     _bridge_sample_adds_up(channel, rule, step_index)
+    _bridge_arms_hold_their_own_records(channel, rule, step_index)
     joint_moments = _bridge_second_moments(channel, "joint", d, rule,
                                            step_index)
     said = channel.get("standard_errors")
@@ -7616,6 +7759,7 @@ def _rule_numeric_proximal_bridge_estimate(
     # rebuilding the first stage; these three are the second stage's, and
     # until now nothing on this envelope read them.
     _bridge_sample_adds_up(channel, rule, step_index)
+    _bridge_arms_hold_their_own_records(channel, rule, step_index)
     moments = {arm: _bridge_second_moments(channel, arm, d, rule, step_index)
                for arm in ("treated", "control")}
 

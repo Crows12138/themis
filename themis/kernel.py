@@ -178,6 +178,7 @@ from .verifier import (
     verify_investigation_items,
     verify_identification_formula,
     verify_fitted_diagnostics,
+    verify_a_bridge_warning_says_the_share_it_counted,
     verify_a_column_is_one_node,
     verify_a_column_is_a_name_the_program_states,
     verify_frame,
@@ -2396,6 +2397,16 @@ def _hold_what_the_estimate_calls_for(
     # those numbers can themselves be re-derived. Held here to the
     # arithmetic every fitted range obeys whatever model produced it.
     verify_fitted_diagnostics(result)
+
+    # And the evidence that is not a block but a figure inside the chain.
+    # A fitted treatment bridge can come out negative, and how much of an
+    # arm it did that on is counted once and written twice: onto the arm,
+    # where an auditor of the moments finds it, and into the warning it
+    # occasions, where a reader does. It is the one figure there that no
+    # arithmetic reproduces -- a count of rows, where an envelope of
+    # moments carries moments -- and that was read as a reason to hold it
+    # nowhere rather than a reason not to recompute it.
+    verify_a_bridge_warning_says_the_share_it_counted(result)
 
     # And what each block says it is ABOUT. The audits above re-derive a
     # number FROM the labels beside it — which columns, which states, which

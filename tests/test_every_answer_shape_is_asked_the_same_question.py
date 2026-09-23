@@ -2471,7 +2471,7 @@ def test_the_declared_remainder_is_what_it_is():
     reading cannot run is a silence that says as much.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 513, total
+    assert total == 497, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

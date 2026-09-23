@@ -1265,8 +1265,11 @@ _PRINTED_FROM: Mapping[tuple[str | None, str], tuple[str, Any]] = {
 #: The proximal bridge's negative share is on this envelope but inside a
 #: derivation step, in the wire form a chain is written in. Reading that
 #: from here would put the gap module in the business of decoding the
-#: chain; it belongs beside the block, which is what the paragraph above
-#: says about where these readings live.
+#: chain, which is why it is not here -- and that says where it IS held
+#: rather than that it is unheld. A module whose whole subject is that one
+#: count asks the serializer for the chain and holds the warning against
+#: the arm it was counted on, in both directions:
+#: ``bridge_share_rules.verify_a_bridge_warning_says_the_share_it_counted``.
 
 
 def _printed_from(statement: str | None,

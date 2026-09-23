@@ -865,7 +865,15 @@ Public surface (re-exports from sub-modules):
   inside its band is a count of zero outside it. The ledger's positivity
   verdict is read off the first of these, so the re-reading that makes that
   verdict a disclosure rather than a claim was resting on a figure that was
-  itself only a claim)
+  itself only a claim);
+  ``verify_a_bridge_warning_says_the_share_it_counted`` (a fitted treatment
+  bridge is a reciprocal probability and can come out negative; how much of
+  an arm it did that on is counted at the estimator, written onto the arm,
+  and printed back to the reader in the warning it occasions. The share is
+  the one figure of that record no second implementation can re-derive --
+  it counts rows where everything around it averages them -- and that was
+  taken for a reason to read it nowhere, leaving the two writings of one
+  count with no reader between them)
 - What a block says it is ABOUT: ``verify_frame`` (every
   measurement-error correction re-derives its number FROM the block's own
   labels — which columns, which states, which value the risk is of — so the
@@ -1122,6 +1130,9 @@ from .method_block_rules import (
     verify_a_block_names_the_method_that_wrote_it,
 )
 from .fitted_diagnostic_rules import verify_fitted_diagnostics
+from .bridge_share_rules import (
+    verify_a_bridge_warning_says_the_share_it_counted,
+)
 from .frame_rules import (
     verify_a_column_is_one_node,
     verify_a_column_is_a_name_the_program_states,
@@ -1189,6 +1200,7 @@ __all__ = [
     "verify_bounds_account",
     "verify_identification_formula",
     "verify_fitted_diagnostics",
+    "verify_a_bridge_warning_says_the_share_it_counted",
     "verify_a_column_is_one_node",
     "verify_a_column_is_a_name_the_program_states",
     "verify_frame",

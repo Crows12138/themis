@@ -928,13 +928,41 @@ def test_the_remainder_split_is_what_it_is():
     second writing of a VALUE is. It says nothing about a declaration
     deciding which of two true readings of one word is the one being
     made.
+
+    Sixty-second use, sixteen leaves, three headings, and one count held
+    from both of its ends at once. A fitted treatment bridge is a
+    reciprocal probability, so it can come out below zero, and how much of
+    an arm it did that on is counted at the estimator and written twice:
+    onto the arm beside its cross-moments, and into the warning that count
+    occasions.
+
+    Seven sat under the first heading and it was right about them in the
+    ordinary way. They are the arms' Grams, whose leading entry is the
+    share of the sample that arm is, and the cross-moments recorded beside
+    each one open with that same number -- which is no coincidence and is
+    what closed them: every design here carries the constant in its first
+    column, so the first row of the Gram and the first row of the
+    cross-moments are one arm's span moments written out twice.
+
+    Seven sat under the last, and it was right about those too, in the way
+    recorded here before: four of them are the warning's own slots and
+    three are the shares those slots are about, and a warning PRINTS its
+    share. The string a reader is shown and the float the arm holds are
+    two values, so no reading of values could ever have paired them. What
+    closed them is printing the record the same way and comparing the
+    printings -- and, for the shares themselves, that some of an arm's
+    rows over all of them comes back whole.
+
+    A heading says where a second writing of a VALUE is. It says nothing
+    about two records being one measurement by construction, and nothing
+    about a value that is written twice in two different notations.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 28,
+        gate._ANSWER_ALIKE: 21,
         gate._PROGRAM_ALIKE: 3,
-        gate._ANSWER_OTHERWISE: 130,
+        gate._ANSWER_OTHERWISE: 128,
         gate._PROGRAM_OTHERWISE: 3,
-        gate._NOTHING: 326,
+        gate._NOTHING: 319,
         gate._EVERY_READING_MATCHES: 23,
     }
 
