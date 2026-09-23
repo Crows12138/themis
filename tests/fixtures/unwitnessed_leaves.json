@@ -237,7 +237,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.remedies.[].remedy",
-  "estimator_failure.remedies.[].subject",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
  "needs_investigation:effect:none#1be52a": [
@@ -327,8 +326,7 @@
   "estimation_context.model_preference",
   "estimation_context.random_state",
   "estimator_failure.recorded.outcome",
-  "estimator_failure.remedies.[].remedy",
-  "estimator_failure.remedies.[].subject"
+  "estimator_failure.remedies.[].remedy"
  ],
  "needs_investigation:effect:none#96f4c8": [
   "estimation_context.ci_bootstrap",

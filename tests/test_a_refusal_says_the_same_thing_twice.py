@@ -216,6 +216,13 @@ def test_a_bent_leaf_is_refused():
     Thirty-seven moved from free to held when the estimator became a name
     this build has to have: one per refusal block, since every one of them
     carries the field and nothing had ever asked what it said.
+
+    And two more when a route's object became the input the refusal itself
+    names. Those are the refusals that say what they are short of — an
+    argument, a column — and then send the reader after it; the two are
+    one name written twice by the site that raised the refusal, spelt as
+    the argument it is on one side and as the name a reader types on the
+    other.
     """
     held = free = 0
     for name in REFUSALS:
@@ -229,7 +236,7 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (264, 69), (held, free)
+    assert (held, free) == (266, 67), (held, free)
 
 
 def test_a_dropped_fact_is_refused():

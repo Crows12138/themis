@@ -891,13 +891,23 @@ def test_the_remainder_split_is_what_it_is():
     value cannot see a number through the text of it, so on this heading
     "nothing writes this" is what "nothing writes this the same way" looks
     like, and the leaves under it are not all of one kind.
+
+    Fifty-ninth use, two leaves, two headings, and one name under both of
+    them. A refusal that produced no number says what it was short of and
+    then offers a way out that names the same thing, and the two are one
+    name written twice by the site that refused. One of them is a column
+    the answer names elsewhere, which is the heading that says so; the
+    other is a keyword argument, and the refusal spells it with the sign
+    that marks it one while the route spells it as the name a reader
+    types -- so the heading that says nothing writes it is again reading
+    two spellings of one name as two names.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 31,
         gate._PROGRAM_ALIKE: 3,
-        gate._ANSWER_OTHERWISE: 133,
+        gate._ANSWER_OTHERWISE: 132,
         gate._PROGRAM_OTHERWISE: 3,
-        gate._NOTHING: 332,
+        gate._NOTHING: 331,
         gate._EVERY_READING_MATCHES: 23,
     }
 

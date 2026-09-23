@@ -297,6 +297,71 @@ def _check_each_route_is_one_this_build_declares(failure: Mapping) -> None:
             )
 
 
+#: The routes whose object is a name the refusal itself can declare. The
+#: other three are left out for reasons of their own: a stratum is a LEVEL
+#: rather than an input, a method is not an input at all, and the last
+#: names nothing. Written as the three rather than as "the ones with a
+#: hole", because which of them a refusal could be held to is the
+#: question, and a table with a silence in it reads like one nobody
+#: finished.
+_NAMES_AN_INPUT = frozenset({
+    refusals.Remedy.SUPPLY_INPUT,
+    refusals.Remedy.CHANGE_INPUT,
+    refusals.Remedy.SUPPLY_DATA_VARIATION,
+})
+
+#: Where a refusal says which input it is about, in the order it says it.
+_SAYS_WHICH_INPUT = ("argument", "what", "column")
+
+
+def _check_each_route_names_what_the_refusal_is_about(
+        failure: Mapping) -> None:
+    """A route's object, against the input the refusal itself declares.
+
+    The line above asks whether a route is declared and whether it names
+    something; neither question is about WHAT it names, and the object is
+    the whole of what a reader is sent after. A refusal that says it is
+    short of ``error_variance=`` and sends the reader to pass
+    ``differential_by`` passed every door.
+
+    The two are one name written twice by the raise site that raised the
+    refusal, and they are spelt differently: the detail carries the sign
+    that marks a keyword argument and the object does not. Measured over
+    every site in this build that offers a route: fourteen name an input
+    the refusal also names, and all fourteen drop the sign. So the
+    comparison is of the name, and the spelling is part of the claim.
+
+    Silent where a refusal names no input -- an object can also be a
+    parameter of the estimator that refused, which the refusal has no
+    occasion to state, and a rule reading silence as disagreement would
+    refuse those.
+    """
+    details = failure.get("details")
+    if not isinstance(details, Mapping):
+        return
+    named = next((details[key] for key in _SAYS_WHICH_INPUT
+                  if isinstance(details.get(key), str)), None)
+    if named is None:
+        return
+    for row in failure.get("remedies") or ():
+        if not isinstance(row, Mapping):
+            continue
+        if refusals.REMEDY_BY_NAME.get(str(row.get("remedy"))) \
+                not in _NAMES_AN_INPUT:
+            continue
+        subject = row.get("subject")
+        if subject is None or subject == named.rstrip("="):
+            continue
+        _reject(
+            f"a refusal says it is about {named!r} and sends a reader after "
+            f"{subject!r}. The two are one name written twice by the site "
+            f"that refused -- the refusal spells it as the argument it is, "
+            f"the route as the name a reader types -- so a reader who reads "
+            f"the reason and a reader who reads what to do next are entitled "
+            f"to read one thing"
+        )
+
+
 def _check_the_estimator_is_one_this_build_has(failure: Mapping) -> None:
     """Which estimator refused, against the names this build can give.
 
@@ -335,4 +400,5 @@ def verify_refusal_block(result: Mapping) -> None:
     _check_the_sentence_carries_the_occasions_facts(failure)
     _check_each_fact_is_written_twice_and_agrees(failure)
     _check_each_route_is_one_this_build_declares(failure)
+    _check_each_route_names_what_the_refusal_is_about(failure)
     _check_the_estimator_is_one_this_build_has(failure)
