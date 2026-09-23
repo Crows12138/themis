@@ -592,6 +592,141 @@ def test_an_unstated_independent_censoring_premise_is_rejected():
         verify_survival_curve(r)
 
 
+def test_a_censored_share_its_own_cells_do_not_add_up_to_is_rejected():
+    """The share is a count over a count, and both counts are in the block.
+
+    Every cell records how many units it held and how many of them left
+    without the event. The block's share is over the whole run, so it is
+    those two sums divided — the producer's word about its own tables until
+    somebody divides them.
+    """
+    r = _answered()
+    block = r["extensions"]["survival_curve"]
+    block["censored_share"] = float(block["censored_share"]) / 2.0
+    with pytest.raises(VerificationError,
+                       match="leaving without the event"):
+        verify_survival_curve(r)
+
+
+def test_a_share_is_held_to_the_float_and_not_to_the_neighbourhood():
+    """One unit in six thousand is a different share, and says so."""
+    r = _answered()
+    block = r["extensions"]["survival_curve"]
+    censored = sum(c["n_censored"] for c in block["cells"])
+    units = sum(c["n"] for c in block["cells"])
+    block["censored_share"] = (censored + 1) / units
+    with pytest.raises(VerificationError,
+                       match="leaving without the event"):
+        verify_survival_curve(r)
+
+
+def test_a_follow_up_that_ends_before_a_cell_was_last_seen_is_rejected():
+    """The one direction that needs no condition.
+
+    Follow-up ends when the last unit anywhere was last seen. The cells are
+    part of the sample whether or not they are all of it, so a block whose
+    follow-up ends before a time it itself records is inconsistent with
+    itself and not merely with a denominator this audit cannot see.
+    """
+    r = _answered()
+    block = r["extensions"]["survival_curve"]
+    block["follow_up_ends"] = min(c["last_observed"] for c in block["cells"]) \
+        / 2.0
+    with pytest.raises(VerificationError,
+                       match="not before a time the block itself carries"):
+        verify_survival_curve(r)
+
+
+def test_a_follow_up_that_outlasts_every_cell_is_rejected():
+    r = _answered()
+    block = r["extensions"]["survival_curve"]
+    block["follow_up_ends"] = float(block["follow_up_ends"]) + 10.0
+    with pytest.raises(VerificationError,
+                       match="the last time any of its cells records"):
+        verify_survival_curve(r)
+
+
+def test_where_the_cells_are_not_the_whole_sample_the_share_is_left_alone():
+    """The declared boundary, pinned as a test rather than left implied.
+
+    The share's denominator is everyone the run read, and the cells are per
+    (stratum, arm). They are the sample exactly when their units add up to
+    the estimate's, and the envelope says so for itself. Where they do not,
+    dividing by the cells anyway would refuse an honest run for being
+    partial — so the share is not asked, and the follow-up still is, because
+    that one is bounded by the cells rather than equal to them.
+    """
+    r = _answered()
+    block = r["extensions"]["survival_curve"]
+    r["numeric_estimate"]["sample_size"] = int(
+        r["numeric_estimate"]["sample_size"]) + 1
+    block["censored_share"] = 0.99
+    block["follow_up_ends"] = float(block["follow_up_ends"]) + 10.0
+    verify_survival_curve(r)
+
+    block["follow_up_ends"] = 0.5
+    with pytest.raises(VerificationError,
+                       match="not before a time the block itself carries"):
+        verify_survival_curve(r)
+
+
+def test_an_event_column_the_run_never_read_is_rejected():
+    r = _answered()
+    r["extensions"]["survival_curve"]["event_indicator"] = "not_a_column"
+    with pytest.raises(VerificationError, match="a column nobody opened"):
+        verify_survival_curve(r)
+
+
+def test_an_event_column_that_is_the_recorded_time_itself_is_rejected():
+    """A column cannot be both the duration and the flag about it."""
+    r = _answered()
+    r["extensions"]["survival_curve"]["event_indicator"] = \
+        r["numeric_estimate"]["outcome"]
+    with pytest.raises(VerificationError, match="a curve read off itself"):
+        verify_survival_curve(r)
+
+
+def test_two_arms_standardised_over_different_strata_are_rejected():
+    """Weights that each sum to one over two different sets of strata.
+
+    ``Σ_z w(z)·[m(1,z) − m(0,z)]`` is one set of strata read twice. Two
+    arms carrying different sets pass the check that each arm's weights sum
+    to one, and the difference they report is between two populations.
+    """
+    r = _answered()
+    cells = r["extensions"]["survival_curve"]["cells"]
+    first = next(c for c in cells if c["arm"] is False)
+    first["stratum"] = ["a stratum the other arm has never heard of"]
+    with pytest.raises(VerificationError,
+                       match="standardised over different strata"):
+        verify_survival_curve(r)
+
+
+def test_a_stratum_weighted_differently_in_the_two_arms_is_rejected():
+    """A weight is the stratum's share, which no arm gets its own copy of."""
+    r = _answered()
+    cells = r["extensions"]["survival_curve"]["cells"]
+    treated = next(c for c in cells if c["arm"] is True)
+    other = next(c for c in cells
+                 if c["arm"] is False
+                 and list(c["stratum"]) == list(treated["stratum"]))
+    treated["weight"] = other["weight"] + 1e-3
+    with pytest.raises(VerificationError,
+                       match="share of the sample whichever arm"):
+        verify_survival_curve(r)
+
+
+def test_a_stratum_recorded_twice_in_one_arm_is_rejected():
+    """Weighted once is what the standardisation does with each stratum."""
+    r = _answered()
+    cells = r["extensions"]["survival_curve"]["cells"]
+    treated = [c for c in cells if c["arm"] is True]
+    treated[1]["stratum"] = list(treated[0]["stratum"])
+    with pytest.raises(VerificationError,
+                       match="a stratum recorded twice is one weighted twice"):
+        verify_survival_curve(r)
+
+
 def test_the_verifier_does_not_import_the_estimator():
     """Duplication is the design; a shared import would undo it."""
     source = (REPO / "themis" / "verifier" / "survival_rules.py").read_text(

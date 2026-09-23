@@ -956,13 +956,40 @@ def test_the_remainder_split_is_what_it_is():
     A heading says where a second writing of a VALUE is. It says nothing
     about two records being one measurement by construction, and nothing
     about a value that is written twice in two different notations.
+
+    Sixty-third use, four leaves, three headings, and one of them right
+    about where a second writing is while being wrong about which document
+    holds it. A restricted mean is audited cell by cell, and the block's
+    own scalars had never been divided out of those cells.
+
+    Two sat under `_NOTHING` and the heading is right about them: the
+    share of the sample censored and the value a stratum takes are each
+    written once. What closed them is not a second writing. One is
+    arithmetic -- a share is a count over a count and both counts are in
+    the cells -- and the other is a shape: a standardised difference
+    weights ONE set of strata, so the two arms' strata are one set
+    recorded twice although no single VALUE is.
+
+    One sat under "somewhere in the answer, named otherwise", which is
+    exactly what it was. Follow-up ends when the last unit was last seen,
+    and every cell records its own last observation under another name.
+
+    The fourth is the interesting one. It sat under "a field of the
+    program, named alike" -- the question does declare which column says
+    whether a recorded time is an event -- and what closed it reads
+    neither the program nor that field. This audit takes the envelope
+    alone, and the envelope lists the columns the run read; a name that is
+    not among them names nothing a reader can go back to. A heading says
+    where a second writing IS. It does not say that copy is the one a rule
+    will reach, and a rule confined to one document reaches a different
+    one.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
         gate._ANSWER_ALIKE: 21,
-        gate._PROGRAM_ALIKE: 3,
-        gate._ANSWER_OTHERWISE: 128,
+        gate._PROGRAM_ALIKE: 2,
+        gate._ANSWER_OTHERWISE: 127,
         gate._PROGRAM_OTHERWISE: 3,
-        gate._NOTHING: 319,
+        gate._NOTHING: 317,
         gate._EVERY_READING_MATCHES: 23,
     }
 

@@ -2469,9 +2469,23 @@ def test_the_declared_remainder_is_what_it_is():
     outcome is asked at, what was observed, which events are conjoined --
     so the slot has no exemption left in it, and what is left where a
     reading cannot run is a silence that says as much.
+
+    Then four, where a block's own scalars had never been divided out of
+    the cells beneath them. A restricted mean is audited cell by cell --
+    every curve, area and variance re-derived from the risk table it was
+    read off -- and the audit stopped where the cell did. What the block
+    says about the SAMPLE those cells hold is a function of them: the
+    share censored is their two sums divided, follow-up ends no earlier
+    than the last time any of them records, and the strata the two arms
+    are weighted over are one set read twice rather than each arm's own.
+    Whether the cells ARE the sample is asked rather than assumed -- they
+    are when their units add up to the estimate's, and where they do not a
+    rule that divided by them anyway would refuse an honest run for being
+    partial, so the share goes unasked there while the bound on follow-up
+    still holds.
     """
     total = sum(len(v) for v in UNWITNESSED.values())
-    assert total == 497, total
+    assert total == 493, total
     assert len(SHAPES) == 252, len(SHAPES)
 
 

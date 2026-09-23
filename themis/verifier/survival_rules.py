@@ -33,6 +33,17 @@ leaves standing, and the counts the cell records beside the table — how
 many units, how many events, how many left — have to be the ones the
 table implies.
 
+**The block's own scalars.** Everything above is inside a cell or built
+from the cells' curves. The block also reports three numbers about the
+SAMPLE — what share of it was censored, when follow-up ended, and which
+column carried the event flag — and a weighting that spans the cells rather
+than sitting in one. Each is a function of what the cells already record, so
+each was the producer's word about its own tables. Whether the cells ARE the
+sample is not assumed: they cover the run when their units add up to the
+estimate's, the envelope says that for itself, and where they do not the
+share has a denominator nothing here can see. The last observed time is held
+either way, because a subset's maximum cannot exceed the whole's.
+
 The limit is worth stating rather than leaving implied: the block IS the
 evidence. A producer that rewrote the table AND every scalar derived from
 it would leave something nothing here could refute. What this rules out
@@ -185,7 +196,9 @@ def verify_survival_curve(result: dict) -> None:
     ``None`` when the result carries no such block. Raises
     ``VerificationError`` on a curve, area or variance that does not
     recompute, a standardisation that is not the weighted mean it claims,
-    a risk table that does not account for its own losses, or an
+    a risk table that does not account for its own losses, two arms
+    standardised over different strata, a block-level scalar that is not
+    what its own cells add up to, an event column the run never read, or an
     independent-censoring premise that never reached the ledger.
     """
     if not isinstance(result, dict):
@@ -210,8 +223,11 @@ def verify_survival_curve(result: dict) -> None:
         for c in block.get("exhausted_cells") or ()
         if isinstance(c, dict)
     }
+    estimate = result.get("numeric_estimate")
     by_arm: dict[bool, list[tuple[float, float, float]]] = {True: [], False: []}
-    events = 0
+    layers: dict[bool, dict[tuple, float]] = {True: {}, False: {}}
+    events = units = censored = 0
+    last_seen = 0.0
     for i, cell in enumerate(cells):
         if not isinstance(cell, dict):
             _reject(f"survival_curve.cells[{i}] must be an object")
@@ -273,11 +289,24 @@ def verify_survival_curve(result: dict) -> None:
         # equal, so the two carry the same numbers today — and taking the
         # recomputation is what keeps the standardisation below downstream
         # of this module's own arithmetic rather than of the producer's.
+        if stratum in layers[arm]:
+            _reject(
+                f"{where} is a second cell for stratum {list(stratum)} in "
+                f"the {'treated' if arm else 'control'} arm; the "
+                f"standardisation weights each stratum once, so a stratum "
+                f"recorded twice is one weighted twice"
+            )
+        layers[arm][stratum] = weight
         by_arm[arm].append((weight, rmst, variance))
         events += sum(row[2] for row in table)
+        units += n
+        censored += sum(row[3] for row in table)
+        last_seen = max(last_seen, table[-1][0])
 
     _agree(events, _count(block.get("n_events"), "survival_curve.n_events"),
            "the events across every cell")
+    _the_arms_standardise_over_one_set(layers)
+    _the_block_against_its_cells(block, estimate, units, censored, last_seen)
 
     means: dict[bool, float] = {}
     for arm, side in by_arm.items():
@@ -303,13 +332,131 @@ def verify_survival_curve(result: dict) -> None:
            _number(block.get("variance"), "survival_curve.variance"),
            "the variance of the difference")
 
-    estimate = result.get("numeric_estimate")
     if isinstance(estimate, dict):
         _agree(means[True] - means[False],
                _number(estimate.get("point"), "numeric_estimate.point"),
                "the answer against the difference of the two arms' means")
         _check_the_interval(estimate, variance)
     _check_the_premise_reached_the_reader(result)
+
+
+def _the_arms_standardise_over_one_set(layers: dict) -> None:
+    """The strata the difference is taken over, which are one set.
+
+    A standardised difference is ``Σ_z w(z)·[m(1,z) − m(0,z)]``: one set of
+    strata, one weight apiece, and the arms differ only in which mean is
+    read off inside them. That the weights within an arm sum to one is
+    already held above and does not reach this — two arms carrying DIFFERENT
+    strata, each arm's weights summing to one, pass it, and the difference
+    they report is then between two populations rather than within one.
+
+    A weight is a stratum's share of the sample, which is a fact about the
+    stratum and not about the arm, so the two arms' weights for it are one
+    number recorded twice.
+    """
+    treated, control = layers[True], layers[False]
+    if set(treated) != set(control):
+        odd = sorted(list(s) for s in set(treated) ^ set(control))
+        _reject(
+            f"survival_curve.cells: the arms are standardised over different "
+            f"strata — {odd} appears in one arm and not in the other; a "
+            f"standardised difference weights ONE set of strata, so two arms "
+            f"weighted over two sets are a difference between two populations"
+        )
+    for stratum in sorted(treated):
+        _agree(treated[stratum], control[stratum],
+               f"survival_curve.cells: the weight of stratum "
+               f"{list(stratum)}, which is that stratum's share of the "
+               f"sample whichever arm's mean is read off inside it")
+
+
+def _the_block_against_its_cells(block: dict, estimate, units: int,
+                                 censored: int, last_seen: float) -> None:
+    """The scalars the block reports about the sample its cells hold.
+
+    Whether those cells ARE the sample is asked rather than assumed. The
+    share is over everyone the run read; the cells are per (stratum, arm)
+    and cover the run exactly when their units add up to the estimate's,
+    which the envelope states for itself. Where they do not add up, the
+    share's denominator is one nothing here can see, and a rule that divided
+    by the cells anyway would refuse an honest run for being partial.
+
+    The last observed time needs no such condition in one direction: it is
+    the largest time anywhere in the sample, and the cells are part of the
+    sample, so it is not before the largest time they record. Where they are
+    the whole sample it is exactly that time.
+    """
+    size = estimate.get("sample_size") if isinstance(estimate, dict) else None
+    whole = isinstance(size, int) and not isinstance(size, bool) \
+        and size == units
+
+    if "follow_up_ends" in block:
+        ends = _number(block["follow_up_ends"],
+                       "survival_curve.follow_up_ends")
+        if ends < last_seen - _TOL:
+            _reject(
+                f"survival_curve.follow_up_ends is {ends!r} and a cell of "
+                f"this block records an observation at {last_seen!r}; "
+                f"follow-up ends when the last unit was last seen, so it is "
+                f"not before a time the block itself carries"
+            )
+        if whole:
+            _agree(last_seen, ends,
+                   "survival_curve.follow_up_ends against the last time any "
+                   "of its cells records, the cells holding every unit the "
+                   "estimate was computed on")
+
+    if "censored_share" in block and whole:
+        _agree(censored / units,
+               _number(block["censored_share"],
+                       "survival_curve.censored_share"),
+               "survival_curve.censored_share against the units its own "
+               "cells record leaving without the event")
+
+    _the_event_column_was_one_the_run_read(block, estimate)
+
+
+def _the_event_column_was_one_the_run_read(block: dict, estimate) -> None:
+    """The column that says whether a recorded time is an event.
+
+    The whole curve rests on which units were censored, and the block names
+    the column that decides it. Two things are asked of that name, and they
+    are one question about where the fact came from. It has to be a column
+    the run read — the answer lists them — because a reader sent to a column
+    nobody opened cannot check the one fact the curve cannot be re-read
+    without. And it has to be a column the run had not already spent: the
+    time the estimate is about and the arm it compares are named on the same
+    envelope, and neither of them can also be the flag saying whether a
+    recorded time is an event, since one is a duration and the other is the
+    contrast.
+
+    The adjustment set is deliberately not asked about. A stratifying column
+    doubling as the event flag would be a badly specified run rather than an
+    inconsistent envelope, and refusing it here would be this module ruling
+    on a choice it has no second record of.
+    """
+    name = block.get("event_indicator")
+    columns = estimate.get("data_columns") if isinstance(estimate, dict) \
+        else None
+    if not isinstance(name, str) or not isinstance(columns, list):
+        return
+    if not all(isinstance(c, str) for c in columns):
+        return
+    if name not in columns:
+        _reject(
+            f"survival_curve.event_indicator names {name!r} and the run read "
+            f"{sorted(columns)}; the column that decides which times are "
+            f"events is the one fact the curve cannot be re-read without, "
+            f"and a reader sent to a column nobody opened cannot check it"
+        )
+    for role in ("outcome", "treatment"):
+        if name == estimate.get(role):
+            _reject(
+                f"survival_curve.event_indicator names {name!r} and the "
+                f"estimate's {role} is the same column; the recorded time "
+                f"and the arm are what the flag is read ALONGSIDE, so a "
+                f"column that is both is a curve read off itself"
+            )
 
 
 def _check_the_interval(estimate: dict, variance: float) -> None:

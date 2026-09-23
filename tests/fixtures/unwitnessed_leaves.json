@@ -665,11 +665,7 @@
  ],
  "rmst_kaplan_meier": [
   "bounds_results.[].ci_lower",
-  "estimation_context.random_state",
-  "extensions.survival_curve.cells.[].stratum.[]",
-  "extensions.survival_curve.censored_share",
-  "extensions.survival_curve.event_indicator",
-  "extensions.survival_curve.follow_up_ends"
+  "estimation_context.random_state"
  ],
  "scm_counterfactual_linear_fit": [
   "estimation_context.random_state"
