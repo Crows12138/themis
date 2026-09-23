@@ -226,9 +226,6 @@
   "estimator_failure.recorded.e_treatment_low",
   "extensions.type_reconciliation.checks.[].dtype_kind"
  ],
- "needs_investigation:effect:none#0e36ff": [
-  "missing_information.[].observable.variables.[]"
- ],
  "needs_investigation:effect:none#17bf1c": [
   "data_gap_report.gaps.[].describes.[].said.threshold"
  ],
@@ -318,9 +315,6 @@
   "estimation_context.model_preference",
   "estimation_context.random_state"
  ],
- "needs_investigation:effect:none#89bf2f": [
-  "missing_information.[].observable.variables.[]"
- ],
  "needs_investigation:effect:none#8f6d34": [
   "estimation_context.ci_bootstrap",
   "estimation_context.model_preference",
@@ -343,10 +337,7 @@
  ],
  "needs_investigation:effect:none#af79f6": [
   "missing_information.[].gap",
-  "missing_information.[].kind",
-  "missing_information.[].said.count",
-  "missing_information.[].said.fields",
-  "missing_information.[].said.predicate"
+  "missing_information.[].kind"
  ],
  "needs_investigation:effect:none#b2e77c": [
   "data_gap_report.gaps.[].describes.[].said.rationale"

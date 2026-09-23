@@ -31,7 +31,9 @@ What is asserted here:
   whose grammar moved fails loudly rather than being under-read into
   silence
 - the rows this CANNOT speak for are named and counted, because a rule
-  that is silent on a third of the block should say so out loud.
+  that is silent on a third of the block should say so out loud — and the
+  five of those it reads anyway, by the name where no key is written, are
+  counted with them.
 """
 from __future__ import annotations
 
@@ -165,6 +167,13 @@ def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
     that cannot be identified, an assumption nobody declared — and carry
     no key. They are not rows that disagree with themselves, and a rule
     demanding a key would refuse them for what they honestly are.
+
+    Five of those 43 are read all the same, and by the name rather than
+    by a key. What a row is short of is written after the colon whether
+    or not the sentence repeats it, so where that half names variables it
+    is what the shopping list is held against — measured here too, since
+    a rule that reaches five more rows than its own account says is as
+    wrong about itself as one that reaches five fewer.
     """
     keyless = [
         (n, i)
@@ -173,6 +182,22 @@ def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
         if not isinstance((r.get("said") or {}).get("key"), str)
     ]
     assert len(keyless) == 43, len(keyless)
+
+    read_by_name = [
+        (n, i) for n, i in keyless
+        if _NAMES_IN_A_KEY.findall(
+            str(SHAPES[n]["result"]["missing_information"][i].get("name") or ""
+                ).partition(":")[2])
+        and isinstance((SHAPES[n]["result"]["missing_information"][i]
+                        .get("observable") or {}).get("variables"), list)
+    ]
+    assert len(read_by_name) == 5, len(read_by_name)
+    for n, i in read_by_name:
+        forged = copy.deepcopy(SHAPES[n]["result"])
+        forged["missing_information"][i]["observable"]["variables"].append(
+            "nobody")
+        with pytest.raises(VerificationError, match="must observe"):
+            the_door_for(SHAPES[n]["result"])(SHAPES[n]["program"], forged)
 
     # Nothing on such a row settles a name, so this rule stays silent
     # there rather than inventing an anchor. It used to be the only rule

@@ -114,6 +114,7 @@ import itertools
 import re
 from typing import Any, Iterable, Mapping, NoReturn
 
+from .. import framing as _framing
 from .. import gaps as _gaps
 from ..types import Atom, ConstTerm, VariableDeclaration
 from .errors import VerificationError
@@ -953,6 +954,15 @@ def _check_it_names_the_species_its_need_raises(where: str, item: Mapping
 #: moved fails loudly instead of being under-read into silence.
 _NAMES_IN_A_KEY = re.compile(r"([A-Za-z_][A-Za-z_0-9]*)\s*=")
 
+#: How a row's sentence says what it is short of, by the word its channel
+#: uses. Both are the same half of the row's own name — the part after the
+#: colon — so a row carrying either says one thing twice.
+_SAYS_WHAT_IT_IS_SHORT_OF = ("key", "predicate")
+
+#: What a framing row counts, and the list it counts. The two travel in
+#: one sentence and a reader is shown both.
+_COUNTS = ("count", "fields")
+
 
 def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
     """One missing parameter, rendered three ways on its own row.
@@ -970,22 +980,42 @@ def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
     the agreement check for the ask pointing at it. Holding the name to the
     key beside it is what stops one edit from disabling another rule.
 
-    Silent where there is no key: not every channel files one, and a row
-    without one is not a row that disagrees with itself.
+    Which word the sentence says it with belongs to the channel: a
+    parameter row calls it the ``key`` and a framing row calls it the
+    ``predicate``, and both are the same half of the same name.
+
+    Where the sentence says it with neither, the name still does. A row
+    whose channel files no key is not a row with nothing to agree with --
+    what it is short of is written after the colon, which is what an ask
+    resolves against and what the list of variables below is read from.
+    Silent only where there is no name to read, since what a row with no
+    name is about is the question the rule beside this one answers.
     """
     said = row.get("said")
-    key = said.get("key") if isinstance(said, Mapping) else None
-    if not isinstance(key, str) or not key:
-        return
-
+    if not isinstance(said, Mapping):
+        said = {}
     name = row.get("name")
-    if isinstance(name, str) and not name.endswith(f":{key}"):
-        _reject(
-            f"{where} is filed under the name {name!r} and the parameter it "
-            f"is short of is {key!r}; the name is what an ask's target "
-            f"resolves against, so the two disagreeing sends a reader to "
-            f"collect one table under the heading of another"
-        )
+    for field in _SAYS_WHAT_IT_IS_SHORT_OF:
+        # Present and empty is not absent. A channel that files no such
+        # field says nothing and is silent here; one that files it and
+        # leaves it blank says nothing where the name says something.
+        if field not in said:
+            continue
+        shown = said[field]
+        if (isinstance(shown, str) and isinstance(name, str)
+                and not name.endswith(f":{shown}")):
+            _reject(
+                f"{where} is filed under the name {name!r} and the {field} "
+                f"it is short of is {shown!r}; the name is what an ask's "
+                f"target resolves against, so the two disagreeing sends a "
+                f"reader to collect one table under the heading of another"
+            )
+
+    key = said.get("key")
+    if not isinstance(key, str) or not key:
+        key = name.partition(":")[2] if isinstance(name, str) else ""
+    if not key:
+        return
 
     observable = row.get("observable")
     shown = observable.get("variables") if isinstance(observable, Mapping) else None
@@ -1000,6 +1030,58 @@ def _check_the_row_says_one_thing_three_times(where: str, row: Mapping) -> None:
             f"{key!r}, and that parameter is over {sorted(mentioned)}; the "
             f"list of what to go and measure is the one thing on this row a "
             f"reader acts on directly"
+        )
+
+
+def _check_the_fields_a_row_counts_are_the_ones_it_lists(
+    where: str, row: Mapping,
+) -> None:
+    """A framing row's tally, against the list beside it in one sentence.
+
+    A shortfall in how a variable is defined shows the reader how many
+    fields are unfilled and then names them, in one sentence, out of one
+    reading of the declaration. The number is the length of the list, and
+    nothing said so: the two travel as separate holes and either could
+    move alone.
+
+    The names are the contract's, and in the contract's order. A
+    declaration writes its fields in one order and a reader is shown the
+    ones it left out, so a row naming a field this build does not have, or
+    naming them in an order no declaration writes, is not a reading of any
+    declaration.
+
+    Silent where a row names no fields: which rows owe this sentence is
+    the question the species declaration answers, one rule over.
+    """
+    said = row.get("said")
+    if not isinstance(said, Mapping):
+        return
+    count, fields = (said.get(word) for word in _COUNTS)
+    if not isinstance(fields, str):
+        return
+    listed = [word for word in (part.strip() for part in fields.split(","))
+              if word]
+    if count is not None and str(count) != str(len(listed)):
+        _reject(
+            f"{where} tells a reader {str(count)!r} fields of that variable "
+            f"are unfilled and names {len(listed)}: {fields!r}. The two are "
+            f"one reading of one declaration, shown to the same reader in "
+            f"one sentence"
+        )
+    order = [field.name for field in _framing.FIELDS]
+    stranger = [word for word in listed if word not in order]
+    if stranger:
+        _reject(
+            f"{where} says {stranger!r} of that variable is unfilled and no "
+            f"field of a declaration is spelled that way; what a reader is "
+            f"told to go and settle has to be something they can settle"
+        )
+    if listed != [field for field in order if field in listed]:
+        _reject(
+            f"{where} names the unfilled fields {listed!r}, and a "
+            f"declaration writes them {order!r}; the list is what one "
+            f"reading of one declaration left over, so its order is the "
+            f"declaration's rather than an author's"
         )
 
 
@@ -1371,6 +1453,8 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             # heading is wrong. A reader who is told which parameter is
             # under which heading does not have to go and diff the row.
             _check_the_row_says_one_thing_three_times(
+                f"missing_information[{mi}]", row)
+            _check_the_fields_a_row_counts_are_the_ones_it_lists(
                 f"missing_information[{mi}]", row)
             _check_the_name_this_row_is_filed_under(
                 f"missing_information[{mi}]", row)

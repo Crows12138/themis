@@ -901,11 +901,23 @@ def test_the_remainder_split_is_what_it_is():
     that marks it one while the route spells it as the name a reader
     types -- so the heading that says nothing writes it is again reading
     two spellings of one name as two names.
+
+    Sixtieth use, five leaves, two headings, and both were right about
+    where and neither could say from what. A row of what is missing says
+    what it is short of twice -- once as the half of its own name after
+    the colon, which is what an ask resolves against, and once in the
+    sentence a reader is shown. The three under the first heading are one
+    variable's name and the fields of it still undefined, with the tally
+    of those fields beside them; the two under the second are the
+    variables an analyst has to go and measure, which are the ones the
+    name is over. What no reading of values could add is that the rules
+    already walking those rows read the second writing out of a field two
+    of these rows do not carry, and the name carries it either way.
     """
     assert gate._the_remainder_by_where_its_truth_is() == {
-        gate._ANSWER_ALIKE: 31,
+        gate._ANSWER_ALIKE: 28,
         gate._PROGRAM_ALIKE: 3,
-        gate._ANSWER_OTHERWISE: 132,
+        gate._ANSWER_OTHERWISE: 130,
         gate._PROGRAM_OTHERWISE: 3,
         gate._NOTHING: 331,
         gate._EVERY_READING_MATCHES: 23,
