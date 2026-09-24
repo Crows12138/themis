@@ -6,6 +6,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
+import themis
 from themis.web.app import app
 from tests import caveats
 
@@ -172,9 +173,10 @@ def test_the_reader_s_language_reaches_the_model(asked, monkeypatch):
         return "…"
 
     monkeypatch.setattr(llm_bridge, "render_reply", _recorded)
-    r = client.post("/api/render", json={"program": _trivial_cause_program(),
-                                         "nl": "does x cause y",
-                                         "lang": asked})
+    program = _trivial_cause_program()
+    r = client.post("/api/render", json={
+        "program": program, "result": themis.run(program)["results"][0],
+        "nl": "does x cause y", "lang": asked})
     assert r.status_code == 200, r.text
     assert str(seen["lang"]) == asked
 
@@ -187,7 +189,7 @@ def test_a_request_that_says_nothing_gets_the_default():
     from themis.web.app import RenderRequest
     from themis import language
 
-    assert RenderRequest(program={}).lang == language.DEFAULT
+    assert RenderRequest(program={}, result={}).lang == language.DEFAULT
 
 
 def test_a_language_this_build_cannot_answer_in_is_refused_at_the_door():
@@ -196,8 +198,36 @@ def test_a_language_this_build_cannot_answer_in_is_refused_at_the_door():
     program that is not an object — and a reader is never told that a
     language they asked for was quietly swapped for another."""
     r = client.post("/api/render", json={"program": _trivial_cause_program(),
-                                         "lang": "fr"})
+                                         "result": {}, "lang": "fr"})
     assert r.status_code == 422, r.text
+
+
+def test_the_reading_is_of_the_verdict_the_page_shows(monkeypatch):
+    """Not of a second run. The estimate workspace shows a verdict that
+    came from data; its program alone comes back with no number, and a
+    reading of that contradicted the number on the screen. So what is read
+    back is the result the page sends, and the program is not run again."""
+    from themis.web import llm_bridge
+    import themis.web.app as web_app
+
+    seen: dict = {}
+
+    def _recorded(envelope, *, nl=None, lang=None, api_key=None, model=None):
+        seen["envelope"] = envelope
+        return "…"
+
+    def _no_second_run(*args, **kwargs):
+        raise AssertionError("the program was run again")
+
+    monkeypatch.setattr(llm_bridge, "render_reply", _recorded)
+    monkeypatch.setattr(web_app.themis, "run", _no_second_run)
+    program = _trivial_cause_program()
+    shown = {"status": "numerically_solved", "query_kind": "effect",
+             "query_id": "q", "numeric_result": {"value": 0.338}}
+    r = client.post("/api/render", json={"program": program, "result": shown,
+                                         "nl": "x", "lang": "en"})
+    assert r.status_code == 200, r.text
+    assert seen["envelope"] == {"program": program, "results": [shown]}
 
 
 def test_examples_endpoint_lists_worked_examples():

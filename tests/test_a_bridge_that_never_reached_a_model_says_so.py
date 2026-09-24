@@ -44,6 +44,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import themis
 from themis import language
 from themis.web import failure, llm_bridge
 from themis.web.app import app
@@ -236,6 +237,8 @@ DOORS = [
     ("/api/assume", {"program": _program_missing_its_numbers()},
      "propose_theta_priors"),
     ("/api/render", {"program": _program_missing_its_numbers(),
+                     "result": themis.run(
+                         _program_missing_its_numbers())["results"][0],
                      "nl": "x 导致 y 吗"}, "render_reply"),
 ]
 

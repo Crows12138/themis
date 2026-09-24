@@ -113,6 +113,10 @@ class AssumeRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     program: dict
+    #: The verdict the page is showing, which is what is read back. It may
+    #: have come from data, from priors or from a clarification, and none
+    #: of those is in ``program`` alone.
+    result: dict
     nl: str | None = None
     lang: language.Lang = language.DEFAULT
     api_key: str | None = None
@@ -472,8 +476,14 @@ def api_assume(req: AssumeRequest):
 
 @app.post("/api/render")
 def api_render(req: RenderRequest):
-    """On-demand LLM 大白话 reading of a result. The structured verdict is
-    instant; this is the optional translation layer (needs an API key)."""
+    """A plain-language reading of the verdict the page is showing.
+
+    The page sends that verdict. It used to send only the program, and this
+    ran it again — so on the estimate workspace, where the verdict came
+    from data, the model was handed a structural run with no number in it
+    and wrote a reading that contradicted the number on the screen. What a
+    reading is of is what was shown, however it was produced.
+    """
     if not _OFFERS_A_MODEL:
         return failure.refused("no_model")
     try:
@@ -481,7 +491,7 @@ def api_render(req: RenderRequest):
     except Exception as exc:
         return failure.refused("llm_bridge", exc)
     try:
-        envelope = themis.run(req.program)
+        envelope = {"program": req.program, "results": [req.result]}
         reply = render_reply(envelope, nl=req.nl, lang=req.lang,
                              api_key=req.api_key)
         return {"reply": reply}

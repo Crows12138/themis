@@ -176,7 +176,7 @@ def test_the_model_asked_for_is_the_endpoint_s(monkeypatch):
 
 @pytest.mark.parametrize("path, body", [
     ("/api/ask", {"nl": "x"}),
-    ("/api/render", {"program": _trivial_program(), "nl": "x"}),
+    ("/api/render", {"program": _trivial_program(), "result": {}, "nl": "x"}),
 ])
 def test_a_request_with_no_key_hands_none_down(monkeypatch, path, body):
     """The web edge used to hand a placeholder ``"x"`` down with every

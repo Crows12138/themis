@@ -40,6 +40,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
+import themis
 from themis import language
 from themis.web import app as app_module
 from themis.web import failure
@@ -77,7 +78,9 @@ def _program():
 NEEDS_A_MODEL = {
     "/api/ask": {"nl": "x 会不会导致 y", "lang": "zh"},
     "/api/assume": {"program": _program(), "lang": "zh"},
-    "/api/render": {"program": _program(), "nl": "x", "lang": "zh"},
+    "/api/render": {"program": _program(),
+                    "result": themis.run(_program())["results"][0],
+                    "nl": "x", "lang": "zh"},
 }
 
 #: And the ones that need none, with the stage each honestly answers with

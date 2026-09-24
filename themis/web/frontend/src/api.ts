@@ -1,5 +1,5 @@
 import { fill, type Lang, type Words } from './lib/language'
-import type { AskResponse, Envelope, ExampleItem } from './types'
+import type { AskResponse, Envelope, ExampleItem, QueryResult } from './types'
 
 const KEY_STORAGE = 'themis.anthropic.key'
 
@@ -150,8 +150,11 @@ export function assume(program: Record<string, unknown>, lang: Lang, apiKey?: st
   return post<MergedEnvelope>('/api/assume', { program, lang, api_key: apiKey || undefined })
 }
 
-export function render(program: Record<string, unknown>, nl: string, lang: Lang, apiKey?: string): Promise<{ reply: string }> {
-  return post<{ reply: string }>('/api/render', { program, nl, lang, api_key: apiKey || undefined })
+// The verdict on the screen travels with its program: it may have come from
+// data, priors or a clarification, and the server reads back what it is
+// handed rather than running the program again.
+export function render(program: Record<string, unknown>, result: QueryResult, nl: string, lang: Lang, apiKey?: string): Promise<{ reply: string }> {
+  return post<{ reply: string }>('/api/render', { program, result, nl, lang, api_key: apiKey || undefined })
 }
 
 export function ask(nl: string, lang: Lang, apiKey?: string): Promise<AskResponse> {

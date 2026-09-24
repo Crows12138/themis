@@ -156,7 +156,7 @@ export function ResultView({
     setRendering(true)
     setError(null)
     try {
-      const { reply: txt } = await render(program, payload.asked, lang,
+      const { reply: txt } = await render(program, result, payload.asked, lang,
         getApiKey())
       setReply(txt)
     } catch (e) {
