@@ -1513,6 +1513,29 @@ export const FOUR_WAY_UNAVAILABLE_WORDS: Record<string, Words> = {
   },
 }
 
+export const GAP_BLOCKS_WORDS: Record<string, Words> = {
+  bounds: {
+    zh: '区间',
+    en: 'an interval',
+  },
+  identification: {
+    zh: '识别',
+    en: 'identification',
+  },
+  interpretation: {
+    zh: '对结果的解读',
+    en: 'how the result is read',
+  },
+  point_estimate: {
+    zh: '点估计',
+    en: 'a point estimate',
+  },
+  transport: {
+    zh: '外推到目标人群',
+    en: 'carrying the result to the target population',
+  },
+}
+
 export const GAP_DESCRIBES: Record<string, Words> = {
   a_block_decomposition_does_not_split_a_path: {
     zh: '`mediators` 把这些中介当作一个块做联合 NDE/NIE；穿过其中单个中介的路径特定拆分不含在块的分解里 —— 它需要块本身不需要的额外条件，本仓明确列为作用域之外。',
@@ -1894,8 +1917,8 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     en: 'once the relation between the two variables is settled there is a definite quantity to ask about: resolved in time it is an ordinary DAG again, and withdrawn it is a one-way answer computed on purpose',
   },
   graph_theta_independence_mismatch: {
-    zh: '可给点估计（在解决图与 CPT 矛盾后）',
-    en: 'a point estimate, once the graph and the CPTs stop contradicting each other',
+    zh: '可给{blocks}（在解决图与 CPT 矛盾后）',
+    en: '{blocks}, once the graph and the CPTs stop contradicting each other',
   },
   ill_defined_intervention_versions: {
     zh: '在 `{intervention}` 的 VariableDeclaration 上加 `time_window`（说明 "持续多长时间 / 在哪个时点被视为该状态"），并在 program.extensions.ambiguities 里加 `ill_defined_intervention` 条目，说明你打算把哪一种具体的 manipulation（如生活方式 / 用药 / 手术 / RCT 随机化）作为 do(.) 的 well-defined intervention 等价物',
@@ -1910,12 +1933,12 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     en: 'given (a) a validated confusion matrix for the misclassified discrete outcome or binary exposure (Se/Sp, or the whole matrix), the attenuation can be undone through estimate(misclassification=...), inverting within each back-door stratum; or (b) a known classical additive error variance σ²_u for a continuous exposure or continuous confounder (test-retest repeats, a validation subsample), which debiases through estimate(measurement_error={{<exposure or confounder>: {{error_variance}}}}) with regression calibration (a mismeasured confounder has its residual confounding corrected) — say which STRUCTURE the error has if it is not the classical one, because structure: berkson asks for the precision cost instead of a correction that would move a number already right; and if the wanted coefficient lives in a nonlinear outcome model, one more key on the same entry point, outcome_model, routes to SIMEX instead: the moment correction is an identity about a LINEAR outcome, so on a binary one it de-attenuates the linear-probability slope while SIMEX de-attenuates the log-odds ratio, which are two quantities rather than two computations of one — for a continuous outcome the same entry point gives the precision cost rather than a correction, because there is no bias to correct; or (c) a gold-standard subsample to calibrate against (ABPM for blood pressure, 24-hour urinary sodium for salt)',
   },
   missing_assumption: {
-    zh: '该识别路径可继续走到点估计',
-    en: 'this identification route can carry on to a point estimate',
+    zh: '该识别路径可继续走到{blocks}',
+    en: 'this identification route can carry on to {blocks}',
   },
   missing_distribution: {
-    zh: '可给点估计',
-    en: 'a point estimate',
+    zh: '可给{blocks}',
+    en: '{blocks}',
   },
   missing_iv_candidate: {
     zh: '工具变量把联立系统重新变成可识别的：报出来的是 `{outcome}` 那条方程里 `{treatment}` 的结构系数——不是均衡下的总效应，而且它靠的是线性假设，这条会进假设台账',
@@ -1926,12 +1949,12 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     en: 'a numeric NDE / NIE / TE decomposition',
   },
   missing_structural_input: {
-    zh: '该查询可继续走到点估计',
-    en: 'this query can carry on to a point estimate',
+    zh: '该查询可继续走到{blocks}',
+    en: 'this query can carry on to {blocks}',
   },
   missing_unit_observation: {
-    zh: '该查询可继续走到点估计',
-    en: 'this query can carry on to a point estimate',
+    zh: '该查询可继续走到{blocks}',
+    en: 'this query can carry on to {blocks}',
   },
   proxy_coarsening_undeclared: {
     zh: '公式 (5) 要反演的那个 k×k 通道就存在了，近端 ATE 能算出来；分组会作为你的选择进假设台账，因为换一个分组就是另一个数',
@@ -1954,8 +1977,8 @@ export const GAP_IF_PROVIDED: Record<string, Words> = {
     en: 'split it into two queries, each declaring one layer: one with {won}, one with {lost}',
   },
   unidentifiable_no_admissible_set: {
-    zh: '可给出识别公式 + 后续点估计',
-    en: 'an identification formula, and a point estimate after it',
+    zh: '可给出识别公式，之后才能往下估计',
+    en: 'an identification formula, which estimation then starts from',
   },
   unmeasured_confounder_risk: {
     zh: '若怀疑某 latent 共因，添加 bidirected 边；Themis 会改走 ADMG-aware（Tian / front-door / IV）识别策略并报对应的 structural gap',
@@ -4044,6 +4067,7 @@ export const SEAMS: Record<string, Words> = {
   estimation_refusal: BETWEEN_STATEMENTS,
   extraction_refusal: BETWEEN_STATEMENTS,
   four_way_unavailable: BETWEEN_STATEMENTS,
+  gap_blocks: BETWEEN_ITEMS,
   gap_describes: BETWEEN_SENTENCES,
   gap_if_provided: BETWEEN_STATEMENTS,
   gap_routes: BETWEEN_STATEMENTS,

@@ -102,7 +102,10 @@ SHAPES = json.loads(
 #: its three investigation items say what they ask for, and the refusal
 #: says itself. 41 went with the row whose instrument strata were weighted
 #: by a P(w) summing to 0.9, which theta now refuses where it is built.
-REACHED = 5313
+#: 133 came when what a gap buys back became a word in the sentence that
+#: says so (#774): one on each gap, on every row, of the five species whose
+#: sentence names it.
+REACHED = 5446
 PER_CARRIER = {
     "gap_routes": 1216,
     # These three and the ledger below moved together, by eight and eight
@@ -127,6 +130,10 @@ PER_CARRIER = {
     # the part nothing asked.
     "measurement_scale": 72,
     "refusal_sentence": 40,
+    # Not a carrier of its own: the word inside a gap's sentence (#774).
+    # Pinned beside them so that the word going missing from the gaps
+    # shows as this number falling.
+    "gap_blocks": 133,
 }
 
 
@@ -343,8 +350,10 @@ def test_a_sentence_relabelled_to_another_is_refused(shape):
 def test_the_reader_is_told_which_half_was_wrong():
     """Two failures with one cause are still two facts, and the sentence a
     reader gets says which of them happened."""
+    # A species whose own sentence has no hole, so the gap's describes is
+    # the only statement asked (#774 gave the missing distribution one).
     result = {"data_gap_report": {"gaps": [{
-        "kind": str(GapKind.MISSING_DISTRIBUTION),
+        "kind": str(GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET),
         "describes": [{"sentence": str(gaps.Sentence.TIAN_FOUND_A_HEDGE),
                        "said": {"nothing_wants_this": "1"}}]}]}}
     with pytest.raises(VerificationError, match="no hole for any of them"):
@@ -501,7 +510,22 @@ def _domains() -> dict[frozenset, str]:
     return out
 
 
-def _sites_the_contract_declares() -> dict[str, tuple[str, str]]:
+#: Properties whose enum IS a declared vocabulary and which carry no
+#: statement.
+#:
+#: A carrier's facts are the two halves beside it, and a record has one pair
+#: of halves, so it has one carrier. A gap's ``blocks`` has been spelt from
+#: the gap-blocks vocabulary since #774, beside ``kind`` on the same record;
+#: the halves there are the kind's sentence's, and that sentence restates
+#: ``blocks`` as a word inside them, which the walk reaches as a statement
+#: of its own. Filed here rather than left to a measurement keyed by record,
+#: which kept whichever of the two properties it met last.
+NOT_CARRIERS: dict[tuple[str, str], str] = {
+    ("data_gap_report.gaps.[]", "blocks"): "gap_blocks",
+}
+
+
+def _sites_the_contract_declares() -> dict[tuple[str, str], str]:
     """Every property in the contract whose enum IS a declared vocabulary.
 
     Asked of all of them. This used to keep only the hits whose vocabulary
@@ -521,7 +545,7 @@ def _sites_the_contract_declares() -> dict[str, tuple[str, str]]:
         named = by_domain.get(frozenset(str(m) for m in members))
         if named is None:
             continue
-        found[".".join(path[:-1])] = (path[-1], named)
+        found[(".".join(path[:-1]), path[-1])] = named
     return found
 
 
@@ -530,7 +554,10 @@ def test_the_carrier_table_names_every_site_the_contract_has():
     table does not name is a statement nothing asks about — the shape of
     every hole this line of work keeps finding — so which sites exist is
     read off the schema rather than remembered."""
-    assert _sites_the_contract_declares() == _CARRIERS
+    carriers = {(path, spelling): vocabulary
+                for path, (spelling, vocabulary) in _CARRIERS.items()}
+    assert not carriers.keys() & NOT_CARRIERS.keys()
+    assert _sites_the_contract_declares() == {**carriers, **NOT_CARRIERS}
 
 
 def test_the_sweep_is_not_bounded_by_the_table_it_checks():
@@ -543,7 +570,7 @@ def test_the_sweep_is_not_bounded_by_the_table_it_checks():
     that is asserted at the two sets which were invisible while the range
     was the table's own contents.
     """
-    reached = {named for _, named in _sites_the_contract_declares().values()}
+    reached = set(_sites_the_contract_declares().values())
     assert reached <= set(language.VOCABULARIES)
     assert {REFUSED, "measurement_scale"} <= reached, sorted(reached)
 

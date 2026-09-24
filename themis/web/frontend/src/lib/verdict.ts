@@ -575,6 +575,7 @@ const INSTRUMENT_ROUTE_WORDS = generated.INSTRUMENT_ROUTE_WORDS
 const CONSISTENCY_WORDS = generated.CONSISTENCY_WORDS
 const DESCRIBED_POPULATION_WORDS = generated.DESCRIBED_POPULATION_WORDS
 const FOUR_WAY_UNAVAILABLE_WORDS = generated.FOUR_WAY_UNAVAILABLE_WORDS
+const GAP_BLOCKS_WORDS = generated.GAP_BLOCKS_WORDS
 const WORDS: Record<string, Record<string, Words>> = {
   query_role: QUERY_ROLE_WORDS,
   monotonicity_refutation: REFUTATION_WORDS,
@@ -586,6 +587,10 @@ const WORDS: Record<string, Record<string, Words>> = {
   measurement_scale: MEASUREMENT_SCALE_WORDS,
   unnamed_thing: UNNAMED_WORDS,
   e_value_undefined: E_VALUE_UNDEFINED_WORDS,
+  // What a gap buys back, inside the sentence that says so: a species that
+  // names a shape names it through this word, because the question can
+  // lower it.
+  gap_blocks: GAP_BLOCKS_WORDS,
   measurement_note: MEASUREMENT_NOTE_WORDS,
   precision_target: PRECISION_TARGET_WORDS,
   time_window: TIME_WINDOW_WORDS,
@@ -2368,6 +2373,9 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   gap_wanted: GAP_WANTED,
   gap_route: GAP_ROUTES,
   gap_if_provided: GAP_IF_PROVIDED,
+  // And the word that last sentence reads for what a gap buys back (#774),
+  // which a question can lower from a point estimate to an interval.
+  gap_blocks: GAP_BLOCKS_WORDS,
   measurement_scale: MEASUREMENT_SCALE_WORDS,
   // And one that belongs to no channel at all: it arrives through the
   // generic carrier, which names its own vocabulary. That is the point of

@@ -674,6 +674,14 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="MEASUREMENT_SCALE_WORDS",
         members=lambda: _stated("themis.output.envelope_glossary.Scale"),
     ),
+    # What a gap buys back, read inside the sentence saying so for the
+    # reason the two above are: the surface assembles that sentence, so it
+    # needs the noun and not the token.
+    "gap_blocks": Glossed(
+        gloss="themis.gaps.BLOCKS_WORDS",
+        browser_table="GAP_BLOCKS_WORDS",
+        members=lambda: _stated("themis.types.GapBlocks"),
+    ),
 
     # What would close a gap, which is the other question a reader shown one
     # asks. Restated because both surfaces build a next-steps line out of it

@@ -387,6 +387,7 @@ def compute_data_gap_report(
         _classify_dose_response_data(program, stmt, derivation))
 
     gaps = _rewrite_iv_aware_alternatives(gaps, bounds_results)
+    gaps = _capped_at_what_the_question_reaches(gaps, stmt)
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
         query_kind, gaps, bounds_results, status, numeric_result, stmt,
@@ -442,6 +443,31 @@ def _withdraw_interval_offers(
             else _replace(gap, alternative_paths=kept)
         )
     return out
+
+
+def _capped_at_what_the_question_reaches(
+    gaps: list[DataGap], stmt,
+) -> list[DataGap]:
+    """What each gap buys back, no more than the question can reach.
+
+    Read off the same predicate the tier below reads, which is the point:
+    the two are one fact about the question. The tier already said
+    "interval" for an attribution question with no monotonicity declared,
+    and every gap beside it went on saying it stood in the way of a point
+    — the same report answering one question two ways, and the gaps are
+    what a reader acts on.
+    """
+    if not _point_is_premise_blocked(stmt):
+        return gaps
+    from dataclasses import replace as _replace
+
+    from ..types import BLOCKS_CAPPED_AT_AN_INTERVAL
+
+    return [
+        _replace(gap, blocks=BLOCKS_CAPPED_AT_AN_INTERVAL[gap.blocks])
+        if gap.blocks in BLOCKS_CAPPED_AT_AN_INTERVAL else gap
+        for gap in gaps
+    ]
 
 
 def _point_is_premise_blocked(stmt) -> bool:

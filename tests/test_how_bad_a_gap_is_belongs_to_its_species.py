@@ -163,7 +163,10 @@ def test_a_species_whose_value_is_the_occasions_has_to_say_which(field):
 
 @pytest.mark.parametrize("field,declared,other", [
     ("severity", SEVERITY_OF, GapSeverity.INFORMATIONAL),
-    ("blocks", BLOCKS_OF, GapBlocks.BOUNDS),
+    # Not BOUNDS: that is the one other value a point-estimate species may
+    # hold, where a question caps it (#774). What is denied is a value no
+    # question gives it.
+    ("blocks", BLOCKS_OF, GapBlocks.IDENTIFICATION),
 ])
 def test_a_site_may_not_hold_a_value_the_species_denies(
         field, declared, other):
@@ -252,14 +255,18 @@ def test_every_gap_the_corpus_carries_is_one_its_species_would_own():
     """The number that decides whether this rule may exist at all: a rule
     refusing an honest answer is worse than the hole it closes, and these
     are the reports the suite's own runs produced. T10-5 alone, because its
-    three siblings need the rest of an envelope this reads nothing of."""
+    three siblings need the rest of an envelope this reads nothing of —
+    beyond the one field of it T10-5 does read: which kind of question the
+    answer is to, since that is what says a lowered ``blocks`` is one the
+    question could have asked for (#774)."""
     seen = 0
     for pair in SHAPES.values():
         report = (pair.get("result") or {}).get("data_gap_report")
         if not isinstance(report, dict) or not report.get("gaps"):
             continue
         seen += len(report["gaps"])
-        data_gap_rules._verify_t10_5_species_properties(copy.deepcopy(report))
+        data_gap_rules._verify_t10_5_species_properties(
+            copy.deepcopy(report), copy.deepcopy(pair["result"]))
     # A floor rather than the count: the corpus is regenerated, and what
     # this asserts is that the walk above had something to walk.
     assert seen > 900

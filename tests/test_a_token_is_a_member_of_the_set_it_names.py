@@ -299,6 +299,10 @@ def test_a_member_may_be_spelled_the_way_another_set_spells_one():
         "binary": ["four_way_mediator_scale", "measurement_scale"],
         "continuous": ["four_way_mediator_scale", "measurement_scale"],
         "exposure": ["measurement_correction_side", "query_role"],
+        # Asked since gap_blocks is listed (#774); the other two already
+        # shared the word, and no listed set had it before.
+        "identification": ["assumption_layer", "gap_blocks",
+                           "interval_width"],
         "outcome": ["measurement_correction_side", "proximal_role",
                     "query_role", "unnamed_thing"],
     }, shared

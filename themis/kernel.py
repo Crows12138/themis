@@ -172,6 +172,7 @@ from .verifier import (
     verify_refusal_block,
     verify_required_data,
     verify_gap_subjects,
+    verify_what_a_gap_buys_back_is_what_its_question_reaches,
     verify_the_chain_names_its_steps,
     verify_declared_types,
     verify_mechanism_target,
@@ -1806,6 +1807,12 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # KIND is not what decides that: a second record is. The same is true
     # of a name, where its statement copies it from the question.
     verify_gap_quotes(result, ctx)
+
+    # And what a gap says supplying it buys back. The species declares it
+    # and the report-only door holds it there, except on the one question
+    # a premise can hold at an interval — whether THIS question declared
+    # that premise is the program's to say, and the program is here.
+    verify_what_a_gap_buys_back_is_what_its_question_reaches(result, ast)
 
     # And the block that stands where a number would have been, which for
     # every needs_investigation answer IS the answer. The rules beside it

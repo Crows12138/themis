@@ -2941,8 +2941,35 @@ def went(entry, lang: language.Lang | str = language.DEFAULT) -> str:
     return language.assemble(ROUTES[str(member)], values, words, lang)
 
 
+#: What a gap stands in the way of, as the noun a sentence puts in a hole.
+#:
+#: The members are :class:`themis.types.GapBlocks`, and the words are here
+#: because this is where the sentences that read them live. A gap's
+#: ``blocks`` is a field a reader could always see; what it did not do was
+#: reach the sentence telling a reader what supplying the gap would buy,
+#: which spelled the point out and so said it on a question whose point
+#: was out of reach.
+BLOCKS_SPOKEN = "gap_blocks"
+BLOCKS_WORDS: dict[str, language.Words] = {
+    "point_estimate": {"zh": "点估计", "en": "a point estimate"},
+    "bounds": {"zh": "区间", "en": "an interval"},
+    "identification": {"zh": "识别", "en": "identification"},
+    "interpretation": {"zh": "对结果的解读", "en": "how the result is read"},
+    "transport": {"zh": "外推到目标人群",
+                  "en": "carrying the result to the target population"},
+}
+language.declare(BLOCKS_SPOKEN, BLOCKS_WORDS, language.BETWEEN_ITEMS,
+                 tokens_are_ours=True)
+
+#: The hole a gap fills from its own ``blocks`` when it is built. Every
+#: other hole in a gap's sentence is the occasion's and is filled by the
+#: site that builds the gap; this one restates a field of the gap itself,
+#: so the gap is its one author and no site supplies it.
+BLOCKS_HOLE = "blocks"
+
+
 IF_PROVIDED: dict[str, language.Words] = {
-    "missing_distribution": {"zh": "可给点估计", "en": "a point estimate"},
+    "missing_distribution": {"zh": "可给{blocks}", "en": "{blocks}"},
     # One sentence for the species, so it has to hold for both of its
     # occasions: a richer proxy buys a contrast and the bridge channel buys a
     # curve, and what those have in common is a SIZE where there was only a
@@ -2951,20 +2978,20 @@ IF_PROVIDED: dict[str, language.Words] = {
         "zh": "可给出效应有多大，而不只是有没有",
         "en": "a size for the effect, rather than only whether there is one"},
     "missing_structural_input": {
-        "zh": "该查询可继续走到点估计",
-        "en": "this query can carry on to a point estimate"},
+        "zh": "该查询可继续走到{blocks}",
+        "en": "this query can carry on to {blocks}"},
     "missing_unit_observation": {
-        "zh": "该查询可继续走到点估计",
-        "en": "this query can carry on to a point estimate"},
+        "zh": "该查询可继续走到{blocks}",
+        "en": "this query can carry on to {blocks}"},
     "missing_assumption": {
-        "zh": "该识别路径可继续走到点估计",
-        "en": "this identification route can carry on to a point estimate"},
+        "zh": "该识别路径可继续走到{blocks}",
+        "en": "this identification route can carry on to {blocks}"},
     "unidentifiable_no_admissible_set": {
-        "zh": "可给出识别公式 + 后续点估计",
-        "en": "an identification formula, and a point estimate after it"},
+        "zh": "可给出识别公式，之后才能往下估计",
+        "en": "an identification formula, which estimation then starts from"},
     "graph_theta_independence_mismatch": {
-        "zh": "可给点估计（在解决图与 CPT 矛盾后）",
-        "en": "a point estimate, once the graph and the CPTs stop "
+        "zh": "可给{blocks}（在解决图与 CPT 矛盾后）",
+        "en": "{blocks}, once the graph and the CPTs stop "
               "contradicting each other"},
     "missing_mediator_data": {
         "zh": "可给 NDE / NIE / TE 数值分解",
@@ -3126,6 +3153,19 @@ already had, told one row at a time.
 Partial on purpose, and :data:`NOTHING_FILLS` is the other half: a species
 absent from BOTH is a species somebody stopped short of answering for, and
 the two together are what makes that visible.
+
+Five of these say WHAT SHAPE of answer the gap buys back, and say it through
+a ``{blocks}`` hole rather than in words. They spelled "a point estimate"
+out, which was true on every question but one: undeclared monotonicity
+leaves the probabilities of causation at an interval however much is
+supplied, and there the report's own tier said "interval" while every gap
+beside it said "a point estimate". The shape is the gap's ``blocks``, which
+the question can lower (:data:`themis.types.BLOCKS_CAPPED_AT_AN_INTERVAL`),
+and the gap fills the hole from it when it is built (:data:`BLOCKS_HOLE`).
+One more spelled out the shape that comes AFTER what it buys — an
+identification formula "and a point estimate after it" — on the same
+questions; what it buys is identification on every question, so it now
+says only that, and that estimation starts there.
 """
 
 #: The name this table answers to, for the reason :data:`ROUTED` gives.

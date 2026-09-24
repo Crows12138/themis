@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31621 passed / 534 skipped, warning-clean
+31642 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,39 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #774 补上缺口能换回什么，不超过问题本身能到的形状（2026-09-25）
+
+**来历**：演示前自查的 C3 条。归因问题（「是不是 x 导致了 y」）没声明单调性、也没有数据时，报告的 `answer_tier` 是 interval，旁边每条缺分布的缺口却写「补上可：可给点估计」。
+
+- **现象**：同一份报告对同一个问题给出两种答案形状：层级说区间，缺口说补上就有点估计。
+- **根因假设**：缺口的 `blocks`（补上能换回什么）和 `if_provided` 句子都按种类固定，而答案能到哪种形状取决于问题的前提。PN/PS/PNS 在没声明单调性时是 Tian–Pearl 区间，数据再全也是区间。`answer_tier` 通过 `_point_is_premise_blocked` 读了这个前提，缺口没读。
+- **为什么是根因不是表象**：只改句子措辞，`blocks` 字段仍写 point_estimate，读字段的人和模型照样看到矛盾；只在渲染时特判归因问题，等于把 tier 的判断再抄一份。问题在于「形状」这个事实有两个作者，只有一个读了问题。
+- **修法**：
+  - `types.BLOCKS_CAPPED_AT_AN_INTERVAL`（point_estimate → bounds）。`DataGap` 只接受种类的值，或者它降一级后的值。
+  - `data_gap_report` 用 tier 的同一个判断把缺口的 `blocks` 降下来。
+  - 五个种类（missing_distribution、missing_structural_input、missing_unit_observation、missing_assumption、graph_theta_independence_mismatch）的句子改成通过 `{blocks}` 洞读这个字段。这个洞由缺口在构造时自己填（`gaps.BLOCKS_HOLE`，新词表 `gap_blocks`），不由各构造点填。
+  - `unidentifiable_no_admissible_set` 原句是「可给出识别公式 + 后续点估计」，改成只说在所有问题上都成立的部分：「可给出识别公式，之后才能往下估计」。
+  - 验证器有两道：
+    - 只看答案的 T10-5 核对句中的词等于缺口的 `blocks`，并且只在归因问题上接受降一级的值。
+    - 拿得到程序的 `verify_what_a_gap_buys_back_is_what_its_question_reaches` 放在 verify 和 verify_answer_claims 共用的路径里，从程序里的查询重新判断该不该降。
+  - 新词表的注册：statement schema、reader_words（重新生成 kernelWords.generated.ts）、verdict.ts、gap_claim_rules 的 `_NOT_NAMES`。
+- **语料**：45 行带这五个种类的缺口，需要补上 `words.blocks`。
+  - 29 行用各自存的程序重跑，结果除本次改动的字段外逐字相同，直接写回。在 HEAD 上做同样的比对，这 29 行逐字相同。
+  - 另外 16 行在 HEAD 上也不能只靠程序复现，是测试套件经 `estimate` 等入口产出的。全量运行时挂一个收集插件，取回同一程序的答案：
+    - 4 行除本次字段外逐字相同，写回。
+    - 12 行对不上，原因与本次无关：现在的产出比存档多几条缺口（如 `counterfactual_identification_assumption_required`），或某条缺口的句子、出处编号变了。HEAD 上的对照结果相同，所以这 12 行在 HEAD 时已经是旧快照。对它们只套本次写的两个字段（该降的 `blocks` 降一级，加上 `words.blocks`），并与新产出核对这两个字段一致；其余保持原样。旧快照的刷新另立一条，不混进本条。
+  - 原先说的「语料补一行这种场合」没有做：语料按叶子形状收行，降一级的 `blocks` 不带来新形状。这个场合由新测试文件覆盖。
+- **测试**：
+  - 新文件 `test_what_a_gap_buys_back_is_what_its_question_reaches`，12 个用例。
+  - #441 的测试把这五个种类加进 `HOLED`，构造点配对只核对构造点该填的洞。
+  - 语料里多了 133 个词（每条相关缺口一个），普查、名册、陈述遍历等计数随之变化，每处在注释里写了来由。
+  - 「合同里每个枚举是已声明词表的字段都是陈述载体」这道检查原来按记录记，一条记录只留最后遇到的那个字段。缺口记录上的 `blocks` 现在也是这样的字段，它把 `kind` 顶掉了。改成按「记录 + 字段」记，并声明 `blocks` 是值、不是载体：一条记录只有一对 said/words，那是 `kind` 的句子的。
+- **留给后续**：C3 还有两处。
+  - `interventional_risk_needs_distributions` 这条出路被归成 missing_assumption，在数值已解的归因答案上也还挂着。
+  - 缺分布的缺口给出「接受区间」这条出路，但那个区间需要的正是同一批分布。
+
+**基线**：31642 passed / 534 skipped。比 #773 的 31621 多出 21 个：本条新测试文件 12 个，新词表 `gap_blocks` 带来的参数化用例 9 个（成员检查 3、词表台账 2、浏览器词表 2、分隔符 1、两个渲染器一致 1）；另有两个用例改名或换了参数，一增一减。前端 `tsc -b && vite build` 通过。
 
 ### #773 页面上的解读和对照，要是页面上那份结果的（2026-09-25）
 

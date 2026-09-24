@@ -2768,7 +2768,7 @@ false
 "answer_tier": "interval",
 "gaps": [
 {
-"blocks": "point_estimate",
+"blocks": "bounds",
 "describes": [
 {
 "sentence": "an_identification_premise_is_missing",
@@ -2790,7 +2790,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "bounds",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -44288,7 +44294,7 @@ false
 "route": "run_an_rct_past_the_backdoor"
 }
 ],
-"blocks": "point_estimate",
+"blocks": "bounds",
 "describes": [
 {
 "sentence": "an_identification_premise_is_missing",
@@ -44310,7 +44316,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "bounds",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -44586,7 +44598,7 @@ false
 "route": "what_they_were_checked_against_is_the_one_to_change"
 }
 ],
-"blocks": "point_estimate",
+"blocks": "bounds",
 "describes": [
 {
 "sentence": "an_identification_premise_is_missing",
@@ -44631,7 +44643,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "bounds",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -44886,7 +44904,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -44925,7 +44949,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -44964,7 +44994,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -45003,7 +45039,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -45043,7 +45085,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -45083,7 +45131,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -46260,7 +46314,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -47104,7 +47164,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -47156,7 +47222,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -49418,7 +49490,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -49458,7 +49536,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -49497,7 +49581,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -49537,7 +49627,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -52805,7 +52901,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -53522,7 +53624,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -54040,7 +54148,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -54080,7 +54194,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -54119,7 +54239,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -54159,7 +54285,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -56098,7 +56230,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -56600,7 +56738,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -57062,7 +57206,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -58007,7 +58157,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -58484,7 +58640,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -58524,7 +58686,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -58563,7 +58731,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -58603,7 +58777,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -59452,7 +59632,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -60144,7 +60330,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60176,7 +60368,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60208,7 +60406,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60239,7 +60443,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60270,7 +60480,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60302,7 +60518,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60333,7 +60555,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60365,7 +60593,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60396,7 +60630,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -60427,7 +60667,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -62023,7 +62269,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -62063,7 +62315,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -62102,7 +62360,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -62142,7 +62406,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -65742,7 +66012,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -65782,7 +66058,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -65821,7 +66103,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -65861,7 +66149,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -67250,7 +67544,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67281,7 +67581,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67312,7 +67618,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67343,7 +67655,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67374,7 +67692,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67405,7 +67729,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67436,7 +67766,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67467,7 +67803,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67498,7 +67840,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67529,7 +67877,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67560,7 +67914,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67592,7 +67952,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67623,7 +67989,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67654,7 +68026,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67685,7 +68063,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -67716,7 +68100,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -70129,7 +70519,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -70556,7 +70952,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70587,7 +70989,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70619,7 +71027,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70650,7 +71064,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70682,7 +71102,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70713,7 +71139,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70744,7 +71176,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -70775,7 +71213,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -72340,7 +72784,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -72889,7 +73339,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -72920,7 +73376,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -72951,7 +73413,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -72982,7 +73450,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73013,7 +73487,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73044,7 +73524,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73075,7 +73561,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73106,7 +73598,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73137,7 +73635,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73168,7 +73672,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73199,7 +73709,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -73230,7 +73746,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75371,7 +75893,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75411,7 +75939,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75450,7 +75984,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75489,7 +76029,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75528,7 +76074,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75567,7 +76119,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75607,7 +76165,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75646,7 +76210,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75685,7 +76255,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -75724,7 +76300,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -76992,7 +77574,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -77032,7 +77620,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -77071,7 +77665,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -77111,7 +77711,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -78468,7 +79074,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -78499,7 +79111,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -78530,7 +79148,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -78561,7 +79185,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -79569,7 +80199,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -79608,7 +80244,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -79647,7 +80289,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -79686,7 +80334,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -82856,7 +83510,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -83777,7 +84437,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -84339,7 +85005,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -86001,7 +86673,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -88071,7 +88749,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -88717,7 +89401,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -89081,7 +89771,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "marginal"
+"signature": "marginal",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "interpretation",
@@ -90630,7 +91326,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -90959,7 +91661,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -90985,7 +91693,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -91011,7 +91725,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -91037,7 +91757,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -91063,7 +91789,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -91304,7 +92036,7 @@ false
 "answer_tier": "interval",
 "gaps": [
 {
-"blocks": "point_estimate",
+"blocks": "bounds",
 "describes": [
 {
 "sentence": "an_identification_premise_is_missing",
@@ -91326,7 +92058,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "bounds",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -91950,7 +92688,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "important"
+"severity": "important",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -194835,7 +195579,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -194861,7 +195611,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "blocks": "point_estimate",
@@ -194887,7 +195643,13 @@ false
 "ref_kind": "investigation_request"
 }
 ],
-"severity": "blocking"
+"severity": "blocking",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 }
 ]
 },
@@ -205612,7 +206374,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -205651,7 +206419,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -206788,7 +207562,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -207726,7 +208506,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -208714,7 +209500,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [
@@ -209794,7 +210586,13 @@ false
 }
 },
 "severity": "blocking",
-"signature": "conditional"
+"signature": "conditional",
+"words": {
+"blocks": {
+"token": "point_estimate",
+"vocabulary": "gap_blocks"
+}
+}
 },
 {
 "alternative_paths": [

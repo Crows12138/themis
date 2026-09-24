@@ -852,7 +852,9 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
         else:
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
-    assert asked == 2232, asked
+    # 2498 since #774: what a gap buys back became a word in its sentence,
+    # two halves on each of 133 gaps.
+    assert asked == 2498, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -2532,8 +2534,14 @@ def test_the_part_of_held_that_was_measured_by_sample_is_counted():
     somebody can decide about.
     """
     sampled = _the_vocabularies_only_sampled()
-    assert sum(sampled.values()) == 1958, sum(sampled.values())
-    assert len(sampled) == 107, len(sampled)
+    # 2003 since #774: the set half of the word a gap's sentence reads is
+    # asked by sample, since its domain is every set, once on each of the
+    # 45 rows that carry one.
+    assert sum(sampled.values()) == 2003, sum(sampled.values())
+    # 110 since #774: that set half is one shape, and a gap lowered to an
+    # interval is a record of another sort, so the two halves of the word
+    # its statement carries became two shapes of their own.
+    assert len(sampled) == 110, len(sampled)
     biggest = sorted(sampled.items(), key=lambda kv: (-kv[1], kv[0]))[:4]
     assert [shape for shape, _n in biggest] == [
         "data_gap_report.gaps.[].describes.[].sentence",
@@ -2695,6 +2703,10 @@ def test_the_sweep_asks_about_the_whole_envelope():
     gives P(w) values summing to 0.9 is refused where theta is built
     (#771), so the answer it stored is one nothing produces any more,
     and its 128 questions left with it.
+
+    Then 33883: what a gap buys back became a word in the sentence that
+    says so (#774), and each of the 45 rows carrying such a gap asks the
+    word's two halves -- 90 questions.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -2704,7 +2716,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33793, asked_total
+    assert asked_total == 33883, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

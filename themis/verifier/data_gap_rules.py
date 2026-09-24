@@ -86,6 +86,7 @@ from .. import gaps as _gaps
 from .. import language
 from ..types import (
     Atom,
+    BLOCKS_CAPPED_AT_AN_INTERVAL,
     BLOCKS_OF,
     BLOCKS_TURN_ON,
     BidirectedStatement,
@@ -1899,6 +1900,48 @@ _WHAT_A_READER_DOES_WITH_IT = {
 
 _SPECIES_NAMED: dict[str, GapKind] = {kind.value: kind for kind in GapKind}
 
+#: What ``blocks`` becomes where a question cannot reach the species'
+#: value, by value. Imported for the reason the two rows above are: it is
+#: the contract's declaration of what the name means, not a producer's
+#: roster.
+_LOWERED: dict[str, str] = {
+    fixed.value: lowered.value
+    for fixed, lowered in BLOCKS_CAPPED_AT_AN_INTERVAL.items()}
+
+#: The questions whose point a premise they do not declare can put out of
+#: reach, by the kind an answer names. Restated rather than read off the
+#: producer's predicate, for the reason every table in this module is.
+#: Only a door holding the program can say whether THIS one declared it;
+#: a door holding the answer alone can say only that it is one that might.
+_A_PREMISE_CAN_HOLD_IT_AT_AN_INTERVAL = frozenset({"causation"})
+
+
+def _a_question_can_lower_it(envelope) -> bool:
+    return (isinstance(envelope, Mapping)
+            and envelope.get("query_kind")
+            in _A_PREMISE_CAN_HOLD_IT_AT_AN_INTERVAL)
+
+
+def _its_word_is_its_blocks(gap_index: int, species: GapKind,
+                            gap: Mapping) -> None:
+    """The word a sentence reads for what this gap buys back is its
+    ``blocks``, written a second time where a reader reads it."""
+    word = (gap.get("words") or {}).get(_gaps.BLOCKS_HOLE)
+    if not isinstance(word, Mapping):
+        # Absent is a hole left unfilled, which the rule over every
+        # sentence's holes refuses; this one asks what fills it.
+        return
+    if (word.get("vocabulary") == _gaps.BLOCKS_SPOKEN
+            and word.get("token") == gap.get("blocks")):
+        return
+    raise VerificationError(
+        f"T10-5: gap[{gap_index}] kind={species.value!r} tells a reader "
+        f"supplying it buys back {word.get('token')!r} and says its blocks "
+        f"is {gap.get('blocks')!r}; the sentence's word is that field, "
+        f"written again where the reader reads it",
+        step_index=None, rule=_SPECIES_RULE,
+    )
+
 
 #: Where the envelope says a feedback loop was reduced to one equation.
 #: Restated rather than imported, like every other envelope word in this
@@ -1978,12 +2021,20 @@ def _verify_t10_5_species_properties(
                     f"{_WHAT_A_READER_DOES_WITH_IT['severity']}",
                     step_index=None, rule=_SPECIES_RULE,
                 )
+        _its_word_is_its_blocks(gap_index, species, gap)
         for field, fixed, _the_occasion_s in _A_GAP_SAYS_OF_ITSELF:
             declared = fixed.get(species)
             if declared is None:
                 continue
             shown = gap.get(field)
             if shown == declared.value:
+                continue
+            if (field == "blocks"
+                    and _a_question_can_lower_it(envelope)
+                    and shown == _LOWERED.get(declared.value)):
+                # Which of the two is owed is the program's to say, and
+                # this door has no program: asked where it is, by
+                # verify_what_a_gap_buys_back_is_what_its_question_reaches.
                 continue
             does = _WHAT_A_READER_DOES_WITH_IT[field]
             if shown is None:
@@ -2290,6 +2341,58 @@ def _verify_t10_8_what_it_says(report: dict) -> None:
             f"and what this species says about itself is {sorted(allowed)}. "
             f"A reader {_WHAT_A_READER_DOES_WITH_A_DESCRIPTION}",
             step_index=None, rule=_SENTENCE_RULE,
+        )
+
+
+def verify_what_a_gap_buys_back_is_what_its_question_reaches(
+    result: dict, program: Mapping,
+) -> None:
+    """Each gap's ``blocks``, against the shape its question can reach.
+
+    ``blocks`` is what filling the gap buys back. A species that stands in
+    the way of the point does so on a question that can reach one; on a
+    question whose point a premise it does not declare has already put
+    out of reach, what it buys back is the interval. The one such premise
+    is monotonicity on a question about the probabilities of causation:
+    undeclared, those are Tian–Pearl intervals however complete the data.
+
+    Read off the program, because the answer does not always carry it —
+    an attribution question answered with no data records no
+    monotonicity anywhere on the envelope, and a door reading only the
+    answer can say which questions COULD be lowered but not whether this
+    one was.
+    """
+    report = result.get("data_gap_report")
+    if not isinstance(report, dict):
+        return
+    query = query_of(program, result.get("query_id")) or {}
+    held_at_an_interval = (
+        query.get("kind") in _A_PREMISE_CAN_HOLD_IT_AT_AN_INTERVAL
+        and not query.get("monotonic"))
+    for gap_index, gap in enumerate(report.get("gaps") or ()):
+        if not isinstance(gap, dict):
+            continue
+        kind = gap.get("kind")
+        species = _SPECIES_NAMED.get(kind) if isinstance(kind, str) else None
+        if species is None:
+            continue
+        declared = BLOCKS_OF.get(species)
+        if declared is None:
+            continue
+        owed = (_LOWERED.get(declared.value, declared.value)
+                if held_at_an_interval else declared.value)
+        shown = gap.get("blocks")
+        if shown == owed:
+            continue
+        why = ("this question declares no monotonicity, so its answer is an "
+               "interval however much is supplied"
+               if held_at_an_interval else
+               "this question can reach the species' value")
+        raise VerificationError(
+            f"T10-5: gap[{gap_index}] kind={species.value!r} says its blocks "
+            f"is {shown!r}, and it is {owed!r} here: {why}. A reader "
+            f"{_WHAT_A_READER_DOES_WITH_IT['blocks']}",
+            step_index=None, rule=_SPECIES_RULE,
         )
 
 

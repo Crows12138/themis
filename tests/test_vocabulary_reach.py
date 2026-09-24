@@ -653,6 +653,18 @@ _ROWS: dict[str, Vocabulary] = {
         # a gap this is — the question three kernel passes used to answer by
         # searching the rendered sentence for three substrings (#438).
     ),
+    "gap_blocks": Vocabulary(
+        declares="themis.types.GapBlocks",
+        sites=((*_DEFS, "dataGap", "properties", "blocks"),
+               _closed("gap_blocks")),
+        carried_by="What supplying a gap buys back. It was never rendered "
+                     "until a question could lower it (#774): the sentence "
+                     "that tells a reader what supplying the gap buys spelt "
+                     "the point out, and said it on a question whose point "
+                     "no data reaches. The sentence now reads the gap's own "
+                     "field through a `{blocks}` hole, carried on the gap's "
+                     "`words` as the set and the token.",
+    ),
     "query_part": Vocabulary(
         sites=(_closed("query_part"),),
         declares="themis.gaps.QueryPart",
@@ -674,13 +686,6 @@ _ROWS: dict[str, Vocabulary] = {
                  "browser titles it (`GAP_TITLE`, pinned) and "
                  "`docs/GAP_KINDS_REFERENCE.md` gives each a row, both "
                  "checked elsewhere.",
-    ),
-    "gap_blocks": Vocabulary(
-        declares="themis.types.GapBlocks",
-        sites=((*_DEFS, "dataGap", "properties", "blocks"),),
-        no_gloss="Which downstream output a gap prevents. Read by the "
-                 "answer-tier computation, never rendered: what the reader "
-                 "is told is the tier it produced.",
     ),
     "gap_ref_kind": Vocabulary(
         declares="themis.types.GapRefKind",

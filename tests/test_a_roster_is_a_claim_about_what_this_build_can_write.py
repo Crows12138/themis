@@ -70,7 +70,9 @@ def test_every_slot_a_statement_declares_is_classified_exactly_once():
     space it covers is the point.
     """
     space = slots_the_statements_declare()
-    assert len(space) == 94, len(space)
+    # 95 since #774: ``blocks``, the word a gap's sentence reads for what
+    # supplying it buys back.
+    assert len(space) == 95, len(space)
     assert not (space - set(_NAMES) - set(_NOT_NAMES)
                 - _TURNS_ON_THE_SENTENCE)
     assert not set(_NAMES) & set(_NOT_NAMES)
@@ -235,13 +237,15 @@ def test_the_statement_index_is_the_vocabularies_themis_gaps_holds():
                     if any(owner is here for here in held)}
     assert vocabularies == {
         "gap_describes", "gap_routes", "gap_says", "gap_if_provided",
-        "query_part", "unnamed_thing", "described_population"}
+        "query_part", "unnamed_thing", "described_population",
+        "gap_blocks"}
     known = {str(member) for name in vocabularies
              for member in language.VOCABULARIES[name]}
     names = {str(member) for member in _gaps.BY_SENTENCE.values()}
     names |= {str(member) for member in _gaps.BY_NAME.values()}
     names |= {str(member) for member in _gaps.BY_ROUTE.values()}
-    assert names < known and len(known) == 247, len(known)
+    # Five more with #774: the shapes a gap can buy back.
+    assert names < known and len(known) == 252, len(known)
     shown = {statement for statement, _key in SHOWN if statement}
     # And the fifteen the index does not know, which is the same shortfall
     # the slot count above measures, seen from the statement side: how
@@ -261,5 +265,6 @@ def test_a_table_keyed_by_a_kind_is_in_the_index_only_if_it_is_spoken():
     provided = {(kind, slot) for kind, words in _gaps.IF_PROVIDED.items()
                 for text in words.values() for slot in _slots_of(text)}
     assert wanted and not wanted & pairs
-    assert len(provided) == 8 and provided <= pairs
-    assert len(pairs) == 256, len(pairs)
+    # Five of each since #774: the species whose sentence reads ``blocks``.
+    assert len(provided) == 13 and provided <= pairs
+    assert len(pairs) == 261, len(pairs)

@@ -2620,6 +2620,26 @@ BLOCKS_TURN_ON: dict[GapKind, str] = {
     ),
 }
 
+#: What a species' ``blocks`` becomes on a question that cannot reach it.
+#:
+#: ``blocks`` is what filling the gap buys back, and no gap buys back more
+#: than its question can reach. The rows above are each species' value on
+#: a question that can reach a point. One question cannot: the
+#: probabilities of causation are Tian–Pearl intervals, and monotonicity —
+#: declared on the query, never found in the data — is what collapses
+#: them to points. Undeclared, the point is out of reach whatever is
+#: supplied, so a gap that would have bought it buys the interval, and a
+#: gap saying "point estimate" there promises a number no data produces.
+#:
+#: Keyed by the value rather than by species, because it is a fact about
+#: the shape: every species that stands in the way of the point is lowered
+#: the same way, and one that stands in the way of anything else is not
+#: about the shape at all. Which questions lower it is the question's —
+#: :func:`themis.output.data_gap_report._point_is_premise_blocked`.
+BLOCKS_CAPPED_AT_AN_INTERVAL: dict[GapBlocks, GapBlocks] = {
+    GapBlocks.POINT_ESTIMATE: GapBlocks.BOUNDS,
+}
+
 for _name, _fixed, _varies in (("severity", SEVERITY_OF, SEVERITY_TURNS_ON),
                                ("blocks", BLOCKS_OF, BLOCKS_TURN_ON)):
     _missing = frozenset(GapKind) - (_fixed.keys() | _varies.keys())
@@ -3384,7 +3404,9 @@ class DataGap:
     :data:`BLOCKS_OF`, with :data:`SEVERITY_TURNS_ON` and
     :data:`BLOCKS_TURN_ON` for the few that are. They were typed at every
     construction site, which is how a field belonging to the species came
-    to have 45 authors and no declaration.
+    to have 45 authors and no declaration. ``blocks`` is also the one of
+    the two a QUESTION can lower — :data:`BLOCKS_CAPPED_AT_AN_INTERVAL` —
+    and the value it is lowered to is the only other one accepted here.
 
     ``required_data.data_type`` is settled here too, from
     :data:`DATA_TYPE_OF` and :data:`DATA_TYPE_TURNS_ON`, for the same
@@ -3436,7 +3458,9 @@ class DataGap:
                 continue
             if stated is None:
                 object.__setattr__(self, name, declared)
-            elif stated != declared:
+            elif stated != declared and not (
+                    isinstance(declared, GapBlocks)
+                    and BLOCKS_CAPPED_AT_AN_INTERVAL.get(declared) == stated):
                 raise ValueError(
                     f"this gap says its {name} is {stated.value!r} and "
                     f"{self.kind.value} is {declared.value!r} on every "
@@ -3448,6 +3472,33 @@ class DataGap:
         self._settle_the_ways_past_it_offers()
         self._settle_the_statements_it_makes()
         self._settle_the_spaces_it_cites()
+        self._settle_the_word_its_sentence_reads()
+
+    def _settle_the_word_its_sentence_reads(self) -> None:
+        """What filling this gap buys back, in the sentence that says so.
+
+        A species whose "if provided" sentence names what the gap buys back
+        names it through a ``{blocks}`` hole, and this gap's own ``blocks``
+        is what fills it. They are one fact: the sentence used to spell the
+        point out, and so it said "a point estimate" on the one question
+        whose point no data can produce, beside a ``blocks`` that — once a
+        question could lower it — said otherwise. Filled here rather than
+        at the sites so the field and the word have one author, and a gap
+        rewritten with a lowered ``blocks`` passes back through here and
+        says the lowered one.
+        """
+        from .gaps import BLOCKS_HOLE, BLOCKS_SPOKEN, IF_PROVIDED
+        from .language import holes, spelt
+
+        if not isinstance(self.kind, GapKind):
+            return
+        template = IF_PROVIDED.get(self.kind.value)
+        if template is None or BLOCKS_HOLE not in holes(template):
+            return
+        object.__setattr__(self, "words", {
+            **self.words,
+            BLOCKS_HOLE: spelt(BLOCKS_SPOKEN, GapBlocks(self.blocks)),
+        })
 
     def _settle_the_ways_past_it_offers(self) -> None:
         """The routes on this gap are ways past the gap it is.

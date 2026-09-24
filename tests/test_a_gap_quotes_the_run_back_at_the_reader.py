@@ -482,7 +482,7 @@ def test_the_silence_is_real_where_the_word_has_no_record():
     verify_gap_subjects(forged, program)
 
 
-def test_the_space_that_gate_used_to_ask_sees_four_of_seventeen():
+def test_the_space_that_gate_used_to_ask_sees_five_of_eighteen():
     """Why the gate above is a measurement, said as one.
 
     ``_bind``'s space keeps a vocabulary when its words live in
@@ -491,7 +491,9 @@ def test_the_space_that_gate_used_to_ask_sees_four_of_seventeen():
     the output layer, which no verifier may import. The space is still the
     right one for what ``_bind`` does — every slot this package can WRITE
     is classified — and the wrong one for whether a roster row is reached.
-    Counted so the difference is a number and not a remark.
+    Counted so the difference is a number and not a remark. It was four
+    of seventeen until what a gap buys back became a word in its sentence
+    (#774), whose vocabulary lives in ``themis.gaps``.
     """
     space = {slot for _statement, slot in
              statements_and_the_slots_they_declare()}
@@ -501,8 +503,8 @@ def test_the_space_that_gate_used_to_ask_sees_four_of_seventeen():
                    (SHAPES[name]["result"] or {}).get("data_gap_report") or {})}
     inside = {name for name, owner in language.VOCABULARIES.items()
               if any(owner is held for held in vars(gaps).values())}
-    assert len(carried) == 17, sorted(carried)
-    assert len(carried & inside) == 4, sorted(carried & inside)
+    assert len(carried) == 18, sorted(carried)
+    assert len(carried & inside) == 5, sorted(carried & inside)
     assert "scale" in space and "role" not in space
 
 

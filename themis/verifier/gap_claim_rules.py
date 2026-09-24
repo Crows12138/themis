@@ -345,6 +345,11 @@ _NOT_NAMES: Mapping[str, str] = {
     # routes: the measurement scale a declaration names, a word out of the
     # glossary's vocabulary.
     "scale": "vocabulary",
+    # And what a gap buys back, restated in the sentence that says so: a
+    # word out of the gap-blocks vocabulary, whose record is the ``blocks``
+    # field of the same gap. It is held to that field one gap at a time by
+    # ``data_gap_rules``, which reads the gap and not the envelope.
+    "blocks": "vocabulary",
 }
 
 #: A slot whose kind is its STATEMENT'S, declared for each statement.

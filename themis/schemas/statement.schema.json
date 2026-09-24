@@ -48,8 +48,8 @@
         "bridge_side", "consistency_constraint", "data_contract_warning",
         "described_population", "discovery_asks", "discovery_note",
         "dose_response_routing", "e_value_undefined", "estimation_refusal",
-        "extraction_refusal", "four_way_unavailable", "gap_describes",
-        "gap_if_provided", "gap_routes",
+        "extraction_refusal", "four_way_unavailable", "gap_blocks",
+        "gap_describes", "gap_if_provided", "gap_routes",
         "gap_says", "instrument_route_note", "iv_required_assumption",
         "lagged_discovery_says", "late_caveat",
         "latent_lagged_discovery_says", "malformed_program",
@@ -123,6 +123,16 @@
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "four_way_unavailable" } } },
           "then": { "properties": { "token": { "enum": ["the_mediator_is_continuous_under_a_nonlinear_outcome"] } } }
+        },
+        {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "gap_blocks" } } },
+          "then": { "properties": { "token": { "enum": [
+            "bounds",
+            "identification",
+            "interpretation",
+            "point_estimate",
+            "transport"
+          ] } } }
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "instrument_route_note" } } },

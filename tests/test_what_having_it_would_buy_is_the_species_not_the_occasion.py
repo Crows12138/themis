@@ -33,6 +33,13 @@ sentences already on the envelope reached a browser reader with braces
 the report does not show them. What is pinned is agreement over every
 string the kernel hands the browser, with the browser's tokenizer read
 out of its own source.
+
+One hole is not the occasion's. Five species say WHAT SHAPE of answer
+they buy back, through ``{blocks}``, and the shape is the gap's own
+``blocks`` — which a question can lower, so the sentence reads the field
+rather than spelling a point out (#774). The gap fills that hole from its
+field when it is built (:data:`themis.gaps.BLOCKS_HOLE`), so it is held
+here as the gap's promise and the sites are held to the rest.
 """
 from __future__ import annotations
 
@@ -67,6 +74,11 @@ HOLED = {
     "ill_defined_intervention_versions": {"intervention"},
     "unattempted_layer_due_to_dispatch_conflict": {"won", "lost"},
     "missing_iv_candidate": {"treatment", "outcome"},
+    "missing_distribution": {"blocks"},
+    "missing_structural_input": {"blocks"},
+    "missing_unit_observation": {"blocks"},
+    "missing_assumption": {"blocks"},
+    "graph_theta_independence_mismatch": {"blocks"},
 }
 
 #: Where a gap is built. Both modules, because the second author is the
@@ -135,10 +147,16 @@ def _gap(kind: GapKind, **kw) -> DataGap:
     return DataGap(**fields_)      # type: ignore[arg-type]
 
 
+def _supplied_by_the_site(species: str) -> set[str]:
+    """The holes the site building a gap fills: every one but the hole the
+    gap fills from itself."""
+    return HOLED.get(species, set()) - {gaps.BLOCKS_HOLE}
+
+
 def _occasion_for(species: str) -> dict:
-    """An occasion that fills whatever holes this species' sentence has."""
+    """An occasion that fills whatever holes a site fills for this species."""
     return gaps.occasion(**{hole: hole.upper()
-                            for hole in HOLED.get(species, ())})
+                            for hole in _supplied_by_the_site(species)})
 
 
 # --- the table is total ------------------------------------------------------
@@ -246,7 +264,7 @@ def test_a_site_supplies_exactly_the_holes_its_species_has(path):
     for line, species, occasion in _built(path):
         if species is None:
             continue
-        wanted = HOLED.get(species, set())
+        wanted = _supplied_by_the_site(species)
         assert set(occasion or ()) == wanted, (path, line, species)
 
 
@@ -258,12 +276,15 @@ def test_a_site_supplies_exactly_the_holes_its_species_has(path):
 def test_a_species_with_a_row_assembles_a_full_sentence(species, lang):
     """Filled from the occasion, with nothing left standing as its own
     name — which is what an unfilled hole renders as."""
-    said = gaps.if_provided(
-        _gap(GapKind(species), **_occasion_for(species)), lang)
+    gap = _gap(GapKind(species), **_occasion_for(species))
+    said = gaps.if_provided(gap, lang)
     assert said.strip()
     for hole in HOLED.get(species, ()):
         assert f"`{hole}`" not in said, (species, hole)
+    for hole in _supplied_by_the_site(species):
         assert hole.upper() in said, (species, hole)
+    if gaps.BLOCKS_HOLE in HOLED.get(species, ()):
+        assert gaps.BLOCKS_WORDS[str(gap.blocks)][lang] in said, species
 
 
 @pytest.mark.parametrize("species", sorted(gaps.NOTHING_FILLS))
@@ -317,7 +338,7 @@ def test_the_gap_carries_the_occasion_and_not_the_sentence():
 def test_the_two_halves_are_written_only_where_there_is_something():
     """"Nothing here" has one spelling, decided at the door rather than at
     each writer — the same rule the other optional fields follow."""
-    bare = data_gap_to_dict(_gap(GapKind.MISSING_DISTRIBUTION))
+    bare = data_gap_to_dict(_gap(GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET))
     assert "said" not in bare and "words" not in bare
     assert "if_provided" not in bare
 

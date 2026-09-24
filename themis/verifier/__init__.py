@@ -797,6 +797,12 @@ Public surface (re-exports from sub-modules):
   ``verify_collider_caveats_are_owed`` (which answers carried one was the
   report author's alone; each of the corpus's 7, removed, passed every
   door, and one added for an atom that is no collider passed 5 times of 5)
+- And what each gap says supplying it buys back, against the shape its
+  question can reach: ``verify_what_a_gap_buys_back_is_what_its_question_reaches``
+  (an attribution question with no monotonicity declared is an interval
+  however much is supplied, and every gap beside that tier promised a
+  point; whether THIS question declared it is the program's to say, so it
+  is asked where the program is)
 - The thing a disclosed mechanism was fitted for, against the question:
   ``verify_mechanism_target`` (a mechanism block says which ``form`` a fit
   took and which ``target`` it took that shape FOR; the method and the
@@ -1102,6 +1108,7 @@ from .data_gap_rules import (
     verify_gap_edge_statements,
     verify_gap_program_sites,
     verify_proposed_edges_are_disclosed,
+    verify_what_a_gap_buys_back_is_what_its_question_reaches,
 )
 from .statement_rules import (
     verify_statements_carry_their_facts,
@@ -1193,6 +1200,7 @@ __all__ = [
     "verify_collider_caveats_are_owed",
     "verify_gap_quotes",
     "verify_gap_subjects",
+    "verify_what_a_gap_buys_back_is_what_its_question_reaches",
     "verify_refusal_block",
     "verify_required_data",
     "verify_mechanism_target",
