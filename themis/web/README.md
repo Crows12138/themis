@@ -6,8 +6,8 @@ backed by a FastAPI server that calls `themis.run` / `themis.verify` /
 
 - **问一问 (Ask)** — type a Chinese causal question; the LLM bridge
   translates it to a kernel_ast, runs it, and renders an honest verdict
-  (answer_tier point/interval/none, data-gap report, reply). Needs an
-  Anthropic API key. Worked examples run with no key.
+  (answer_tier point/interval/none, data-gap report, reply). Needs a
+  model behind it — see "Model" below. Worked examples run with none.
 - **建因果图 (Build)** — draw a causal DAG (cause + latent-confounding
   edges), pick a query (effect / identify / counterfactual), and get the
   kernel's verdict: identifiable? what data is still missing?
@@ -69,18 +69,27 @@ paths work in the production build.
 | `POST /api/verify` | `{program, result}` | `{ok}` (result must carry a derivation) — subsumed by `/api/audit`; `app.py`'s `COVERED_BY` says so |
 | `POST /api/verify_bounds_results` | `{program, result}` | `{ok}` (bounds-only audit) — likewise |
 | `POST /api/ask` | `{nl, api_key?}` | `{nl, kernel_ast, envelope, reply}` |
+| `GET /api/offers` | — | `{llm, visitor_key}` — what this deployment offers |
 | `GET /api/examples` | — | `[{name, nl_input, program}]` |
 
-## API key (Ask only)
+## Model (Ask, AI priors, plain-language reading)
 
-Resolution order:
-1. The "API Key" button in the header — paste your key into the panel
-   (stored in browser `localStorage`, sent per-request, not persisted
-   server-side).
-2. `ANTHROPIC_API_KEY` env var on the server.
+Declared on the server, read in one place (`llm_bridge._endpoint`):
 
-Run JSON / Build / Estimate / examples need no key. Override the model
-via `THEMIS_LLM_MODEL` (default `claude-sonnet-4-6`).
+| Setting | Meaning |
+|---|---|
+| `THEMIS_WEB_LLM` | `on` / `off` — whether this deployment offers the three surfaces that need a model at all |
+| `THEMIS_LLM_API_KEY` | a key the deployment pays with; when set, visitors are not asked for one |
+| `THEMIS_LLM_BASE_URL` | where that key is spent (default `https://api.anthropic.com`); any service speaking the Anthropic Messages API, e.g. `https://api.deepseek.com/anthropic` |
+| `THEMIS_LLM_MODEL` | the model asked for there (default `claude-sonnet-4-6`) |
+
+With no `THEMIS_LLM_API_KEY` the deployment is the local product: calls go
+to the oauth proxy on this machine (`OAUTH_PROXY_URL`, default
+`http://127.0.0.1:7777`), and the page offers a panel where a visitor can
+paste an Anthropic key instead (kept in browser `localStorage`, sent per
+request, never stored on the server).
+
+Run JSON / Build / Estimate / examples need no model.
 
 ## Stack
 

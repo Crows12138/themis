@@ -30,22 +30,35 @@ request body carries it and both LLM surfaces run at
 :data:`themis.language.DEFAULT` whoever is asking. That is a wiring gap on
 the endpoints rather than a fact about this module.
 
-Routing: by default the SDK is pointed at the local
-``oauth-fingerprint-proxy`` (``http://127.0.0.1:7777``, override via
-``OAUTH_PROXY_URL``). The proxy reads the live OAuth token from
-``~/.claude/.credentials.json`` and rewrites the request so it carries the
-Claude Code fingerprint — that's what routes the call to Claude Max
-included quota instead of "extra usage" billing. If the caller supplies
-an actual API key (``sk-ant-api...`` via the ``api_key`` argument or
-``ANTHROPIC_API_KEY`` env var) we bypass the proxy and talk to
-``api.anthropic.com`` directly with normal pay-as-you-go billing.
+Routing is declared by whoever deploys this, and read in one place,
+:func:`_endpoint`:
 
-The proxy must be running. Start it from
+- ``THEMIS_LLM_API_KEY`` is a key this deployment pays with. When it is
+  set, every call goes to ``THEMIS_LLM_BASE_URL`` (default
+  ``https://api.anthropic.com``) with it, and a key a visitor pastes is
+  not read — the deployment has said who pays. Any service that speaks
+  the Anthropic Messages API will do; DeepSeek's is
+  ``https://api.deepseek.com/anthropic``.
+- ``THEMIS_LLM_MODEL`` is the model asked for there (default
+  ``claude-sonnet-4-6``), read when the call is made.
+- With no key of its own a deployment is the local product. Calls go to
+  the ``oauth-fingerprint-proxy`` on this machine
+  (``http://127.0.0.1:7777``, override via ``OAUTH_PROXY_URL``), which
+  reads the live OAuth token from ``~/.claude/.credentials.json`` and
+  adds the Claude Code fingerprint; a visitor who pastes a key into the
+  page's panel is sent to ``api.anthropic.com`` with it instead, because
+  an Anthropic key is what that panel asks for.
+
+It used to be guessed, twice. This module chose between the proxy and the
+API by whether a key began ``sk-ant-api``, so any other provider's key
+went to the proxy; and ``app.py`` wrote a placeholder key into the
+process environment and handed it down with every request, so a key the
+operator configured never arrived here at all.
+
+Without a key the proxy must be running. Start it from
 ``项目/oauth-fingerprint-proxy/`` with ``python proxy.py``. It not running
 is the ordinary case for anyone who has just cloned this, so it is a
 refusal that says so — see :func:`_ask_model`.
-
-Model defaults to ``claude-sonnet-4-6``; override via ``THEMIS_LLM_MODEL``.
 
 Both LLM calls are blocking — no streaming back to the browser in
 this slice; add when there's a real-case driver for partial-result
@@ -57,6 +70,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 from themis import language
 
@@ -80,7 +94,8 @@ _EXAMPLES_DIR = _REPO_ROOT / "themis" / "prompts" / "examples"
 # Repopulate only with genuinely diverse shapes if a real driver appears.
 _FEWSHOT_NAMES: tuple[str, ...] = ()
 
-_DEFAULT_MODEL = os.environ.get("THEMIS_LLM_MODEL", "claude-sonnet-4-6")
+_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+_ANTHROPIC_URL = "https://api.anthropic.com"
 _DEFAULT_PROXY_URL = "http://127.0.0.1:7777"
 
 
@@ -132,17 +147,43 @@ def _fewshot_messages() -> list[dict]:
     return _fewshot_cache
 
 
-def _client(api_key: str | None = None):
-    """Build the Anthropic client.
+class Endpoint(NamedTuple):
+    """Where a call goes, the key it carries, and the model asked for."""
+    base_url: str
+    api_key: str
+    model: str
 
-    Direct path: when ``api_key`` (argument or ``ANTHROPIC_API_KEY``) is a
-    real API key (``sk-ant-api...``), call ``api.anthropic.com`` directly.
 
-    Proxy path (default): point at the local oauth-fingerprint-proxy and
-    let it supply the real OAuth token + Claude Code fingerprint. The SDK
-    requires a non-empty ``api_key`` even when ``base_url`` redirects, so
-    pass a placeholder.
+def deployment_pays() -> bool:
+    """Whether this deployment declared a key of its own.
+
+    Read by the page as well as here: a deployment that pays has no use
+    for a visitor's key, so it does not ask for one.
     """
+    return bool(os.environ.get("THEMIS_LLM_API_KEY"))
+
+
+def _endpoint(api_key: str | None = None) -> Endpoint:
+    """The one place routing is decided; the module docstring says how.
+
+    ``api_key`` is a visitor's, from the page's panel, and counts only
+    where the deployment has not said it pays. The proxy is sent a
+    placeholder because the SDK will not build a client without a key,
+    and the proxy supplies the real credential itself.
+    """
+    model = os.environ.get("THEMIS_LLM_MODEL") or _ANTHROPIC_MODEL
+    own = os.environ.get("THEMIS_LLM_API_KEY")
+    if own:
+        return Endpoint(os.environ.get("THEMIS_LLM_BASE_URL") or _ANTHROPIC_URL,
+                        own, model)
+    if api_key:
+        return Endpoint(_ANTHROPIC_URL, api_key, model)
+    return Endpoint(os.environ.get("OAUTH_PROXY_URL", _DEFAULT_PROXY_URL),
+                    "proxy", model)
+
+
+def _client(api_key: str | None = None):
+    """The SDK client for :func:`_endpoint`'s address and key."""
     try:
         from anthropic import Anthropic
     except ImportError as exc:
@@ -150,12 +191,8 @@ def _client(api_key: str | None = None):
             Bridge.THE_SDK_IS_NOT_INSTALLED, package="anthropic"
         ) from exc
 
-    explicit = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if isinstance(explicit, str) and explicit.startswith("sk-ant-api"):
-        return Anthropic(api_key=explicit)
-
-    proxy_url = os.environ.get("OAUTH_PROXY_URL", _DEFAULT_PROXY_URL)
-    return Anthropic(base_url=proxy_url, api_key=explicit or "proxy")
+    where = _endpoint(api_key)
+    return Anthropic(base_url=where.base_url, api_key=where.api_key)
 
 
 def _unreached(exc: BaseException, address: str) -> LLMBridgeError:
@@ -243,7 +280,7 @@ def nl_to_kernel_ast(
     nl: str,
     *,
     api_key: str | None = None,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
     max_attempts: int = 3,
 ) -> dict:
     """Turn one NL question into a kernel_ast dict via the project's
@@ -258,6 +295,7 @@ def nl_to_kernel_ast(
     """
     system = _load_system_prompt(_PROMPT_NL_TO_AST)
     client = _client(api_key)
+    model = model or _endpoint(api_key).model
     fewshot = _fewshot_messages()
     last_parse_err: LLMBridgeError | None = None
     for _ in range(max(1, max_attempts)):
@@ -291,7 +329,7 @@ def render_reply(
     nl: str | None = None,
     lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
 ) -> str:
     """Turn a ``themis.run`` envelope into a reply in the reader's language.
 
@@ -303,6 +341,7 @@ def render_reply(
     """
     system = _load_system_prompt(_PROMPT_RENDER)
     client = _client(api_key)
+    model = model or _endpoint(api_key).model
 
     user_msg = ""
     if nl:
@@ -352,7 +391,7 @@ def propose_theta_priors(
     *,
     lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
 ) -> list[dict]:
     """Ask the LLM for a common-knowledge prior for each missing probability.
 
@@ -374,6 +413,7 @@ def propose_theta_priors(
         return []
     system = _load_system_prompt(_PROMPT_PROPOSE_PRIORS)
     client = _client(api_key)
+    model = model or _endpoint(api_key).model
 
     enumerated = [
         {"index": i, "probability": _prob_key_repr(sk)}
@@ -455,7 +495,7 @@ def ask(
     *,
     lang: language.Lang | str = language.DEFAULT,
     api_key: str | None = None,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
 ) -> dict:
     """End-to-end: NL → kernel_ast → themis.run → a reply in ``lang``.
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ask, errorText, fetchExamples, getApiKey, KernelError, runProgram } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
+import { useOffers } from '../lib/offers'
 import { TIER_META, tierMeta } from '../lib/verdict'
 import type { Envelope, ExampleItem, QueryResult } from '../types'
 import { ResultView, type ResultPayload } from './ResultView'
@@ -69,6 +70,9 @@ export function AskWorkspace({
   const [examples, setExamples] = useState<ExampleItem[]>([])
   const taRef = useRef<HTMLTextAreaElement>(null)
   const lang = useLang()
+  // The key panel is offered only where this deployment asks visitors for
+  // a key; one that pays with its own never points a reader at it.
+  const offers = useOffers()
 
   useEffect(() => {
     fetchExamples().then((all) => setExamples(all.filter((e) => e.nl_input)))
@@ -90,7 +94,7 @@ export function AskWorkspace({
       setError({
         title: fill(FAILED.stageFailed, lang),
         msg: errorText(ke, lang),
-        needKey: /key/i.test(ke.message),
+        needKey: offers?.visitor_key === true && /key/i.test(ke.message),
       })
     } finally {
       setBusy(false)

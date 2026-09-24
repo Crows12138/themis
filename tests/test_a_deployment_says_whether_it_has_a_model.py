@@ -18,7 +18,8 @@ What is asserted here:
 
 - the fact is declared once and its vocabulary is closed, so a third
   spelling cannot read as one of the two
-- ``/api/offers`` is that declaration and nothing else
+- ``/api/offers`` is that declaration, and whether a visitor is asked
+  for a key, and nothing else
 - with no model, each of the three refuses, in the reader's language,
   with a sentence that says what still works
 - with no model, everything that needs none still answers
@@ -141,13 +142,24 @@ def test_the_default_is_the_local_product():
 
 # --- the page is told ---------------------------------------------------
 
-def test_offers_says_the_one_thing_it_knows():
+def test_offers_says_what_it_knows(monkeypatch):
+    monkeypatch.delenv("THEMIS_LLM_API_KEY", raising=False)
     body = client.get("/api/offers").json()
-    assert body == {"llm": app_module._OFFERS_A_MODEL}
+    assert body == {"llm": app_module._OFFERS_A_MODEL,
+                    "visitor_key": app_module._OFFERS_A_MODEL}
 
 
 def test_offers_follows_the_declaration(without_a_model):
-    assert client.get("/api/offers").json() == {"llm": False}
+    assert client.get("/api/offers").json() == {
+        "llm": False, "visitor_key": False}
+
+
+def test_a_deployment_that_pays_asks_no_visitor_for_a_key(monkeypatch):
+    """The operator declared who pays; a panel asking the visitor would
+    say otherwise, and a key typed into it would not be read."""
+    monkeypatch.setenv("THEMIS_LLM_API_KEY", "sk-operator")
+    body = client.get("/api/offers").json()
+    assert body == {"llm": app_module._OFFERS_A_MODEL, "visitor_key": False}
 
 
 # --- and so are the endpoints -------------------------------------------
@@ -249,4 +261,4 @@ def test_the_answer_is_not_assumed_while_it_is_unknown():
     behind it."""
     said = web_source.read(web_source.SRC / "lib" / "offers.ts")
     assert "let offers: Offers | null = null" in said
-    assert "settle({ llm: false })" in said
+    assert "settle({ llm: false, visitor_key: false })" in said

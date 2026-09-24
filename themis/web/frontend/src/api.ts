@@ -161,7 +161,7 @@ export function ask(nl: string, lang: Lang, apiKey?: string): Promise<AskRespons
 // What this deployment offers. Raised rather than defaulted: what to do
 // when the server cannot say is a policy, and it belongs where the fact
 // is kept (`lib/offers.ts`) rather than in the fetch.
-export async function fetchOffers(): Promise<{ llm: boolean }> {
+export async function fetchOffers(): Promise<{ llm: boolean; visitor_key: boolean }> {
   const res = await fetch('/api/offers')
   if (!res.ok) throw new Error(`offers unavailable (${res.status})`)
   return res.json()

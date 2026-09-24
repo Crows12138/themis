@@ -1,6 +1,6 @@
 # Themis Core Status
 
-> 更新时间：2026-09-23
+> 更新时间：2026-09-25
 
 这份文档只回答一件事：
 
@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31650 passed / 535 skipped, warning-clean
+31656 passed / 535 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,27 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #770 一次模型调用去哪里、用谁的 key，只在一处决定（2026-09-25）
+
+**来历**：演示网站要接上用户自己的 DeepSeek key。读网页的模型调用链时发现，现有代码没有「部署方自己付费」这条路；同一天另一个会话的多代理审查也把它列为 P0（output-mcp-web#6）。
+
+**现象**：`themis/web/app.py` 在 import 时 `setdefault` 两个进程级环境变量：`ANTHROPIC_BASE_URL` 默认指向本机 7777 的 oauth 代理，`ANTHROPIC_API_KEY` 默认是占位符 `"x"`。四个调用点又各自写 `api_key=req.api_key or "x"`。后果有三：①访客在面板里粘贴的 Anthropic key 被发往 127.0.0.1:7777，而不是 Anthropic；②访客没填 key 时显式传入 `"x"`，运维在环境里配的 `ANTHROPIC_API_KEY` 被这个占位符盖掉；③没有任何办法声明「本部署用自己的 key、走别家兼容端点、用别的模型」。对应的单测在测试里删掉了这两个环境变量，所以一直没测出来。
+
+**根因假设**：一次调用去哪个地址、用哪把 key、哪个模型，是**一个**决定，却分散在三个互不知情的地方：import 时的环境默认值、每个调用点的占位符、SDK 自己对环境变量的读取。任何一处改动都会让另外两处的假设失效。
+
+**为什么是根因不是表象**：只删掉 `setdefault` 能修①，修不了②；只把 `or "x"` 改成 `or None` 能修②，但 SDK 仍会读到 import 时写进环境的 7777。三个现象来自同一处缺失：没有一个函数对「这次调用去哪里」负责。
+
+**修法**：
+- `llm_bridge._endpoint(api_key)` 是唯一的决定点，顺序写死、只写一次：部署声明了 `THEMIS_LLM_API_KEY` → 用它，发往 `THEMIS_LLM_BASE_URL`（缺省 Anthropic）；否则访客给了 key → 发往 Anthropic；否则 → 本机代理（`OAUTH_PROXY_URL`，缺省 7777）。模型取 `THEMIS_LLM_MODEL`，缺省 `claude-sonnet-4-6`。四个入口的 `model` 参数缺省为 `None`，由端点决定。
+- `app.py` 删掉 import 时的两行 `setdefault`，四个调用点把访客的 key 原样往下传（没有就是 `None`）。
+- `/api/offers` 在 `llm` 之外多说一件事 `visitor_key`：只有提供模型、且部署没有声明自己的 key 时，页面才可以向访客要 key。部署自己付费时面板不再出现，否则等于和部署方的决定相矛盾。前端 `offers.ts` / `AskWorkspace.tsx` 据此决定是否提示填 key。
+- `NOTHING_ANSWERED_AT_THAT_ADDRESS` 两种语言都删掉了「或者填一把 `sk-ant-api` 开头的 key」那半句：部署自己付费时页面不向访客要 key，那半句会把读者引到一个不存在的面板。现在只说那个地址没有应答，以及它如果是本机的 oauth 代理就先启动。
+- `themis/web/README.md` 新增 `## Model` 一节，列出四个环境变量。
+
+**测试**：`test_web_llm_bridge.py` 用六个测试换掉原来两个：缺省走代理；访客的 key 发往 Anthropic；部署声明的 key 发往它声明的地址（用 DeepSeek 的 Anthropic 兼容端点作例子）；部署付费时访客的 key 不被读取；模型取端点的；`/api/ask` 与 `/api/render` 在没有 key 时往下传的是 `None`。`test_a_deployment_says_whether_it_has_a_model.py` 加一条：部署付费时 `/api/offers` 说 `visitor_key: false`。
+
+**基线**：31656 passed / 535 skipped。全量里唯一的失败是 `test_a_status_doc_carries_no_date_later_than_the_one_it_declares`：#769 的条目写着 2026-09-24，头部还停在 09-23，是 #769 提交时漏改的。本条把头部改到 09-25，这条随之通过。
 
 ### #769 一个问「是不是它造成的」的问题，要被问成归因（2026-09-24）
 

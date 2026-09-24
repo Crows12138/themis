@@ -77,13 +77,11 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
               "`pip install {package}` and try again",
     })
     NOTHING_ANSWERED_AT_THAT_ADDRESS = ("nothing_answered_at_that_address", {
-        "zh": "没有连上 `{address}`，那个地址上没有东西应答。这一步需要一个"
-              "语言模型：默认走本机的 oauth 代理，先把它跑起来；或者填一把 "
-              "`sk-ant-api` 开头的 API key 直接连官方接口",
-        "en": "nothing answered at `{address}`. This step needs a language "
-              "model: by default that is the oauth proxy on this machine, so "
-              "start it — or supply an `sk-ant-api` key and talk to the API "
-              "directly",
+        "zh": "没有连上 `{address}`，那个地址上没有东西应答。这一步要在"
+              "那里调用一个语言模型；如果那是本机的 oauth 代理，先把它跑起来",
+        "en": "nothing answered at `{address}`. This step calls a language "
+              "model there; if that is the oauth proxy on this machine, "
+              "start it",
     })
     THE_CREDENTIAL_WAS_REFUSED = ("the_credential_was_refused", {
         "zh": "`{address}` 收到了这次调用，但不接受它带的凭据：{complaint}",

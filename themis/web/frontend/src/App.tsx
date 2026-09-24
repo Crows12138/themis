@@ -45,9 +45,11 @@ export default function App() {
   // making it state would mean choosing before knowing and correcting
   // afterwards, on screen.
   const [picked, setPicked] = useState<Workspace | null>(null)
-  // The API key is optional — Ask / render default to the local proxy. The panel
-  // only opens on demand (an LLM call failing because the proxy is unreachable),
-  // so there's no persistent key button cluttering the masthead.
+  // The API key is optional, and asked for only where the deployment has no
+  // key of its own (offers.visitor_key) — then Ask / render default to the
+  // local proxy. The panel only opens on demand (an LLM call failing because
+  // the proxy is unreachable), so there's no persistent key button cluttering
+  // the masthead.
   const [showKey, setShowKey] = useState(false)
   // A graph handed from a result into another workspace's canvas. Consumed by
   // the matching workspace; cleared when the user navigates by hand.

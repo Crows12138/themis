@@ -113,26 +113,85 @@ def test_a_bridge_refusal_reads_the_same_thing_in_either_language():
 
 
 def test_client_defaults_to_proxy(monkeypatch):
-    """With no key set, the client points at the local proxy — the
-    construction itself never raises, even when the proxy isn't running
-    (connection errors surface later, on messages.create)."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    """With no key declared and none pasted, the client points at the
+    local proxy — the construction itself never raises, even when the
+    proxy isn't running (connection errors surface later, on
+    messages.create)."""
+    monkeypatch.delenv("THEMIS_LLM_API_KEY", raising=False)
     client_obj = llm_bridge._client(api_key=None)
     assert client_obj is not None
     assert "127.0.0.1:7777" in str(client_obj.base_url)
 
 
-def test_client_uses_explicit_api_key(monkeypatch):
-    """When an explicit ``sk-ant-api...`` key is given, talk to
-    api.anthropic.com directly (no proxy hop)."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    # Importing themis.web.app (for the FastAPI test client) setdefault's
-    # ANTHROPIC_BASE_URL to the proxy process-wide; clear it so the SDK's real
-    # default (api.anthropic.com) applies on the explicit-key direct path.
-    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+def test_a_pasted_key_is_spent_where_the_panel_says(monkeypatch):
+    """The page's panel asks for an Anthropic key, so on a deployment
+    with no key of its own a pasted one goes to api.anthropic.com."""
+    monkeypatch.delenv("THEMIS_LLM_API_KEY", raising=False)
     client_obj = llm_bridge._client(api_key="sk-ant-api-explicit")
-    assert client_obj is not None
     assert "api.anthropic.com" in str(client_obj.base_url)
+
+
+def test_a_key_the_deployment_declares_is_spent_where_it_says(monkeypatch):
+    """The case that failed: a DeepSeek key begins ``sk-`` and not
+    ``sk-ant-api``, so the prefix test sent it to the proxy. Nothing about
+    the key's spelling is read now; the deployment says where it goes."""
+    monkeypatch.setenv("THEMIS_LLM_API_KEY", "sk-deepseek-shaped")
+    monkeypatch.setenv("THEMIS_LLM_BASE_URL",
+                       "https://api.deepseek.com/anthropic")
+    monkeypatch.setenv("THEMIS_LLM_MODEL", "deepseek-v4-pro")
+    assert llm_bridge._endpoint(None) == (
+        "https://api.deepseek.com/anthropic", "sk-deepseek-shaped",
+        "deepseek-v4-pro")
+    client_obj = llm_bridge._client(api_key=None)
+    assert "api.deepseek.com/anthropic" in str(client_obj.base_url)
+
+
+def test_a_visitor_key_is_not_read_where_the_deployment_pays(monkeypatch):
+    monkeypatch.setenv("THEMIS_LLM_API_KEY", "sk-operator")
+    monkeypatch.delenv("THEMIS_LLM_BASE_URL", raising=False)
+    where = llm_bridge._endpoint("sk-ant-api-visitor")
+    assert where.api_key == "sk-operator"
+    assert where.base_url == "https://api.anthropic.com"
+
+
+def test_the_model_asked_for_is_the_endpoint_s(monkeypatch):
+    """Read when the call is made, not when the module was imported —
+    the default used to be fixed at import, so a deployment's setting
+    counted only if it was in place before the first import."""
+    seen: list[str] = []
+    monkeypatch.setenv("THEMIS_LLM_API_KEY", "sk-operator")
+    monkeypatch.setenv("THEMIS_LLM_MODEL", "deepseek-v4-pro")
+
+    def fake_create(**kw):
+        seen.append(kw["model"])
+        return _make_message('{"version": "0.1"}')
+
+    monkeypatch.setattr(
+        llm_bridge, "_client",
+        lambda api_key=None: SimpleNamespace(
+            messages=SimpleNamespace(create=fake_create)))
+    llm_bridge.nl_to_kernel_ast("x")
+    assert seen == ["deepseek-v4-pro"]
+
+
+@pytest.mark.parametrize("path, body", [
+    ("/api/ask", {"nl": "x"}),
+    ("/api/render", {"program": _trivial_program(), "nl": "x"}),
+])
+def test_a_request_with_no_key_hands_none_down(monkeypatch, path, body):
+    """The web edge used to hand a placeholder ``"x"`` down with every
+    request that carried no key, and a placeholder is a key — it beat
+    whatever the deployment had configured."""
+    seen: list[object] = []
+
+    def fake_client(api_key=None):
+        seen.append(api_key)
+        return SimpleNamespace(messages=SimpleNamespace(
+            create=lambda **kw: _make_message("not json")))
+
+    monkeypatch.setattr(llm_bridge, "_client", fake_client)
+    client.post(path, json=body)
+    assert seen and all(key is None for key in seen), seen
 
 
 # ============================================ ask() pipeline (mocked)

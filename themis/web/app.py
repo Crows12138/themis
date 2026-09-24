@@ -28,18 +28,6 @@ from themis import framing, language
 
 from . import failure
 
-# Route the LLM calls (Ask / render) through the local oauth-fingerprint
-# proxy by default, so the web product needs NO API key (the proxy rebuilds
-# the OAuth fingerprint and does the real auth — same as Themis_Demo). The
-# anthropic SDK reads ANTHROPIC_BASE_URL from env; api_key="x" is just a
-# placeholder. setdefault respects anything the operator already set, so a
-# real ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL in the environment wins.
-os.environ.setdefault(
-    "ANTHROPIC_BASE_URL",
-    os.environ.get("THEMIS_WEB_PROXY", "http://127.0.0.1:7777"),
-)
-os.environ.setdefault("ANTHROPIC_API_KEY", "x")
-
 #: Whether this deployment has a model behind it.
 #:
 #: Three of the things this server offers need one: turning a question in
@@ -205,11 +193,19 @@ def api_offers():
     """What this deployment offers, for a page that must not draw a door
     it cannot open.
 
-    One key, because there is one fact. A roster of feature names would
-    be a second place to forget an entry, and what the three surfaces
-    share is not a name — it is that each needs a model.
+    Two facts, each said once. ``llm`` is whether a model is behind this
+    deployment: what the three surfaces that need one share is not a name,
+    so a roster of feature names would be a second place to forget an
+    entry. ``visitor_key`` is whether the page may ask a visitor for a
+    key, which it may only where a model is offered and the deployment
+    has not declared a key of its own — one it pays with is the operator's
+    decision about who pays, and a panel asking for the visitor's would
+    contradict it.
     """
-    return {"llm": _OFFERS_A_MODEL}
+    from .llm_bridge import deployment_pays
+
+    return {"llm": _OFFERS_A_MODEL,
+            "visitor_key": _OFFERS_A_MODEL and not deployment_pays()}
 
 
 @app.post("/api/run")
@@ -294,7 +290,7 @@ def api_ask(req: AskRequest):
     if not _OFFERS_A_MODEL:
         return failure.refused("no_model")
 
-    key = req.api_key or "x"
+    key = req.api_key
     # Retry nl→ast→run up to 3 times for transient LLM / network failures
     # (mirrors Themis_Demo). The systematic `args`-on-variable slip is fixed
     # at the root by the bridge's few-shot examples — no sanitizing here.
@@ -340,7 +336,7 @@ def api_ask(req: AskRequest):
     kernel_ast, envelope = ran
     try:
         reply = render_reply(envelope, nl=req.nl, lang=req.lang,
-                             api_key=req.api_key or "x")
+                             api_key=req.api_key)
     except Exception as exc:
         return failure.refused("render_reply", exc,
                                kernel_ast=kernel_ast, envelope=envelope)
@@ -460,7 +456,7 @@ def api_assume(req: AssumeRequest):
     try:
         filled = propose_theta_priors(
             req.program, skeletons, lang=req.lang,
-            api_key=req.api_key or "x")
+            api_key=req.api_key)
     except Exception as exc:
         return failure.refused("propose_theta_priors", exc)
 
@@ -487,7 +483,7 @@ def api_render(req: RenderRequest):
     try:
         envelope = themis.run(req.program)
         reply = render_reply(envelope, nl=req.nl, lang=req.lang,
-                             api_key=req.api_key or "x")
+                             api_key=req.api_key)
         return {"reply": reply}
     except Exception as exc:
         return failure.refused("render_reply", exc)
