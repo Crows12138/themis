@@ -46,6 +46,8 @@ Restart Claude Code. Your agent now has `mcp__themis__*` tools:
 - `themis_estimate(program, csv_path)` — numeric estimate with CSV data
 - `themis_discover(csv_path, ...)` — PC / FCI / LiNGAM DAG discovery
 - `themis_list_resources()` — schema + prompt URI catalog
+- `themis_result(result_id, pointer)` — a result too large to hand over whole is kept on the server and handed over with parts folded; this fetches a folded part
+- `themis_guide(doc, section)` — the guides and schemas, one section at a time
 
 ### Install the agent-integration Claude Skill
 

@@ -980,6 +980,14 @@ ALLOWED_SLOTS: dict[str, tuple[Wrote, str]] = {
         "from pieces and no name is bound to it — which is the widest slot "
         "in this table, and the reason the check below pins the pair "
         "against their documents rather than trusting the entry"),
+    "themis/mcp/server.py::ORIENTATION": (
+        Wrote.PROMPTED,
+        "what the MCP server tells a connecting agent before its first "
+        "call: addressed to the model, and a pointer into "
+        "``prompts/nl_to_kernel_ast.md`` and "
+        "``prompts/response_rendering.md``, in their language. What the "
+        "agent's user reads is in the user's language because "
+        "``response_rendering.md`` says so, not because this does"),
     "themis/refusals.py::Refusal": (
         Wrote.UNREAD,
         "``says``, what a species means to whoever adds the next one "

@@ -1,10 +1,13 @@
 """FastMCP server exposing Themis kernel + prompts (slice A1(b)).
 
-Tools (JSON in / JSON out — same contract as the kernel itself):
+Tools (JSON in / JSON out — same contract as the kernel itself, with one
+difference in what comes back; see "What a result hands over" below):
 
 - ``themis_run(program)`` → wraps :func:`themis.run`
 - ``themis_apply_patch_and_run(program, patches)`` → wraps :func:`themis.apply_patch_and_run`
-- ``themis_audit(program, result)`` → wraps :func:`themis.audit`; every re-check that applies to this artifact, one row each. Prefer it over picking a ``themis_verify_*`` by hand
+- ``themis_result(result_id, pointer, start)`` → a part of a result this server holds, under the same budget
+- ``themis_guide(doc, section, start)`` → the prompts and schemas below, a section at a time
+- ``themis_audit(program, result)`` → wraps :func:`themis.audit`; every re-check that applies to this artifact, one row each. Prefer it over picking a ``themis_verify_*`` by hand, and pass ``result_id`` rather than a result this server handed out
 - ``themis_verify(program, result)`` → wraps :func:`themis.verify`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_data_gap_report(result)`` → wraps :func:`themis.verify_data_gap_report`; returns ``{"ok": bool, "error": str?}``
 - ``themis_verify_bounds_results(program, result)`` → wraps :func:`themis.verify_bounds_results`; returns ``{"ok": bool, "error": str?}``
@@ -46,15 +49,31 @@ Resources (read by the client to drive NL↔JSON):
 
 The server does NOT call any LLM. The client (e.g. Claude Code) reads
 the prompts, converts NL ↔ JSON, and calls the tools.
+
+What a result hands over. A kernel envelope is a record written for the
+verifier, and its size is set by the question: in the first real test an
+attribution question with four candidate causes came back at 205,402
+characters, Claude Code moved it to a file, and the agent read it only
+because it had a shell. So every tool that produces a result keeps the
+whole of it here, under an id, runs the audits that apply to it, and
+hands back :func:`themis.output.bounded_view.view` of it — the record
+with whatever does not fit folded into markers that ``themis_result``
+follows. The answer itself is never folded. The prompts and schemas are
+served the same way by ``themis_guide``, since the two an agent needs
+first are each larger than a client accepts at once.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import themis
+from themis.output import bounded_view
+
+from .guide import Guide
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -93,42 +112,198 @@ PROMPT_FILES = (
 )
 
 
-def build_server():
+#: What the server tells an agent when it connects, before any tool is
+#: called. Short on purpose: it is always in the agent's context, and what
+#: it says is where to find the rest.
+ORIENTATION = """\
+Themis checks causal claims. You translate a question into a kernel program \
+(a causal graph plus a query); Themis runs it and every answer comes with \
+independent re-checks and a list of the data or assumptions it still lacks. \
+Themis itself calls no model.
+
+Read the documents a section at a time: themis_guide() lists them, \
+themis_guide(doc) gives a document's sections, themis_guide(doc, section) \
+one section. Read the sections of nl_to_kernel_ast.md your question needs \
+before writing a program, and the relevant sections of response_rendering.md \
+before writing the answer up.
+
+Results stay on the server. themis_run and the other tools that produce a \
+result return result_id and a view that fits a fixed size, with the audits \
+that apply already run (audits: one list per query). The answer itself — \
+status, value or interval, tier, the assumption ledger — is never left out. \
+Anything that did not fit is replaced in place by \
+{"omitted": {"pointer": ..., "chars": ...}}: it exists, and \
+themis_result(result_id, pointer) fetches it (for a list, pass the marker's \
+"from" as start). Fetch a part before saying anything about it. Pass \
+result_id to themis_audit instead of copying a result back.\
+"""
+
+#: How many results a server keeps. A result is the size of its question,
+#: and a session that runs a hundred programs should not hold them all.
+HELD = 64
+
+#: The two keys a handed-over result carries that the artifact did not.
+HANDED_OVER = ("result_id", "audits")
+
+
+class _Kept:
+    """What this server has handed out, by the id it was handed out under.
+
+    Held for as long as the process runs — over stdio that is one process
+    per client — and only the most recent :data:`HELD`, oldest dropped
+    first. The ids are short and counted because an agent copies them back.
+    """
+
+    def __init__(self) -> None:
+        self._by_id: dict[str, tuple[dict, Any]] = {}
+        self._count = 0
+
+    def put(self, doc: dict, program: Any) -> str:
+        self._count += 1
+        rid = f"r{self._count}"
+        doc["result_id"] = rid
+        self._by_id[rid] = (doc, program)
+        while len(self._by_id) > HELD:
+            self._by_id.pop(next(iter(self._by_id)))
+        return rid
+
+    def get(self, rid: str) -> tuple[dict, Any]:
+        if rid not in self._by_id:
+            held = ", ".join(self._by_id) or "none"
+            raise ValueError(
+                f"no result {rid!r} in this server session (it holds: "
+                f"{held}). A result lives as long as the server process and "
+                f"the most recent {HELD} are kept; run the program again.")
+        return self._by_id[rid]
+
+
+def _as_artifact(obj: Any) -> Any:
+    """An artifact this server handed out, without the two keys it added.
+
+    So that one passed back as it came is checked as what the kernel
+    produced; everything else in it is left exactly as the caller sent it,
+    so an edited artifact is still refused.
+    """
+    if isinstance(obj, dict) and "result_id" in obj:
+        return {k: v for k, v in obj.items() if k not in HANDED_OVER}
+    return obj
+
+
+def _compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def build_server(budget: int | None = None):
     """Construct and return the configured FastMCP server.
 
     Kept as a function (not module-level instantiation) so tests can
     spin up an isolated instance without side effects.
+
+    ``budget`` is how many characters any one reply may run to;
+    ``THEMIS_MCP_BUDGET`` sets it for a deployment.
     """
     from mcp.server.fastmcp import FastMCP
 
-    app = FastMCP("themis")
+    if budget is None:
+        budget = int(os.environ.get("THEMIS_MCP_BUDGET",
+                                    bounded_view.DEFAULT_BUDGET))
+    app = FastMCP("themis", instructions=ORIENTATION)
+    kept = _Kept()
+    guide = Guide({name: PROMPTS_DIR / name for name in PROMPT_FILES},
+                  SCHEMAS, budget)
+
+    def _audits(artifact: dict, program: Any) -> Any:
+        results = artifact.get("results")
+        try:
+            if isinstance(results, list):
+                source = (artifact.get("program")
+                          or artifact.get("merged_program") or program)
+                return [themis.audit(source, r) for r in results]
+            return [themis.audit(program, artifact)]
+        except Exception as exc:  # a malformed call, not a verdict
+            return {"error": f"{type(exc).__name__}: {exc}"}
+
+    def _hand_over(artifact: dict, program: Any = None, *,
+                   audit: bool = True) -> str:
+        """Keep the whole of ``artifact`` here; hand back a view that fits."""
+        clash = [k for k in HANDED_OVER if k in artifact]
+        if clash:
+            raise ValueError(f"an artifact already carries {clash}, which "
+                             f"this server adds to what it hands over")
+        doc: dict = {"result_id": ""}
+        if audit:
+            doc["audits"] = _audits(artifact, program)
+        doc.update(artifact)
+        kept.put(doc, program)
+        return _compact(bounded_view.view(doc, budget))
 
     # ============================================ tools
 
-    @app.tool()
-    def themis_run(program: dict | str) -> dict:
+    @app.tool(structured_output=False)
+    def themis_run(program: dict | str) -> str:
         """Run the Themis kernel on a kernel_ast program.
 
         ``program``: either a ``dict`` matching ``kernel_ast.schema.json``
-        or a JSON string. Returns the full ``themis.run`` envelope
-        (``{"results": [...], "derivation": {...}, ...}``).
+        or a JSON string. Returns the ``themis.run`` envelope
+        (``{"results": [...], "program": {...}}``) as a view that fits,
+        with ``result_id`` and ``audits`` (the re-checks that apply, one
+        list per query, already run). A part that did not fit is a marker
+        ``{"omitted": {"pointer", "chars", ...}}``; ``themis_result``
+        fetches it. The answer itself is never folded.
         """
-        return themis.run(program)
+        return _hand_over(themis.run(program), program)
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_apply_patch_and_run(
         program: dict | str, patches: list[dict] | dict,
-    ) -> dict:
+    ) -> str:
         """Apply framing/parameter patches and re-run.
 
         Multi-turn closed loop (slice A3): the client gathers user
         replies as patch bundles, applies them to the original program,
-        and gets a refreshed result envelope back.
+        and gets a refreshed result envelope back — handed over the way
+        ``themis_run`` hands one over.
         """
-        return themis.apply_patch_and_run(program, patches)
+        return _hand_over(themis.apply_patch_and_run(program, patches),
+                          program)
+
+    @app.tool(structured_output=False)
+    def themis_result(result_id: str, pointer: str = "",
+                      start: int = 0) -> str:
+        """A part of a result this server handed out, under the same budget.
+
+        ``pointer`` is the JSON Pointer a marker gave (``""`` for the whole
+        result). ``start`` resumes a list or a long string: pass a list
+        marker's ``from``, or a string part's ``next``. What comes back is
+        ``{"pointer", "from"?, "value", "next"?}``, and ``value`` may hold
+        markers of its own.
+        """
+        doc, _ = kept.get(result_id)
+        return _compact(bounded_view.part(doc, pointer, start, budget))
+
+    @app.tool(structured_output=False)
+    def themis_guide(doc: str | None = None, section: str | None = None,
+                     start: int = 0) -> str:
+        """The prompts and schemas that say how to drive Themis, in parts.
+
+        No arguments: the documents. ``doc`` alone: its sections, by the
+        name to pass as ``section``. ``doc`` and ``section``: that section,
+        or — when it is too large to hand over whole — its own opening text
+        and the names of its subsections. A long passage with no
+        subsections comes in slices: pass ``next`` back as ``start``. For
+        a schema a section is a definition, or a JSON Pointer from a
+        marker inside one.
+        """
+        if doc is None:
+            return _compact(guide.documents())
+        if section is None:
+            return _compact(guide.contents(doc))
+        return _compact(guide.section(doc, section, start))
 
     @app.tool()
-    def themis_audit(program: dict | str | None, result: dict) -> dict:
+    def themis_audit(program: dict | str | None = None,
+                     result: dict | None = None,
+                     result_id: str | None = None) -> dict:
         """Run every independent re-check that applies to this artifact.
 
         Prefer this over picking a ``themis_verify_*`` tool by hand. The
@@ -139,12 +314,22 @@ def build_server():
         choosing by hand can report a result as unverified over an audit
         that was never about it.
 
-        Returns ``{"audits": [{"audit", "words", "ok", "refusal"}, ...]}``,
-        one row per audit that applies, or ``{"error": "<message>"}`` when
-        the call itself is malformed.
+        For a result this server handed out, pass its ``result_id``: the
+        audits run on the record kept here, one list per query, and nothing
+        has to be copied back. ``program`` and ``result`` are for an
+        artifact that came from somewhere else.
+
+        Returns ``{"audits": [{"audit", "words", "ok", "refusal"}, ...]}``
+        (a list of those lists for ``result_id``), or
+        ``{"error": "<message>"}`` when the call itself is malformed.
         """
         try:
-            return {"audits": themis.audit(program, result)}
+            if result_id is not None:
+                doc, source = kept.get(result_id)
+                return {"audits": _audits(_as_artifact(doc), source)}
+            if result is None:
+                raise ValueError("pass result_id, or a result to audit")
+            return {"audits": themis.audit(program, _as_artifact(result))}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"error": f"{type(exc).__name__}: {exc}"}
 
@@ -208,7 +393,7 @@ def build_server():
         rejecting a fabricated / trimmed blanket or a tampered test.
         """
         try:
-            themis.verify_markov_blanket(result)
+            themis.verify_markov_blanket(_as_artifact(result))
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -228,7 +413,7 @@ def build_server():
         without trace if a producer dropped it.
         """
         try:
-            themis.verify_lagged_discovery(result)
+            themis.verify_lagged_discovery(_as_artifact(result))
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -248,18 +433,18 @@ def build_server():
         the assumption this method drops used to produce.
         """
         try:
-            themis.verify_latent_lagged_discovery(result)
+            themis.verify_latent_lagged_discovery(_as_artifact(result))
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_estimate(
         program: dict | str,
         csv_path: str,
         options: dict | None = None,
         reference_csv_path: str | None = None,
-    ) -> dict:
+    ) -> str:
         """Run Phase 7 numeric estimation on a CSV-backed dataset.
 
         ``csv_path`` is loaded with pandas. ``options`` are forwarded as
@@ -269,7 +454,7 @@ def build_server():
         loaded and passed as ``reference_data=`` and used ONLY when a result
         carries a ``selection_recovery`` block. Returns the estimate envelope
         (point / CI / method / assumptions / sensitivity_analysis if binary
-        outcome).
+        outcome), handed over the way ``themis_run`` hands one over.
         """
         import pandas as pd
 
@@ -285,7 +470,7 @@ def build_server():
         opts = dict(options or {})
         if reference_csv_path is not None:
             opts["reference_data"] = _load(reference_csv_path)
-        return themis.estimate(program, df, **opts)
+        return _hand_over(themis.estimate(program, df, **opts), program)
 
     @app.tool()
     def themis_verify_selection_recovery_numeric(result: dict) -> dict:
@@ -327,14 +512,14 @@ def build_server():
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_report(
         program: dict | str,
         csv_path: str | None = None,
         options: dict | None = None,
         run_verify: bool = True,
         lang: str | None = None,
-    ) -> dict:
+    ) -> str:
         """Run (or estimate on data) + optionally verify + render one
         human-readable Markdown analysis report per query.
 
@@ -368,7 +553,9 @@ def build_server():
         recovery estimator, though each of those has a registered auditor
         that recomputes its answer.
 
-        Returns ``{"reports": [markdown, ...], "statuses": [...]}``.
+        Returns ``{"reports": [markdown, ...], "statuses": [...]}`` with a
+        ``result_id``; a report too long to hand over whole is a marker that
+        ``themis_result`` reads in slices.
         """
         from themis.output.analysis_report import build_analysis_report
 
@@ -408,9 +595,10 @@ def build_server():
                                       audited=audited, lang=reader)
             )
             statuses.append(result.get("status"))
-        return {"reports": reports, "statuses": statuses}
+        return _hand_over({"reports": reports, "statuses": statuses},
+                          audit=False)
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_discover(
         csv_path: str,
         bool_predicates: list[str] | None = None,
@@ -419,7 +607,7 @@ def build_server():
         random_state: int = 42,
         query: dict | None = None,
         n_bootstrap: int = 0,
-    ) -> dict:
+    ) -> str:
         """Run causal discovery (PC / FCI / GES / GRaSP / LiNGAM / NOTEARS)
         on a CSV-backed dataset and return a kernel_ast suggestion the agent
         can review, edit, then feed to ``themis_run``.
@@ -472,19 +660,21 @@ def build_server():
             df, algorithm=as_algorithm_name(algorithm), alpha=alpha,
             random_state=random_state, n_bootstrap=n_bootstrap,
         )
-        return discovery_to_kernel_ast(
+        # A suggestion is a program to review, not an artifact any audit
+        # is about, so it is handed over unaudited.
+        return _hand_over(discovery_to_kernel_ast(
             result,
             bool_predicates=tuple(bool_predicates or ()),
             query=query,
-        )
+        ), audit=False)
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_markov_blanket(
         csv_path: str,
         target: str,
         alpha: float = 0.05,
         columns: list[str] | None = None,
-    ) -> dict:
+    ) -> str:
         """Find the Markov blanket of ``target`` in a continuous CSV dataset
         (borrow-list #4) and return a result the agent can review and audit
         with ``themis_verify_markov_blanket``.
@@ -524,9 +714,9 @@ def build_server():
             alpha=alpha,
             columns=tuple(columns) if columns else None,
         )
-        return markov_blanket_to_dict(result)
+        return _hand_over(markov_blanket_to_dict(result))
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_discover_lagged_graph(
         csv_path: str,
         time: str,
@@ -534,7 +724,7 @@ def build_server():
         columns: list[str] | None = None,
         max_lag: int = 3,
         alpha: float = 0.05,
-    ) -> dict:
+    ) -> str:
         """Learn the LAGGED causal graph of a time series and return a result
         the agent can review and audit with
         ``themis_verify_lagged_discovery``.
@@ -577,9 +767,9 @@ def build_server():
             columns=tuple(columns) if columns else None,
             max_lag=max_lag, alpha=alpha,
         )
-        return lagged_discovery_to_dict(result)
+        return _hand_over(lagged_discovery_to_dict(result))
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_discover_latent_lagged_graph(
         csv_path: str,
         time: str,
@@ -587,7 +777,7 @@ def build_server():
         columns: list[str] | None = None,
         max_lag: int = 3,
         alpha: float = 0.05,
-    ) -> dict:
+    ) -> str:
         """Learn the LAGGED graph of a time series without assuming that every
         common cause is in the data, and return a result the agent can review
         and audit with ``themis_verify_latent_lagged_discovery``.
@@ -634,15 +824,15 @@ def build_server():
             columns=tuple(columns) if columns else None,
             max_lag=max_lag, alpha=alpha,
         )
-        return latent_lagged_discovery_to_dict(result)
+        return _hand_over(latent_lagged_discovery_to_dict(result))
 
-    @app.tool()
+    @app.tool(structured_output=False)
     def themis_discover_notears(
         csv_path: str,
         columns: list[str] | None = None,
         l1: float = 0.1,
         threshold: float = 0.3,
-    ) -> dict:
+    ) -> str:
         """Learn a weighted DAG by continuous optimisation (NOTEARS, Zheng et
         al. 2018) and return a result the agent can review and audit with
         ``themis_verify_notears_fit``.
@@ -686,7 +876,7 @@ def build_server():
             columns=tuple(columns) if columns else None,
             l1=l1, threshold=threshold,
         )
-        return notears_fit_to_dict(result)
+        return _hand_over(notears_fit_to_dict(result))
 
     @app.tool()
     def themis_verify_notears_fit(result: dict) -> dict:
@@ -703,7 +893,7 @@ def build_server():
         transcription of the matrix exponential.
         """
         try:
-            themis.verify_notears_fit(result)
+            themis.verify_notears_fit(_as_artifact(result))
             return {"ok": True}
         except Exception as exc:  # pragma: no cover - error path is the point
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}

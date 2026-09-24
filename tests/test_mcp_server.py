@@ -37,6 +37,8 @@ def test_server_constructs_with_expected_tools(app):
     assert tool_names == {
         "themis_run",
         "themis_apply_patch_and_run",
+        "themis_result",  # a part of a result the server holds
+        "themis_guide",  # the prompts and schemas, a section at a time
         "themis_audit",
         "themis_verify",
         "themis_verify_data_gap_report",

@@ -152,6 +152,8 @@ Fields in roughly the order you'll consult them:
 | `derivation` | Machine-verifiable reasoning chain — mention only on "why" |
 | `confidence_sources` | Slot-level confidence; when citing, name the entries with `is_weakest: true` (they are the binding constraint) |
 
+A part of the envelope may reach you folded: `{"omitted": {"pointer", "chars", "items"?, "from"?}}` in place of the value, or as the last item of a list that was cut. It was left out to fit what a reader can be sent at once, not because it is empty, and the answer itself — status, value or interval, tier, `assumption_ledger` — is never folded. Where your channel can fetch it (the MCP tool `themis_result`), fetch the parts your reply will speak about. Where it cannot, say only what the unfolded parts say: a marker tells you that something is there and how much, not what it says.
+
 On `program` (when passed):
 
 | Field | What it tells you |

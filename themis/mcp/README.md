@@ -6,11 +6,13 @@ the kernel without copy-pasting prompts and inputs by hand.
 
 ## Architecture
 
-The server exposes two surfaces (current count: 21 tools + 12 resources;
+The server exposes two surfaces (current count: 23 tools + 12 resources;
 test_mcp_server.py + the COVERAGE_MAP sync pin lock both):
 
 - **Tools** — the public JSON-in/JSON-out kernel entry points:
-  `themis_run`, `themis_apply_patch_and_run`, `themis_audit`
+  `themis_run`, `themis_apply_patch_and_run`, `themis_result`
+  (a part of a result the server holds), `themis_guide` (the prompts and
+  schemas a section at a time), `themis_audit`
   (every re-check that applies — prefer it over the individual
   `themis_verify_*` below), `themis_verify`,
   `themis_verify_data_gap_report` (Phase 10),
@@ -37,7 +39,26 @@ test_mcp_server.py + the COVERAGE_MAP sync pin lock both):
 
 The server itself does **not** call any LLM — that would violate the
 kernel's "no LLM inside `themis/*`" rule. The MCP **client** reads the
-prompts as resources, drives NL ↔ JSON translation, and calls the tools.
+prompts, drives NL ↔ JSON translation, and calls the tools.
+
+## What a reply is allowed to weigh
+
+Every reply fits one budget (`THEMIS_MCP_BUDGET`, default 24,000
+characters of compact JSON — under Claude Code's 10,000-token warning).
+A tool that produces a result keeps the whole record on the server under
+a `result_id`, runs the audits that apply to it, and hands back the
+record with whatever does not fit folded in place into
+`{"omitted": {"pointer", "chars", "items"?, "from"?}}`. The answer —
+status, value or interval, tier, assumption ledger, each audit's verdict
+— is never folded; `themis_result(result_id, pointer, start)` follows a
+marker, under the same budget. Why: an attribution question with four
+candidate causes came back at 205,402 characters in the first real test,
+and the agent could read it only because it had a shell.
+
+The prompts and schemas are served the same way by `themis_guide`, and
+still as whole resources for a client that wants the file. The server's
+connect-time instructions tell an agent all of this before its first
+call.
 
 ## Run it
 
@@ -73,6 +94,8 @@ prefixed `mcp__themis__`.
 |---|---|---|
 | `themis_run` | `themis.run(program)` | Single-turn full pipeline |
 | `themis_apply_patch_and_run` | `themis.apply_patch_and_run(program, patches)` | Multi-turn closed loop (slice A3) |
+| `themis_result` | `themis.output.bounded_view.part` | A part of a result this server holds, by the JSON Pointer a marker gave |
+| `themis_guide` | `themis.mcp.guide.Guide` | The prompts and schemas, a section at a time |
 | `themis_audit` | `themis.audit(program, result)` | Every re-check that applies to this artifact, one row each (`{audit, zh, ok, refusal}`). Prefer it over picking a `themis_verify_*` by hand — several of them audit a standalone artifact, not an envelope, and refuse a foreign one with the same error they use for a failed audit |
 | `themis_verify` | `themis.verify(program, result)` | Returns `{ok, error?}` instead of raising |
 | `themis_verify_data_gap_report` | `themis.verify_data_gap_report(result)` | Phase 10 — independent audit of gap report |
@@ -112,12 +135,12 @@ prefixed `mcp__themis__`.
 
 ## Typical client flow
 
-1. Read `themis://prompts/nl_to_kernel_ast.md`
+1. Read the sections of `nl_to_kernel_ast.md` the question needs (`themis_guide`)
 2. Convert user's NL question → `kernel_ast` JSON (LLM, client-side)
-3. Call `themis_run({program: <ast>})` → result envelope
+3. Call `themis_run({program: <ast>})` → a view of the envelope, its `result_id`, its audits
 4. If result has data → optionally call `themis_estimate` with a CSV
-5. Read `themis://prompts/response_rendering.md`
-6. Render result → Chinese reply (LLM, client-side)
+5. Read the relevant sections of `response_rendering.md`; fetch any folded part the reply will speak about (`themis_result`)
+6. Render result → a reply in the user's language (LLM, client-side)
 7. (multi-turn) If result carries `investigation_requests`, gather user
    reply → patch bundle → call `themis_apply_patch_and_run`
 

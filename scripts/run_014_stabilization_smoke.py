@@ -530,6 +530,8 @@ def smoke_mcp_wrapper() -> SmokeResult:
         "themis_report",  # deterministic analyze → verify → Markdown report
         "themis_submit_verdict",  # v0.1.5 Fix 2A
         "themis_list_resources",
+        "themis_result",  # #772: a folded part of a stored result
+        "themis_guide",  # #772: the guides and schemas, a section at a time
     }
     _require(tool_names == expected_tools, "MCP tool catalog drifted")
     _require(

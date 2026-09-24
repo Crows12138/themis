@@ -73,6 +73,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from themis import language
+from themis.output import bounded_view
 
 from .bridge_words import Bridge
 
@@ -348,10 +349,15 @@ def render_reply(
         user_msg += f"The user asked: {nl}\n\n"
     user_msg += (
         f"Write the reply in {language.endonym(lang)}.\n\n"
-        "Below is the complete themis.run envelope (program / "
-        "merged_program / results). Render it as the prompt describes.\n\n"
+        "Below is the themis.run envelope (program / merged_program / "
+        "results), with any part too large to send folded into a marker. "
+        "Render it as the prompt describes.\n\n"
     )
-    user_msg += json.dumps(envelope, ensure_ascii=False, indent=2)
+    # The reader of this call is a model, and the envelope is the
+    # verifier's record: its size is the question's. What a model is sent
+    # of it is decided in one place for every channel that sends one.
+    user_msg += json.dumps(bounded_view.view(envelope), ensure_ascii=False,
+                           separators=(",", ":"))
 
     msg = _ask_model(
         client,
