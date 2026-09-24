@@ -1,8 +1,10 @@
 """What one line of the assumption ledger says, and in whose words.
 
-The ledger is the surface both the report and the browser lead with:
-everything the answer takes on faith, worst first. One line of it carries
-five fields, and three of them are closed vocabularies —
+The ledger is everything the answer takes on faith, worst first. Both
+surfaces list it in full below the answer, and state beside the verdict the
+lines the verdict cannot be read without (:func:`goes_with_the_verdict`).
+One line of it carries five fields, and three of them are closed
+vocabularies —
 
 - :class:`Layer` — which part of the answer stops being true if this is false;
 - :class:`Severity` — how badly the conclusion dies when it does, which is
@@ -241,6 +243,17 @@ class Provenance(EnvelopeName):
     channels rather than of anything the reader could act on.
     """
 
+    proposed: bool
+    """Whether a line under this provenance is a guess put to the reader
+    rather than a premise somebody took on.
+
+    The caller takes a premise on by asserting or choosing it, the method
+    by requiring it, the estimator by falling back on it. A proposal is
+    taken on by nobody: an upstream model or a discovery algorithm put it
+    forward for the reader to confirm or deny, and an answer resting on it
+    answers "if the proposal is right". That condition is part of the
+    verdict, which is why :func:`goes_with_the_verdict` reads it."""
+
     answerable: str
     """Who can overrule it, and what the reader gets back if they do."""
 
@@ -251,28 +264,30 @@ class Provenance(EnvelopeName):
     the test a candidate member has to pass, written for whoever adds
     one."""
 
-    def __new__(cls, value: str, answerable: str, words: Words):
+    def __new__(cls, value: str, proposed: bool, answerable: str,
+                words: Words):
         prov = str.__new__(cls, value)
         prov._value_ = value
+        prov.proposed = proposed
         prov.answerable = answerable
         prov.words = words
         return prov
 
     INHERENT = (
-        "inherent",
+        "inherent", False,
         "the estimator — the method cannot be run without this, so the only "
         "way to overrule it is to answer by a different method",
         {"zh": "方法本身要求", "en": "required by the method itself"},
     )
     CALLER_ASSERTED = (
-        "caller_asserted",
+        "caller_asserted", False,
         "the caller, who asserted it on the query — withdraw it and the "
         "answer weakens rather than disappearing, typically from a point to "
         "the interval it was pinned out of",
         {"zh": "你在问题里断言的", "en": "you asserted it in the question"},
     )
     CALLER_CHOSE = (
-        "caller_chose",
+        "caller_chose", False,
         "the caller, who chose it on the query at a point where the method "
         "needs a choice and cannot make one — choose differently and the "
         "answer is recomputed from that choice; withdraw it and there is no "
@@ -283,25 +298,25 @@ class Provenance(EnvelopeName):
                "cannot make it"},
     )
     DEFAULT = (
-        "default",
+        "default", False,
         "nobody — the estimator picked a form because none was specified, "
         "so the caller can specify one and this line changes",
         {"zh": "估计器默认选择", "en": "the estimator's default choice"},
     )
     LLM_PROPOSAL = (
-        "llm_proposal",
+        "llm_proposal", True,
         "the upstream LLM that proposed the edge — confirm or deny the edge "
         "and the path this answer runs through is settled either way",
         {"zh": "上游 LLM 提议", "en": "proposed by the upstream LLM"},
     )
     DISCOVERY = (
-        "discovery",
+        "discovery", True,
         "the causal-discovery algorithm that learned the edge from data — "
         "check it against what is known about the domain",
         {"zh": "因果发现算法学出", "en": "learned by the causal-discovery algorithm"},
     )
     LLM_PRIOR = (
-        "llm_prior",
+        "llm_prior", True,
         "the upstream LLM that supplied the number as common sense — supply "
         "the measured one and the answer is recomputed from it",
         {"zh": "LLM 常识 prior", "en": "an LLM's common-sense prior"},
@@ -667,6 +682,33 @@ def leads(entry) -> int:
     """
     verdict = _VERDICTS.get(str((entry.get("checked") or {}).get("verdict")))
     return 0 if verdict is not None and verdict.leads else 1
+
+
+#: The two facts :func:`goes_with_the_verdict` reads, as tokens. Sets rather
+#: than the members' attributes because the browser tests the same two
+#: things and cannot import this module; ``reader_words`` generates its copy
+#: from these.
+PROPOSED: frozenset[str] = frozenset(str(p) for p in Provenance if p.proposed)
+LEADING: frozenset[str] = frozenset(str(v) for v in Verdict if v.leads)
+
+
+def goes_with_the_verdict(entry) -> bool:
+    """Whether a reader has to meet this line beside the verdict itself.
+
+    Two kinds of line qualify, for one reason: without them the verdict
+    says more than the run established. A proposal nobody took on makes the
+    verdict an answer to "if the proposal is right"; a premise this run's
+    own data refused makes it an answer standing on something the data
+    denied. Every other line is a condition the caller or the method
+    already owns, and it stays in the list below the answer, worst first.
+
+    Read off the two vocabularies rather than stored on the entry: which
+    provenances are proposals and which verdict leads are facts about the
+    members, and a flag on each line would be a second record of them.
+    """
+    verdict = (entry.get("checked") or {}).get("verdict")
+    return (str(entry.get("provenance")) in PROPOSED
+            or str(verdict) in LEADING)
 
 
 #: The line a ledger is led with, and the two counts inside it.

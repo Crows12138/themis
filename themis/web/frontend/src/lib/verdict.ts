@@ -1,4 +1,4 @@
-import type { AnswerTier, ArConfidenceSet, Band, Derivation, DifferentialError, DifferentialOutcomeError, FourWayDifference, FourWayRatio, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
+import type { AnswerTier, ArConfidenceSet, Band, Derivation, DifferentialError, DifferentialOutcomeError, FourWayDifference, FourWayRatio, LedgerEntry, LongitudinalRoute, MeasurementCorrection, GapSentence, NumericEstimate, Occasion, QueryResult, RecoveredAte, RegressionCalibration, SelectionRecovery, Simex, StratifiedWald } from '../types'
 import type { Lang, Words } from './language'
 import { DEFAULT_LANG, absent, fill, gloss, holes, say } from './language'
 // The vocabularies this file restates from the kernel. Generated
@@ -57,17 +57,22 @@ export function tierMeta(tier: AnswerTier, lang: Lang = DEFAULT_LANG): TierMeta 
 // the reader as its own identifier).
 type StatusMeta = { label: string; blurb?: string }
 
+// `structurally_solved` says how far the run got: the answer was read off
+// the graph it was handed. It said 因果结构本身成立, which is a claim about the
+// world the kernel never checks, and 已识别, which a reachability or
+// d-separation verdict is not. Whether the graph's load-bearing lines stand
+// is the ledger's to say, and the verdict states those beside itself.
 const STATUS_META: Record<string, Words<StatusMeta>> = {
   structurally_solved: {
-     zh: {
-      label: '已识别(结构上)',
-      blurb: '因果结构本身成立；是否有数值取决于是否提供数据。',
+    zh: {
+      label: '已解决(结构层)',
+      blurb: '结论是在这张因果图上推出来的，只对这张图成立。',
     },
-     en: {
-       label: 'identified (structurally)',
-       blurb: 'The causal structure itself holds; whether there is a number depends on whether data was supplied.',
-     },
-   },
+    en: {
+      label: 'solved (structural)',
+      blurb: 'The conclusion was derived on this causal graph, and holds for this graph.',
+    },
+  },
   numerically_solved: {
     zh: {
       label: '已算出数值',
@@ -189,6 +194,16 @@ export function ledgerVerdictLabel(verdict: string, lang: Lang = DEFAULT_LANG): 
 const LEDGER_CHECK_WORDS = generated.LEDGER_CHECK_WORDS
 export function ledgerCheckLabel(check: string, lang: Lang = DEFAULT_LANG): string {
   return gloss(LEDGER_CHECK_WORDS, check, lang)
+}
+
+// Whether a reader has to meet this ledger line beside the verdict rather than
+// in the folded list: a proposal nobody took on, or a premise this run's own
+// data refused. Without either, the verdict says more than the run
+// established. The same test as themis.ledger.goes_with_the_verdict, over the
+// two sets the kernel generates, so this surface keeps no list of its own.
+export function goesWithTheVerdict(a: LedgerEntry): boolean {
+  return generated.PROPOSED_PROVENANCES.includes(a.provenance)
+    || generated.LEADING_VERDICTS.includes(a.checked?.verdict ?? '')
 }
 
 // What a partial-identification interval brackets. Two numbers about the

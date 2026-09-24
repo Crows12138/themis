@@ -281,6 +281,9 @@ _TITLE: language.Words = {
     "zh": "# 因果分析报告", "en": "# Causal analysis report"}
 _STATUS_LINE: language.Words = {
     "zh": "**状态**：{badge}", "en": "**Status**: {badge}"}
+_WITH_THE_VERDICT: language.Words = {
+    "zh": "**这个答案依赖、但未经确立的前提**：",
+    "en": "**What this answer rests on that is not established**:"}
 _SECTION_QUESTION: language.Words = {"zh": "问题", "en": "The question"}
 _SECTION_ANSWER: language.Words = {"zh": "答案", "en": "The answer"}
 _SECTION_ROUTE: language.Words = {
@@ -327,6 +330,7 @@ def build_analysis_report(
         language.fill(_TITLE, lang), "",
         language.fill(_STATUS_LINE, lang, badge=badge), "",
     ]
+    parts += _what_the_verdict_rests_on(result, lang=lang)
 
     parts += _section(language.fill(_SECTION_QUESTION, lang),
                       _render_question(result, program, lang=lang))
@@ -359,6 +363,28 @@ def build_analysis_report(
 
 def _section(title: str, body: str) -> list[str]:
     return [f"## {title}", "", body, ""]
+
+
+def _what_the_verdict_rests_on(result: dict, *,
+                               lang: language.Lang | str) -> list[str]:
+    """The ledger lines the verdict cannot be read without, under the status.
+
+    The status says how far the run got and the answer below says what it
+    came to; neither says whether what it came to stands on anything. A
+    cause verdict read off an edge the upstream model proposed is headed
+    "solved" and "yes" all the same, and the line saying the answer only
+    replays that proposal sat in the ledger, five sections down. Which lines
+    belong up here is :func:`themis.ledger.goes_with_the_verdict`; the rows
+    are the ledger's own, so the head and the list say each line one way.
+    """
+    ledger = (result.get("extensions") or {}).get(
+        blocks.Block.ASSUMPTION_LEDGER) or {}
+    entries = [a for a in ledger.get("assumptions") or ()
+               if ledger_vocab.goes_with_the_verdict(a)]
+    if not entries:
+        return []
+    return [language.fill(_WITH_THE_VERDICT, lang),
+            *_ledger_rows(entries, lang=lang), ""]
 
 
 # The second place the occasion sits between two fixed halves, and it read
@@ -5922,13 +5948,26 @@ def _assumption_ledger(ledger: dict, result: dict, *,
     if summary:
         out.append(summary)
         out.append("")
+    out += _ledger_rows(ledger["assumptions"], lang=lang)
+    return "\n".join(out)
+
+
+def _ledger_rows(entries, *, lang: language.Lang | str) -> list[str]:
+    """One ledger line per entry, as the ledger section prints it.
+
+    Its own function because two places print these lines — the section,
+    and the head where :func:`_what_the_verdict_rests_on` repeats the ones
+    the verdict cannot be read without — and a line said two ways is a
+    line a reader has to compare to find out it is the same one.
+    """
+    out: list[str] = []
     # Five closed vocabularies on one line — which part of the answer this
     # holds up, how badly it dies, who put it there, and, where this run
     # tested it, what the test concluded and what the test was. The first
     # three used to reach the reader as the identifier the kernel writes, so
     # a line ended `（assumption／来源 inherent／不可检验）`: an assumption said
     # to be an assumption, from a source called inherent.
-    for a in ledger["assumptions"]:
+    for a in entries:
         checked = a.get("checked") or {}
         meta = []
         if a.get("layer"):
@@ -5955,7 +5994,7 @@ def _assumption_ledger(ledger: dict, result: dict, *,
                 verdict=ledger_vocab.verdict_word(checked.get("verdict", ""),
                                                   lang),
                 check=ledger_vocab.check_word(checked.get("by", ""), lang)))
-    return "\n".join(out)
+    return out
 
 
 _ASSUMPTION_RENDERERS = blocks.bind(blocks.Family.ASSUMPTION, {

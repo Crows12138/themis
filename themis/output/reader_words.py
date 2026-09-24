@@ -930,6 +930,17 @@ PLAIN: dict[str, str] = {
 }
 
 
+#: Sets of tokens the browser tests a value against, generated for the
+#: reason the words are. Which members of a vocabulary carry a property —
+#: which provenances are proposals, which verdict leads — is a fact about
+#: the vocabulary, and a list of them kept in the browser's own source is a
+#: second record of it.
+MARKED: dict[str, str] = {
+    "PROPOSED_PROVENANCES": "themis.ledger.PROPOSED",
+    "LEADING_VERDICTS": "themis.ledger.LEADING",
+}
+
+
 def restated() -> dict[str, Glossed]:
     """The vocabularies the browser holds a copy of, generated from here."""
     return {name: row for name, row in GLOSSED.items() if row.browser_table}
@@ -1029,7 +1040,9 @@ _HEADER = """\
 // surface joins a list or two sentences — and, with it, which of those marks
 // goes between two members of each vocabulary, which is a fact about the SET
 // and the only one of the three a reader holding several tokens cannot work
-// out. What is not: the tables that render
+// out. Beside them, the few sets of members the browser tests a value
+// against, because which members carry a property is also a fact about the
+// vocabulary. What is not: the tables that render
 // a vocabulary in the browser's own terms (a tier's plain-language gloss, a
 // status's blurb, a refusal's head/lead/tail) and the two the kernel
 // deliberately has no word for (a gap carries its own description; a query
@@ -1074,6 +1087,11 @@ def typescript() -> str:
         for lang, text in said.items():
             out.append(f"  {lang}: {_quoted(text)},\n")
         out.append("}\n")
+    for name, dotted in sorted(MARKED.items()):
+        out.append(f"\nexport const {name}: readonly string[] = [\n")
+        for member in sorted(_resolve(dotted)):
+            out.append(f"  {_quoted(member)},\n")
+        out.append("]\n")
     # Last, because every entry names one of the marks written just above.
     out.append("\nexport const SEAMS: Record<string, Words> = {\n")
     for vocabulary, mark in seams().items():

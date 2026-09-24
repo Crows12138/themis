@@ -1,7 +1,7 @@
-import type { QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel } from '../lib/verdict'
+import type { LedgerEntry, QueryResult } from '../types'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
-import { fill, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Lang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
 
 const SEGS = [0, 1, 2]
@@ -68,6 +68,10 @@ const SAYS = {
   },
   eValueBand: { zh: '解读：{band}（{basis}）', en: 'Reading: {band} ({basis})' },
   ledgerCap: { zh: '假设台账', en: 'Assumption ledger' },
+  withTheVerdict: {
+    zh: '这个答案依赖、但未经确立的前提',
+    en: 'What this answer rests on that is not established',
+  },
   // Counted here rather than read off the block. The count arrived as a
   // sentence the kernel had assembled, and both facts in it were the list
   // beside it counted — so this surface printed one language's sentence
@@ -109,6 +113,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const formula = result.formula ? fmtFormula(result.formula) : null
   const sens = num?.sensitivity_analysis
   const ledger = result.extensions?.assumption_ledger
+  const premises = ledger?.assumptions?.filter(goesWithTheVerdict) ?? []
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num, lang) : null
   const refusal = refusalKind(result.estimator_failure?.kind, lang)
@@ -188,6 +193,21 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {statusBlurb(result.status, lang) ? <p className="verdict__blurb">{statusBlurb(result.status, lang)}</p> : null}
         </div>
       </div>
+
+      {/* The ledger lines the verdict cannot be read without: a proposal
+          nobody took on, a premise this run's own data refused. Beside the
+          verdict and never folded — a "yes" read off an edge the upstream
+          model proposed is that proposal replayed, and the reader who never
+          opens the foldout is the one who would take it for more. The same
+          lines stay in the full ledger below. */}
+      {premises.length ? (
+        <div className="verdict__premises">
+          <span className="figure__cap">{fill(SAYS.withTheVerdict, lang)}</span>
+          <ul className="ledger__list">
+            {premises.map((a, i) => <LedgerLine a={a} lang={lang} key={i} />)}
+          </ul>
+        </div>
+      ) : null}
 
       {/* `meta` is in this list because reading a field is not the same as
           reaching a branch: 55 envelopes in one suite run recorded a data
@@ -539,37 +559,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 <div className="ledger">
                   <span className="figure__cap">{fill(SAYS.ledgerCap, lang)} · {fill(SAYS.ledgerSummary, lang, { total: ledger.assumptions.length, invalidating: ledger.assumptions.filter((a) => a.severity === 'invalidating').length })}</span>
                   <ul className="ledger__list">
-                    {ledger.assumptions.map((a, i) => (
-                      // Five closed vocabularies on one line: how badly it
-                      // dies, which part of the answer it holds up, who put
-                      // it there, and — where this run tested it — what the
-                      // test concluded and what the test was. The second and
-                      // third were dropped on this surface and printed raw on
-                      // the other, which is two ways of not deciding what
-                      // they are for.
-                      <li className="ledger__item" key={i}>
-                        <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
-                          {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
-                        </span>
-                        <span className="ledger__claim">
-                          {sentences((a.claim ?? []).map(
-                            (one) => stated(one, lang)), lang)}
-                        </span>
-                        {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer, lang)}</span> : null}
-                        {a.provenance ? (
-                          <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
-                        ) : null}
-                        {a.testable === false ? <span className="ledger__tag">{fill(SAYS.untestable, lang)}</span> : null}
-                        {a.checked ? (
-                          <div className={`ledger__checked ledger__checked--${a.checked.verdict}`}>
-                            {fill(SAYS.checkedBy, lang, {
-                              verdict: ledgerVerdictLabel(a.checked.verdict, lang),
-                              check: ledgerCheckLabel(a.checked.by, lang),
-                            })}
-                          </div>
-                        ) : null}
-                      </li>
-                    ))}
+                    {ledger.assumptions.map((a, i) => <LedgerLine a={a} lang={lang} key={i} />)}
                   </ul>
                 </div>
               ) : null}
@@ -578,5 +568,41 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
         </div>
       ) : null}
     </section>
+  )
+}
+
+// One ledger line, as both places that print one print it: the full ledger in
+// the foldout, and the lines the verdict cannot be read without, beside it. A
+// line rendered two ways is one a reader has to compare to find out it is the
+// same line.
+function LedgerLine({ a, lang }: { a: LedgerEntry; lang: Lang }) {
+  return (
+    // Five closed vocabularies on one line: how badly it dies, which part of
+    // the answer it holds up, who put it there, and — where this run tested
+    // it — what the test concluded and what the test was. The second and
+    // third were dropped on this surface and printed raw on the other, which
+    // is two ways of not deciding what they are for.
+    <li className="ledger__item">
+      <span className={`ledger__sev ledger__sev--${a.severity ?? 'info'}`}>
+        {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
+      </span>
+      <span className="ledger__claim">
+        {sentences((a.claim ?? []).map(
+          (one) => stated(one, lang)), lang)}
+      </span>
+      {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer, lang)}</span> : null}
+      {a.provenance ? (
+        <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
+      ) : null}
+      {a.testable === false ? <span className="ledger__tag">{fill(SAYS.untestable, lang)}</span> : null}
+      {a.checked ? (
+        <div className={`ledger__checked ledger__checked--${a.checked.verdict}`}>
+          {fill(SAYS.checkedBy, lang, {
+            verdict: ledgerVerdictLabel(a.checked.verdict, lang),
+            check: ledgerCheckLabel(a.checked.by, lang),
+          })}
+        </div>
+      ) : null}
+    </li>
   )
 }

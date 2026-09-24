@@ -12,7 +12,9 @@
 // surface joins a list or two sentences — and, with it, which of those marks
 // goes between two members of each vocabulary, which is a fact about the SET
 // and the only one of the three a reader holding several tokens cannot work
-// out. What is not: the tables that render
+// out. Beside them, the few sets of members the browser tests a value
+// against, because which members carry a property is also a fact about the
+// vocabulary. What is not: the tables that render
 // a vocabulary in the browser's own terms (a tier's plain-language gloss, a
 // status's blurb, a refusal's head/lead/tail) and the two the kernel
 // deliberately has no word for (a gap carries its own description; a query
@@ -4050,6 +4052,16 @@ export const ENDONYM: Words = {
   zh: '中文',
   en: 'English',
 }
+
+export const LEADING_VERDICTS: readonly string[] = [
+  'refuted',
+]
+
+export const PROPOSED_PROVENANCES: readonly string[] = [
+  'discovery',
+  'llm_prior',
+  'llm_proposal',
+]
 
 export const SEAMS: Record<string, Words> = {
   assumption_claim: BETWEEN_STATEMENTS,
