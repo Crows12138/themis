@@ -192,6 +192,7 @@ edges, query, ambiguities.
 | Counterfactual contrary-to-fact + past tense: `如果当初`, `如果当时`, `要是没`, `当初要是`, `如果那时` (factual world already happened, user asks the alternative) | `counterfactual` |
 | Forward-intervention markers: `每天`, `经常`, `坚持`, `定期`, `多吃`, `要是开始`, `如果(我)开始` | `effect` |
 | Pure causal phrasing without action: `X 导致 Y 吗`, `X 会 Y 吗` | `cause` |
+| The outcome has already happened and the question is whether a named cause produced it: `是不是因为 X`, `能不能说明是 X 导致的`, `主要是 X 吗` | `causation` |
 | Correlation / prediction phrasing: `X 和 Y 有关系吗`, `X 能预测 Y 吗` | `assoc` |
 
 Hard rule: commit to one intent **only when the cues are
@@ -201,17 +202,19 @@ declare the alternative(s) in `extensions.ambiguities`. Silently
 upgrading to `effect` because it's the most powerful reading is the
 F3 failure that the ambiguity channel exists to prevent.
 
-**Watch for attribution-flavored cause questions.** Phrasings like
-"是不是因为 X / 真的是 X 吗 / 主要是 X / X 占多重 / X 是真正的原因吗"
-map to `cause` kind structurally — but the user's intent is to
-**apportion responsibility** across multiple possible causes, not
-just check whether X→Y is in the graph. The `cause` query only
-validates path existence (and on an LLM-proposed edge, that's
-just replaying your own assumption back). When you spot these
-phrasings, emit `cause` as the proxy AND flag `cause_attribution`
-in `extensions.ambiguities` so the response layer surfaces "I
-checked the path is in the graph; I cannot tell you whether X is
-the *main* or *only* reason."
+**Attribution is its own question, not a `cause` question.** What
+makes a question one of attribution is that it conditions on the outcome
+having already happened: the user saw Y and asks whether X is what
+produced it — the reason, the main reason, or one reason among several.
+`cause` cannot answer that. It reports whether a directed path exists in
+the graph you wrote, so on an edge you proposed it hands your own
+assumption back as a "yes". Ask it as `causation` (§ Attribution below),
+which returns the probability that X was necessary for the Y that
+happened. One `causation` query is about one candidate cause; when the
+user weighs several, ask one per candidate — each probability is about
+that cause taken alone, and they do not add up to shares. How much of an
+effect runs *through* an intermediate step is a different question and
+stays with mediation.
 
 **Watch for dose-response phrasings.** Phrasings like "X 让 Y 升
 / 降多少 / 多大 / 多重 / X 和 Y 的关系曲线 / 从 X1 到 X2 时 Y 怎么变
@@ -727,6 +730,35 @@ one more constraint the kernel can use to sharpen its answer, never a
 precondition for getting one — asserting a direction the user did not
 claim buys precision by fabricating a premise.
 
+##### Attribution — emit `kind: causation`
+
+The query for the attribution questions described under §1: whether a
+cause is what produced an outcome that has already happened. Where the
+counterfactual query above asks about one contrary-to-fact world the user
+spelled out, this asks about the cause–effect pair itself, and returns all
+three probabilities of causation — PN (had X not occurred, Y would not
+have), PS (had X occurred where it did not, Y would have) and PNS — as
+bounds, narrowed to points only under monotonicity.
+
+```json
+{
+  "kind": "query",
+  "id": "q",
+  "query": {"kind": "causation", "cause": <atom>, "effect": <atom>}
+}
+```
+
+`cause` and `effect` are bare atoms of binary variables — not the
+`{"atom", "value"}` wrapper the counterfactual slots take. `monotonic:
+true` follows the same rule as monotonicity above: only when the user
+asserted that X never prevents Y. When the user cites the risks an
+experiment measured, pass them as `experimental_risk_treated` /
+`experimental_risk_control`.
+
+Without data the kernel answers `needs_investigation` and names what it
+would need. That is an answer, not a failure: for a user who asked "can
+this show it was X", what would settle it is exactly what they asked.
+
 What the kernel does need is the same thing an effect query needs: the
 distribution. Give it the observational CPTs and, when the graph leaves
 the effect of X on Y unidentifiable, either the data that identifies it
@@ -910,7 +942,6 @@ the matching `kind`:
 | `reciprocal_causation` | User names both directions as plausible — see §5a (special) |
 | `counterfactual_query` | The NL is a counterfactual the kernel's Layer-3 fragment cannot directly evaluate — *only* set when you compressed to a non-counterfactual proxy (see "When to compress" below). Default for clean individual counterfactuals is to emit `kind: counterfactual` directly; the kernel answers with the Tian-Pearl interval (`counterfactual_bounded`), narrowing to a point where monotonicity is granted, and that interval is the geometrically correct answer — not a `counterfactual_query` ambiguity flag |
 | `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Emit a `cause` query as a proxy for existence-of-path; the response layer will acknowledge the mechanism gap |
-| `cause_attribution` | NL asks 是不是因为 X / 真的是 X 起的作用吗 / 主要怪 X 吗 / X 占多大份额 — wants to know whether X is the **dominant or sufficient** cause among many possible causes of Y. The kernel's `cause` query only validates that the LLM-proposed `X→Y` edge is in the graph (path existence); it can't apportion responsibility across causes. Emit `cause` as a proxy AND flag this ambiguity so the response layer surfaces "I checked the path is in the graph, but you're asking attribution which Themis can't compute" |
 | `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X=high vs X=low at sensible thresholds) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |
 | `individual_vs_population` | Narrative gives a population-average effect ("平均降压 10"), question asks about an individual ("对我有效吗") |
 | `iv_validity` | Used IV; declaring assumption Z satisfies IV1/IV2/IV3 |
