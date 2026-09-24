@@ -1606,6 +1606,10 @@ def _premises_of(program: dict | str | bytes, result: dict):
     ground = instantiate(prog)
     graph = project(ground)
     theta = build_theta(ground)
+    # Whether these are probabilities at all is the verifier's own
+    # reading, not the builder's: the builder is what made them.
+    from .verifier.theta_rules import verify_theta_is_a_distribution
+    verify_theta_is_a_distribution(theta)
     # Phase 2.latent S4: thread bidirected edge set into verification
     # context so backdoor_criterion / front_door_criterion /
     # m_separation_witness rules can independently re-check ADMG

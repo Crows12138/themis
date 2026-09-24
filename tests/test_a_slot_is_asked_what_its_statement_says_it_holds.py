@@ -143,7 +143,9 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
     # answering a query conditioning on a descendant of the treatment.
     # 2 more routes and 7 more sentences: the row brought when a decomposition asked
     # within a stratum was evaluated within it.
-    assert (routes, sentences) == (446, 877), (routes, sentences)
+    # 3 fewer routes and 6 fewer sentences: the row whose instrument strata were weighted
+    # by a P(w) summing to 0.9, which theta now refuses where it is built.
+    assert (routes, sentences) == (443, 871), (routes, sentences)
 
 
 def test_a_gaps_own_said_is_the_occasion_its_kind_names():
@@ -157,7 +159,7 @@ def test_a_gaps_own_said_is_the_occasion_its_kind_names():
             if re.fullmatch(r"gaps\.\d+\.said", where):
                 gap = report["gaps"][int(where.split(".")[1])]
                 tops.append((statement, gap["kind"]))
-    assert len(tops) == 153, len(tops)
+    assert len(tops) == 152, len(tops)
     assert all(statement == kind for statement, kind in tops)
     assert {kind for _statement, kind in tops} <= set(_gaps.IF_PROVIDED)
 

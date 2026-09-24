@@ -244,7 +244,8 @@ def test_a_variable_patch_carries_no_value_and_is_never_asked():
     up is the producer asking for more, and this rule is silent for every
     one of them either way. Nine more came with the rows collected when the
     identifier began answering a query conditioning on a descendant of the
-    treatment.
+    treatment. Two went with the row whose instrument strata were weighted
+    by a P(w) summing to 0.9, which theta now refuses where it is built.
     """
     patches = [
         item["skeleton"]
@@ -254,7 +255,7 @@ def test_a_variable_patch_carries_no_value_and_is_never_asked():
         if isinstance(item.get("skeleton"), dict)
         and item["skeleton"].get("kind") == "variable_patch"
     ]
-    assert len(patches) == 313, len(patches)
+    assert len(patches) == 311, len(patches)
     assert all(_valued_atoms_of(patch, []) == [] for patch in patches)
 
 

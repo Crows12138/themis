@@ -454,7 +454,11 @@ def test_an_instrument_that_moves_nothing_says_so():
 def test_stratum_weights_that_are_not_a_distribution_are_refused():
     """The LATE ratio is scale-invariant, so incoherent stratum
     probabilities would still yield a number — one whose reported
-    complier share is meaningless. Refuse instead."""
+    complier share is meaningless. They are refused where theta is
+    built, which holds every distribution it is given to summing to one
+    (#771), before an instrument is looked for."""
+    from themis.runtime.theta_builder import ConflictingThetaEntry
+
     program = _conditional_iv_program()
     for s in program["statements"]:
         if (
@@ -463,9 +467,9 @@ def test_stratum_weights_that_are_not_a_distribution_are_refused():
             and s["target"]["value"] is False
         ):
             s["value"] = 0.5           # with P(w=True)=0.4 this sums to 0.9
-    r = themis.run(program)["results"][0]
-    assert r["status"] == "needs_investigation"
-    assert "effect:iv_stratum_weights_not_normalized" in _missing_names(r)
+    with pytest.raises(ConflictingThetaEntry) as caught:
+        themis.run(program)
+    assert caught.value.details["distribution"] == "P(w=*)"
 
 
 def test_a_candidate_that_theta_cannot_serve_does_not_end_the_search():

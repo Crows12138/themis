@@ -74,9 +74,9 @@ def test_the_block_and_the_part_of_it_this_rule_reaches():
     block, and the difference between the two counts is the only place
     that is visible.
     """
-    assert len(CARRIERS) == 54, len(CARRIERS)
+    assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"]) for n in CARRIERS)
-    assert rows == 149, rows
+    assert rows == 147, rows
     assert len(WITH_KEY) == 106, len(WITH_KEY)
 
 
@@ -163,12 +163,12 @@ def test_the_three_lies_are_told_apart_in_the_message():
 def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
     """The limit, exercised rather than described.
 
-    43 of the 149 rows name something that is not a parameter — a query
+    41 of the 147 rows name something that is not a parameter — a query
     that cannot be identified, an assumption nobody declared — and carry
     no key. They are not rows that disagree with themselves, and a rule
     demanding a key would refuse them for what they honestly are.
 
-    Five of those 43 are read all the same, and by the name rather than
+    Five of those 41 are read all the same, and by the name rather than
     by a key. What a row is short of is written after the colon whether
     or not the sentence repeats it, so where that half names variables it
     is what the shopping list is held against — measured here too, since
@@ -181,7 +181,7 @@ def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
         for i, r in enumerate(SHAPES[n]["result"]["missing_information"])
         if not isinstance((r.get("said") or {}).get("key"), str)
     ]
-    assert len(keyless) == 43, len(keyless)
+    assert len(keyless) == 41, len(keyless)
 
     read_by_name = [
         (n, i) for n, i in keyless

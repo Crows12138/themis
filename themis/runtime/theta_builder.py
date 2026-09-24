@@ -17,10 +17,11 @@ v0.1 semantics:
   ``P(X=false)=0.57`` previously broke marginalization, because the
   numeric evaluator iterates the full declared domain. The rule is
   the probability axiom — no inference, no heuristic — so the
-  completion is safe to apply unconditionally. Conflicting / out-of-
-  range completions (sum > 1 + ε or implied complement < 0) are
-  rejected with ``ConflictingThetaEntry`` rather than silently
-  clamped.
+  completion is safe to apply unconditionally.
+- **The axiom is held for every group**, completed or not: a group that
+  names every value of its domain must sum to one, and a group that
+  leaves values out must leave them room. Either failure is rejected
+  with ``ConflictingThetaEntry`` rather than clamped.
 - Value domains ARE inferred from probability + observation
   statements (every value seen in a ``ValuedAtom``). The declared
   domain on ``VariableDeclaration`` takes precedence when present.
@@ -43,7 +44,7 @@ from ..types import (
 )
 from .. import language
 from .instantiation import instantiate
-from .numeric_estimator import ProbabilityKey, Theta
+from .numeric_estimator import ProbabilityKey, Theta, format_probability_key
 from .theta_words import Half, Refuses
 
 
@@ -194,10 +195,8 @@ def _complete_partial_distributions(
     - If it has fewer than K-1 (more than one missing), leave it (the
       probability axiom alone is insufficient).
 
-    Raises ``ConflictingThetaEntry`` when supplied entries sum to a
-    value outside ``[0, 1 + tolerance]`` (so the implied complement
-    would be negative or > 1). Silently clamping would mask a real
-    bug in the supplied program.
+    Raises ``ConflictingThetaEntry`` from :func:`_hold_the_axiom`, which
+    every group passes through whether or not it is completed.
     """
     # Group entries by (target_atom, frozenset given, population).
     # Fix 3+4: completion is per-population — P(X=true | given, pop=source)
@@ -222,18 +221,15 @@ def _complete_partial_distributions(
             continue
         seen_values = set(value_map.keys())
         missing = [v for v in domain if v not in seen_values]
+        total_supplied = sum(value_map.values())
+        _hold_the_axiom(target_atom, given, pop, missing, total_supplied,
+                        tolerance)
         if len(missing) != 1:
             # Either complete or under-specified by more than one
             # entry. The probability axiom alone determines the
             # singleton-missing case; multi-missing needs other info.
             continue
         missing_value = missing[0]
-        total_supplied = sum(value_map.values())
-        if total_supplied > 1.0 + tolerance or total_supplied < -tolerance:
-            raise ConflictingThetaEntry(
-                Refuses.THE_SUPPLIED_MASS_LEAVES_NO_COMPLEMENT,
-                predicate=target_atom.predicate, total=total_supplied,
-                missing=missing_value)
         complement = 1.0 - total_supplied
         # Clamp tiny float rounding into [0, 1]; reject only when the
         # input was actually broken (caught above).
@@ -246,6 +242,41 @@ def _complete_partial_distributions(
         )
         completed[new_key] = complement
     return completed
+
+
+def _hold_the_axiom(
+    target_atom: Atom,
+    given: frozenset[tuple[Atom, AtomValue]],
+    population: str | None,
+    missing: list[AtomValue],
+    total: float,
+    tolerance: float,
+) -> None:
+    """One variable's probabilities under one condition sum to one.
+
+    A fact about the numbers, whether or not any of them is about to be
+    completed. It used to be asked only on the way to completing a group,
+    which is the case where exactly one value is missing — so a pair
+    supplied in full was never added up, and two pairs off by the same
+    amount in opposite directions gave a joint that summed to one and an
+    interval that was wrong.
+
+    Written so that a NaN fails it: every comparison with one is false.
+    """
+    named = format_probability_key(ProbabilityKey(
+        target_atom=target_atom, target_value="*", given=given,
+        population=population))
+    if not missing:
+        if not abs(total - 1.0) <= tolerance:
+            raise ConflictingThetaEntry(
+                Refuses.A_FULL_DISTRIBUTION_DOES_NOT_SUM_TO_ONE,
+                distribution=named, total=total)
+        return
+    if not -tolerance <= total <= 1.0 + tolerance:
+        raise ConflictingThetaEntry(
+            Refuses.THE_SUPPLIED_MASS_LEAVES_NO_COMPLEMENT,
+            distribution=named, total=total,
+            missing=", ".join(str(v) for v in missing))
 
 
 def build_theta_from_program(program) -> Theta:

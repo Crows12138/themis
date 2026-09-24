@@ -155,7 +155,7 @@ def test_the_corpus_writes_the_copies_it_writes():
     split: dict[str, int] = {}
     for _name, _where, _statement, slot in SITES:
         split[slot] = split.get(slot, 0) + 1
-    assert split == {"intervention": 592, "target": 28,
+    assert split == {"intervention": 588, "target": 28,
                      "treatment": 21, "outcome": 18,
                      "latent": 4, "z": 5, "w": 3}, split
     unseen = COPIES - {(statement, slot) for _n, _w, statement, slot in SITES}
@@ -197,7 +197,7 @@ def test_the_same_atom_in_its_other_spelling_is_the_same_copy():
             _said(forged, where)[slot] = spelt
             verify_gap_quotes(forged, context)
             accepted += 1
-    assert accepted == 2 * len(SITES) == 1342, accepted
+    assert accepted == 2 * len(SITES) == 1334, accepted
 
 
 # --------------------------------------------------------------- the teeth
@@ -216,7 +216,7 @@ def test_another_variable_the_problem_has_is_refused():
             with pytest.raises(VerificationError, match="the question's"):
                 verify_gap_quotes(forged, context)
             refused += 1
-    assert refused == 1580, refused
+    assert refused == 1568, refused
 
 
 @pytest.mark.parametrize("statement,slot", sorted(

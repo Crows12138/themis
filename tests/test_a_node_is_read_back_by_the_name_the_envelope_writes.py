@@ -90,7 +90,7 @@ def test_a_time_index_changes_nothing_the_door_says():
         if timed != untimed:
             differs[name] = (untimed, timed)
     assert differs == {}, differs
-    assert len(RESTATED) == 251, len(RESTATED)
+    assert len(RESTATED) == 250, len(RESTATED)
 
 
 def test_the_verifier_spells_a_node_as_the_producer_does():

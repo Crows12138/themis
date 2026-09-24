@@ -84,7 +84,7 @@ def test_the_answers_that_took_no_route_are_the_ones_this_is_for():
     lesson turned on the reader of it. So it is measured next door rather
     than described here.
     """
-    assert len(CHAINLESS) == 74, len(CHAINLESS)
+    assert len(CHAINLESS) == 73, len(CHAINLESS)
     statuses = {SHAPES[name]["result"].get("status") for name in CHAINLESS}
     assert statuses == {"needs_investigation", "outside_language",
                         "numerically_solved"}
@@ -327,7 +327,7 @@ def test_a_reader_may_not_be_sent_to_fill_in_another_variable():
     the second turn takes verbatim as a patch."""
     carriers = [n for n in CHAINLESS
                 if SHAPES[n]["result"].get("investigation_requests")]
-    assert len(carriers) == 70, len(carriers)
+    assert len(carriers) == 69, len(carriers)
 
     for name in carriers:
         program, result = _pair(name)

@@ -117,7 +117,7 @@ def test_the_corpus_carries_the_rows_this_gate_is_about():
 
 
 def test_a_bounds_row_without_a_stamp_reports_no_interval():
-    """Why the eighty-four bare rows are not this gate's question, measured
+    """Why the eighty-two bare rows are not this gate's question, measured
     rather than assumed: the contract says an absent block means no
     bootstrap ran, and every bare row here is a row with no interval."""
     bare = [(name, index, row)
@@ -125,7 +125,7 @@ def test_a_bounds_row_without_a_stamp_reports_no_interval():
             for index, row in enumerate(
                 SHAPES[name]["result"].get("bounds_results") or ())
             if not isinstance(row.get("bootstrap"), dict)]
-    assert len(bare) == 84
+    assert len(bare) == 82
     assert not [one for one in bare
                 if one[2].get("ci_lower") is not None
                 or one[2].get("ci_upper") is not None]

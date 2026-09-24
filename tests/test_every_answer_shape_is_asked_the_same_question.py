@@ -232,7 +232,7 @@ _PER_LEAF = 3
 #: enums this contract declares come in two clumps with a gap between
 #: them: fifty-two have four members or fewer and were always asked in
 #: full, thirty-one more have five, six, seven, nine or ten, and then the
-#: sizes jump to thirty-nine, forty-two, forty-nine, eighty-five,
+#: sizes jump to thirty-eight, forty-two, forty-nine, eighty-five,
 #: eighty-eight and a hundred and forty. Any line drawn inside that gap
 #: buys exactly the same coverage, so this number is the gap rather than a
 #: budget. Measured on this corpus: asking the small clump word by word
@@ -852,7 +852,7 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
         else:
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
-    assert asked == 2248, asked
+    assert asked == 2232, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -2486,7 +2486,7 @@ def test_the_declared_remainder_is_what_it_is():
     """
     total = sum(len(v) for v in UNWITNESSED.values())
     assert total == 493, total
-    assert len(SHAPES) == 252, len(SHAPES)
+    assert len(SHAPES) == 251, len(SHAPES)
 
 
 def _the_vocabularies_only_sampled() -> dict[str, int]:
@@ -2532,7 +2532,7 @@ def test_the_part_of_held_that_was_measured_by_sample_is_counted():
     somebody can decide about.
     """
     sampled = _the_vocabularies_only_sampled()
-    assert sum(sampled.values()) == 1974, sum(sampled.values())
+    assert sum(sampled.values()) == 1958, sum(sampled.values())
     assert len(sampled) == 107, len(sampled)
     biggest = sorted(sampled.items(), key=lambda kv: (-kv[1], kv[0]))[:4]
     assert [shape for shape, _n in biggest] == [
@@ -2690,6 +2690,11 @@ def test_the_sweep_asks_about_the_whole_envelope():
     conditioning on its own outcome -- and the fossil row took 39.
 
     Then 33838: that decomposition asked within a stratum, 160 questions.
+
+    Then 33793, downwards and not by a refresh: the row whose program
+    gives P(w) values summing to 0.9 is refused where theta is built
+    (#771), so the answer it stored is one nothing produces any more,
+    and its 128 questions left with it.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -2699,7 +2704,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33921, asked_total
+    assert asked_total == 33793, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

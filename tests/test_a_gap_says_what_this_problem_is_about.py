@@ -85,12 +85,12 @@ def test_a_gap_report_is_carried_by_almost_every_answer():
     carriers = [n for n in SHAPES
                 if (SHAPES[n]["result"].get("data_gap_report") or {}).get(
                     "gaps")]
-    assert len(carriers) == 240, sorted(set(SHAPES) - set(carriers))
+    assert len(carriers) == 239, sorted(set(SHAPES) - set(carriers))
     # Some carriers say nothing that names a variable, so they have gaps
     # and nothing for this rule to ask. That is an answer, not a skip.
     assert len(set(carriers) - set(WITH_NAMES)) == 52, len(
         set(carriers) - set(WITH_NAMES))
-    assert len(WITH_NAMES) == 188, len(WITH_NAMES)
+    assert len(WITH_NAMES) == 187, len(WITH_NAMES)
 
 
 def test_every_key_a_gap_says_is_classified():
@@ -563,6 +563,11 @@ def test_the_remainder_is_counted_rather_than_described():
     warning's share, the level it names as worst and how many levels it
     says there were against the arms of the bridge itself. A forgery in
     one of them now tells a reader a share no arm of this answer counted.
+
+    And 14 fewer when the row whose instrument strata were weighted by a
+    P(w) summing to 0.9 went: theta refuses that distribution now where it
+    is built, so the program has no answer to store. The accepted did not
+    move.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -577,7 +582,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2435, 13), (refused, accepted)
+    assert (refused, accepted) == (2421, 13), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -603,14 +608,16 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
                        if pair["result"].get("derivation") is None)
     leaves = [(name, key) for name in chainless
               for _, key, _ in _said_leaves(SHAPES[name]["result"])]
-    assert len(chainless) == 74, len(chainless)
+    assert len(chainless) == 73, len(chainless)
     # 4 fewer: two of those answers take no route.
+    # 1 fewer, and 14 fewer leaves and 6 fewer name leaves: the row whose instrument strata
+    # were weighted by a P(w) summing to 0.9, which theta now refuses where it is built.
     # 106 more leaves and 42 more name leaves: three answers with no chain were collected when
     # the identifier began answering a query conditioning on a descendant of the treatment,
     # and the stored refusal they replaced went.
-    assert len(leaves) == 1110, len(leaves)
+    assert len(leaves) == 1096, len(leaves)
     assert sum(len(_name_leaves(SHAPES[name]["result"]))
-               for name in chainless) == 518, len(leaves)
+               for name in chainless) == 512, len(leaves)
     # The three with no name claim in them have nothing here to ask, which
     # is not the same as this missing them: a refusal outside the language
     # says why in prose and has no variable to be about, and two causation

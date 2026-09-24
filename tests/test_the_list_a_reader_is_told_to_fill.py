@@ -173,7 +173,7 @@ def test_the_list_is_carried_by_almost_every_answer():
     """And which groups a request comes in, stated so that a fourth is a
     failure here rather than an item the rule reads by whichever branch it
     falls through — the mistake this module already made once."""
-    assert len(CARRIERS) == 162
+    assert len(CARRIERS) == 161
     groups = {r.get("group") for n in CARRIERS
               for r in _requests(SHAPES[n]["result"])}
     assert groups == {"framing", "assumption", "structure", "parameter"}
@@ -195,7 +195,9 @@ def test_a_framing_target_is_a_framing_note_predicate():
     fields by seven, when the joint general-ID row was refreshed the same
     way. The eight rows collected when the identifier began answering a
     query conditioning on a descendant of the treatment brought nine more
-    framing items and 63 more patch fields.
+    framing items and 63 more patch fields. Two framing items and 14 patch
+    fields went with the row whose instrument strata were weighted by a
+    P(w) summing to 0.9, which theta now refuses where it is built.
     """
     linked = 0
     for name in CARRIERS:
@@ -207,7 +209,7 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 313
+    assert linked == 311
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
@@ -245,7 +247,7 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert (checked, parameters) == (2206, 111), (checked, parameters)
+    assert (checked, parameters) == (2192, 111), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -369,7 +371,7 @@ def test_a_patch_that_asks_for_what_the_program_already_declared():
         tried += 1
         with pytest.raises(VerificationError, match="already declares it"):
             door(program, result)
-    assert tried == 122
+    assert tried == 121
 
 
 def test_a_patch_that_misreports_what_the_program_fixed():
@@ -546,7 +548,7 @@ def test_the_heading_over_the_list_is_held_to_the_list():
     rows survived. The survivors are none, and the number below went up
     by exactly the thirteen.
     """
-    assert len([n for n in CARRIERS if n in CHAINLESS]) == 70
+    assert len([n for n in CARRIERS if n in CHAINLESS]) == 69
     survived, by_this_rule = [], 0
     for name in CARRIERS:
         program, result = _pair(name)
@@ -562,7 +564,7 @@ def test_the_heading_over_the_list_is_held_to_the_list():
                     by_this_rule += 1
                     continue
                 survived.append((name, ri, path))
-    assert by_this_rule == 1427
+    assert by_this_rule == 1410
     assert survived == []
 
 
@@ -630,7 +632,7 @@ def test_one_missing_item_written_twice_says_the_same_thing():
     a second record of anything.
     """
     pairs = list(_paired())
-    assert len(pairs) == 147, len(pairs)
+    assert len(pairs) == 145, len(pairs)
     refused = 0
     for name, ri, ii, idx in pairs:
         for field in ("gap", "need", "kind"):
@@ -643,7 +645,7 @@ def test_one_missing_item_written_twice_says_the_same_thing():
             with pytest.raises(VerificationError):
                 verify_investigation_items(result, program)
             refused += 1
-    assert refused == 441
+    assert refused == 435
 
 
 def test_what_only_one_rendering_carries_is_not_compared():
@@ -713,7 +715,7 @@ def test_every_ask_names_a_gap_its_own_report_carries():
     """
     asks = list(_asks())
     twinned = sum(1 for *_rest, twin in asks if twin)
-    assert (len(asks), twinned) == (475, 147), (len(asks), twinned)
+    assert (len(asks), twinned) == (471, 145), (len(asks), twinned)
     for name, ri, ii, _twin in asks:
         result = SHAPES[name]["result"]
         named = result["investigation_requests"][ri]["items"][ii]["gap"]
@@ -731,7 +733,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
 
     The number beside it is why this is a rule of its own. The check next
     to it compares an item to the ``missing_information`` row for the same
-    target, and 321 of these 468 asks have no such row — every framing ask
+    target, and 326 of these 471 asks have no such row — every framing ask
     and some of the rest. Two records agreeing is a check only where there
     are two records; a reference is checked against its referent, and there
     is always exactly one of those.
@@ -752,7 +754,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
             continue
         lonely += 1
         assert "never said it had" in str(caught.value), (name, caught.value)
-    assert (refused, lonely) == (475, 328), (refused, lonely)
+    assert (refused, lonely) == (471, 326), (refused, lonely)
 
 
 def test_an_answer_with_no_report_is_not_asked_this():

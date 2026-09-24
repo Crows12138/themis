@@ -41,7 +41,7 @@ why a closed pair stays on the roster below rather than coming off it.
 Asking every word is affordable up to a point and the point is measured
 rather than chosen: the vocabularies this contract declares come in two
 clumps -- four words or fewer, then five to ten, and then a jump straight
-to thirty-nine -- so any ceiling inside that gap buys the same coverage.
+to thirty-eight -- so any ceiling inside that gap buys the same coverage.
 Above it the sweep still samples, and what is in that position is now
 counted in the gate rather than described in a comment, because "held"
 means something weaker there.
@@ -89,13 +89,13 @@ def test_the_vocabularies_come_in_two_clumps_with_a_gap_between_them():
 
     A ceiling is a cost, so the only thing that makes one number better
     than another is where it can be put without changing what is bought.
-    Here nothing has between eleven and thirty-eight words, so every line
+    Here nothing has between eleven and thirty-seven words, so every line
     inside that gap buys the same coverage -- and the day something does,
     this fails and somebody prices it again.
     """
     sizes = sorted({len(members) for members in gate._DOMAIN.values()})
-    assert sizes == [2, 3, 4, 5, 6, 7, 9, 10, 39, 42, 49, 85, 88, 140]
-    assert gate._LARGEST_VOCABULARY_ASKED_IN_FULL in range(10, 39)
+    assert sizes == [2, 3, 4, 5, 6, 7, 9, 10, 38, 42, 49, 85, 88, 140]
+    assert gate._LARGEST_VOCABULARY_ASKED_IN_FULL in range(10, 38)
 
 
 def test_the_two_clumps_are_this_many_vocabularies_each():

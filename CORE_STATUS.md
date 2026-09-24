@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31656 passed / 535 skipped, warning-clean
+31600 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,33 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #771 一个给齐了的分布，要有人把它加起来（2026-09-25）
+
+**来历**：第一次真实用户测试之后，我试了「一对布尔概率各偏一点」会怎样；同一天的多代理审查把它记作 X1，列在 P0。
+
+**现象**：x→y 的归因（`causation`）查询，`P(x=T)=P(x=F)=0.5`，`P(y=T|x=T)=0.7` 与 `P(y=F|x=T)=0.4`（和 1.1），`P(y=T|x=F)=0.3` 与 `P(y=F|x=F)=0.6`（和 0.9）。两对各偏 0.1、方向相反，乘出来的联合分布加和仍是 1，`counterfactual.py` 对联合分布的加和检查放行。结果 `counterfactual_bounded`，PS ≥ 0.667、PNS ≤ 0.65；按调用方本意（只看 True 格）应是 PS ≥ 0.571、PNS ≤ 0.70。`themis.verify` 通过。只有一对偏的时候（`P(x=T)=0.7, P(x=F)=0.2`）会被拦下，但理由是 `interventional_risks_contradict_the_joint`，没有指出是哪两个数填错了。
+
+**根因假设**：概率公理（同一条件下一个变量各取值的概率之和为 1）是 theta 本身的性质，却只写在「补全」这一步里：`theta_builder._complete_partial_distributions` 只有在一组取值恰好缺 1 个、要补的时候才求和检查。取值全给齐的组、缺 2 个以上的组，从来没有被加过。验证器的前提由同一个 `build_theta` 重建，恢复联合分布用的 `_recover_boolean_theta_value_for_verifier` 又是生产端读格子函数的逐行副本，所以在这一条上验证器没有自己的判断。
+
+**为什么是根因不是表象**：下游已经有两处加和检查（反事实对联合分布、IV 对分层权重），它们查的是由这些条件分布乘出来的东西。各组的误差可以在乘积里互相抵消，所以在下游查挡不住；只有在 theta 建立的那一刻逐组去查，才查的是调用方写下的数本身。再往下游补检查，治的只是表象。
+
+**修法**：
+- `theta_builder._hold_the_axiom`：每一组（变量、条件、人群）都过这道检查，不管要不要补全。给齐了的组，和必须为 1；没给齐的组，和不能超过 1。比较写成 NaN 也会失败的形式。新增拒绝种类 `A_FULL_DISTRIBUTION_DOES_NOT_SUM_TO_ONE`。原来的 `THE_SUPPLIED_MASS_LEAVES_NO_COMPLEMENT` 也改为点出带条件的分布（`P(y=*|x=True)`），不再写 `P(y=*|...)` 让读者自己去找是哪一组；缺多个取值时逐个列出。
+- 验证器 `themis/verifier/theta_rules.py`：用自己的代码按同一条公理逐组检查（每格在 [0,1]；覆盖全域的组和为 1；不覆盖的组不超过 1），不 import 构建端的任何东西。在 `kernel._premises_of` 里、theta 建完之后调用，所以 `verify` 与 `verify_answer_claims` 两扇门都会经过。只有一个取值的域是构建端从程序里唯一提到的那个值推出来的，没人声明过，所以只按「不超过 1」检查——与构建端跳过它的理由相同。
+- IV 分层权重那道检查（`Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED`）连同它的词条、路由、优先级、schema 枚举项一并删除。它检查的是「P(W) 各组是分布」，现在建 theta 时已经逐组保证了；权重是这些分布的乘积，和就是 1。它还剩的唯一触发方式是误报：两组各自在 1e-9 以内通过了构建端的检查，乘起来可能超出它自己那个 1e-9。留一份副本，只可能和构建端意见不一致，不可能补上什么。
+- `propose_theta_priors.md`：原句「同一变量的边际应当自洽，不同 given 分层下的条件不必」改成按分布说——同一个 `given` 下同一变量各取值的几行是一个分布，和必须为 1，否则内核拒绝；不同 `given` 下的是不同的分布。
+
+**语料**：`answer_shapes.json` 里的 `needs_investigation:effect:none#a58bcc` 一行来自 `test_stratum_weights_that_are_not_a_distribution_are_refused`，它的程序就是那份 `P(w)` 加和 0.9 的输入，现在建 theta 时就被拒了，所以删掉，语料 252 → 251 行。那个测试改为断言建 theta 时拒绝、点名 `P(w=*)`。删这一行牵动的钉子分三类，各自核对过来源：
+- **按语料计数的**：在 HEAD 上只删这一行、不带任何代码改动，另开一个工作树跑同一批测试。第一次全量里语料类的 54 个失败在那边逐个复现，断言位置和实际值都相同；它们挡住的后续断言（`len(OURS)`、`WITH_NAMES`、`VERDICTS`、`PER_CARRIER` 四项、无推导链答案的叶子数等）在改完第一层后重跑或直接量出。此前另有 12 处也是这样核对的：RESTATED 251→250；`methods` 73→72；`test_the_place…` 里 CARRIERS 54→53，其行数 149→147；`same` 252→251；`silent` 241→240，其中带该块的 48→47；`test_which_population…` 的 `len(SHAPES)` 252→251；普查里 `asked` 2248→2232、`len(SHAPES)` 252→251、抽样计数 1974→1958、`asked_total` 33921→33793。原注释在逐次记账的地方（「N more …：哪一批行带来的」），补一句这一行的去向；docstring 里写着同一数字的一并改，其中四处本来就已过期（`321 of these 468`、`310 of the 421`、`465 of 465`、`213 rides`），改成现值。**声明余项 493 不变**：这一行没有独占任何被声明为押不住的叶子，删掉它只减少了它自己带来的问题数。
+- **按词条计数的**：由删掉那条 Need 造成。它带一个 `{total}` 槽，所以 `known` 248→247、`pairs` 257→256。Need 的词表从 39 个词变成 38 个：`test_a_vocabularys_lies_are_its_words` 里的词表大小清单、「整表都问」的上限所在的空档（11–38 → 11–37）、普查模块注释里的 thirty-nine 随之改。上限是 10，仍在空档里，问到的范围不变。
+- **架构图**：新的 `verify_theta_is_a_distribution` 是一个 `verify_*` 入口，复核入口 128 → 129。按 `scripts/build_arch_spec.py` 重建 `docs/架构图/全景图.json`，再用 archify 重新渲染页面。
+
+**skipped 535 → 534**：被删那一行在全套里带 72 个参数化用例（71 passed、1 skipped），少的那个 skip 是 `test_a_price_that_is_not_there_still_says_something.py:170` 在这一行上的用例（「这个形状没有数值估计」）。
+
+**测试**：`test_a_distribution_supplied_in_full_is_added_up.py`：抵消的那组被拒并点名分布；一对偏的被拒、点名 `P(x=*)`、和为 0.9；四值域给两个、和 1.2 被拒并列出 `blue, yellow`；一致的完整一对与只给 True 格的答案逐端相同；未声明域不被当成已给齐；把构建端的检查换成空函数后，内核又给出 PS 下界 2/3，`verify` 与 `verify_answer_claims` 都拒绝并点名分布；验证器单独对「完整组不为 1 / 部分组没问题 / NaN / 大于 1 / 部分组超过 1」各一条。
+
+**基线**：31600 passed / 534 skipped。#770 提交时 README 的两处基线停在 31650 passed，与本文件的 31656 不一致，`test_test_count_consistent_between_core_status_and_readme` 在 b7aef1a 上是失败的；本条一并改正。
 
 ### #770 一次模型调用去哪里、用谁的 key，只在一处决定（2026-09-25）
 

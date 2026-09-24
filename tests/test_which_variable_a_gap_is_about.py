@@ -113,14 +113,16 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     rows collected for it brought 27 and the stored refusal they replaced
     took three, and by four with the row brought when a decomposition asked
     within a stratum was evaluated within it, whose four gaps about a
-    variable's definition are one per variable the question names.
+    variable's definition are one per variable the question names. Both
+    went down by two with the row whose instrument strata were weighted by
+    a P(w) summing to 0.9, which theta now refuses where it is built.
     Together is the point: the subjects are the denominator
     and the named ones the numerator, so a rule losing ground separates
     them and a corpus growing does not.
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (468, 468)
+    assert (inside, len(pairs)) == (466, 466)
 
 
 def _riders():
@@ -146,12 +148,12 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 465 of 465 either way — and this corpus offers 213 rides
+    honest side — 466 of 466 either way — and this corpus offers 211 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 468
-    assert len(list(_riders())) == 214
+               if any(v in r for r in refs)) == 466
+    assert len(list(_riders())) == 211
 
 
 def test_one_of_those_rides_is_actually_refused():

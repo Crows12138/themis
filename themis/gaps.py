@@ -286,10 +286,6 @@ class Need(EnvelopeName):
         GapKind.MISSING_ASSUMPTION,
         "the supplied interventional risks and the observed joint cannot "
         "come from one SCM, so PN/PS/PNS are undefined")
-    IV_STRATUM_WEIGHTS_NOT_NORMALIZED = (
-        "iv_stratum_weights_not_normalized", GapKind.MISSING_ASSUMPTION,
-        "the instrument's stratum probabilities do not sum to one, so the "
-        "reported compliance share is weighted by a non-distribution")
     IV_FIRST_STAGE_DEGENERATE = (
         "iv_first_stage_degenerate", GapKind.MISSING_ASSUMPTION,
         "the instrument does not move the treatment, so the Wald ratio has "
@@ -582,16 +578,6 @@ SAYS: dict[str, language.Words] = {
         "en": "the interventional risks given contradict the observed joint "
               "(the consistency constraint): no SCM produces both, so "
               "PN/PS/PNS are undefined. {detail}",
-    },
-    "iv_stratum_weights_not_normalized": {
-        "zh": "给出的工具条件分层概率之和是 {total}，不是 1。LATE 比值对尺度"
-              "不敏感，数照样算得出来，但报告里的处理变动是一个「顺从者占比」，"
-              "对着一组根本不成其为分布的权重毫无意义",
-        "en": "the instrument's conditional stratum probabilities sum to "
-              "{total}, not 1. The LATE ratio is scale-free so a number still "
-              "comes out, but the treatment shift the report gives is a "
-              "complier share, and that is meaningless against weights that "
-              "are not a distribution",
     },
     "iv_first_stage_degenerate": {
         "zh": "工具 {instrument} 推不动处理（加权后的第一阶段 ≈ 0），所以 Wald "
@@ -2192,8 +2178,8 @@ ESCAPES: dict[Need, tuple[Route, ...]] = {
     # --- an identification premise the kernel will not choose -------------
     #
     # Same shape again, same suppressed advice, same docstring reason: "one
-    # sentence of generic advice would be wrong for most of them". Two of
-    # these are declarations contradicting a sample, which is the pair of
+    # sentence of generic advice would be wrong for most of them". One of
+    # these is declarations contradicting each other, which is the pair of
     # branches FIX_THE_* was written as, and one is a first stage that does
     # not move — the one thing FIND_A_STRONGER_INSTRUMENT is about.
     Need.INTERVENTIONAL_RISK_NOT_IDENTIFIABLE: (
@@ -2205,17 +2191,17 @@ ESCAPES: dict[Need, tuple[Route, ...]] = {
         Route.RUN_AN_RCT_PAST_THE_BACKDOOR,
     ),
     # The two moves a contradiction leaves, in the pair that says them
-    # without naming a column. FIX_THE_* was what these reached for, and
-    # FIX_THE_* is about a column and the scale it was declared at: neither
-    # species is about a column — one is a set of risks that cannot come
-    # from one SCM, the other a set of stratum probabilities that does not
-    # sum to one — so its data-side branch arrived with both names missing
+    # without naming a column. FIX_THE_* was what this reached for, and
+    # FIX_THE_* is about a column and the scale it was declared at: this
+    # species is not about a column — it is a set of risks that cannot come
+    # from one SCM — so its data-side branch arrived with both names missing
     # and its declaration-side branch talked about a range nobody declared.
+    # A second species sat here, stratum probabilities that did not sum to
+    # one, until theta was held to that axiom for every distribution it
+    # holds (#771): what it caught is now refused before an instrument is
+    # looked for, and a copy of the check kept here could only disagree
+    # with the builder's, never add to it.
     Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT: (
-        Route.THE_SUPPLIED_NUMBERS_ARE_THE_ONES_TO_CHANGE,
-        Route.WHAT_THEY_WERE_CHECKED_AGAINST_IS_THE_ONE_TO_CHANGE,
-    ),
-    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED: (
         Route.THE_SUPPLIED_NUMBERS_ARE_THE_ONES_TO_CHANGE,
         Route.WHAT_THEY_WERE_CHECKED_AGAINST_IS_THE_ONE_TO_CHANGE,
     ),
@@ -5246,8 +5232,6 @@ FILED_WHOLE: dict[Need, str] = {
     Need.MEDIATOR_SET_OFF_THE_DIRECTED_PATHS:
         "mediation_joint:invalid_mediator_set",
     # --- the instrument route, and what it is short of --------------------
-    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED:
-        "effect:iv_stratum_weights_not_normalized",
     Need.IV_FIRST_STAGE_DEGENERATE: "effect:iv_first_stage_degenerate",
     Need.IV_MONOTONICITY_UNDECLARED: "effect:iv_monotonicity_undeclared",
     Need.FEEDBACK_LOOP_OUTSIDE_THE_SIMULTANEOUS_CASE:
@@ -5433,7 +5417,6 @@ WORTH: dict[Need, Priority] = {
     Need.INTERVENTIONAL_RISK_NEEDS_DISTRIBUTIONS: Priority.HIGH,
     Need.INTERVENTIONAL_RISK_UNAVAILABLE_FOR_CELL: Priority.HIGH,
     Need.INTERVENTIONAL_RISKS_CONTRADICT_THE_JOINT: Priority.HIGH,
-    Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED: Priority.HIGH,
     Need.IV_FIRST_STAGE_DEGENERATE: Priority.HIGH,
     Need.IV_MONOTONICITY_UNDECLARED: Priority.HIGH,
     Need.THETA_ENTRY_MISSING: Priority.HIGH,

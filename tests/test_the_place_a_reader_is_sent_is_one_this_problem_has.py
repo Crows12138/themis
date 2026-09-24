@@ -83,15 +83,15 @@ def _places_of(name: str) -> frozenset[str]:
 def test_the_block_and_the_part_of_it_this_rule_reaches():
     """The denominator and the honest limit, both as numbers.
 
-    Six rows of 149 name a place. A rule that is silent on the rest is
+    Six rows of 147 name a place. A rule that is silent on the rest is
     right to be -- a row short of a whole query names nothing to go and
     collect -- but the difference between the two counts is the only
     place that is visible, so it is written down.
     """
-    assert len(CARRIERS) == 54, len(CARRIERS)
+    assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"])
                for n in CARRIERS)
-    assert rows == 149, rows
+    assert rows == 147, rows
     assert len(WITH_PLACE) == 6, len(WITH_PLACE)
     assert len(ANSWERS) == 5, ANSWERS
 
@@ -129,7 +129,7 @@ def test_the_program_and_the_context_say_the_same_thing():
 
     They are two projections of one document rather than two facts, and
     that is asserted where it can be seen rather than trusted: on every
-    one of the 252 stored answers the two readings are the same set. A
+    one of the 251 stored answers the two readings are the same set. A
     program shape that makes them differ fails here, in the open, instead
     of quietly giving one door a roster the other does not have.
     """
@@ -140,7 +140,7 @@ def test_the_program_and_the_context_say_the_same_thing():
         assert populations_of(program) == frozenset(
             _domains_the_program_declares(pair["result"], context)), name
         same += 1
-    assert same == 252, same
+    assert same == 251, same
 
 
 def test_every_forged_place_is_refused():
@@ -221,9 +221,9 @@ def test_the_two_sentences_are_told_apart_in_the_message():
 def test_a_program_that_names_no_place_is_not_asked_for_a_roster():
     """The limit, exercised rather than described.
 
-    241 of the 252 stored answers come from a program that declares no
+    240 of the 251 stored answers come from a program that declares no
     population at all -- no selection node, no transported question --
-    and 48 of those carry this block. A row there could name a place and
+    and 47 of those carry this block. A row there could name a place and
     this rule says nothing, because the only list it could check against
     would be the rows themselves, and a list judged against itself agrees
     with itself.
@@ -234,8 +234,8 @@ def test_a_program_that_names_no_place_is_not_asked_for_a_roster():
     silent = [n for n, pair in SHAPES.items()
               if not populations_of(_premises_of(pair["program"],
                                                  pair["result"])[1])]
-    assert len(silent) == 241, len(silent)
-    assert len([n for n in silent if n in CARRIERS]) == 48
+    assert len(silent) == 240, len(silent)
+    assert len([n for n in silent if n in CARRIERS]) == 47
 
     name = "needs_investigation:counterfactual:none"
     assert name in silent, sorted(silent)[:5]

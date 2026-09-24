@@ -16,11 +16,12 @@ welded to the site. A slot whose text IS the language is what
 a Chinese sentence puts an English phrase in it, which is why the half is
 :class:`Half` below rather than a string the site passes.
 
-**Three species, two classes, and that is not a mismatch.** A caller
+**Four species, two classes, and that is not a mismatch.** A caller
 catches the CHANNEL and reads the SPECIES off the exception, which are
 different questions: ``ConflictingThetaEntry`` is one channel and carries
-two species — two statements that disagree about one key, and a group
-whose supplied mass leaves no room for the complement. Both are "your
+three species — two statements that disagree about one key, a
+distribution supplied in full that does not sum to one, and one supplied
+in part whose mass leaves no room for the rest. All three are "your
 numbers cannot all be true at once"; only one of them is a duplicate.
 Keying the vocabulary on the catch channel would have made those one
 sentence with a hole for which kind of contradiction, which is a hole no
@@ -77,11 +78,25 @@ class Refuses(language.Word, vocabulary="theta_refusal",
             "en": "two probability statements give the same key {key} two "
                   "different values ({first} and {second})",
         })
+    #: The distribution is named with its condition, because the
+    #: condition is where a reader goes to fix it: ``P(y=*|x=True)`` and
+    #: ``P(y=*|x=False)`` are two distributions of the same variable, and
+    #: a sentence that said ``P(y=*|...)`` left the reader to find which.
+    A_FULL_DISTRIBUTION_DOES_NOT_SUM_TO_ONE = (
+        "a_full_distribution_does_not_sum_to_one", {
+            "zh": "{distribution} 的每个取值都给了，加起来却是 {total}；同一个"
+                  "条件下，一个变量各取值的概率之和必须是 1，所以这几个数不可能"
+                  "同时成立",
+            "en": "every value of {distribution} is supplied and they sum to "
+                  "{total}; under one condition the probabilities of a "
+                  "variable's values sum to 1, so these numbers cannot all "
+                  "be true at once",
+        })
     THE_SUPPLIED_MASS_LEAVES_NO_COMPLEMENT = (
         "the_supplied_mass_leaves_no_complement", {
-            "zh": "给出的 P({predicate}=*|...) 加起来是 {total}，落在 [0, 1] 之外；"
-                  "那样推出来的 P({predicate}={missing}|...) 不会是一个概率",
-            "en": "the supplied P({predicate}=*|...) sum to {total}, which is "
-                  "outside [0, 1]; the P({predicate}={missing}|...) implied by "
-                  "that would not be a probability",
+            "zh": "{distribution} 给出的取值加起来是 {total}，落在 [0, 1] 之外；"
+                  "没给的 {missing} 就分不到一个概率",
+            "en": "the values of {distribution} that were supplied sum to "
+                  "{total}, which is outside [0, 1], and leaves no "
+                  "probability for {missing}",
         })

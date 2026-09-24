@@ -118,8 +118,10 @@ RULE_VERDICT = "answer_status_verdict_check"
 #: began answering a query conditioning on a descendant of the treatment,
 #: less the refusal they replaced, made it 1500 and 124. Each of the five
 #: new survivors relabels an identification as needing investigation, as
-#: 19 already did.
-SWAPS = 1512
+#: 19 already did. The row whose instrument strata were weighted by a P(w)
+#: summing to 0.9 took its six when theta began refusing that distribution
+#: where it is built.
+SWAPS = 1506
 SURVIVING = 0
 
 #: The questions with one world and one road, whose answers say the
@@ -366,7 +368,7 @@ def test_what_the_question_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (816, 696), (refused, passed)
+    assert (refused, passed) == (813, 693), (refused, passed)
 
 
 def test_what_this_rule_reaches_on_its_own():
@@ -381,7 +383,7 @@ def test_what_this_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (1125, 387), (refused, passed)
+    assert (refused, passed) == (1121, 385), (refused, passed)
 
 
 def test_what_the_verdict_rule_reaches_on_its_own():
@@ -396,7 +398,7 @@ def test_what_the_verdict_rule_reaches_on_its_own():
             refused += 1
         else:
             passed += 1
-    assert (refused, passed) == (240, 1272), (refused, passed)
+    assert (refused, passed) == (240, 1266), (refused, passed)
 
 
 @pytest.mark.parametrize("status,rung", [
@@ -595,7 +597,7 @@ def test_the_rule_says_nothing_where_no_verdict_is_written(verdict):
 #: second is the one a reading of the KEY could not see: an answer whose
 #: whole quantity is the interval on its headline result, sitting in a
 #: field whose other slot is where a point would have gone.
-ANSWERS_HOLDING_ONLY_A_RANGE = 42
+ANSWERS_HOLDING_ONLY_A_RANGE = 41
 ANSWERS_WHOSE_RANGE_IS_THE_HEADLINE = 3
 ANSWERS_SAYING_THE_RUN_GOT_THERE = 141
 

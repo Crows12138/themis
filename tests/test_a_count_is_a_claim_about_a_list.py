@@ -93,12 +93,12 @@ def test_the_counts_this_file_is_about():
         by_sentence[sentence] = by_sentence.get(sentence, 0) + 1
     assert by_sentence == {
         "declared_binary_but_the_column_has_more_levels": 31,
-        "several_intervals_bound_the_same_quantity": 12,
+        "several_intervals_bound_the_same_quantity": 11,
         "declared_discrete_but_the_values_form_a_continuum": 3,
         "iv_monotonicity_undeclared": 2,
         "declared_continuous_but_the_column_is_discrete": 2,
     }
-    assert len(OURS) == 14
+    assert len(OURS) == 13
 
 
 def test_a_count_is_still_not_a_name():

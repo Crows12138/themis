@@ -39,7 +39,7 @@ SHAPES = json.loads(
 #: Answers whose gap report shows a reason for a gap that cites an ask.
 #: Pinned because a rule's reach is the point: silence is what it looked
 #: like before, and silence is what a rule that stops reaching looks like.
-ANSWERS_EXERCISING_THIS = 36
+ANSWERS_EXERCISING_THIS = 35
 
 #: Of those, the ones whose reason has holes to move. A reason with none
 #: is held by its word alone, and the forgery below has nothing to do on

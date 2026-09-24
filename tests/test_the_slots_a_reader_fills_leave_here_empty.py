@@ -292,6 +292,6 @@ def test_a_variable_patch_is_not_asked_these_questions():
                for item in request.get("items") or ()
                if isinstance(skeleton := item.get("skeleton"), dict)
                and skeleton.get("kind") == "variable_patch"]
-    assert len(patches) == 313
+    assert len(patches) == 311
     assert not any("annotations" in patch or "value" in patch
                    for patch in patches)

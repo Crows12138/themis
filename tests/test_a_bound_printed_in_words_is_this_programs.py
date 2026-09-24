@@ -122,9 +122,9 @@ def test_the_corpus_carries_what_this_file_is_about():
         for row in pair["result"].get("bounds_results") or ():
             counts[row.get("method")] = counts.get(row.get("method"), 0) + 1
     assert counts == {
-        "manski_natural": 83,
+        "manski_natural": 82,
         METHOD: 9,
-        "manski_tamer_monotonicity": 6,
+        "manski_tamer_monotonicity": 5,
     }
     assert len(ROWS) == 9
     assert len(CARRYING) == 9

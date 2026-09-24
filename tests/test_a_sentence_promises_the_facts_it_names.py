@@ -100,20 +100,24 @@ SHAPES = json.loads(
 #: too few rows to answer it on: each of its five gaps is stated as a kind
 #: and describes one thing, two of them offer seven ways past between them,
 #: its three investigation items say what they ask for, and the refusal
-#: says itself.
-REACHED = 5354
+#: says itself. 41 went with the row whose instrument strata were weighted
+#: by a P(w) summing to 0.9, which theta now refuses where it is built.
+REACHED = 5313
 PER_CARRIER = {
-    "gap_routes": 1225,
+    "gap_routes": 1216,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
     # entry across six rows. Four carriers of the same eight gaps is what
     # a per-carrier pin is for — a narrowing shows up as one of them
     # falling while the others hold. They moved by one each again with the
-    # joint general-ID refresh.
-    "gap_describes": 1217,
-    "gap_if_provided": 1043,
-    "gap_says": 744,
+    # joint general-ID refresh. These three fell by ten, six and ten, and
+    # the routes above by nine, when the row whose instrument strata were
+    # weighted by a P(w) summing to 0.9 went, now that theta refuses that
+    # distribution where it is built.
+    "gap_describes": 1207,
+    "gap_if_provided": 1037,
+    "gap_says": 734,
     "assumption_claim": 514,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
@@ -758,11 +762,11 @@ def test_no_carrier_site_spells_a_word_a_record_decides():
 def test_every_sentence_that_repeats_the_question_repeats_it():
     """The standing statement, and the population it is about.
 
-    Thirteen answers are for a question that spells the direction; ten
+    Twelve answers are for a question that spells the direction; nine
     sentences on those envelopes repeat it, in four blocks that are not a
     list anyone chose — a ledger claim, what an IV answer says it rests
     on, the gap that tells a reader so, and the note beside the bound the
-    assumption tightened. Every one of the ten says what the question
+    assumption tightened. Every one of the nine says what the question
     said.
     """
     sets = _sets_a_question_spells()
@@ -783,7 +787,7 @@ def test_every_sentence_that_repeats_the_question_repeats_it():
             where.add(".".join(k for k in path if not isinstance(k, int)))
             agreeing += str(statement["token"]) == spelt[
                 statement["vocabulary"]]
-    assert (asking, sites, agreeing) == (13, 10, 10)
+    assert (asking, sites, agreeing) == (12, 9, 9)
     assert where == {
         "bounds_results.[].notes.[].words.direction",
         "data_gap_report.gaps.[].describes.[].words.assumption.words.direction",
@@ -793,7 +797,7 @@ def test_every_sentence_that_repeats_the_question_repeats_it():
 
 
 def test_a_sentence_naming_a_direction_the_question_did_not_is_refused():
-    """The forgery, at every one of the ten.
+    """The forgery, at every one of the nine.
 
     Which way the assumption runs decides which side of the interval
     tightens, so the other word hands a reader the opposite conclusion in
@@ -825,7 +829,7 @@ def test_a_sentence_naming_a_direction_the_question_did_not_is_refused():
                 except VerificationError:
                     mine += 1
     assert survived == 0
-    assert mine == refused == planted == 10
+    assert mine == refused == planted == 9
 
 
 def test_a_question_that_spells_nothing_leaves_the_sentence_alone():

@@ -69,7 +69,7 @@ def _verify_with(name, mutate, method=None):
 
 
 def test_a_bound_is_carried_by_half_the_answers():
-    assert len(CARRIERS) == 83
+    assert len(CARRIERS) == 82
     methods = {r.get("method") for n in CARRIERS
                for r in SHAPES[n]["result"]["bounds_results"]}
     assert methods == {"manski_natural", "balke_pearl_iv",

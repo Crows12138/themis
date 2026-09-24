@@ -137,14 +137,17 @@ def test_the_facts_this_rule_speaks_for():
     # back to, offered by name on its own way past. The roster was one rule over, as
     # the set of kinds that have one, which is what the tier rule asks and a column
     # short of the word.
+    # 4 fewer intervention, 2 fewer method and 1 fewer each of assumptions, methods and
+    # count: the row whose instrument strata were weighted by a P(w) summing to 0.9, which
+    # theta now refuses where it is built.
     assert split == {
-        "assumptions": 38, "method": 63, "what": 113,
-        "methods": 73, "population": 16, "source": 10,
-        "kind": 11, "target": 39, "count": 14,
-        "intervention": 592, "treatment": 21, "outcome": 18,
+        "assumptions": 37, "method": 61, "what": 113,
+        "methods": 72, "population": 16, "source": 10,
+        "kind": 11, "target": 39, "count": 13,
+        "intervention": 588, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3, "fallback": 12,
     }, split
-    assert len(SITES) == 1032, len(SITES)
+    assert len(SITES) == 1023, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -163,7 +166,7 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 1032, refused
+    assert refused == 1023, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -188,7 +191,9 @@ def test_a_listed_slot_is_refused_one_member_at_a_time():
     # 2 more: the row brought when a decomposition asked within a stratum was evaluated
     # within it lists the assumptions of both its branches, the natural effects' and the
     # controlled one's.
-    assert checked == 111, checked
+    # 2 fewer: the row whose instrument strata were weighted by a P(w) summing to 0.9,
+    # which theta now refuses where it is built.
+    assert checked == 109, checked
 
 
 def test_the_rule_is_never_asked_without_a_record_to_appeal_to():
@@ -763,7 +768,7 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 1032 * 6, refused
+    assert refused == 1023 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

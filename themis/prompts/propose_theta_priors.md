@@ -50,9 +50,9 @@ Rules that actually matter:
 - `value` is a probability in `[0, 1]`. It is `P(target=<its value> |
   given)` exactly as enumerated — respect the truth-value each row asks
   for (a row for `P(X=false)` wants the complement).
-- Marginals of the same variable that partition the outcome should cohere
-  (e.g. `P(H=true)` and `P(H=false)` sum to 1). Conditionals across
-  different `given` strata need not.
+- Rows for the values of one variable under the same `given` are one
+  distribution and must sum to 1 — the kernel refuses them otherwise.
+  Rows under different `given` are different distributions and need not.
 - `reason` is one sentence a layperson can weigh — the ground for the
   number, not a restatement of it.
 

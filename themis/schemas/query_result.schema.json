@@ -3404,7 +3404,6 @@
         "interventional_risk_needs_distributions",
         "interventional_risk_unavailable_for_cell",
         "interventional_risks_contradict_the_joint",
-        "iv_stratum_weights_not_normalized",
         "iv_first_stage_degenerate",
         "iv_monotonicity_undeclared",
         "theta_entry_missing",

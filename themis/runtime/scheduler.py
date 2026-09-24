@@ -4123,7 +4123,7 @@ def _carried_as_it_stands(
 #: Two domains transporting the same effect are two estimands of one
 #: quantity, and theta is DECLARED rather than estimated — so a gap wider
 #: than floating point is the supplied numbers contradicting each other,
-#: the same standard ``_IV_WEIGHT_TOL`` holds a declared distribution to.
+#: the same standard ``theta_builder`` holds a declared distribution to.
 _TRANSPORT_AGREEMENT_TOL = 1e-9
 
 
@@ -4165,11 +4165,6 @@ class _Attempt(NamedTuple):
 
     result: "QueryResult | None" = None
     missing: tuple[MissingItem, ...] = ()
-
-
-# Stratum weights are a distribution; drift past this is the user's
-# theta disagreeing with itself, not floating-point noise.
-_IV_WEIGHT_TOL = 1e-9
 
 
 def _iv_stratum_table(
@@ -4293,17 +4288,10 @@ def _iv_stratum_table(
                 "p_x_given_z_control": cell["p_x_given_z_control"],
             }
         )
+    # The weights are a product of distributions over W, each of which
+    # theta was held to sum to one when it was built, so they sum to one
+    # here without being asked again.
     strata_t = tuple(strata)
-
-    total_weight = sum(c["weight"] for c in strata_t)
-    if abs(total_weight - 1.0) > _IV_WEIGHT_TOL:
-        return None, (
-            gaps.missing(
-                kind=MissingKind.ASSUMPTION,
-                need=gaps.Need.IV_STRATUM_WEIGHTS_NOT_NORMALIZED,
-                total=total_weight,
-            ),
-        )
 
     outcome_shift = sum(
         c["weight"] * (c["p_y_given_z_treated"] - c["p_y_given_z_control"])

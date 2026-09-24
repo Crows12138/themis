@@ -2391,10 +2391,6 @@ export const GAP_SAYS: Record<string, Words> = {
     zh: '有 {count} 个有效工具能到达这个效应——{candidate}——但光有工具并不能定下用哪个估计量。声明 assumptions.monotonicity 可以得到顺从者中的 Wald LATE；内核不会替你在 Wald、2SLS 和界之间做选择',
     en: '{count} valid instrument(s) reach this effect — {candidate} — but having an instrument does not settle which estimator to use. Declaring assumptions.monotonicity buys the Wald LATE among compliers; the kernel will not choose between Wald, 2SLS and bounds on your behalf',
   },
-  iv_stratum_weights_not_normalized: {
-    zh: '给出的工具条件分层概率之和是 {total}，不是 1。LATE 比值对尺度不敏感，数照样算得出来，但报告里的处理变动是一个「顺从者占比」，对着一组根本不成其为分布的权重毫无意义',
-    en: 'the instrument\'s conditional stratum probabilities sum to {total}, not 1. The LATE ratio is scale-free so a number still comes out, but the treatment shift the report gives is a complier share, and that is meaningless against weights that are not a distribution',
-  },
   iv_wald_late_needs_entry: {
     zh: '工具变量 Wald LATE 需要它（工具 {instrument}）',
     en: 'the instrumental-variable Wald LATE needs it (instrument {instrument})',
