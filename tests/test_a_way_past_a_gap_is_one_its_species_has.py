@@ -229,7 +229,10 @@ def test_no_answer_this_repository_produces_offers_a_stray_way_past():
                     gap["kind"],
                     blocking=gap.get("severity") == "blocking")}
                 assert set(offered) <= allowed, (name, gap["kind"])
-    assert (slots, gap_total, len(species)) == (1216, 433, 29)
+    # 12 fewer slots and 12 fewer gaps: those of the gaps that went when the
+    # last value of a variable under one condition stopped being asked for
+    # (#776) which offered a way past.
+    assert (slots, gap_total, len(species)) == (1204, 421, 29)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

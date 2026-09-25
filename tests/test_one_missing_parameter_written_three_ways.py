@@ -76,8 +76,8 @@ def test_the_block_and_the_part_of_it_this_rule_reaches():
     """
     assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"]) for n in CARRIERS)
-    assert rows == 147, rows
-    assert len(WITH_KEY) == 106, len(WITH_KEY)
+    assert rows == 121, rows
+    assert len(WITH_KEY) == 80, len(WITH_KEY)
 
 
 @pytest.mark.parametrize("name", CARRIERS)
@@ -105,7 +105,7 @@ def test_the_reading_of_a_key_is_the_one_the_corpus_shows():
         assert set(shown) == set(_NAMES_IN_A_KEY.findall(row["said"]["key"])), (
             name, row["said"]["key"], shown)
         checked += 1
-    assert checked == 106, checked
+    assert checked == 80, checked
 
 
 def test_every_single_field_edit_of_the_three_is_refused():
@@ -136,7 +136,7 @@ def test_every_single_field_edit_of_the_three_is_refused():
             with pytest.raises(VerificationError):
                 the_door_for(row["result"])(row["program"], forged)
             refused += 1
-    assert refused == 318, refused
+    assert refused == 240, refused
 
 
 def test_the_three_lies_are_told_apart_in_the_message():
@@ -163,7 +163,7 @@ def test_the_three_lies_are_told_apart_in_the_message():
 def test_a_row_with_no_key_is_not_asked_to_agree_with_one():
     """The limit, exercised rather than described.
 
-    41 of the 147 rows name something that is not a parameter — a query
+    41 of the 121 rows name something that is not a parameter — a query
     that cannot be identified, an assumption nobody declared — and carry
     no key. They are not rows that disagree with themselves, and a rule
     demanding a key would refuse them for what they honestly are.

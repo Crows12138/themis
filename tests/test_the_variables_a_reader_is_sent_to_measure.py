@@ -61,7 +61,7 @@ TARGETS = sorted(
 def test_the_items_that_send_a_reader_to_measure_something():
     """The denominator, and the two skeleton kinds told apart.
 
-    311 of the 422 skeletons are variable patches, which name a predicate
+    311 of the 396 skeletons are variable patches, which name a predicate
     and no arguments — their whole purpose is to introduce a variable the
     problem does NOT have, so this rule is silent for them by construction
     rather than by exception.
@@ -78,6 +78,8 @@ def test_the_items_that_send_a_reader_to_measure_something():
     already has. The row whose instrument strata were weighted by a P(w)
     summing to 0.9 went when theta began refusing that distribution where
     it is built, and took two patches and nothing this rule speaks for.
+    When the last value of a variable under one condition stopped being
+    asked for (#776), 26 skeletons this rule speaks for went and no patches.
     """
     skeletons = [
         item["skeleton"]
@@ -86,12 +88,12 @@ def test_the_items_that_send_a_reader_to_measure_something():
         for item in req.get("items") or []
         if isinstance(item.get("skeleton"), dict) and item["skeleton"]
     ]
-    assert len(skeletons) == 422, len(skeletons)
+    assert len(skeletons) == 396, len(skeletons)
     kinds = {}
     for sk in skeletons:
         kinds[sk.get("kind")] = kinds.get(sk.get("kind"), 0) + 1
-    assert kinds == {"variable_patch": 311, "probability": 111}, kinds
-    assert len(TARGETS) == 111, len(TARGETS)
+    assert kinds == {"variable_patch": 311, "probability": 85}, kinds
+    assert len(TARGETS) == 85, len(TARGETS)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _ in TARGETS}))
@@ -111,7 +113,7 @@ def test_every_moved_unit_is_refused():
         with pytest.raises(Exception, match="no such variable"):  # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 111, refused
+    assert refused == 85, refused
 
 
 def test_the_given_side_is_held_too():

@@ -83,7 +83,7 @@ def _places_of(name: str) -> frozenset[str]:
 def test_the_block_and_the_part_of_it_this_rule_reaches():
     """The denominator and the honest limit, both as numbers.
 
-    Six rows of 147 name a place. A rule that is silent on the rest is
+    Six rows of 121 name a place. A rule that is silent on the rest is
     right to be -- a row short of a whole query names nothing to go and
     collect -- but the difference between the two counts is the only
     place that is visible, so it is written down.
@@ -91,7 +91,7 @@ def test_the_block_and_the_part_of_it_this_rule_reaches():
     assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"])
                for n in CARRIERS)
-    assert rows == 147, rows
+    assert rows == 121, rows
     assert len(WITH_PLACE) == 6, len(WITH_PLACE)
     assert len(ANSWERS) == 5, ANSWERS
 

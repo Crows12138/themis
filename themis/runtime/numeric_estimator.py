@@ -6,8 +6,9 @@ Wiring (v0.1, after slice 6):
   plus per-atom value domains. The domains are populated by
   ``theta_builder`` from every literal value observed in the program's
   ``ValuedAtom`` positions (probability target / given, observation
-  value); atoms that never appear in such positions fall back to the
-  boolean default.
+  value); an atom that never appears in such a position takes its
+  variable's declared values, and the boolean default only when there is
+  no declaration.
 - ``estimate_formula`` recursively evaluates ``constant`` /
   ``probability_ref`` / ``product`` / ``sum`` nodes, substituting
   ``VarRef`` names bound by enclosing sums.
@@ -92,19 +93,32 @@ class Theta:
     """Model parameter store.
 
     entries: maps canonical ProbabilityKey to a conditional probability.
-    domains: per-atom allowed values; defaults to boolean when absent.
+    domains: per-atom allowed values, for the atoms the data mentions.
+    declared: each declared variable's values, by predicate.
     """
 
     entries: dict[ProbabilityKey, float] = field(default_factory=dict)
     domains: dict[Atom, tuple[AtomValue, ...]] = field(default_factory=dict)
+    declared: dict[str, tuple[AtomValue, ...]] = field(default_factory=dict)
 
     def get(self, key: ProbabilityKey) -> float | None:
         return self.entries.get(key)
 
     def domain_of(self, atom: Atom) -> tuple[AtomValue, ...]:
-        """Return the declared value domain for ``atom``, defaulting to
-        boolean when undeclared."""
-        return self.domains.get(atom, (True, False))
+        """The values ``atom`` takes: as the data met them, else as its
+        variable is declared, else boolean.
+
+        ``domains`` holds only the atoms some probability or observation
+        statement mentions, so this used to answer boolean for a variable
+        the program declares and supplies nothing about. A confounder
+        declared low/mid/high was then asked for at True and at False —
+        values it does not take — and the verifier refused the kernel's
+        own ask.
+        """
+        found = self.domains.get(atom)
+        if found is not None:
+            return found
+        return self.declared.get(atom.predicate, (True, False))
 
 
 def format_probability_key(key: ProbabilityKey) -> str:

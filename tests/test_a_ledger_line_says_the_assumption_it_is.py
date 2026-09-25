@@ -102,7 +102,10 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
     not this rule reaching further.
 
     The equal ones went up by one the same way, when the joint general-ID
-    answer was refreshed from a run whose ledger declares its bootstrap.
+    answer was refreshed from a run whose ledger declares its bootstrap, and
+    by one more when the mediation answer whose mediator is declared
+    {0.0, 1.0} was written back from its test (#776): its ledger declares
+    the percentile bootstrap its stored copy had fallen behind on.
     """
     equal = prefix = values = no_id = 0
     for pair in SHAPES.values():
@@ -120,7 +123,7 @@ def test_the_two_copies_agree_on_every_answer_this_repository_produces():
                 for value in (one.get("said") or {}).values():
                     assert str(value) in left_over, (ident, value)
                     values += 1
-    assert (equal, prefix, values, no_id) == (454, 60, 62, 24), (
+    assert (equal, prefix, values, no_id) == (455, 60, 62, 24), (
         equal, prefix, values, no_id)
 
 

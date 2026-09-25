@@ -568,6 +568,10 @@ def test_the_remainder_is_counted_rather_than_described():
     P(w) summing to 0.9 went: theta refuses that distribution now where it
     is built, so the program has no answer to store. The accepted did not
     move.
+
+    And 76 fewer when the last value of a variable under one condition
+    stopped being asked for (#776): the gaps that asked for it went, and
+    what they said with them. The accepted did not move.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -582,7 +586,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2421, 13), (refused, accepted)
+    assert (refused, accepted) == (2345, 13), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -615,7 +619,9 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
     # 106 more leaves and 42 more name leaves: three answers with no chain were collected when
     # the identifier began answering a query conditioning on a descendant of the treatment,
     # and the stored refusal they replaced went.
-    assert len(leaves) == 1096, len(leaves)
+    # 76 fewer leaves: the gaps that went when the last value of a variable
+    # under one condition stopped being asked for (#776).
+    assert len(leaves) == 1020, len(leaves)
     assert sum(len(_name_leaves(SHAPES[name]["result"]))
                for name in chainless) == 512, len(leaves)
     # The three with no name claim in them have nothing here to ask, which

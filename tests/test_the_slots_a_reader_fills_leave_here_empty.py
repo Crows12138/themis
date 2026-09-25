@@ -90,7 +90,7 @@ def _forge(name, bend):
 def test_the_corpus_is_the_size_it_was_measured_at():
     assert len(CARRYING) == 30
     assert sum(1 for name in CARRYING
-               for _ in _skeletons(SHAPES[name]["result"])) == 111
+               for _ in _skeletons(SHAPES[name]["result"])) == 85
 
 
 def test_the_census_no_longer_names_this_leaf_anywhere():

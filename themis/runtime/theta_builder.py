@@ -17,7 +17,9 @@ v0.1 semantics:
   ``P(X=false)=0.57`` previously broke marginalization, because the
   numeric evaluator iterates the full declared domain. The rule is
   the probability axiom — no inference, no heuristic — so the
-  completion is safe to apply unconditionally.
+  completion is safe to apply unconditionally. What a reader is asked
+  for is the other half of the same rule (:func:`fewest_to_ask`): all but
+  one of a group that lacks every value, never all of them.
 - **The axiom is held for every group**, completed or not: a group that
   names every value of its domain must sum to one, and a group that
   leaves values out must leave them room. Either failure is rejected
@@ -25,12 +27,15 @@ v0.1 semantics:
 - Value domains ARE inferred from probability + observation
   statements (every value seen in a ``ValuedAtom``). The declared
   domain on ``VariableDeclaration`` takes precedence when present.
-  Atoms with no information fall back to ``Theta``'s boolean default.
+  An atom no statement mentions takes its variable's declared domain,
+  and ``Theta``'s boolean default only when there is no declaration.
 
 Duplicate keys (two statements about the same key with different
 values) are an error.
 """
 from __future__ import annotations
+
+from collections.abc import Iterable
 
 from ..types import (
     Atom,
@@ -176,7 +181,63 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     # (Q8706 marginal).
     entries = _complete_partial_distributions(entries, final_domains)
 
-    return Theta(entries=entries, domains=final_domains)
+    return Theta(entries=entries, domains=final_domains,
+                 declared=declared_domains)
+
+
+def fewest_to_ask(
+    keys: Iterable[ProbabilityKey],
+    theta: Theta,
+    *,
+    keep: Iterable[ProbabilityKey] = (),
+) -> tuple[ProbabilityKey, ...]:
+    """The fewest of ``keys`` a reader must supply for every one to resolve.
+
+    The other half of :func:`_complete_partial_distributions`. Completion
+    reads one variable's values under one condition in one population as a
+    group with one degree of freedom fewer than it has values: supply all
+    but one and the last is one minus their sum. The callers that collect
+    what an evaluation could not resolve collect it a cell at a time, so
+    where a group lacks every value it has not been given they list one
+    value more than anybody has to supply. A reader following the list then
+    writes two numbers where one decides both — the input #771 has to catch
+    when the two do not sum to one.
+
+    So, per group: where the cells collected are every value the group
+    still lacks, the last of them in the variable's order is left out, it
+    being the one completion supplies. A group only part of which was
+    collected keeps all of it; supplying exactly those is already the
+    least, since completing any of them would take every other value.
+
+    ``keep`` names cells a caller has more to say about than that they are
+    missing — the cell whose lookup raised, with a diagnosis of its own —
+    and the cell left out is then another one. Order and first occurrence
+    are kept; repeats are dropped.
+    """
+    ordered = list(dict.fromkeys(keys))
+    kept = frozenset(keep)
+    supplied: dict[tuple, set] = {}
+    for key in theta.entries:
+        supplied.setdefault(
+            (key.target_atom, key.given, key.population), set(),
+        ).add(key.target_value)
+    groups: dict[tuple, list[ProbabilityKey]] = {}
+    for key in ordered:
+        groups.setdefault(
+            (key.target_atom, key.given, key.population), [],
+        ).append(key)
+    left_out: set[ProbabilityKey] = set()
+    for group, members in groups.items():
+        domain = theta.domain_of(group[0])
+        lacking = [v for v in domain if v not in supplied.get(group, ())]
+        if not lacking or {k.target_value for k in members} != set(lacking):
+            continue
+        droppable = [k for k in members if k not in kept]
+        if not droppable:
+            continue
+        place = {value: i for i, value in enumerate(domain)}
+        left_out.add(max(droppable, key=lambda k: place[k.target_value]))
+    return tuple(k for k in ordered if k not in left_out)
 
 
 def _complete_partial_distributions(

@@ -201,8 +201,11 @@ def test_a_population_this_program_does_not_declare_is_refused():
 # ----------------------------------------------- the rosters, each measured
 
 
+# methods went from 72 to 63 when the last value of a variable under one
+# condition stopped being asked for (#776): nine of the gaps that went offered
+# the interval with the methods in hand.
 @pytest.mark.parametrize("key,count", [
-    ("methods", 72), ("population", 16), ("source", 10),
+    ("methods", 63), ("population", 16), ("source", 10),
     ("kind", 11), ("target", 39),
 ])
 def test_each_new_roster_speaks_for_the_sites_it_claims(key, count):

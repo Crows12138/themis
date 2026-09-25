@@ -340,8 +340,9 @@ def test_a_theta_short_of_the_joint_reaches_both_doors_with_names() -> None:
     """The property the refusal above exists to protect, on the live producer.
 
     Same graph, same query, a theta holding P(X) and no P(Y|X): the
-    honest report is needs_investigation naming the four conditionals
-    nobody supplied. Both doors are asked because they are two routes
+    honest report is needs_investigation naming the conditionals nobody
+    supplied, one value of Y under each value of X since the other value
+    is what is left of it. Both doors are asked because they are two routes
     onto one quantity, and the counterfactual cell being one of the
     causation door's cells is exactly why a shortfall that reaches one of
     them anonymously would reach the other one anonymously too.
@@ -391,8 +392,6 @@ def test_a_theta_short_of_the_joint_reaches_both_doors_with_names() -> None:
         assert result["status"] == "needs_investigation", door
         named = {m["name"] for m in result["missing_information"]}
         assert {
-            "parameter:P(y=False|x=False)",
-            "parameter:P(y=False|x=True)",
             "parameter:P(y=True|x=False)",
             "parameter:P(y=True|x=True)",
         } <= named, (door, sorted(named))

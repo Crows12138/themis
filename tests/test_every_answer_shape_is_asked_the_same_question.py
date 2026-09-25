@@ -853,8 +853,11 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
             owner = language.VOCABULARIES[statement["vocabulary"]]
             assert set(domain) == {str(m) for m in owner}, shape
     # 2498 since #774: what a gap buys back became a word in its sentence,
-    # two halves on each of 133 gaps.
-    assert asked == 2498, asked
+    # two halves on each of 133 gaps. 2396 since #776: 26 of those gaps
+    # were the last value of a variable under one condition and are no
+    # longer asked for, and one mediation answer written back from its
+    # test carries an assumption its stored copy had fallen behind on.
+    assert asked == 2396, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -2536,8 +2539,10 @@ def test_the_part_of_held_that_was_measured_by_sample_is_counted():
     sampled = _the_vocabularies_only_sampled()
     # 2003 since #774: the set half of the word a gap's sentence reads is
     # asked by sample, since its domain is every set, once on each of the
-    # 45 rows that carry one.
-    assert sum(sampled.values()) == 2003, sum(sampled.values())
+    # 45 rows that carry one. 2005 since #776: the mediation answer written
+    # back from its test carries one more assumption, and two of the leaves
+    # that brings are asked by sample.
+    assert sum(sampled.values()) == 2005, sum(sampled.values())
     # 110 since #774: that set half is one shape, and a gap lowered to an
     # interval is a record of another sort, so the two halves of the word
     # its statement carries became two shapes of their own.
@@ -2707,6 +2712,12 @@ def test_the_sweep_asks_about_the_whole_envelope():
     Then 33883: what a gap buys back became a word in the sentence that
     says so (#774), and each of the 45 rows carrying such a gap asks the
     word's two halves -- 90 questions.
+
+    Then 33890, by a refresh: the mediation answer whose mediator is
+    declared {0.0, 1.0} was written back from its test (#776) and carries
+    the percentile-bootstrap premise its stored copy had fallen behind on,
+    7 questions. The 26 asks the same change stopped making took none with
+    them: each was of a sort its row still carries.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -2716,7 +2727,7 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33883, asked_total
+    assert asked_total == 33890, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

@@ -102,9 +102,13 @@ def _domain(name, ri, ii, which, gi):
 
 
 def test_the_places_a_reader_is_asked_for_a_value():
-    """The denominator, and the split that says where each rule speaks."""
-    assert len(SITES) == 263, len(SITES)
-    assert len(SKELETONS) == 111, len(SKELETONS)
+    """The denominator, and the split that says where each rule speaks.
+
+    42 sites and 26 skeletons fewer when the last value of a variable under
+    one condition stopped being asked for (#776): 27 of those sites had a
+    domain to be held to and 15 had none."""
+    assert len(SITES) == 221, len(SITES)
+    assert len(SKELETONS) == 85, len(SKELETONS)
 
     walked = sum(
         len(_valued_atoms_of(item["skeleton"], []))
@@ -118,7 +122,7 @@ def test_the_places_a_reader_is_asked_for_a_value():
     for name, ri, ii, which, gi in SITES:
         domain = _domain(name, ri, ii, which, gi)
         split["a domain to be held to" if domain else "no domain"] += 1
-    assert split == {"a domain to be held to": 213, "no domain": 50}, split
+    assert split == {"a domain to be held to": 186, "no domain": 35}, split
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _, _ in SITES}))
@@ -128,7 +132,7 @@ def test_an_honest_ask_is_accepted(name):
 
 
 def test_every_value_a_variable_cannot_take_is_refused():
-    """The teeth, counted rather than sampled, over all 263 sites."""
+    """The teeth, counted rather than sampled, over all 221 sites."""
     refused = 0
     for name, ri, ii, which, gi in SITES:
         row = SHAPES[name]
@@ -138,7 +142,7 @@ def test_every_value_a_variable_cannot_take_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 263, refused
+    assert refused == 221, refused
 
 
 def _rewrite_every_rendering(node, was: str, now: str) -> None:
@@ -215,7 +219,7 @@ def test_the_domain_is_what_speaks_when_both_renderings_move_together():
         with pytest.raises(Exception, match="to take one of"):   # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 91, refused
+    assert refused == 72, refused
 
 
 def test_where_no_domain_is_declared_that_rule_says_nothing():
@@ -225,7 +229,7 @@ def test_where_no_domain_is_declared_that_rule_says_nothing():
     speak for it and a silent rule would look held.
     """
     silent = [site for site in SITES if not _domain(*site)]
-    assert len(silent) == 50, len(silent)
+    assert len(silent) == 35, len(silent)
     name, ri, ii, which, gi = silent[0]
     skeleton = copy.deepcopy(
         SHAPES[name]["result"]["investigation_requests"][ri]["items"][ii]
@@ -303,7 +307,7 @@ def test_a_target_swapped_with_its_own_condition_is_refused():
         with pytest.raises(Exception, match="is a stub for"):    # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 86, refused
+    assert refused == 72, refused
 
 
 def test_dropping_a_condition_is_refused():
@@ -320,7 +324,7 @@ def test_dropping_a_condition_is_refused():
         with pytest.raises(Exception, match="conditions on"):    # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 86, refused
+    assert refused == 72, refused
 
 
 def test_the_conditions_written_in_another_order_are_the_same_ask():
@@ -341,7 +345,7 @@ def test_the_conditions_written_in_another_order_are_the_same_ask():
             "given"].reverse()
         the_door_for(row["result"])(row["program"], forged)
         checked += 1
-    assert checked == 50, checked
+    assert checked == 48, checked
 
 
 def test_a_name_that_spells_no_parameter_is_refused():

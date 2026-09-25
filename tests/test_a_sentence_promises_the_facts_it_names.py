@@ -104,10 +104,14 @@ SHAPES = json.loads(
 #: by a P(w) summing to 0.9, which theta now refuses where it is built.
 #: 133 came when what a gap buys back became a word in the sentence that
 #: says so (#774): one on each gap, on every row, of the five species whose
-#: sentence names it.
-REACHED = 5446
+#: sentence names it. 1 came with the mediation answer written back from its
+#: test (#776), whose ledger declares the percentile bootstrap its stored
+#: copy had fallen behind on. 168 went when the last value of a variable
+#: under one condition stopped being asked for, with the gaps, items and rows
+#: that asked for it.
+REACHED = 5279
 PER_CARRIER = {
-    "gap_routes": 1216,
+    "gap_routes": 1204,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
@@ -117,11 +121,14 @@ PER_CARRIER = {
     # joint general-ID refresh. These three fell by ten, six and ten, and
     # the routes above by nine, when the row whose instrument strata were
     # weighted by a P(w) summing to 0.9 went, now that theta refuses that
-    # distribution where it is built.
-    "gap_describes": 1207,
-    "gap_if_provided": 1037,
-    "gap_says": 734,
-    "assumption_claim": 514,
+    # distribution where it is built. They fell by 26, 26 and 52, the routes
+    # above by twelve and the word below by 26, when the last value of a
+    # variable under one condition stopped being asked for (#776); the ledger
+    # rose by one with the mediation answer written back from its test.
+    "gap_describes": 1181,
+    "gap_if_provided": 1011,
+    "gap_says": 682,
+    "assumption_claim": 515,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
     # statement quoted INSIDE another sentence's hole, which is the shape
@@ -133,7 +140,7 @@ PER_CARRIER = {
     # Not a carrier of its own: the word inside a gap's sentence (#774).
     # Pinned beside them so that the word going missing from the gaps
     # shows as this number falling.
-    "gap_blocks": 133,
+    "gap_blocks": 107,
 }
 
 

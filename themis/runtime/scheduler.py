@@ -2051,7 +2051,7 @@ def _observational_joint_xy(
     if recovery.missing and recovery.licensed:
         return ObservationalJoint(None, recovery.missing, None)
 
-    missing: list[MissingItem] = []
+    short: dict[ProbabilityKey, InsufficientTheta] = {}
     cells: dict[tuple[bool, bool], float] = {}
     for x_val in (False, True):
         for y_val in (False, True):
@@ -2064,12 +2064,14 @@ def _observational_joint_xy(
                     y_val=y_val,
                 )
             except InsufficientTheta as exc:
-                item = _missing_parameter_from_theta(exc)
-                if item.name in {m.name for m in missing}:
-                    continue
-                missing.append(item)
-    if missing:
-        return ObservationalJoint(None, tuple(missing), None)
+                if exc.missing_key is None:
+                    raise
+                short.setdefault(exc.missing_key, exc)
+    if short:
+        return ObservationalJoint(None, tuple(
+            _missing_parameter_from_theta(short[key])
+            for key in theta_builder.fewest_to_ask(short, theta)
+        ), None)
     return ObservationalJoint(cells, (), None)
 
 
@@ -2135,9 +2137,10 @@ def _ancestral_joint(
     required_keys = _required_observational_probability_keys(
         topo=topo, theta=theta, conditioning=conditioning,
     )
-    missing_keys = tuple(
-        key for key in required_keys
-        if _recover_boolean_theta_value(theta, key) is None
+    missing_keys = theta_builder.fewest_to_ask(
+        (key for key in required_keys
+         if _recover_boolean_theta_value(theta, key) is None),
+        theta,
     )
     if missing_keys:
         missing_items = tuple(
@@ -3746,8 +3749,12 @@ def _try_numeric(
         # factors, back-door two). collect_missing_keys re-runs the SAME
         # resolution path (fallbacks included) so a derivable factor is never
         # reported missing.
-        missing_keys = numeric_estimator.collect_missing_keys(
-            formula, theta, graph=graph, bidirected=bidirected,
+        missing_keys = theta_builder.fewest_to_ask(
+            numeric_estimator.collect_missing_keys(
+                formula, theta, graph=graph, bidirected=bidirected,
+            ),
+            theta,
+            keep=(exc.missing_key,) if exc.missing_key is not None else (),
         )
         if missing_keys:
             # The exception's species describes ONE key — the one whose
@@ -3932,7 +3939,7 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
     # reader learns that the source they have data for is not the one
     # this route rests on.
     evaluated: list[tuple[int, FormulaExpr, float]] = []
-    shortfalls: list[MissingItem] = []
+    short: dict[ProbabilityKey | None, InsufficientTheta] = {}
     formulas: list[FormulaExpr] = []
     for i, route in enumerate(working):
         expr = formula_builder.transport_formula(
@@ -3956,7 +3963,18 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
                     expr, theta, graph=graph, bidirected=None)),
             )
         except InsufficientTheta as ite:
-            shortfalls.append(_missing_parameter_from_theta(ite))
+            short.setdefault(ite.missing_key, ite)
+    # One per route, and two routes can fall short on one group. A
+    # shortfall with a diagnosis of its own, or no key to group it by, is
+    # kept as it came; only plain ones make way.
+    asked = set(theta_builder.fewest_to_ask(
+        (key for key in short if key is not None), theta,
+        keep=(key for key, ite in short.items() if key is not None
+              and ite.need != gaps.Need.THETA_ENTRY_MISSING),
+    ))
+    shortfalls = [_missing_parameter_from_theta(ite)
+                  for key, ite in short.items()
+                  if key is None or key in asked]
 
     # The route the chain witnesses is the one the answer rests on: the
     # first that evaluated, or — when none did — the first that
@@ -4214,7 +4232,7 @@ def _iv_stratum_table(
     (including P(W=w) for each w); the benefit is that producer and
     verifier cannot drift over which derivation filled a hole.
     """
-    missing: list[MissingItem] = []
+    missing: list[ProbabilityKey] = []
     # Two species rather than one with an optional stratum: the words
     # that would join a stratum onto the marginal sentence are words, and
     # a value slot is where a value goes.
@@ -4242,7 +4260,7 @@ def _iv_stratum_table(
         )
         value = theta.entries.get(key)
         if value is None:
-            missing.append(_missing_parameter_from_key(key, **occasion))
+            missing.append(key)
         return value
 
     cells: list[dict] = []
@@ -4271,7 +4289,12 @@ def _iv_stratum_table(
             }
         )
     if missing:
-        return None, tuple(missing)
+        # A stratum weight is looked up once per stratum sharing its
+        # prefix, and a weight group lacking every value lists all of them.
+        return None, tuple(
+            _missing_parameter_from_key(key, **occasion)
+            for key in theta_builder.fewest_to_ask(missing, theta)
+        )
 
     strata = []
     for cell in cells:

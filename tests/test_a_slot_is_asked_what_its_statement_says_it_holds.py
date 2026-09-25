@@ -145,7 +145,9 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
     # within a stratum was evaluated within it.
     # 3 fewer routes and 6 fewer sentences: the row whose instrument strata were weighted
     # by a P(w) summing to 0.9, which theta now refuses where it is built.
-    assert (routes, sentences) == (443, 871), (routes, sentences)
+    # 12 fewer routes and 26 fewer sentences: the gaps that went when
+    # the last value of a variable under one condition stopped being asked for (#776).
+    assert (routes, sentences) == (431, 845), (routes, sentences)
 
 
 def test_a_gaps_own_said_is_the_occasion_its_kind_names():

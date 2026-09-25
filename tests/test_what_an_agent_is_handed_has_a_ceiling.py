@@ -196,7 +196,10 @@ def _text(app, name, args) -> str:
 
 def test_the_question_that_overflowed_now_fits(app):
     record = themis.run(ATTRIBUTION)
-    assert bounded_view.size(record) > 4 * bounded_view.DEFAULT_BUDGET, (
+    # 101,814 characters when this was written, 56,922 once the last value
+    # of a variable under one condition stopped being asked for (#776).
+    # What the test needs is only that one view cannot hold it.
+    assert bounded_view.size(record) > bounded_view.DEFAULT_BUDGET, (
         "the record no longer overflows, so this no longer tests the fold")
     text = _text(app, "themis_run", {"program": ATTRIBUTION})
     assert len(text) <= bounded_view.DEFAULT_BUDGET

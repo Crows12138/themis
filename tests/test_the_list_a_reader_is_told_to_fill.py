@@ -247,7 +247,9 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     assert (list(got) if isinstance(got, tuple) else got) \
                         == value
                     checked += 1
-    assert (checked, parameters) == (2192, 111), (checked, parameters)
+    # 26 fewer parameters: the last value of a variable under one condition
+    # stopped being asked for (#776).
+    assert (checked, parameters) == (2192, 85), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -632,7 +634,9 @@ def test_one_missing_item_written_twice_says_the_same_thing():
     a second record of anything.
     """
     pairs = list(_paired())
-    assert len(pairs) == 145, len(pairs)
+    # 26 fewer: the last value of a variable under one condition stopped
+    # being asked for (#776).
+    assert len(pairs) == 119, len(pairs)
     refused = 0
     for name, ri, ii, idx in pairs:
         for field in ("gap", "need", "kind"):
@@ -645,7 +649,9 @@ def test_one_missing_item_written_twice_says_the_same_thing():
             with pytest.raises(VerificationError):
                 verify_investigation_items(result, program)
             refused += 1
-    assert refused == 435
+    # 78 fewer: three fields on each of the 26 rows that went when the last
+    # value of a variable under one condition stopped being asked for (#776).
+    assert refused == 357
 
 
 def test_what_only_one_rendering_carries_is_not_compared():
@@ -664,7 +670,7 @@ def test_what_only_one_rendering_carries_is_not_compared():
             one_sided["observable"] += 1
         if ("skeleton" in row) != ("skeleton" in item):
             one_sided["skeleton"] += 1
-    assert one_sided == {"observable": 111, "skeleton": 111}
+    assert one_sided == {"observable": 85, "skeleton": 85}
 
 
 def _asks():
@@ -715,7 +721,9 @@ def test_every_ask_names_a_gap_its_own_report_carries():
     """
     asks = list(_asks())
     twinned = sum(1 for *_rest, twin in asks if twin)
-    assert (len(asks), twinned) == (471, 145), (len(asks), twinned)
+    # 26 fewer asks, every one twinned: the last value of a variable under one
+    # condition stopped being asked for (#776).
+    assert (len(asks), twinned) == (445, 119), (len(asks), twinned)
     for name, ri, ii, _twin in asks:
         result = SHAPES[name]["result"]
         named = result["investigation_requests"][ri]["items"][ii]["gap"]
@@ -733,7 +741,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
 
     The number beside it is why this is a rule of its own. The check next
     to it compares an item to the ``missing_information`` row for the same
-    target, and 326 of these 471 asks have no such row — every framing ask
+    target, and 326 of these 445 asks have no such row — every framing ask
     and some of the rest. Two records agreeing is a check only where there
     are two records; a reference is checked against its referent, and there
     is always exactly one of those.
@@ -754,7 +762,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
             continue
         lonely += 1
         assert "never said it had" in str(caught.value), (name, caught.value)
-    assert (refused, lonely) == (471, 326), (refused, lonely)
+    assert (refused, lonely) == (445, 326), (refused, lonely)
 
 
 def test_an_answer_with_no_report_is_not_asked_this():

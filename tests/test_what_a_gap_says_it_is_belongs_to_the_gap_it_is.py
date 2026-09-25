@@ -207,7 +207,9 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
     # stratum was evaluated within it.
     # 10 fewer slots and 6 fewer gaps: the row whose instrument strata were weighted by a
     # P(w) summing to 0.9, which theta now refuses where it is built.
-    assert (slots, gap_total, len(species)) == (1184, 1037, 38)
+    # 26 fewer slots and 26 fewer gaps: the gaps that went when
+    # the last value of a variable under one condition stopped being asked for (#776).
+    assert (slots, gap_total, len(species)) == (1158, 1011, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

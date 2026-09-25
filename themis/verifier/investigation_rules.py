@@ -116,7 +116,7 @@ from typing import Any, Iterable, Mapping, NoReturn
 
 from .. import framing as _framing
 from .. import gaps as _gaps
-from ..types import Atom, ConstTerm, VariableDeclaration
+from ..types import Atom, ConstTerm, ProbabilityStatement, VariableDeclaration
 from .errors import VerificationError
 
 _RULE = "investigation_item_check"
@@ -1407,6 +1407,114 @@ def _check_the_values_it_asks_about_are_ones_the_variable_takes(
         )
 
 
+def _grounded(atom: Any) -> "tuple[str, tuple[str, ...]] | None":
+    """A program atom as a name and its constants, or ``None`` if any
+    position is a variable — a quantified statement is not read here."""
+    names = []
+    for term in getattr(atom, "args", ()) or ():
+        if not isinstance(term, ConstTerm):
+            return None
+        names.append(term.name)
+    return atom.predicate, tuple(names)
+
+
+def _spelt(node: Any) -> "tuple[str, tuple[str, ...]] | None":
+    """An envelope atom — ``{"predicate", "args"}`` — in the same form."""
+    if not isinstance(node, Mapping) or not isinstance(
+            node.get("predicate"), str):
+        return None
+    return node["predicate"], tuple(
+        str(arg.get("name")) if isinstance(arg, Mapping) else str(arg)
+        for arg in node.get("args") or ())
+
+
+def _check_no_ask_is_settled_by_the_others(
+    requests: Iterable[Any], missing: Mapping, program: Any,
+) -> None:
+    """The values a reader is asked for under one condition leave one out.
+
+    One variable's probabilities under one condition in one population sum
+    to one, and the kernel completes such a group from all but one of its
+    values. So a list asking for every value the program has not given
+    under one condition asks for a number the others already decide: a
+    reader who supplies all of them writes one value twice, and two that do
+    not agree are a contradiction the list itself invited.
+
+    Held against the program, not the kernel's parameter store: a group
+    lacks every value its declared domain has and no ground probability
+    statement supplies. A variable with no declared domain is left alone,
+    for the reason the rule above gives — its values are whatever the data
+    met, which is the kernel's reading and not a record this rule holds
+    independently. A supply this rule cannot see, a quantified statement or
+    a data file, only makes the true shortfall smaller, so a list refused
+    here asks too much on any reading of what was given.
+    """
+    domains: dict[str, tuple] = {}
+    for predicate, declaration in declarations_of(program).items():
+        if declaration.domain:
+            domains[predicate] = tuple(declaration.domain)
+    supplied: dict[tuple, list] = {}
+    for statement in getattr(program, "statements", ()) or ():
+        if not isinstance(statement, ProbabilityStatement):
+            continue
+        target = _grounded(statement.target.atom)
+        given = [(_grounded(va.atom), va.value) for va in statement.given]
+        if target is None or any(atom is None for atom, _ in given):
+            continue
+        supplied.setdefault(
+            (target, frozenset(given), statement.population), [],
+        ).append(statement.target.value)
+    asked: dict[tuple, list] = {}
+    for ri, request in enumerate(requests):
+        if not isinstance(request, Mapping):
+            continue
+        for ii, item in enumerate(request.get("items") or ()):
+            if not isinstance(item, Mapping) or item.get(
+                    "superseded_by_estimation"):
+                continue
+            skeleton = item.get("skeleton")
+            if not isinstance(skeleton, Mapping) or skeleton.get(
+                    "kind") != _PROBABILITY:
+                continue
+            node = skeleton.get("target")
+            node = node if isinstance(node, Mapping) else {}
+            target = _spelt(node.get("atom"))
+            given = [(_spelt(g.get("atom")), g.get("value"))
+                     for g in skeleton.get("given") or ()
+                     if isinstance(g, Mapping)]
+            if target is None or any(atom is None for atom, _ in given):
+                continue
+            row = missing.get(item.get("target"))
+            seen = (row or {}).get("observable") if isinstance(
+                row, Mapping) else None
+            population = (seen.get("population")
+                          if isinstance(seen, Mapping) else None)
+            asked.setdefault(
+                (target, frozenset(given), population), [],
+            ).append((f"investigation_requests[{ri}].items[{ii}]",
+                      node.get("value")))
+    for group, rows in asked.items():
+        domain = domains.get(group[0][0])
+        if not domain:
+            continue
+        given_already = supplied.get(group, [])
+        lacking = [value for value in domain
+                   if not any(value == have for have in given_already)]
+        values = [value for _, value in rows]
+        if not lacking or not all(
+                any(value == want for want in values) for value in lacking):
+            continue
+        where = ", ".join(place for place, _ in rows)
+        _reject(
+            f"{where} ask a reader for {group[0][0]} at every value this "
+            f"problem has not given under one condition "
+            f"({[value for value in lacking]}); the probabilities of one "
+            f"variable under one condition sum to one, so the last of them "
+            f"is the others' remainder and asking for it invites two "
+            f"numbers that must agree"
+        )
+
+
 def verify_investigation_items(result: Mapping, program: Any) -> None:
     """Hold each item on the reader's list to the records beside it.
 
@@ -1563,6 +1671,9 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
         _check_the_note_is_what_the_items_share(
             f"investigation_requests[{ri}]", request,
             [i for i in request.get("items") or () if isinstance(i, Mapping)])
+    # Across asks rather than within one: whether a value is owed is a
+    # question about the other values asked under the same condition.
+    _check_no_ask_is_settled_by_the_others(requests, missing, program)
     # After every ask has been read, for the reason that rule gives: it is
     # the widest thing that can be wrong here, and standing in front of the
     # narrower ones it would answer a question nobody asked.

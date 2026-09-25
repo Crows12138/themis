@@ -148,12 +148,12 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 466 of 466 either way — and this corpus offers 211 rides
+    honest side — 466 of 466 either way — and this corpus offers 208 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
                if any(v in r for r in refs)) == 466
-    assert len(list(_riders())) == 211
+    assert len(list(_riders())) == 208
 
 
 def test_one_of_those_rides_is_actually_refused():

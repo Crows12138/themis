@@ -44880,96 +44880,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(survival=False|treatment=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(survival=False|treatment=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "accept_the_interval",
-"said": {
-"fallback": "Tian-Pearl bounds"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(survival=False|treatment=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(survival=False|treatment=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "accept_the_interval",
-"said": {
-"fallback": "Tian-Pearl bounds"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(survival=True|treatment=False)"
 },
 "sentence": "a_distribution_is_missing"
@@ -45040,52 +44950,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "accept_the_interval",
-"said": {
-"fallback": "Tian-Pearl bounds"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(treatment=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(treatment=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -45230,88 +45094,6 @@ false
 "gap": "missing_distribution",
 "need": "counterfactual_bound_needs_entry",
 "said": {
-"key": "P(survival=False|treatment=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "treatment"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "survival"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(survival=False|treatment=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "counterfactual_bound_needs_entry",
-"said": {
-"key": "P(survival=False|treatment=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "treatment"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "survival"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(survival=False|treatment=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "counterfactual_bound_needs_entry",
-"said": {
 "key": "P(survival=True|treatment=False)"
 },
 "skeleton": {
@@ -45394,34 +45176,6 @@ false
 "gap": "missing_distribution",
 "need": "counterfactual_bound_needs_entry",
 "said": {
-"key": "P(treatment=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "treatment"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(treatment=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "counterfactual_bound_needs_entry",
-"said": {
 "key": "P(treatment=True)"
 },
 "skeleton": {
@@ -45448,42 +45202,10 @@ false
 }
 ],
 "priority": "high",
-"target": "parameter:6_items"
+"target": "parameter:3_items"
 }
 ],
 "missing_information": [
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(survival=False|treatment=False)",
-"need": "counterfactual_bound_needs_entry",
-"observable": {
-"variables": [
-"survival",
-"treatment"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(survival=False|treatment=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(survival=False|treatment=True)",
-"need": "counterfactual_bound_needs_entry",
-"observable": {
-"variables": [
-"survival",
-"treatment"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(survival=False|treatment=True)"
-}
-},
 {
 "gap": "missing_distribution",
 "kind": "parameter",
@@ -45514,21 +45236,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(survival=True|treatment=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(treatment=False)",
-"need": "counterfactual_bound_needs_entry",
-"observable": {
-"variables": [
-"treatment"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(treatment=False)"
 }
 },
 {
@@ -49590,52 +49297,6 @@ false
 }
 },
 {
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
 "blocks": "interpretation",
 "describes": [
 {
@@ -50027,38 +49688,10 @@ false
 "value": null
 },
 "target": "parameter:P(y=True|x=True,z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -50173,21 +49806,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(y=True|x=True,z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
 }
 }
 ],
@@ -54248,52 +53866,6 @@ false
 }
 },
 {
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(c=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(c=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
 "blocks": "interpretation",
 "describes": [
 {
@@ -54699,38 +54271,10 @@ false
 "value": null
 },
 "target": "parameter:P(y=True|c=False,x=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(c=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "c"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(c=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -54845,21 +54389,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(y=True|c=False,x=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(c=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"c"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(c=False)"
 }
 }
 ],
@@ -58740,52 +58269,6 @@ false
 }
 },
 {
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
 "blocks": "interpretation",
 "describes": [
 {
@@ -59243,38 +58726,10 @@ false
 "value": null
 },
 "target": "parameter:P(y=True|x=True,z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -59389,21 +58844,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(y=True|x=True,z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
 }
 }
 ],
@@ -60493,44 +59933,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(d=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(d=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(e=True|d=False,y=True)"
 },
 "sentence": "a_distribution_is_missing"
@@ -60556,44 +59958,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -61536,34 +60900,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(d=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "d"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(d=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(e=True|d=False,y=True)"
 },
 "skeleton": {
@@ -61612,34 +60948,6 @@ false
 "value": null
 },
 "target": "parameter:P(e=True|d=False,y=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False)"
 },
 {
 "gap": "missing_distribution",
@@ -61749,7 +61057,7 @@ false
 }
 ],
 "priority": "high",
-"target": "parameter:10_items"
+"target": "parameter:8_items"
 },
 {
 "action": "define_variable",
@@ -61959,21 +61267,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(d=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"d"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(d=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(e=True|d=False,y=True)",
 "need": "theta_entry_missing",
 "observable": {
@@ -61986,21 +61279,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(e=True|d=False,y=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False)"
 }
 },
 {
@@ -62361,52 +61639,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(dietary_self_discipline=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(dietary_self_discipline=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -62906,38 +62138,10 @@ false
 "value": null
 },
 "target": "parameter:P(belly_fat_loss=True|dietary_self_discipline=False,running=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(dietary_self_discipline=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "dietary_self_discipline"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(dietary_self_discipline=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -63053,21 +62257,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(belly_fat_loss=True|dietary_self_discipline=False,running=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(dietary_self_discipline=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"dietary_self_discipline"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(dietary_self_discipline=False)"
 }
 }
 ],
@@ -66112,52 +65301,6 @@ false
 }
 },
 {
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
 "blocks": "interpretation",
 "describes": [
 {
@@ -66603,38 +65746,10 @@ false
 "value": null
 },
 "target": "parameter:P(y=True|x=True,z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -66749,21 +65864,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(y=True|x=True,z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
 }
 }
 ],
@@ -67705,43 +66805,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(d=False|e=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(d=False|e=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(c=True|d=True,e=False,y=True)"
 },
 "sentence": "a_distribution_is_missing"
@@ -67816,43 +66879,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(e=False|x=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(e=False|x=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(c=True|d=False,e=False,y=True)"
 },
 "sentence": "a_distribution_is_missing"
@@ -67878,81 +66904,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(d=False|e=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(d=False|e=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -68937,47 +67888,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(d=False|e=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "e"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "d"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(d=False|e=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(c=True|d=True,e=False,y=True)"
 },
 "skeleton": {
@@ -69084,47 +67994,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(e=False|x=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "e"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(e=False|x=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(c=True|d=False,e=False,y=True)"
 },
 "skeleton": {
@@ -69185,75 +68054,6 @@ false
 "value": null
 },
 "target": "parameter:P(c=True|d=False,e=False,y=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(d=False|e=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "e"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "d"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(d=False|e=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False)"
 },
 {
 "gap": "missing_distribution",
@@ -69517,7 +68317,7 @@ false
 }
 ],
 "priority": "high",
-"target": "parameter:16_items"
+"target": "parameter:12_items"
 },
 {
 "action": "define_variable",
@@ -69699,22 +68499,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(d=False|e=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"d",
-"e"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(d=False|e=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(c=True|d=True,e=False,y=True)",
 "need": "theta_entry_missing",
 "observable": {
@@ -69749,22 +68533,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(e=False|x=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"e",
-"x"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(e=False|x=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(c=True|d=False,e=False,y=True)",
 "need": "theta_entry_missing",
 "observable": {
@@ -69778,37 +68546,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(c=True|d=False,e=False,y=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(d=False|e=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"d",
-"e"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(d=False|e=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False)"
 }
 },
 {
@@ -71077,44 +69814,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(w=True|x=True,y=False)"
 },
 "sentence": "a_distribution_is_missing"
@@ -71124,80 +69823,6 @@ false
 "provenance": [
 {
 "ref_id": "parameter:P(w=True|x=True,y=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False|x=True,z=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False|x=True,z=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False|x=True,z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False|x=True,z=False)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -71771,34 +70396,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(w=True|x=True,y=False)"
 },
 "skeleton": {
@@ -71847,116 +70444,10 @@ false
 "value": null
 },
 "target": "parameter:P(w=True|x=True,y=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False|x=True,z=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False|x=True,z=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False|x=True,z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-},
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False|x=True,z=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:8_items"
+"target": "parameter:5_items"
 }
 ],
 "missing_information": [
@@ -72029,21 +70520,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(w=True|x=True,y=False)",
 "need": "theta_entry_missing",
 "observable": {
@@ -72056,40 +70532,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(w=True|x=True,y=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False|x=True,z=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"x",
-"y",
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False|x=True,z=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False|x=True,z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"x",
-"y",
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False|x=True,z=False)"
 }
 }
 ],
@@ -73463,43 +71905,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(b=False|y=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(b=False|y=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(w=True|a=True,b=False)"
 },
 "sentence": "a_distribution_is_missing"
@@ -73509,43 +71914,6 @@ false
 "provenance": [
 {
 "ref_id": "parameter:P(w=True|a=True,b=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(a=False|x=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(a=False|x=True)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -73657,80 +72025,6 @@ false
 "provenance": [
 {
 "ref_id": "parameter:P(b=True|y=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False|x=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False|x=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(b=False|y=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(b=False|y=False)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -74368,47 +72662,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(b=False|y=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "b"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(b=False|y=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(w=True|a=True,b=False)"
 },
 "skeleton": {
@@ -74457,47 +72710,6 @@ false
 "value": null
 },
 "target": "parameter:P(w=True|a=True,b=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(a=False|x=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "a"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(a=False|x=True)"
 },
 {
 "gap": "missing_distribution",
@@ -74645,92 +72857,10 @@ false
 "value": null
 },
 "target": "parameter:P(b=True|y=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False|x=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "x"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False|x=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(b=False|y=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "b"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(b=False|y=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:12_items"
+"target": "parameter:8_items"
 }
 ],
 "missing_information": [
@@ -74802,22 +72932,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(b=False|y=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"b",
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(b=False|y=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(w=True|a=True,b=False)",
 "need": "theta_entry_missing",
 "observable": {
@@ -74830,22 +72944,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(w=True|a=True,b=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(a=False|x=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"a",
-"x"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(a=False|x=True)"
 }
 },
 {
@@ -74896,38 +72994,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(b=True|y=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False|x=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"x",
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False|x=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(b=False|y=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"b",
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(b=False|y=False)"
 }
 }
 ],
@@ -76050,51 +74116,6 @@ false
 "describes": [
 {
 "said": {
-"what": "P(baseline_health=False|age=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(baseline_health=False|age=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
 "what": "P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)"
 },
 "sentence": "a_distribution_is_missing"
@@ -76120,52 +74141,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(age=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(age=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -76240,51 +74215,6 @@ false
 "provenance": [
 {
 "ref_id": "parameter:P(cvd_event=True|age=False,baseline_health=False,hrt_use=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(baseline_health=False|age=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(baseline_health=False|age=False)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -76830,47 +74760,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(baseline_health=False|age=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "age"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "baseline_health"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(baseline_health=False|age=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)"
 },
 "skeleton": {
@@ -76931,34 +74820,6 @@ false
 "value": null
 },
 "target": "parameter:P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(age=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "age"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(age=False)"
 },
 {
 "gap": "missing_distribution",
@@ -77065,51 +74926,10 @@ false
 "value": null
 },
 "target": "parameter:P(cvd_event=True|age=False,baseline_health=False,hrt_use=True)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(baseline_health=False|age=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "age"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "baseline_health"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(baseline_health=False|age=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:10_items"
+"target": "parameter:7_items"
 },
 {
 "action": "define_variable",
@@ -77247,22 +75067,6 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(baseline_health=False|age=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"age",
-"baseline_health"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(baseline_health=False|age=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
 "name": "parameter:P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)",
 "need": "theta_entry_missing",
 "observable": {
@@ -77276,21 +75080,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(age=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"age"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(age=False)"
 }
 },
 {
@@ -77325,22 +75114,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(cvd_event=True|age=False,baseline_health=False,hrt_use=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(baseline_health=False|age=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"age",
-"baseline_health"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(baseline_health=False|age=False)"
 }
 }
 ],
@@ -77666,52 +75439,6 @@ false
 },
 "severity": "blocking",
 "signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(z=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(z=False)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "marginal",
-"min_sample_size": 1100,
-"precision_target": {
-"said": {
-"p": "0.5",
-"precision": "0.03"
-},
-"token": "pin_one_proportion",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -78201,38 +75928,10 @@ false
 "value": null
 },
 "target": "parameter:P(y=True|x=True,z=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(z=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "z"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(z=False)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -78347,21 +76046,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(y=True|x=True,z=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(z=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"z"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(z=False)"
 }
 }
 ],
@@ -79157,43 +76841,6 @@ false
 }
 },
 {
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(y=False|a=True)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(y=False|a=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
 "blocks": "interpretation",
 "describes": [
 {
@@ -79710,51 +77357,10 @@ false
 "value": null
 },
 "target": "parameter:P(c=True|a=True,y=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
-"key": "P(y=False|a=True)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "a"
-},
-"value": true
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "me",
-"type": "const"
-}
-],
-"predicate": "y"
-},
-"value": false
-},
-"value": null
-},
-"target": "parameter:P(y=False|a=True)"
 }
 ],
 "priority": "high",
-"target": "parameter:4_items"
+"target": "parameter:3_items"
 },
 {
 "action": "define_variable",
@@ -79898,22 +77504,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(c=True|a=True,y=False)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(y=False|a=True)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"a",
-"y"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(y=False|a=True)"
 }
 }
 ],
@@ -202910,6 +200500,19 @@ false
 "provenance": "default",
 "severity": "distorting",
 "testable": true
+},
+{
+"claim": [
+{
+"token": "ci_via_percentile_bootstrap",
+"vocabulary": "assumption_claim"
+}
+],
+"id": "ci_via_percentile_bootstrap",
+"layer": "confidence",
+"provenance": "inherent",
+"severity": "confidence_only",
+"testable": true
 }
 ]
 },
@@ -202953,19 +200556,19 @@ false
 },
 "numeric": {
 "cde_status": {
-"mediator_value": "True",
-"missing_key": "P(y=True|m=True,x=True)",
+"mediator_value": "0.0",
+"missing_key": "P(y=True|m=0.0,x=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=0.0,x=True)"
 },
 "status": "insufficient_theta"
 },
 "nde_nie_status": {
-"missing_key": "P(y=True|m=True,x=True)",
+"missing_key": "P(y=True|m=0.0,x=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=0.0,x=True)"
 },
 "status": "insufficient_theta"
 }
@@ -203126,7 +200729,8 @@ false
 "sequential_ignorability_treatment_and_mediator",
 "no_intermediate_confounder_affected_by_treatment",
 "pearl_2001_four_conditions_hold_on_the_graph",
-"logit_outcome_regression"
+"logit_outcome_regression",
+"ci_via_percentile_bootstrap"
 ],
 "bootstrap": {
 "kind": "iid",
