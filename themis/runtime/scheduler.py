@@ -51,7 +51,9 @@ from .iv_words import Complier, Premise
 from .scheduler_words import Feasibility, Tried
 from ..risk_provenance import RiskProvenance, stamp
 
-from ..input.semantic_validator import validate_against_graph, validate_formula
+from ..input.semantic_validator import (
+    may_condition_on, validate_against_graph, validate_formula,
+)
 from ..ledger import Monotonicity
 from ..types import (
     AssocQuery,
@@ -1819,6 +1821,8 @@ def _missing_parameter_from_key(
     /,
     *,
     need: gaps.Need,
+    graph: "nx.DiGraph | None",
+    bidirected: "frozenset[frozenset[Atom]] | None",
     **details,
 ) -> MissingItem:
     """Build a MissingItem that points at the exact conditional
@@ -1844,6 +1848,8 @@ def _missing_parameter_from_key(
     to paste back. It is attached here, at the one place a parameter ask
     is built, because coverage is then a property of the constructor
     rather than of every caller downstream remembering to carry a map.
+    The graph is what that statement is admitted against when it comes
+    back, so it is required here rather than looked up by each caller.
     """
     if key is None:
         return gaps.missing(
@@ -1862,12 +1868,18 @@ def _missing_parameter_from_key(
             )),
             population=key.population,
         ),
-        skeleton=_skeleton_for_parameter(key),
+        skeleton=_skeleton_for_parameter(
+            key, graph=graph, bidirected=bidirected),
         **details,
     )
 
 
-def _missing_parameter_from_theta(exc: InsufficientTheta) -> MissingItem:
+def _missing_parameter_from_theta(
+    exc: InsufficientTheta,
+    *,
+    graph: "nx.DiGraph | None",
+    bidirected: "frozenset[frozenset[Atom]] | None",
+) -> MissingItem:
     """The same, for the failure the evaluator raises.
 
     One line, and it is here rather than inlined at each of the four
@@ -1875,7 +1887,8 @@ def _missing_parameter_from_theta(exc: InsufficientTheta) -> MissingItem:
     exception exists for: the species and the occasion, unopened.
     """
     return _missing_parameter_from_key(
-        exc.missing_key, need=exc.need, **exc.details)
+        exc.missing_key, need=exc.need, graph=graph, bidirected=bidirected,
+        **exc.details)
 
 
 def _theta_shortfall(exc: InsufficientTheta) -> dict:
@@ -1906,9 +1919,23 @@ def _atom_to_json(atom: Atom) -> dict:
     return d
 
 
-def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
+def _skeleton_for_parameter(
+    key: ProbabilityKey,
+    *,
+    graph: "nx.DiGraph | None",
+    bidirected: "frozenset[frozenset[Atom]] | None",
+) -> dict:
     """Build a paste-ready probabilityStatement dict for a missing
     CPT entry. The reader fills ``value`` and optional annotations.
+
+    Paste-ready means the statement is the one theta keys to ``key`` and
+    the program admits, so everything the key holds is written: the
+    population, when the key has one, or the number lands in the default
+    population's table and the ask stays open; and ``provenance:
+    observational`` when what it conditions on is more than
+    :func:`may_condition_on` allows a CPT entry, as for the factor
+    P(w|z) of two confounders sharing a cause, or the validator refuses
+    it.
 
     Called from :func:`_missing_parameter_from_key` and nowhere else, so
     that an ask and the statement that would settle it are one object
@@ -1922,7 +1949,7 @@ def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
     given_sorted = sorted(
         key.given, key=lambda pair: (pair[0].predicate, str(pair[1]))
     )
-    return {
+    skeleton: dict[str, object] = {
         "kind": "probability",
         "target": {
             "atom": _atom_to_json(key.target_atom),
@@ -1935,6 +1962,13 @@ def _skeleton_for_parameter(key: ProbabilityKey) -> dict:
         "value": None,
         "annotations": {"source": "TODO"},
     }
+    if key.population is not None:
+        skeleton["population"] = key.population
+    conditioning = {atom for atom, _ in key.given}
+    if graph is not None and not conditioning <= may_condition_on(
+            key.target_atom, graph, bidirected or frozenset()):
+        skeleton["provenance"] = "observational"
+    return skeleton
 
 
 @dataclass(frozen=True)
@@ -2069,7 +2103,8 @@ def _observational_joint_xy(
                 short.setdefault(exc.missing_key, exc)
     if short:
         return ObservationalJoint(None, tuple(
-            _missing_parameter_from_theta(short[key])
+            _missing_parameter_from_theta(
+                short[key], graph=graph, bidirected=bidirected)
             for key in theta_builder.fewest_to_ask(short, theta)
         ), None)
     return ObservationalJoint(cells, (), None)
@@ -2147,6 +2182,7 @@ def _ancestral_joint(
             _missing_parameter_from_key(
                 key,
                 need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
+                graph=graph, bidirected=bidirected,
                 key=format_probability_key(key),
             )
             for key in missing_keys
@@ -3766,17 +3802,20 @@ def _try_numeric(
             # raiser's kind as well, which sent a plain shortfall to the
             # repair "fix your graph".
             missing_items: tuple[MissingItem, ...] = tuple(
-                _missing_parameter_from_theta(exc)
+                _missing_parameter_from_theta(
+                    exc, graph=graph, bidirected=bidirected)
                 if key == exc.missing_key
                 else _missing_parameter_from_key(
                     key, need=gaps.Need.THETA_ENTRY_MISSING,
+                    graph=graph, bidirected=bidirected,
                     key=format_probability_key(key))
                 for key in missing_keys
             )
         else:
             # No concrete key collected (e.g. a value-less query-bound atom):
             # keep the single original gap.
-            missing_items = (_missing_parameter_from_theta(exc),)
+            missing_items = (_missing_parameter_from_theta(
+                exc, graph=graph, bidirected=bidirected),)
         requests = investigation_pusher.push(missing_items)
         return QueryResult(
             status=ResultStatus.NEEDS_INVESTIGATION,
@@ -3960,7 +3999,7 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
         try:
             evaluated.append(
                 (i, expr, numeric_estimator.estimate_formula(
-                    expr, theta, graph=graph, bidirected=None)),
+                    expr, theta, graph=graph, bidirected=facts.bidirected)),
             )
         except InsufficientTheta as ite:
             short.setdefault(ite.missing_key, ite)
@@ -3972,7 +4011,8 @@ def _dispatch_transport(facts: "_EffectFacts") -> QueryResult:
         keep=(key for key, ite in short.items() if key is not None
               and ite.need != gaps.Need.THETA_ENTRY_MISSING),
     ))
-    shortfalls = [_missing_parameter_from_theta(ite)
+    shortfalls = [_missing_parameter_from_theta(
+                      ite, graph=graph, bidirected=facts.bidirected)
                   for key, ite in short.items()
                   if key is None or key in asked]
 
@@ -4196,6 +4236,8 @@ def _iv_stratum_table(
     z_treated,
     z_control,
     conditioning: tuple[Atom, ...],
+    graph: nx.DiGraph,
+    bidirected: "frozenset[frozenset[Atom]]",
 ) -> "tuple[dict | None, tuple[MissingItem, ...]]":
     """The per-stratum Wald ingredients for one (instrument, W) pair.
 
@@ -4292,7 +4334,8 @@ def _iv_stratum_table(
         # A stratum weight is looked up once per stratum sharing its
         # prefix, and a weight group lacking every value lists all of them.
         return None, tuple(
-            _missing_parameter_from_key(key, **occasion)
+            _missing_parameter_from_key(
+                key, graph=graph, bidirected=bidirected, **occasion)
             for key in theta_builder.fewest_to_ask(missing, theta)
         )
 
@@ -4405,6 +4448,7 @@ def _try_iv_wald_in_effect(facts: "_EffectFacts") -> _Attempt:
             x=x, x_treated=x_treated,
             instrument=z, z_treated=True, z_control=False,
             conditioning=conditioning,
+            graph=graph, bidirected=facts.bidirected,
         )
         if table is None:
             first_missing = first_missing or missing

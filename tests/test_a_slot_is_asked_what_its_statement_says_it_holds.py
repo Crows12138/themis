@@ -147,7 +147,11 @@ def test_a_way_past_names_its_statement_and_a_description_its_sentence():
     # by a P(w) summing to 0.9, which theta now refuses where it is built.
     # 12 fewer routes and 26 fewer sentences: the gaps that went when
     # the last value of a variable under one condition stopped being asked for (#776).
-    assert (routes, sentences) == (431, 845), (routes, sentences)
+    # 1 fewer route and 2 more sentences: the gap that went when a reader
+    # stopped being asked for a conditioning the graph says the target does not
+    # depend on (#777), and the framing gaps two mediation answers gained when
+    # written back from their producers, which frame their mediators (#777).
+    assert (routes, sentences) == (430, 847), (routes, sentences)
 
 
 def test_a_gaps_own_said_is_the_occasion_its_kind_names():

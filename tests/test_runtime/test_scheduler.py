@@ -125,7 +125,8 @@ def test_missing_parameter_formatter_handles_non_empty_given() -> None:
         given=frozenset({(x1, True), (x2, False)}),
     )
     item = _missing_parameter_from_key(
-        key, need=gaps.Need.THETA_ENTRY_MISSING, key="P(...)",
+        key, need=gaps.Need.THETA_ENTRY_MISSING, graph=None, bidirected=None,
+        key="P(...)",
     )
     assert item.kind is MissingKind.PARAMETER
     # Both atoms appear in the formatted name, sorted by predicate.
@@ -158,7 +159,8 @@ def test_a_parameter_ask_says_which_population_would_settle_it() -> None:
             target_atom=y, target_value=True,
             given=frozenset({(x, True)}), population="target",
         ),
-        need=gaps.Need.THETA_ENTRY_MISSING, key="P*(y|x)",
+        need=gaps.Need.THETA_ENTRY_MISSING, graph=None, bidirected=None,
+        key="P*(y|x)",
     )
     assert item.observable.variables == ("x", "y")
     assert item.observable.population == "target"
@@ -173,7 +175,8 @@ def test_an_unresolved_query_bound_names_nothing_to_measure() -> None:
     from themis.runtime.scheduler import _missing_parameter_from_key
 
     item = _missing_parameter_from_key(
-        None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED,
+        None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED, graph=None,
+        bidirected=None,
     )
     assert item.name == "numeric:unresolved_query_bound"
     assert item.observable is None

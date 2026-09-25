@@ -61,8 +61,10 @@ def test_the_corpus_carries_data_asks():
     """Stated so a narrowing shows up as a failure, not as a quiet pass.
 
     26 fewer when the last value of a variable under one condition stopped
-    being asked for (#776): the gaps that asked for it went."""
-    assert len(ASKS) == 109, len(ASKS)
+    being asked for (#776): the gaps that asked for it went. 1 fewer when a
+    reader stopped being asked for a conditioning the graph says the target
+    does not depend on (#777)."""
+    assert len(ASKS) == 108, len(ASKS)
 
 
 def test_every_precision_target_this_build_can_write_has_arithmetic_here():
@@ -90,7 +92,9 @@ def test_the_number_is_what_its_own_terms_buy():
         again = arithmetic(lambda key: float(target["said"][key]))
         assert again == need["min_sample_size"], (name, index, again)
         checked += 1
-    assert checked == 108, checked
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert checked == 107, checked
 
 
 def test_the_names_a_reader_is_sent_after_are_the_problems():
@@ -189,7 +193,10 @@ def test_a_bent_leaf_is_refused():
                 held += 1
             else:
                 free += 1
-    assert (held, free) == (310, 375), (held, free)
+    # 1 fewer held and 3 fewer free: the four leaves of the data ask on the gap
+    # that went when a reader stopped being asked for a conditioning the graph
+    # says the target does not depend on (#777).
+    assert (held, free) == (309, 372), (held, free)
 
 
 def test_a_design_swapped_for_another_declared_one_is_refused():
@@ -217,7 +224,10 @@ def test_a_design_swapped_for_another_declared_one_is_refused():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (648, 0), (refused, accepted)
+    # 6 fewer: the swaps of the data ask on the gap that went when a reader
+    # stopped being asked for a conditioning the graph says the target does not
+    # depend on (#777).
+    assert (refused, accepted) == (642, 0), (refused, accepted)
 
 
 def test_a_size_that_agrees_with_nothing_is_refused():
@@ -232,7 +242,9 @@ def test_a_size_that_agrees_with_nothing_is_refused():
         with pytest.raises(VerificationError, match="wrong size"):
             verify_required_data(bad, CONTEXTS[name])
         refused += 1
-    assert refused == 108, refused
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert refused == 107, refused
 
 
 def test_a_term_swapped_moves_the_number_it_was_sized_from():
@@ -255,7 +267,9 @@ def test_a_term_swapped_moves_the_number_it_was_sized_from():
             verify_required_data(bad, CONTEXTS[name])
         except VerificationError:
             refused += 1
-    assert refused == 108, refused
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert refused == 107, refused
 
 
 # --------------------------------------------------- the stated silences
@@ -319,4 +333,6 @@ def test_which_kind_of_data_closes_a_gap_is_not_held():
         ask["data_type"] = "cohort" if need["data_type"] != "cohort" else "ipd"
         verify_required_data(bad, CONTEXTS[name])
         accepted += 1
-    assert accepted == 109, accepted
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert accepted == 108, accepted

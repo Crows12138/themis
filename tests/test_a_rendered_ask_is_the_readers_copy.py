@@ -236,7 +236,8 @@ def test_a_parameter_ask_is_built_holding_the_statement_that_settles_it():
         given=frozenset({(Atom(predicate="x", args=()), True)}),
     )
     item = dgr_scheduler()._missing_parameter_from_key(
-        key, need=gaps.Need.THETA_ENTRY_MISSING, key="P(y=True|x=True)")
+        key, need=gaps.Need.THETA_ENTRY_MISSING, graph=None, bidirected=None,
+        key="P(y=True|x=True)")
     assert item.skeleton is not None
     assert item.skeleton["target"]["value"] is True
     assert [g["value"] for g in item.skeleton["given"]] == [True]
@@ -277,7 +278,8 @@ def test_an_ask_with_no_key_behind_it_carries_no_statement():
     """The one case that legitimately has none — a query-bound atom with
     no value resolved, which no probability statement would settle."""
     item = dgr_scheduler()._missing_parameter_from_key(
-        None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED)
+        None, need=gaps.Need.QUERY_BOUND_ATOM_UNRESOLVED, graph=None,
+        bidirected=None)
     assert item.kind is MissingKind.PARAMETER
     assert item.skeleton is None
     assert isinstance(item, MissingItem)

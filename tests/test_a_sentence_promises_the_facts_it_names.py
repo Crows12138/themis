@@ -108,10 +108,11 @@ SHAPES = json.loads(
 #: test (#776), whose ledger declares the percentile bootstrap its stored
 #: copy had fallen behind on. 168 went when the last value of a variable
 #: under one condition stopped being asked for, with the gaps, items and rows
-#: that asked for it.
-REACHED = 5279
+#: that asked for it. 2 more moved with the rows #777 wrote back, which a run
+#: of the previous commit's code on the new corpus counts the same.
+REACHED = 5281
 PER_CARRIER = {
-    "gap_routes": 1204,
+    "gap_routes": 1203,
     # These three and the ledger below moved together, by eight and eight
     # and eight and one, when a targeted corpus refresh picked up producer
     # drift the stored rows predated: eight more gaps and one more ledger
@@ -124,10 +125,15 @@ PER_CARRIER = {
     # distribution where it is built. They fell by 26, 26 and 52, the routes
     # above by twelve and the word below by 26, when the last value of a
     # variable under one condition stopped being asked for (#776); the ledger
-    # rose by one with the mediation answer written back from its test.
-    "gap_describes": 1181,
-    "gap_if_provided": 1011,
-    "gap_says": 682,
+    # rose by one with the mediation answer written back from its test. With
+    # the rows #777 wrote back, the routes above and the word below fell by
+    # one with the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on, and these
+    # three rose by two, two and one with the three framing gaps two
+    # mediation answers gained, which frame their mediators.
+    "gap_describes": 1183,
+    "gap_if_provided": 1013,
+    "gap_says": 683,
     "assumption_claim": 515,
     # The two the sweep could not see while its range was the table's own
     # contents. Both were already reached three and thirty-six times as a
@@ -140,7 +146,7 @@ PER_CARRIER = {
     # Not a carrier of its own: the word inside a gap's sentence (#774).
     # Pinned beside them so that the word going missing from the gaps
     # shows as this number falling.
-    "gap_blocks": 107,
+    "gap_blocks": 106,
 }
 
 

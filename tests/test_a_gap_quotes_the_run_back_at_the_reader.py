@@ -143,14 +143,18 @@ def test_the_facts_this_rule_speaks_for():
     # 26 fewer what, 9 fewer methods and 3 fewer fallback: the gaps that went
     # when the last value of a variable under one condition stopped being
     # asked for (#776), and the ways past they offered.
+    # 1 fewer what and 1 fewer methods: the gap that went when a reader stopped
+    # being asked for a conditioning the graph says the target does not depend
+    # on (#777).
     assert split == {
-        "assumptions": 37, "method": 61, "what": 87,
-        "methods": 63, "population": 16, "source": 10,
+        "assumptions": 37, "method": 61, "what": 86,
+        "methods": 62, "population": 16, "source": 10,
         "kind": 11, "target": 39, "count": 13,
         "intervention": 588, "treatment": 21, "outcome": 18,
         "latent": 4, "z": 5, "w": 3, "fallback": 9,
     }, split
-    assert len(SITES) == 985, len(SITES)
+    # 2 fewer: the what and the methods counted above (#777).
+    assert len(SITES) == 983, len(SITES)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _, _ in SITES}))
@@ -169,7 +173,10 @@ def test_every_quoted_fact_the_answer_never_did_is_refused():
         with pytest.raises(Exception):                          # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 985, refused
+    # 2 fewer: the two facts quoted on the gap that went when a reader stopped
+    # being asked for a conditioning the graph says the target does not depend
+    # on (#777).
+    assert refused == 983, refused
 
 
 def test_a_listed_slot_is_refused_one_member_at_a_time():
@@ -198,7 +205,9 @@ def test_a_listed_slot_is_refused_one_member_at_a_time():
     # which theta now refuses where it is built.
     # 9 fewer: the ways past on the gaps that went when
     # the last value of a variable under one condition stopped being asked for (#776).
-    assert checked == 100, checked
+    # 1 fewer: the way past on the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert checked == 99, checked
 
 
 def test_the_rule_is_never_asked_without_a_record_to_appeal_to():
@@ -775,7 +784,10 @@ def test_a_copied_hole_written_as_any_other_word_is_refused():
                                match="where it quotes|has no name"):
                 verify_gap_quotes(forged, CONTEXTS[name])
             refused += 1
-    assert refused == 985 * 6, refused
+    # 2 fewer sites: the two facts quoted on the gap that went when a reader
+    # stopped being asked for a conditioning the graph says the target does not
+    # depend on (#777).
+    assert refused == 983 * 6, refused
 
 
 def test_the_one_stand_in_the_corpus_carries_is_held_at_the_door():

@@ -74,8 +74,9 @@ class UnfilledSkeletonError(language.Voiced, ValueError):
 def _skeleton_signature(skeleton: dict) -> tuple:
     """Produce a hashable signature so duplicates across multiple
     query results collapse into one bundle entry. The signature is
-    built from atom predicates + arg names + values; the TODO source
-    annotation does not participate."""
+    built from atom predicates + arg names + values and the population,
+    as theta keys a statement; the TODO source annotation does not
+    participate."""
     target = skeleton.get("target", {})
     target_sig = (
         target.get("atom", {}).get("predicate"),
@@ -96,7 +97,7 @@ def _skeleton_signature(skeleton: dict) -> tuple:
         )
         for g in skeleton.get("given", [])
     )
-    return (target_sig, given_sigs)
+    return (target_sig, given_sigs, skeleton.get("population"))
 
 
 def extract_skeleton_bundle(results: Iterable[QueryResult]) -> dict:
@@ -115,7 +116,7 @@ def extract_skeleton_bundle(results: Iterable[QueryResult]) -> dict:
           ]
         }
 
-    Dedupe key = (target atom+value, given atoms+values). Items that
+    Dedupe key = (target atom+value, given atoms+values, population). Items that
     don't carry a skeleton (non-parameter gaps) are skipped. Order is
     first-seen across the input results.
     """

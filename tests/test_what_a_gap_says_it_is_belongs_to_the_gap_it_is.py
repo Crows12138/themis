@@ -209,7 +209,12 @@ def test_no_answer_this_repository_produces_says_a_stray_statement():
     # P(w) summing to 0.9, which theta now refuses where it is built.
     # 26 fewer slots and 26 fewer gaps: the gaps that went when
     # the last value of a variable under one condition stopped being asked for (#776).
-    assert (slots, gap_total, len(species)) == (1158, 1011, 38)
+    # 2 more slots and 2 more gaps: three framing gaps two mediation answers
+    # gained when written back from their producers, which frame their
+    # mediators (#777), less the gap that went when a reader stopped being
+    # asked for a conditioning the graph says the target does not depend on
+    # (#777).
+    assert (slots, gap_total, len(species)) == (1160, 1013, 38)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

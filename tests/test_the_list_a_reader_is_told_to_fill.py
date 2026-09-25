@@ -209,7 +209,9 @@ def test_a_framing_target_is_a_framing_note_predicate():
             for item in request.get("items") or []:
                 assert item["target"] in notes
                 linked += 1
-    assert linked == 311
+    # 3 more: the framing asks two mediation answers gained when written back
+    # from their producers, which frame their mediators (#777).
+    assert linked == 314
 
 
 def test_the_patch_is_answerable_from_the_program_alone():
@@ -249,7 +251,11 @@ def test_the_patch_is_answerable_from_the_program_alone():
                     checked += 1
     # 26 fewer parameters: the last value of a variable under one condition
     # stopped being asked for (#776).
-    assert (checked, parameters) == (2192, 85), (checked, parameters)
+    # 21 more checked and 1 fewer parameter: the framing asks two mediation
+    # answers gained when written back from their producers, and the
+    # parameter that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert (checked, parameters) == (2213, 84), (checked, parameters)
 
 
 # ------------------------------------------------------------- the gate
@@ -636,7 +642,9 @@ def test_one_missing_item_written_twice_says_the_same_thing():
     pairs = list(_paired())
     # 26 fewer: the last value of a variable under one condition stopped
     # being asked for (#776).
-    assert len(pairs) == 119, len(pairs)
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert len(pairs) == 118, len(pairs)
     refused = 0
     for name, ri, ii, idx in pairs:
         for field in ("gap", "need", "kind"):
@@ -651,7 +659,10 @@ def test_one_missing_item_written_twice_says_the_same_thing():
             refused += 1
     # 78 fewer: three fields on each of the 26 rows that went when the last
     # value of a variable under one condition stopped being asked for (#776).
-    assert refused == 357
+    # 3 fewer: three fields on the row that went when a reader stopped being
+    # asked for a conditioning the graph says the target does not depend on
+    # (#777).
+    assert refused == 354
 
 
 def test_what_only_one_rendering_carries_is_not_compared():
@@ -670,7 +681,9 @@ def test_what_only_one_rendering_carries_is_not_compared():
             one_sided["observable"] += 1
         if ("skeleton" in row) != ("skeleton" in item):
             one_sided["skeleton"] += 1
-    assert one_sided == {"observable": 85, "skeleton": 85}
+    # 1 fewer each: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert one_sided == {"observable": 84, "skeleton": 84}
 
 
 def _asks():
@@ -723,7 +736,11 @@ def test_every_ask_names_a_gap_its_own_report_carries():
     twinned = sum(1 for *_rest, twin in asks if twin)
     # 26 fewer asks, every one twinned: the last value of a variable under one
     # condition stopped being asked for (#776).
-    assert (len(asks), twinned) == (445, 119), (len(asks), twinned)
+    # 2 more asks and 1 fewer twinned: three framing asks two mediation answers
+    # gained when written back from their producers, and a parameter ask that
+    # went when a reader stopped being asked for a conditioning the graph says
+    # the target does not depend on (#777).
+    assert (len(asks), twinned) == (447, 118), (len(asks), twinned)
     for name, ri, ii, _twin in asks:
         result = SHAPES[name]["result"]
         named = result["investigation_requests"][ri]["items"][ii]["gap"]
@@ -741,7 +758,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
 
     The number beside it is why this is a rule of its own. The check next
     to it compares an item to the ``missing_information`` row for the same
-    target, and 326 of these 445 asks have no such row — every framing ask
+    target, and 329 of these 447 asks have no such row — every framing ask
     and some of the rest. Two records agreeing is a check only where there
     are two records; a reference is checked against its referent, and there
     is always exactly one of those.
@@ -762,7 +779,7 @@ def test_an_ask_naming_a_gap_the_report_does_not_carry():
             continue
         lonely += 1
         assert "never said it had" in str(caught.value), (name, caught.value)
-    assert (refused, lonely) == (445, 326), (refused, lonely)
+    assert (refused, lonely) == (447, 329), (refused, lonely)
 
 
 def test_an_answer_with_no_report_is_not_asked_this():

@@ -737,6 +737,13 @@ Public surface (re-exports from sub-modules):
   by emptying the target. It restates no table; every question is whether
   two records of one fact agree, and the sharpest of them is asked of the
   program, which is not the answer's to write)
+- And the same list against the graph the program projects:
+  ``verify_asks_against_the_graph`` (which conditional a reader is sent
+  for, and whether the patch comes back through the input door, are
+  questions about the graph: an observational mark stands exactly where the
+  conditioning goes past the target's parents, ancestors and bidirected
+  siblings, and no atom a formula evaluation's ask conditions on is
+  separated from its target by the rest)
 - And WHICH of those names a gap is about: ``verify_gap_subjects``
   (the rule above asks whether a gap's words are words this problem is
   written in, and a forgery swapping one real variable for another
@@ -1130,7 +1137,10 @@ from .gap_claim_rules import (
 from .estimator_failure_rules import verify_refusal_block
 from .sample_size_rules import verify_required_data
 from .mechanism_rules import verify_mechanism_target
-from .investigation_rules import verify_investigation_items
+from .investigation_rules import (
+    verify_asks_against_the_graph,
+    verify_investigation_items,
+)
 from .bounds_account_rules import verify_bounds_account
 from .post_stratification_rules import verify_post_stratification
 from .method_block_rules import (
@@ -1205,6 +1215,7 @@ __all__ = [
     "verify_required_data",
     "verify_mechanism_target",
     "verify_investigation_items",
+    "verify_asks_against_the_graph",
     "verify_bounds_account",
     "verify_identification_formula",
     "verify_fitted_diagnostics",

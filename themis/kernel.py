@@ -177,6 +177,7 @@ from .verifier import (
     verify_declared_types,
     verify_mechanism_target,
     verify_investigation_items,
+    verify_asks_against_the_graph,
     verify_identification_formula,
     verify_fitted_diagnostics,
     verify_a_bridge_warning_says_the_share_it_counted,
@@ -1921,6 +1922,12 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
     # the patch's fields are answerable only against what the program
     # declares, which is the one side an answer cannot edit.
     verify_investigation_items(result, prog)
+
+    # And the same asks against the graph the program projects. Which
+    # conditional a reader is sent for, and whether the patch comes back
+    # through the input door, are answered by the graph, which the program
+    # alone does not hand the rule above.
+    verify_asks_against_the_graph(result, ctx.graph, ctx.bidirected)
 
     # And the reason a gap gives for ITSELF, against the ask it points at.
     # T10-1 resolves that ref and so knows which request; T10-8 knows which

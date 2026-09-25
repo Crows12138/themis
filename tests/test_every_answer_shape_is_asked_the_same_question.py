@@ -856,8 +856,10 @@ def test_the_lies_a_statement_is_told_come_from_where_its_set_is_named():
     # two halves on each of 133 gaps. 2396 since #776: 26 of those gaps
     # were the last value of a variable under one condition and are no
     # longer asked for, and one mediation answer written back from its
-    # test carries an assumption its stored copy had fallen behind on.
-    assert asked == 2396, asked
+    # test carries an assumption its stored copy had fallen behind on. 2392
+    # since #777: moved with the rows written back then, which a run of the
+    # previous commit's code on the new corpus counts the same.
+    assert asked == 2392, asked
 
 
 def test_no_statement_leaf_has_a_domain_its_path_could_have_given_it():
@@ -2727,7 +2729,9 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    assert asked_total == 33890, asked_total
+    # 5 more with the rows #777 wrote back; the previous commit's code counts
+    # the same on the new corpus.
+    assert asked_total == 33895, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

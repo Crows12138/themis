@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31591 passed / 534 skipped, warning-clean
+31607 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,70 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #777 向读者要的是图实际读的那个条件概率，填回去的语句能进门（2026-09-25）
+
+**来历**：演示前自查的 C5、C6 两条。
+
+- C5：两个互不相连的混杂 z、w 的后门问题，没有数据时要读者给 `P(w|z)`，z 的每个取值各一格。把这条原样填回去，输入校验会拒绝：条件里只能放目标的父节点、祖先或双向边邻居，z 都不是。求值端其实只要 `P(w)` 就能算。有共同原因 c 时，`P(w|z)` 是对的，但骨架没写 `provenance: "observational"`，填回去同样被拒。
+- C6：迁移问题的骨架不写 `population`。读者照填，数落进默认人群的表，缺口还在。
+
+- **现象**：
+  - 两个独立混杂：要 `P(z)`、`P(w|z=True)`、`P(w|z=False)` 加 4 格 `P(y|…)`，多要了一格，且 `P(w|z)` 两格填回去都被拒。三个独立混杂时是 `P(b|a)` 两格、`P(d|a,b)` 四格。
+  - 共同原因：要的格子对，填回去被拒。
+  - 迁移：填回去之后，同一条缺口原样还在。
+- **根因假设**：缺的键离开求值器时，是按公式的写法交出去的。公式因子来自调整集按传入顺序的链式展开，与图无关。求值器自己的 `_try_marginal_independence_lookup` 在图说「目标与某些条件原子在其余条件下 m-分离」时，就读更短的条件概率。于是一边按图读，一边按公式要。骨架是同一个问题的另一半：它应当是「能回答这个键的那条语句」，却只写了键的一部分（没写人群），也没写输入门对这种条件要求写明的 provenance。输入门那边有一句写错的前提：「识别从不请求 observational 形状的键」，它同时写在 `semantic_validator`、`types.py`、`kernel_ast.schema.json` 和给 agent 的 `SKILL.md` 里。
+- **为什么是根因不是表象**：
+  - 只在骨架上补 observational，独立混杂仍多要一格，而且要的是图认为无关的细分。
+  - 只在渲染时去掉 z，缺口、请求、缺参数行三处仍按原键，agent 照清单补时照样要填 `P(w|z)`。
+  - 人群不写进骨架，任何渲染都补不回来：theta 按人群给语句分表。
+- **修法**：
+  - `numeric_estimator._as_asked`：缺的键离开求值器之前（抛出的那一格和 `collect_missing_keys` 收集的每一格），条件集换成图允许的最小集：在它下面，目标与每个被去掉的原子都 m-分离。与目标相邻的原子不会被去掉，其余按大小、再按谓词名的顺序试，结果每次一样。没有图时按原样要，因为这时查找本来就照 theta 原样读。按原子而不是按取值记忆，所以 k 个二值原子的求和只算一次。
+  - `semantic_validator.may_condition_on`：把「结构语句的条件可以放什么」拿出来成为一个函数，输入校验和写骨架的地方用同一条规则。改正了那句写错的前提（四处）。
+  - `scheduler._skeleton_for_parameter` 现在要求传入图：键有人群就写 `population`，条件超出 `may_condition_on` 时写 `provenance: "observational"`。所有生成参数请求的地方都传入各自用的图。`parameter_fill` 去重时把人群算进签名。
+  - schema 的 `parameterSkeleton` 加了这两个字段的定义（它是 `additionalProperties: false`）。
+- **迁移那一处**：迁移问题的求值是全仓唯一一处带着图、却把双向边传成 `None` 的公式求值（f85a3d6 引入，没写理由）。求值器的文档写明「有声明图的调用方必须两者都传」，否则边缘替代不受 m-分离检查。验证器的 R7 重放同一公式时传的是 `ctx.bidirected`，两边本就不对称。改为传 `facts.bidirected` 之后，迁移路径上图不允许的边缘量不再被悄悄拿来代替条件量，它要的格子也按图裁剪。
+- **验证器**：
+  - `rules._verifier_as_asked`：R7 求值器的镜像，中介的缺口块按它核对缺的是哪一格。
+  - `investigation_rules`：概率骨架的人群必须与缺口名里的人群一致；C2 那道检查的分组人群改从骨架读。
+  - 新的 `verify_asks_against_the_graph`（进 `verify_answer_claims`），拿程序投影出的图做两件事：骨架上的 observational 标记恰好出现在条件超出「父节点、祖先、双向边邻居」的地方（自己从图重算，不读校验器）；公式求值类缺口（`theta_entry_missing`、`graph_contradicts_supplied_marginal`）的每个条件原子，在其余条件下都不与目标 m-分离。后一条是「最小」的推论，不重复那次搜索。祖先因子分解、工具变量分层等按原样查键的产出者不在后一条范围内，它们的请求就是它们读的键。
+- **效果**（HEAD 与新代码上各跑同一组程序）：
+  - 两个不相连的混杂：请求 7 条变 6 条（`P(w)` 代替 `P(w|z)` 两格）。HEAD 上逐条填回，`P(w|z)` 两条被拒；新代码上全部能填回，一次填完直接算出数，不再缺参数。
+  - 三个不相连的混杂：请求 15 条变 11 条。HEAD 上 6 条被拒（`P(b|a)` 两格、`P(d|a,b)` 四格）。
+  - 有共同原因：请求都是 7 条，`P(w|z)` 两格现在带 `provenance: "observational"`，能填回，一次填完就算出数。
+  - 迁移：骨架带 `population: "trial"`，填回后那条缺口消失。
+  - 迁移路径的边缘替代：theta 里只有 `P_trial(y|x)=0.6` 且图里 z→y 时，HEAD 先要 `P_user(z)`；补上 `P_user(z)=0.3` 后，HEAD 直接给出 `numerically_solved 0.6`，等于把试验的边缘量当成了每个 z 层的条件量。新代码报「图与所给边缘量矛盾」，要 `P_trial(y|x,z)`，不给数。
+- **语料**：
+  - 251 行在 HEAD（e0d087a）和新代码上各用存的程序重跑。106 行新代码逐字复现，不动。
+  - 4 行 HEAD 逐字复现、新代码不同，用新结果写回：
+    - `#711239` 的两个混杂在图里不相连，`P(baseline_health|age)` 两格变成 `P(baseline_health)` 一格，请求 7 条变 6 条。
+    - 概率查询那行，图是 smoking→tar→lung_cancer 一条链，`P(lung_cancer|smoking,tar)` 变成 `P(lung_cancer|tar)`。它原本的类型是「图与所给边缘量矛盾」（theta 里只有 `P(lung_cancer|smoking)`），类型和那几个说明字段不变。
+    - 两行迁移的骨架加上了人群。
+  - 141 行两边都复现不了，是测试套件经估计入口产出的。用新代码的两道验证门检查存档内容，135 行通过，不动。6 行被拒：
+    - 3 行迁移：骨架缺人群。
+    - 3 行中介：图是 x→m→y，没有直连边，所以缺口块要的是 `P(y|m)` 而不是 `P(y|m,x)`。
+  - 这 6 行中有 4 行，挂收集插件跑候选测试，找到了 HEAD 上产出与存档逐字相同的测试，用新代码下同一测试的产出写回。
+  - 剩下 2 行（`identify_via_mediation`、`identify_via_mediation_joint`）在 HEAD 上没有任何测试逐字产出。两行都是 7cd3b37（09-04 收割）加入、5fc4b3e（09-06 全语料改写）最后改动的。
+    - `_joint`：今天唯一跑这个程序的测试是 `test_mediation_joint.py::test_chained_block_refuses_the_unlicensed_marginal`。它在 HEAD 上的产出与存档只差一处：还为中介 m1、m2 各写了一条框定提示，存档只有 y、x 两条，所以请求项和缺口也多两个。用它在新代码下的产出写回。
+    - `identify_via_mediation`：49 个候选测试文件里，已经没有测试在 30 行样本上跑这个程序了。用同一程序、30 行、m 等于 x 的数据，按存档记下的参数（`ci_bootstrap=500`、`random_state=42`）重跑。在 HEAD 上，结果与存档只差数据指纹，以及为 m 多写的一条框定提示。用这次运行在新代码下的产出写回。
+  - 10 行写回前都过了 `verify_answer_claims`，有推导链的再过 `verify`。写回后 251 行全部通过两道验证。
+- **没做的**：
+  - 网页「假设」流程给 provenance 写的是 `llm_prior`，所以共同原因那条 `P(w|z)` 走「让模型先给个数」时仍会被输入门拒绝。原因是 provenance 一个字段同时表示来源（structural / llm_prior）和形状（observational）。这需要拆字段，单独立一条。
+  - 迁移路径每次只报一格（逐条路线快速失败求值），填完一格才报下一格，单独立一条。
+- **测试**：新文件 `test_an_ask_is_the_conditional_the_graph_reads`，19 个用例：
+  - `_as_asked` 的六种情形：没有图、两个混杂不相连、有共同原因、有双向边、链、父节点不被去掉。
+  - 三种混杂形状下，混杂的请求正是图读的条件概率，只有该标 observational 的才标；所有骨架原样一次填回，不再缺参数。
+  - 迁移骨架带人群，填回后那条缺口消失；迁移路径不再用图不允许的边缘量给数。
+  - 伪造：去掉人群、去掉该有的 observational、给模型参数加上 observational、条件里多一个被图隔开的原子（链 a→b→y 要 `P(y|a,b)`），验证器都拒；同一伪造如果来自按原样查键的产出者，不拒。
+- **改了的钉子**：
+  - 4 个文件里 7 处直接调用 `_missing_parameter_from_key`（6 处）和 `_skeleton_for_parameter`（1 处）的测试，补上 `graph=None, bidirected=None`。
+  - `test_the_slots_a_reader_fills_leave_here_empty.py::test_the_stub_is_the_same_five_fields_every_time` 原来要求概率骨架恰好五个字段，改为五个都在，多出的只能是内核写的 `population` 和 `provenance`。
+  - `test_numeric_estimator_marginalization_check.py::test_evaluate_raises_with_the_enriched_reason`：缺的键从 `P(m2|m1,x)` 改为 `P(m2|m1)`，因为图里 m2 只经过 m1 依赖 x。
+  - 按语料计数的钉子，18 个文件、约 60 处断言，跟着写回的 10 行变。来源核对分两步：
+    - 在 HEAD 代码上换上新语料跑这些测试。40 处的数与新代码上相同，所以变化只来自语料。另有 4 处是伪造测试：HEAD 的 schema 不认骨架上的 `population`，在到达断言之前就拒绝了。其余只在新代码上失败的，是同一个测试里前一条断言在 HEAD 上先失败，没跑到这里。
+    - 再按行拆开：`#711239` 那行少 1 条缺口、1 条概率请求、1 行缺参数、1 个请求项，带条件的骨架少 2 个；链那行带两个以上条件的骨架少 1 个；两行中介写回后多 3 条框定提示、3 个变量补丁请求、3 条 `ambiguous_variable_definition` 缺口。迁移那几行和 `logit_imai` 那行不改变任何计数。每处注释都写明了增减和原因。
+
+**基线**：31607 passed / 534 skipped。比 #776 多 16 个用例：新文件加了 19 个；两个按单条缺口参数化的文件（`test_the_heading_a_shortfall_is_filed_under_is_its_species.py`、`test_how_urgent_a_shortfall_is_belongs_to_its_species.py`）随去掉的那条缺口分别少了 2 个和 1 个。第一次全量是 31551 passed、56 failed：48 个是按语料计数的钉子；4 个是 `tests/test_runtime/` 下直接调用 `_missing_parameter_from_key` 的测试没补新参数（改签名后按符号 grep 时没有递归进子目录）；另外 4 个是缺的键、五个字段、架构图过期、verifier 包的说明没列新导出。改完后又跑了一次全量，得出上面的数。本机可提交内存余量不够，全量改用 2 个进程，每次约 65 分钟。
 
 ### #776 同一条件下一个变量的最后一个取值，不再向读者要（2026-09-25）
 

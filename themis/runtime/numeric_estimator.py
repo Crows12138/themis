@@ -12,9 +12,11 @@ Wiring (v0.1, after slice 6):
 - ``estimate_formula`` recursively evaluates ``constant`` /
   ``probability_ref`` / ``product`` / ``sum`` nodes, substituting
   ``VarRef`` names bound by enclosing sums.
-- ``InsufficientTheta`` is raised with the precise lookup key that
-  failed, so the scheduler can build a ``MissingItem`` that points to
-  the exact conditional the caller must still provide.
+- ``InsufficientTheta`` is raised with the key a reader is asked for:
+  the lookup that failed, its conditioning cut to what the declared
+  graph says the target depends on (``_as_asked``), so the scheduler
+  can build a ``MissingItem`` that points to the exact conditional the
+  caller must still provide and no finer one.
 
 Behaviour in context:
 
@@ -266,16 +268,17 @@ def _evaluate(
             if missing_sink is not None:
                 missing_sink.append(key)
                 return _COLLECT_PLACEHOLDER
+            asked = _as_asked(key, graph=graph, bidirected=bidirected)
             if refusal is not None:
                 raise InsufficientTheta(
-                    key,
+                    asked,
                     need=gaps.Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL,
-                    key=format_probability_key(key),
+                    key=format_probability_key(asked),
                     **refusal,
                 )
             raise InsufficientTheta(
-                key, need=gaps.Need.THETA_ENTRY_MISSING,
-                key=format_probability_key(key),
+                asked, need=gaps.Need.THETA_ENTRY_MISSING,
+                key=format_probability_key(asked),
             )
         return value
 
@@ -358,8 +361,8 @@ def collect_missing_keys(
     """Walk the formula like ``estimate_formula`` but, instead of aborting at
     the first unresolvable ``probability_ref``, gather EVERY one the evaluator
     cannot resolve (after its marginalization / independence fallbacks run, so
-    a derivable factor is never reported missing) and return the distinct cells,
-    in first-seen order.
+    a derivable factor is never reported missing) and return the distinct cells
+    a reader is asked for (:func:`_as_asked`), in first-seen order.
 
     This is what lets the data-gap report name ALL the data a multi-factor
     estimand still needs (front-door touches three CPTs, back-door two), not
@@ -371,14 +374,95 @@ def collect_missing_keys(
     _evaluate(
         formula, theta, {}, graph=graph, bidirected=bidirected, missing_sink=sink,
     )
+    kept: dict[tuple[Atom, frozenset[Atom]], frozenset[Atom]] = {}
     seen: set = set()
     out: list[ProbabilityKey] = []
     for key in sink:
+        key = _as_asked(key, graph=graph, bidirected=bidirected, kept=kept)
         if key in seen:
             continue
         seen.add(key)
         out.append(key)
     return tuple(out)
+
+
+def _as_asked(
+    key: ProbabilityKey,
+    *,
+    graph=None,
+    bidirected=None,
+    kept: "dict[tuple[Atom, frozenset[Atom]], frozenset[Atom]] | None" = None,
+) -> ProbabilityKey:
+    """The key a reader is asked for in place of the one a formula spelt.
+
+    A formula factor conditions on whatever its builder put before it: a
+    back-door adjustment set expanded by the chain rule, in the order it
+    was handed over, conditions each member on the ones before it whether
+    or not the graph connects them. The graph may say the target does not
+    depend on part of that given the rest, and
+    :func:`_try_marginal_independence_lookup` reads the shorter
+    conditional whenever theta holds it. So a reader asked for the
+    formula's own spelling is asked for a finer table than any evaluation
+    reads, one cell for every value of a variable that makes no
+    difference, and for a statement the input validator refuses when what
+    it conditions on is no ancestor of the target.
+
+    This is the other half of that lookup, under the same test: the
+    fewest atoms of the conditioning under which the target is
+    m-separated from each atom left out. Without a graph there is nothing
+    to test, and the key is asked as spelt, as the lookup then takes theta
+    at its word.
+
+    ``kept`` carries what was worked out across the keys of one walk: the
+    answer is about atoms and not their values, and a sum over k binary
+    atoms spells the same factor 2^k times.
+    """
+    if graph is None or bidirected is None or not key.given:
+        return key
+    atoms = frozenset(atom for atom, _ in key.given)
+    if key.target_atom not in graph or not all(a in graph for a in atoms):
+        return key
+    found = kept.get((key.target_atom, atoms)) if kept is not None else None
+    if found is None:
+        found = _the_conditioning_the_target_needs(
+            key.target_atom, atoms, graph=graph, bidirected=bidirected)
+        if kept is not None:
+            kept[(key.target_atom, atoms)] = found
+    if found == atoms:
+        return key
+    return ProbabilityKey(
+        target_atom=key.target_atom,
+        target_value=key.target_value,
+        given=frozenset(pair for pair in key.given if pair[0] in found),
+        population=key.population,
+    )
+
+
+def _the_conditioning_the_target_needs(
+    target: Atom, atoms: frozenset[Atom], *, graph, bidirected,
+) -> frozenset[Atom]:
+    """The smallest subset of ``atoms`` given which ``target`` is
+    m-separated from every atom outside it, or ``atoms`` itself when no
+    proper subset is.
+
+    An atom adjacent to the target is in every such subset, as nothing
+    separates two adjacent nodes, so the search runs over the others.
+    They are tried by size and, within a size, in the order of predicate
+    names, so the choice is the same on every run."""
+    from .structural_solver import m_separated
+    adjacent = frozenset(
+        atom for atom in atoms
+        if graph.has_edge(atom, target) or graph.has_edge(target, atom)
+        or frozenset((atom, target)) in bidirected)
+    rest = sorted(atoms - adjacent, key=lambda atom: (atom.predicate, str(atom)))
+    for size in range(len(rest) + 1):
+        for extra in itertools.combinations(rest, size):
+            kept = adjacent | frozenset(extra)
+            conditioning = tuple(kept)
+            if all(m_separated(graph, bidirected, target, atom, conditioning)
+                   for atom in rest if atom not in kept):
+                return kept
+    return atoms
 
 
 def estimate_probability(

@@ -336,7 +336,11 @@ def test_no_answer_this_build_produces_cites_a_space_it_may_not():
     assert not stray
     # 26 fewer: the gaps that went when the last value of a variable under one
     # condition stopped being asked for (#776).
-    assert (slots, len(species)) == (1011, 38)
+    # 2 more: three framing gaps two mediation answers gained when written
+    # back from their producers, which frame their mediators (#777),
+    # less the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert (slots, len(species)) == (1013, 38)
 
 
 def test_every_gap_in_the_corpus_carries_exactly_one_ref():
@@ -350,7 +354,8 @@ def test_every_gap_in_the_corpus_carries_exactly_one_ref():
                      for one in (CORPUS[name]["result"].get("results")
                                  or [CORPUS[name]["result"]])
                      for gap in _gaps_in(one))
-    assert dict(widths) == {1: 1011}
+    # 2 more, the same two as above (#777).
+    assert dict(widths) == {1: 1013}
 
 
 def _door(envelope):

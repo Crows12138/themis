@@ -213,7 +213,11 @@ def test_every_gap_in_the_corpus_asks_for_what_its_species_asks_for(corpus):
                 species.add(gap.get("kind"))
     # 26 fewer: the gaps that went when the last value of a variable under one
     # condition stopped being asked for (#776).
-    assert (seen, len(species)) == (1011, 38), (seen, len(species))
+    # 2 more: three framing gaps two mediation answers gained when written
+    # back from their producers, which frame their mediators (#777),
+    # less the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert (seen, len(species)) == (1013, 38), (seen, len(species))
 
 
 # --- and every shape the corpus does not say ------------------------------
@@ -255,7 +259,10 @@ def test_no_gap_may_ask_for_a_shape_its_species_does_not(corpus):
                     bent["invented"] += 1
     # 130 fewer stated and 26 fewer dropped: the gaps that went when
     # the last value of a variable under one condition stopped being asked for (#776).
-    assert bent == {"stated": 545, "dropped": 109, "invented": 902}, bent
+    # 5 fewer stated, 1 fewer dropped and 3 more invented: moved with the rows
+    # #777 wrote back; the previous commit's code counts the same on the new
+    # corpus.
+    assert bent == {"stated": 540, "dropped": 108, "invented": 905}, bent
 
 
 def test_the_shape_a_missing_distribution_asks_for_is_read_off_its_ask(corpus):
@@ -281,7 +288,10 @@ def test_the_shape_a_missing_distribution_asks_for_is_read_off_its_ask(corpus):
                 flipped[shape] += 1
     # 14 fewer conditional and 12 fewer marginal: the gaps that went when
     # the last value of a variable under one condition stopped being asked for (#776).
-    assert flipped == {"conditional": 71, "marginal": 13}, flipped
+    # 2 fewer conditional and 1 more marginal: P(baseline_health|age) at two
+    # values of age became P(baseline_health), as the graph does not connect
+    # the two (#777).
+    assert flipped == {"conditional": 69, "marginal": 14}, flipped
 
 
 def test_a_conditional_ask_answered_with_a_marginal_demand_is_refused(corpus):

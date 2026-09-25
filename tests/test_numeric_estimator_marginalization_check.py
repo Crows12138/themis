@@ -667,9 +667,11 @@ def test_evaluate_raises_with_the_enriched_reason():
     assert str(exc.need) == "graph_contradicts_supplied_marginal"
     assert exc.details["extras"] == "m1"
     # And the sentence the reader assembles from it still opens on the
-    # shortfall and goes on to say why more theta is not the repair.
+    # shortfall and goes on to say why more theta is not the repair. The
+    # shortfall it names is the conditional the graph reads: m2 depends on
+    # x only through m1, so what a reader is sent for is P(m2|m1) (#777).
     from themis import gaps
-    assert exc.details["key"] == "P(m2=True|m1=True,x=True)"
+    assert exc.details["key"] == "P(m2=True|m1=True)"
     said = gaps.said(gaps.fields(exc.need, **exc.details))
     assert "Theta 中缺条目" in said
     assert "m1" in said

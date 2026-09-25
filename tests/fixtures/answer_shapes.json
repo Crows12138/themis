@@ -43867,18 +43867,18 @@ false
 "numeric": {
 "cde_status": {
 "mediator_value": "True",
-"missing_key": "P(y=True|m=True,x=True)",
+"missing_key": "P(y=True|m=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=True)"
 },
 "status": "insufficient_theta"
 },
 "nde_nie_status": {
-"missing_key": "P(y=True|m=True,x=True)",
+"missing_key": "P(y=True|m=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=True)"
 },
 "status": "insufficient_theta"
 }
@@ -74026,7 +74026,7 @@ false
 "describes": [
 {
 "said": {
-"what": "P(baseline_health=True|age=True)"
+"what": "P(baseline_health=True)"
 },
 "sentence": "a_distribution_is_missing"
 }
@@ -74034,23 +74034,24 @@ false
 "kind": "missing_distribution",
 "provenance": [
 {
-"ref_id": "parameter:P(baseline_health=True|age=True)",
+"ref_id": "parameter:P(baseline_health=True)",
 "ref_kind": "investigation_request"
 }
 ],
 "required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
+"data_type": "marginal",
+"min_sample_size": 1100,
 "precision_target": {
 "said": {
-"h": "0.2"
+"p": "0.5",
+"precision": "0.03"
 },
-"token": "detect_a_binary_effect",
+"token": "pin_one_proportion",
 "vocabulary": "precision_target"
 }
 },
 "severity": "blocking",
-"signature": "conditional",
+"signature": "marginal",
 "words": {
 "blocks": {
 "token": "point_estimate",
@@ -74125,51 +74126,6 @@ false
 "provenance": [
 {
 "ref_id": "parameter:P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)",
-"ref_kind": "investigation_request"
-}
-],
-"required_data": {
-"data_type": "ipd",
-"min_sample_size": 400,
-"precision_target": {
-"said": {
-"h": "0.2"
-},
-"token": "detect_a_binary_effect",
-"vocabulary": "precision_target"
-}
-},
-"severity": "blocking",
-"signature": "conditional",
-"words": {
-"blocks": {
-"token": "point_estimate",
-"vocabulary": "gap_blocks"
-}
-}
-},
-{
-"alternative_paths": [
-{
-"route": "bounds_already_computed",
-"said": {
-"methods": "manski_natural"
-}
-}
-],
-"blocks": "point_estimate",
-"describes": [
-{
-"said": {
-"what": "P(baseline_health=True|age=False)"
-},
-"sentence": "a_distribution_is_missing"
-}
-],
-"kind": "missing_distribution",
-"provenance": [
-{
-"ref_id": "parameter:P(baseline_health=True|age=False)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -74654,26 +74610,13 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(baseline_health=True|age=True)"
+"key": "P(baseline_health=True)"
 },
 "skeleton": {
 "annotations": {
 "source": "TODO"
 },
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "age"
-},
-"value": true
-}
-],
+"given": [],
 "kind": "probability",
 "target": {
 "atom": {
@@ -74689,7 +74632,7 @@ false
 },
 "value": null
 },
-"target": "parameter:P(baseline_health=True|age=True)"
+"target": "parameter:P(baseline_health=True)"
 },
 {
 "gap": "missing_distribution",
@@ -74825,47 +74768,6 @@ false
 "gap": "missing_distribution",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(baseline_health=True|age=False)"
-},
-"skeleton": {
-"annotations": {
-"source": "TODO"
-},
-"given": [
-{
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "age"
-},
-"value": false
-}
-],
-"kind": "probability",
-"target": {
-"atom": {
-"args": [
-{
-"name": "patient",
-"type": "const"
-}
-],
-"predicate": "baseline_health"
-},
-"value": true
-},
-"value": null
-},
-"target": "parameter:P(baseline_health=True|age=False)"
-},
-{
-"gap": "missing_distribution",
-"need": "theta_entry_missing",
-"said": {
 "key": "P(cvd_event=True|age=False,baseline_health=False,hrt_use=True)"
 },
 "skeleton": {
@@ -74929,7 +74831,7 @@ false
 }
 ],
 "priority": "high",
-"target": "parameter:7_items"
+"target": "parameter:6_items"
 },
 {
 "action": "define_variable",
@@ -75033,17 +74935,16 @@ false
 {
 "gap": "missing_distribution",
 "kind": "parameter",
-"name": "parameter:P(baseline_health=True|age=True)",
+"name": "parameter:P(baseline_health=True)",
 "need": "theta_entry_missing",
 "observable": {
 "variables": [
-"age",
 "baseline_health"
 ]
 },
 "priority": "high",
 "said": {
-"key": "P(baseline_health=True|age=True)"
+"key": "P(baseline_health=True)"
 }
 },
 {
@@ -75080,22 +74981,6 @@ false
 "priority": "high",
 "said": {
 "key": "P(cvd_event=True|age=False,baseline_health=True,hrt_use=True)"
-}
-},
-{
-"gap": "missing_distribution",
-"kind": "parameter",
-"name": "parameter:P(baseline_health=True|age=False)",
-"need": "theta_entry_missing",
-"observable": {
-"variables": [
-"age",
-"baseline_health"
-]
-},
-"priority": "high",
-"said": {
-"key": "P(baseline_health=True|age=False)"
 }
 },
 {
@@ -86968,7 +86853,7 @@ false
 {
 "route": "supply_the_conditional",
 "said": {
-"what": "P(lung_cancer=True|smoking=True,tar=True)"
+"what": "P(lung_cancer=True|tar=True)"
 }
 },
 {
@@ -86979,7 +86864,7 @@ false
 "describes": [
 {
 "said": {
-"what": "P(lung_cancer=True|smoking=True,tar=True)"
+"what": "P(lung_cancer=True|tar=True)"
 },
 "sentence": "the_graph_and_the_cpts_disagree"
 }
@@ -86987,7 +86872,7 @@ false
 "kind": "graph_theta_independence_mismatch",
 "provenance": [
 {
-"ref_id": "parameter:P(lung_cancer=True|smoking=True,tar=True)",
+"ref_id": "parameter:P(lung_cancer=True|tar=True)",
 "ref_kind": "investigation_request"
 }
 ],
@@ -87089,7 +86974,7 @@ false
 "conditioning": "smoking",
 "extras": "tar",
 "have": "P(lung_cancer=True|smoking=True)",
-"key": "P(lung_cancer=True|smoking=True,tar=True)",
+"key": "P(lung_cancer=True|tar=True)",
 "variable": "lung_cancer"
 },
 "skeleton": {
@@ -87097,18 +86982,6 @@ false
 "source": "TODO"
 },
 "given": [
-{
-"atom": {
-"args": [
-{
-"name": "p",
-"type": "const"
-}
-],
-"predicate": "smoking"
-},
-"value": true
-},
 {
 "atom": {
 "args": [
@@ -87137,7 +87010,7 @@ false
 },
 "value": null
 },
-"target": "parameter:P(lung_cancer=True|smoking=True,tar=True)"
+"target": "parameter:P(lung_cancer=True|tar=True)"
 }
 ],
 "note": {
@@ -87146,12 +87019,12 @@ false
 "conditioning": "smoking",
 "extras": "tar",
 "have": "P(lung_cancer=True|smoking=True)",
-"key": "P(lung_cancer=True|smoking=True,tar=True)",
+"key": "P(lung_cancer=True|tar=True)",
 "variable": "lung_cancer"
 }
 },
 "priority": "high",
-"target": "parameter:P(lung_cancer=True|smoking=True,tar=True)"
+"target": "parameter:P(lung_cancer=True|tar=True)"
 },
 {
 "action": "define_variable",
@@ -87250,12 +87123,11 @@ false
 {
 "gap": "graph_theta_independence_mismatch",
 "kind": "parameter",
-"name": "parameter:P(lung_cancer=True|smoking=True,tar=True)",
+"name": "parameter:P(lung_cancer=True|tar=True)",
 "need": "graph_contradicts_supplied_marginal",
 "observable": {
 "variables": [
 "lung_cancer",
-"smoking",
 "tar"
 ]
 },
@@ -87264,7 +87136,7 @@ false
 "conditioning": "smoking",
 "extras": "tar",
 "have": "P(lung_cancer=True|smoking=True)",
-"key": "P(lung_cancer=True|smoking=True,tar=True)",
+"key": "P(lung_cancer=True|tar=True)",
 "variable": "lung_cancer"
 }
 }
@@ -199344,6 +199216,26 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -199634,7 +199526,7 @@ false
 "y"
 ],
 "data_contract_warnings": [],
-"data_hash": "c62d2821fdb4daee526b4e84167ff88e77905e5e8955a3a12112d9010135a1b8",
+"data_hash": "fcf76fd0c222abb73d08e6246938c745c0fcc10399a074441d094fba2f2b6d04",
 "model_preference": "auto",
 "random_state": 42,
 "sample_size": 30
@@ -199752,18 +199644,18 @@ false
 "numeric": {
 "cde_status": {
 "mediator_value": "True",
-"missing_key": "P(y=True|m=True,x=True)",
+"missing_key": "P(y=True|m=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=True)"
 },
 "status": "insufficient_theta"
 },
 "nde_nie_status": {
-"missing_key": "P(y=True|m=True,x=True)",
+"missing_key": "P(y=True|m=True)",
 "need": "theta_entry_missing",
 "said": {
-"key": "P(y=True|m=True,x=True)"
+"key": "P(y=True|m=True)"
 },
 "status": "insufficient_theta"
 }
@@ -199793,6 +199685,17 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m"
 }
 ],
 "investigation_requests": [
@@ -199855,10 +199758,38 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m"
+},
+"target": "m"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:3_items"
 }
 ],
 "query_id": "q",
@@ -203137,6 +203068,46 @@ false
 "severity": "important"
 },
 {
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m1"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m1",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
+"blocks": "interpretation",
+"describes": [
+{
+"said": {
+"missing": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"variable": "m2"
+},
+"sentence": "the_variable_has_no_operational_definition"
+}
+],
+"kind": "ambiguous_variable_definition",
+"provenance": [
+{
+"ref_id": "m2",
+"ref_kind": "framing_note"
+}
+],
+"severity": "important"
+},
+{
 "alternative_paths": [
 {
 "route": "declare_the_intervention_an_event",
@@ -203610,13 +203581,13 @@ false
 "True|True": 0.30000000000000004
 },
 "nde_nie_status": {
-"missing_key": "P(m2=True|m1=True,x=True)",
+"missing_key": "P(m2=True|m1=True)",
 "need": "graph_contradicts_supplied_marginal",
 "said": {
 "conditioning": "x",
 "extras": "m1",
 "have": "P(m2=True|x=True)",
-"key": "P(m2=True|m1=True,x=True)",
+"key": "P(m2=True|m1=True)",
 "variable": "m2"
 },
 "status": "insufficient_theta"
@@ -203647,6 +203618,28 @@ false
 "state_vs_event"
 ],
 "predicate": "x"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m1"
+},
+{
+"missing": [
+"time_window",
+"measurement",
+"observability",
+"direction",
+"baseline",
+"state_vs_event"
+],
+"predicate": "m2"
 }
 ],
 "investigation_requests": [
@@ -203709,10 +203702,66 @@ false
 "predicate": "x"
 },
 "target": "x"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m1"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m1"
+},
+"target": "m1"
+},
+{
+"gap": "ambiguous_variable_definition",
+"need": "framing_fields_unfilled",
+"said": {
+"count": "6",
+"fields": "time_window, measurement, observability, direction, baseline, state_vs_event",
+"predicate": "m2"
+},
+"skeleton": {
+"existing": {
+"domain": [
+true,
+false
+]
+},
+"fields": {
+"baseline": null,
+"direction": null,
+"measurement": null,
+"observability": null,
+"state_vs_event": null,
+"time_window": null
+},
+"kind": "variable_patch",
+"predicate": "m2"
+},
+"target": "m2"
 }
 ],
 "priority": "medium",
-"target": "define_variable:2_items"
+"target": "define_variable:4_items"
 }
 ],
 "query_id": "q",
@@ -204783,6 +204832,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "rct_us",
 "target": {
 "atom": {
 "args": [
@@ -204836,6 +204886,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "rct_eu",
 "target": {
 "atom": {
 "args": [
@@ -205792,6 +205843,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "trial",
 "target": {
 "atom": {
 "args": [
@@ -206728,6 +206780,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "trial",
 "target": {
 "atom": {
 "args": [
@@ -207870,6 +207923,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "rct_meta_2022",
 "target": {
 "atom": {
 "args": [
@@ -208817,6 +208871,7 @@ false
 }
 ],
 "kind": "probability",
+"population": "trial",
 "target": {
 "atom": {
 "args": [

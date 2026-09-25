@@ -3534,6 +3534,14 @@
           "type": ["number", "null"],
           "description": "Null in the freshly-emitted skeleton; the user fills it in before merging back via apply_patch_and_run. Once set, must fall in [0, 1] (enforced by merge)."
         },
+        "population": {
+          "type": "string",
+          "description": "The population whose table the missing number belongs to, as the key names it in its subscript. Absent for the population the question is about. Theta keys a statement by its population, so a patch pasted back without it fills the default population's table and the ask stays open."
+        },
+        "provenance": {
+          "const": "observational",
+          "description": "Present when the stub conditions on more than the target's parents, directed ancestors and bidirected siblings, which the input validator admits only as an observational conditional. A back-door formula expanded by the chain rule has such factors (P(w|z) for two confounders sharing a cause); the mark is what lets the filled stub back in."
+        },
         "annotations": {
           "type": "object",
           "description": "Free-form metadata carried through merge (e.g. {\"source\": \"TODO\"} on emission, {\"source\": \"user_report\"} after fill)."

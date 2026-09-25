@@ -542,6 +542,11 @@ def _check_a_parameter_the_reader_is_asked_for(
     Held as the target pair and the given pairs, and the given ones as a
     multiset: what is conditioned on is a set, so an answer that writes it
     in another order says the same thing and must not be refused for it.
+
+    And the population. The name spells it in its subscript and theta keys
+    a statement by it, so a patch that leaves it out, or names another,
+    lands in a different table and the ask stays open however faithfully a
+    reader fills it.
     Arguments are not in this comparison because the name does not carry
     them — the atoms' units are held one rule earlier, against the
     problem's own grounded variables.
@@ -599,6 +604,17 @@ def _check_a_parameter_the_reader_is_asked_for(
             f"conditions on {conditions or 'nothing'}; the parameter a "
             f"reader is sent to measure is only that number under the "
             f"conditions written beside it"
+        )
+    population = skeleton.get("population")
+    opens = "P(" if population is None else f"P_{population}("
+    if not str(target).split(":", 1)[-1].startswith(opens):
+        about = ("the population the question is about" if population is None
+                 else f"population {population!r}")
+        _reject(
+            f"{where} is filed under {target!r} and the patch beneath it is "
+            f"a statement about {about}; theta keys a number by its "
+            f"population, so a reader who pastes the patch back fills a "
+            f"different table from the one this ask is short of"
         )
 
 
@@ -1429,7 +1445,7 @@ def _spelt(node: Any) -> "tuple[str, tuple[str, ...]] | None":
 
 
 def _check_no_ask_is_settled_by_the_others(
-    requests: Iterable[Any], missing: Mapping, program: Any,
+    requests: Iterable[Any], program: Any,
 ) -> None:
     """The values a reader is asked for under one condition leave one out.
 
@@ -1484,13 +1500,8 @@ def _check_no_ask_is_settled_by_the_others(
                      if isinstance(g, Mapping)]
             if target is None or any(atom is None for atom, _ in given):
                 continue
-            row = missing.get(item.get("target"))
-            seen = (row or {}).get("observable") if isinstance(
-                row, Mapping) else None
-            population = (seen.get("population")
-                          if isinstance(seen, Mapping) else None)
             asked.setdefault(
-                (target, frozenset(given), population), [],
+                (target, frozenset(given), skeleton.get("population")), [],
             ).append((f"investigation_requests[{ri}].items[{ii}]",
                       node.get("value")))
     for group, rows in asked.items():
@@ -1673,8 +1684,153 @@ def verify_investigation_items(result: Mapping, program: Any) -> None:
             [i for i in request.get("items") or () if isinstance(i, Mapping)])
     # Across asks rather than within one: whether a value is owed is a
     # question about the other values asked under the same condition.
-    _check_no_ask_is_settled_by_the_others(requests, missing, program)
+    _check_no_ask_is_settled_by_the_others(requests, program)
     # After every ask has been read, for the reason that rule gives: it is
     # the widest thing that can be wrong here, and standing in front of the
     # narrower ones it would answer a question nobody asked.
     _check_every_row_is_named_by_an_ask(result, asked)
+
+
+#: The species a formula evaluated against the declared graph raises. The
+#: evaluator reads a shorter conditional wherever the graph separates the
+#: target from what it drops, and asks for the shortest; every other
+#: producer of a parameter ask reads its keys as spelt and asks for them so.
+_ASKED_AS_THE_GRAPH_NEEDS = frozenset({
+    str(_gaps.Need.THETA_ENTRY_MISSING),
+    str(_gaps.Need.GRAPH_CONTRADICTS_SUPPLIED_MARGINAL),
+})
+
+
+def _placed(node: Any) -> "tuple[str, tuple[str, ...], Any] | None":
+    """An envelope atom as a graph tells its nodes apart: name, constants
+    and time step."""
+    spelt = _spelt(node)
+    if spelt is None:
+        return None
+    when = node.get("time_index")
+    return (*spelt, when.get("value") if isinstance(when, Mapping) else None)
+
+
+def _node_placed(atom: Atom) -> "tuple[str, tuple[str, ...], Any]":
+    """A graph node in the same form."""
+    return (atom.predicate,
+            tuple(str(getattr(term, "name", term)) for term in atom.args),
+            atom.time_index.value if atom.time_index is not None else None)
+
+
+def _check_the_ask_pastes_back(
+    where: str, skeleton: Mapping, target: Atom, given: "list[Atom]",
+    graph: Any, bidirected: "frozenset[frozenset[Atom]]",
+) -> None:
+    """The patch an ask hands over, against the door it goes back through.
+
+    The input validator takes a probability statement as a model parameter
+    when what it conditions on is among the target's parents, directed
+    ancestors and bidirected siblings, and otherwise only as an
+    observational conditional, which the statement must say it is. A
+    back-door formula expanded by the chain rule has factors of the second
+    kind (P(w|z) for two confounders sharing a cause), so the kernel's own
+    asks include them, and one that does not say so is refused at the door
+    however faithfully a reader fills it. One that says so where it need
+    not files a model parameter as something measured.
+
+    Recomputed here from the graph rather than read off the validator, so
+    the two check each other.
+    """
+    import networkx as nx
+    admitted = set(graph.predecessors(target)) | nx.ancestors(graph, target)
+    for pair in bidirected:
+        if target in pair:
+            admitted |= pair - {target}
+    beyond = sorted(atom.predicate for atom in given if atom not in admitted)
+    says = skeleton.get("provenance") == "observational"
+    if beyond and not says:
+        _reject(
+            f"{where} hands a reader a patch for {target.predicate} "
+            f"conditioned on {beyond}, which the declared graph makes neither "
+            f"parents, ancestors nor bidirected siblings of it; the door the "
+            f"patch goes back through admits that only as an observational "
+            f"conditional, and the patch does not say it is one, so the "
+            f"reader's number is refused on arrival"
+        )
+    if says and not beyond:
+        _reject(
+            f"{where} hands a reader a patch for {target.predicate} marked "
+            f"observational, and everything it conditions on is a parent, "
+            f"ancestor or bidirected sibling of it; that is a model "
+            f"parameter, and the mark files the reader's number as a "
+            f"measured conditional"
+        )
+
+
+def _check_the_ask_conditions_on_what_the_target_needs(
+    where: str, target: Atom, given: "list[Atom]",
+    graph: Any, bidirected: "frozenset[frozenset[Atom]]",
+) -> None:
+    """What an ask conditions on, against what the graph says the target
+    depends on.
+
+    The evaluator reads a conditional without an atom the graph separates
+    from the target given the rest, and asks for the shortest conditioning
+    it would read. So no atom of an ask it wrote is separated from the
+    target by the others: an ask carrying one sends a reader to measure a
+    table finer than anything reads, one cell for each value of a variable
+    that makes no difference. That follows from the conditioning being the
+    shortest and does not repeat the search for it.
+    """
+    from .rules import _verifier_is_m_connected
+    for atom in given:
+        rest = frozenset(other for other in given if other != atom)
+        if not _verifier_is_m_connected(graph, bidirected, target, atom, rest):
+            _reject(
+                f"{where} asks a reader for {target.predicate} conditioned on "
+                f"{atom.predicate}, and the declared graph separates the two "
+                f"given {sorted(a.predicate for a in rest) or 'nothing'}; the "
+                f"conditional without it is the one an evaluation reads, so "
+                f"the reader is sent to measure a finer table than anything "
+                f"uses"
+            )
+
+
+def verify_asks_against_the_graph(
+    result: Mapping, graph: Any, bidirected: "frozenset[frozenset[Atom]]",
+) -> None:
+    """Hold each probability a reader is asked for to the declared graph.
+
+    :func:`verify_investigation_items` holds an ask to the program's
+    declarations. Which conditional a reader is sent for, and whether the
+    patch for it comes back through the door, are questions about the graph
+    the program projects, and this is where that graph is read. Atoms the
+    graph does not have are left to the rule there that refuses them.
+    """
+    requests = result.get("investigation_requests") or ()
+    if not requests:
+        return
+    nodes: dict[Any, Atom] = {
+        _node_placed(atom): atom for atom in graph.nodes}
+    for ri, request in enumerate(requests):
+        if not isinstance(request, Mapping):
+            continue
+        for ii, item in enumerate(request.get("items") or ()):
+            if not isinstance(item, Mapping) or item.get(
+                    "superseded_by_estimation"):
+                continue
+            skeleton = item.get("skeleton")
+            if not isinstance(skeleton, Mapping) or skeleton.get(
+                    "kind") != _PROBABILITY:
+                continue
+            node = skeleton.get("target")
+            target = (nodes.get(_placed(node.get("atom")))
+                      if isinstance(node, Mapping) else None)
+            found = [nodes.get(_placed(g.get("atom")))
+                     for g in skeleton.get("given") or ()
+                     if isinstance(g, Mapping)]
+            given = [atom for atom in found if atom is not None]
+            if target is None or len(given) != len(found):
+                continue
+            where = f"investigation_requests[{ri}].items[{ii}]"
+            _check_the_ask_pastes_back(
+                where, skeleton, target, given, graph, bidirected)
+            if item.get("need") in _ASKED_AS_THE_GRAPH_NEEDS:
+                _check_the_ask_conditions_on_what_the_target_needs(
+                    where, target, given, graph, bidirected)

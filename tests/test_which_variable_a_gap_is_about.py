@@ -115,14 +115,16 @@ def test_the_variable_a_gap_is_about_is_named_by_its_own_provenance():
     within a stratum was evaluated within it, whose four gaps about a
     variable's definition are one per variable the question names. Both
     went down by two with the row whose instrument strata were weighted by
-    a P(w) summing to 0.9, which theta now refuses where it is built.
-    Together is the point: the subjects are the denominator
+    a P(w) summing to 0.9, which theta now refuses where it is built. Both
+    went up by three with the framing gaps two mediation answers gained
+    when written back from their producers, which frame their mediators
+    (#777). Together is the point: the subjects are the denominator
     and the named ones the numerator, so a rule losing ground separates
     them and a corpus growing does not.
     """
     pairs = list(_subjects())
     inside = sum(1 for _, v, _, tokens in pairs if v in tokens)
-    assert (inside, len(pairs)) == (466, 466)
+    assert (inside, len(pairs)) == (469, 469)
 
 
 def _riders():
@@ -148,11 +150,11 @@ def test_a_ref_that_merely_contains_the_name_is_not_the_name():
     accepts names the ref never mentions: a gap about ``m`` rides on
     ``program:front_door_pattern``, and one about ``y`` on
     ``propensity_overlap:x|z``. The tighter relation costs nothing on the
-    honest side — 466 of 466 either way — and this corpus offers 208 rides
+    honest side — 469 of 469 either way — and this corpus offers 208 rides
     it refuses.
     """
     assert sum(1 for _, v, refs, _ in _subjects()
-               if any(v in r for r in refs)) == 466
+               if any(v in r for r in refs)) == 469
     assert len(list(_riders())) == 208
 
 

@@ -76,8 +76,11 @@ def test_the_block_and_the_part_of_it_this_rule_reaches():
     """
     assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"]) for n in CARRIERS)
-    assert rows == 121, rows
-    assert len(WITH_KEY) == 80, len(WITH_KEY)
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert rows == 120, rows
+    # 1 fewer, the same row (#777).
+    assert len(WITH_KEY) == 79, len(WITH_KEY)
 
 
 @pytest.mark.parametrize("name", CARRIERS)
@@ -105,7 +108,9 @@ def test_the_reading_of_a_key_is_the_one_the_corpus_shows():
         assert set(shown) == set(_NAMES_IN_A_KEY.findall(row["said"]["key"])), (
             name, row["said"]["key"], shown)
         checked += 1
-    assert checked == 80, checked
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert checked == 79, checked
 
 
 def test_every_single_field_edit_of_the_three_is_refused():
@@ -136,7 +141,10 @@ def test_every_single_field_edit_of_the_three_is_refused():
             with pytest.raises(VerificationError):
                 the_door_for(row["result"])(row["program"], forged)
             refused += 1
-    assert refused == 240, refused
+    # 3 fewer: the three edits of the missing row that went when a reader
+    # stopped being asked for a conditioning the graph says the target does not
+    # depend on (#777).
+    assert refused == 237, refused
 
 
 def test_the_three_lies_are_told_apart_in_the_message():

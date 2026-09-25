@@ -131,7 +131,7 @@ def test_format_probability_key_matches_scheduler_name():
     from themis import gaps
 
     item = _missing_parameter_from_key(
-        key, need=gaps.Need.THETA_ENTRY_MISSING,
+        key, need=gaps.Need.THETA_ENTRY_MISSING, graph=None, bidirected=None,
         key=format_probability_key(key),
     )
     assert item.name == f"parameter:{format_probability_key(key)}"

@@ -89,8 +89,10 @@ def _forge(name, bend):
 
 def test_the_corpus_is_the_size_it_was_measured_at():
     assert len(CARRYING) == 30
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
     assert sum(1 for name in CARRYING
-               for _ in _skeletons(SHAPES[name]["result"])) == 85
+               for _ in _skeletons(SHAPES[name]["result"])) == 84
 
 
 def test_the_census_no_longer_names_this_leaf_anywhere():
@@ -116,12 +118,21 @@ def test_every_stub_that_ever_left_here_has_both_slots_empty():
                 "source": rules._A_SOURCE_NOBODY_HAS_YET}, where
 
 
+#: What a stub may add to the five: which population's table the number goes
+#: in, and that the statement is an observational conditional. Both are the
+#: kernel's to write, like the target and the given (#777).
+KERNEL_WRITES = frozenset({"population", "provenance"})
+
+
 def test_the_stub_is_the_same_five_fields_every_time():
-    """No probability stub on the corpus carries a sixth field, which is
-    why two slots is the whole of what a reader fills."""
-    assert {tuple(sorted(skeleton)) for name in CARRYING
-            for _, _, skeleton in _skeletons(SHAPES[name]["result"])} == {
-        ("annotations", "given", "kind", "target", "value")}
+    """Every probability stub on the corpus carries the five, and anything
+    beyond them is a field the kernel writes, which is why two slots is the
+    whole of what a reader fills."""
+    shapes = {tuple(sorted(skeleton)) for name in CARRYING
+              for _, _, skeleton in _skeletons(SHAPES[name]["result"])}
+    five = ("annotations", "given", "kind", "target", "value")
+    assert all(set(five) <= set(shape) for shape in shapes), shapes
+    assert set().union(*shapes) - set(five) <= KERNEL_WRITES, shapes
 
 
 # ------------------------------------------- the word, and where it is from
@@ -137,7 +148,7 @@ def test_the_placeholder_is_the_producers_own_word():
         target_atom=Atom(predicate="y", args=(ConstTerm("u"),)),
         target_value=True,
         given=frozenset({(Atom(predicate="x", args=(ConstTerm("u"),)), True)}),
-    ))
+    ), graph=None, bidirected=None)
     assert stub["annotations"] == {"source": rules._A_SOURCE_NOBODY_HAS_YET}
     assert stub["value"] is None
 
@@ -292,6 +303,8 @@ def test_a_variable_patch_is_not_asked_these_questions():
                for item in request.get("items") or ()
                if isinstance(skeleton := item.get("skeleton"), dict)
                and skeleton.get("kind") == "variable_patch"]
-    assert len(patches) == 311
+    # 3 more: the framing asks two mediation answers gained when written
+    # back from their producers, which frame their mediators (#777).
+    assert len(patches) == 314
     assert not any("annotations" in patch or "value" in patch
                    for patch in patches)

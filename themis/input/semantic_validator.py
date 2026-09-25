@@ -1593,65 +1593,72 @@ GRAPH_LEVEL_CHECKS: frozenset[str] = frozenset(
 )
 
 
+def may_condition_on(
+    target_atom, graph, bidirected: "frozenset[frozenset]" = frozenset(),
+) -> frozenset:
+    """What a structural probability statement about ``target_atom`` may
+    name in ``given``: its parents, its directed ancestors and its
+    bidirected siblings.
+
+    A model parameter is a conditional on the target's parent set (or a
+    marginal over a subset of them). Allowing arbitrary conditionals into
+    Theta silently admits statements that are not CPT entries and whose
+    values cannot be consumed by identification formulas without
+    contradiction.
+
+    A narrower bidirected-sibling-only loosening does not cover it: the
+    disjoint-Y case revealed Tian's c-factor product needs the full
+    topo-predecessor closure (Y's V_{<Y} = {X, Z1, Z2} where X is a
+    grandparent through Z1↔Z2). Directed ancestors because the chain rule
+    within a c-component conditions on them (X → Z1 → Y gives P(Y|X,Z1));
+    bidirected siblings because topological order within a c-component is
+    arbitrary and this check cannot know which order Tian will pick.
+
+    Read by the check below and by the one place that writes the
+    statement a reader is asked to paste back, so an ask and the door it
+    goes back through are one rule.
+    """
+    import networkx as nx
+    reach: set = set()
+    if target_atom in graph:
+        reach |= set(graph.predecessors(target_atom))
+        reach |= set(nx.ancestors(graph, target_atom))
+    for pair in bidirected:
+        if target_atom in pair:
+            reach.update(a for a in pair if a != target_atom)
+    return frozenset(reach)
+
+
 def _check_probability_parents(
     ground_statements, graph, *, bidirected: "frozenset[frozenset]" = frozenset(),
 ) -> None:
-    """Every ground probability statement's ``given`` set must be a
-    subset of the target atom's structural parents in ``G(M)`` —
-    OR any atom that reaches target via a directed or
-    bidirected path (admissible Tian c-factor topo-predecessors).
-
-    A model parameter is a conditional on the target's parent set (or
-    a marginal over a subset of them). Allowing arbitrary conditionals
-    into Theta silently admits statements that are not CPT entries and
-    whose values cannot be consumed by identification formulas without
-    contradiction.
-
-    A narrower bidirected-sibling-only loosening does not cover it:
-    the disjoint-Y case revealed Tian's c-factor product needs the
-    full topo-predecessor closure (Y's V_{<Y} = {X, Z1, Z2} where X
-    X is a grandparent through Z1↔Z2. This is the closure
-    via directed-or-bidirected reachability — atoms with any path to
-    target may appear in ``given``.
+    """Every ground probability statement's ``given`` set must be what
+    :func:`may_condition_on` allows for its target, unless the statement
+    says it is observational.
     """
-    import networkx as nx
     for idx, stmt in enumerate(ground_statements):
         if not isinstance(stmt, ProbabilityStatement):
             continue
-        # CLadder Q6772, collider conditioning:
-        # observational provenance means this entry is an empirical /
-        # joint-derived conditional, not a structural CPT. Skip the
-        # parent-subset enforcement — given can contain descendants
-        # or other non-parent atoms. Safe because identification
-        # algorithms (backdoor, front-door, ID) request structural-
-        # parent-aligned keys; observational keys won't match those
-        # shapes, so identification naturally won't use them. Direct
-        # lookups in associational / probability queries will find
-        # observational entries via exact (target, given) match.
+        # CLadder Q6772, collider conditioning: observational provenance
+        # means this entry is an empirical / joint-derived conditional,
+        # not a structural CPT, so given may hold descendants or other
+        # non-parents. It is keyed like any other entry, and a formula
+        # factor of the same shape reads it. That is right: every factor
+        # an identification formula names is a conditional of the
+        # observational distribution, and a CPT is the case whose
+        # conditioning is the target's parents. A back-door adjustment
+        # expanded by the chain rule names such factors — P(w|z) for two
+        # confounders that share a cause — and the ask for one says it is
+        # observational. What this check guards is the other claim: that
+        # a statement IS a CPT entry.
         if stmt.provenance == "observational":
             continue
         target_atom = stmt.target.atom
-        if target_atom in graph:
-            parents = set(graph.predecessors(target_atom))
-            ancestors = set(nx.ancestors(graph, target_atom))
-        else:
-            parents = set()
-            ancestors = set()
-        # admissible = parents ∪ directed-ancestors ∪
-        # bidirected-siblings. Tian's c-factor product factors over
-        # topo predecessors (which may include directed ancestors
-        # like X → Z1 → Y for P(Y|X,Z1) when iterating chain rule
-        # within a c-component) AND bidirected siblings (because
-        # topo within a c-component puts them in arbitrary order;
-        # validator can't know which order Tian will pick).
-        bidir_siblings: set = set()
-        for pair in bidirected:
-            if target_atom in pair:
-                bidir_siblings.update(a for a in pair if a != target_atom)
-        admissible = parents | ancestors | bidir_siblings
         given_atoms = {va.atom for va in stmt.given}
-        extra = given_atoms - admissible
+        extra = given_atoms - may_condition_on(target_atom, graph, bidirected)
         if extra:
+            parents = (set(graph.predecessors(target_atom))
+                       if target_atom in graph else set())
             extra_names = sorted(a.predicate for a in extra)
             parent_names = sorted(a.predicate for a in parents)
             raise SemanticError(Malformed.GIVEN_NOT_PARENTS,

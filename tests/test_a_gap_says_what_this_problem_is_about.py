@@ -572,6 +572,11 @@ def test_the_remainder_is_counted_rather_than_described():
     And 76 fewer when the last value of a variable under one condition
     stopped being asked for (#776): the gaps that asked for it went, and
     what they said with them. The accepted did not move.
+
+    And 4 more with the rows #777 wrote back: what the framing gaps two
+    mediation answers gained say, less what the gap that went when a reader
+    stopped being asked for a conditioning the graph says the target does
+    not depend on said. The accepted did not move.
     """
     refused = accepted = 0
     for name in sorted(SHAPES):
@@ -586,7 +591,7 @@ def test_the_remainder_is_counted_rather_than_described():
                 refused += 1
             else:
                 accepted += 1
-    assert (refused, accepted) == (2345, 13), (refused, accepted)
+    assert (refused, accepted) == (2349, 13), (refused, accepted)
 
 
 def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
@@ -621,7 +626,10 @@ def test_the_answer_that_is_nothing_but_a_gap_report_is_asked_too():
     # and the stored refusal they replaced went.
     # 76 fewer leaves: the gaps that went when the last value of a variable
     # under one condition stopped being asked for (#776).
-    assert len(leaves) == 1020, len(leaves)
+    # 2 fewer: the two quoted on the gap that went when a reader stopped being
+    # asked for a conditioning the graph says the target does not depend on
+    # (#777).
+    assert len(leaves) == 1018, len(leaves)
     assert sum(len(_name_leaves(SHAPES[name]["result"]))
                for name in chainless) == 512, len(leaves)
     # The three with no name claim in them have nothing here to ask, which

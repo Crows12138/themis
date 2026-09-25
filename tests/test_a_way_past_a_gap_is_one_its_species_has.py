@@ -232,7 +232,10 @@ def test_no_answer_this_repository_produces_offers_a_stray_way_past():
     # 12 fewer slots and 12 fewer gaps: those of the gaps that went when the
     # last value of a variable under one condition stopped being asked for
     # (#776) which offered a way past.
-    assert (slots, gap_total, len(species)) == (1204, 421, 29)
+    # 1 fewer slot and 1 fewer gap: the gap that went when a reader stopped
+    # being asked for a conditioning the graph says the target does not depend
+    # on (#777).
+    assert (slots, gap_total, len(species)) == (1203, 420, 29)
 
 
 def test_the_door_still_accepts_every_answer_the_corpus_holds():

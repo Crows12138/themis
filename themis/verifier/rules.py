@@ -8700,7 +8700,11 @@ def _evaluate_formula(
                 base_msg = (
                     f"{base_msg}; "
                     f"{_verifier_marginal_refusal_sentence(refusal)}")
-            raise _NonConcreteValue(base_msg, key=key, refusal=refusal)
+            raise _NonConcreteValue(
+                base_msg,
+                key=_verifier_as_asked(key, graph=graph, bidirected=bidirected),
+                refusal=refusal,
+            )
         return float(value)
     if isinstance(expr, ProductExpr):
         result = 1.0
@@ -8916,6 +8920,54 @@ def _verifier_marginal_independence_lookup(
                     continue
             return v
     return None
+
+
+def _verifier_as_asked(
+    key: ProbabilityKey, *, graph=None, bidirected=None,
+) -> ProbabilityKey:
+    """Verifier mirror of the runtime's ``_as_asked``: the key a reader is
+    asked for when the lookup of ``key`` fails.
+
+    The lookup above reads a shorter conditional wherever the graph
+    separates the target from what it drops, so the key worth asking for
+    has the shortest such conditioning: the fewest atoms of ``key.given``
+    under which the target is m-separated from each atom left out. An atom
+    adjacent to the target is in every such set, as nothing separates two
+    adjacent nodes; the others are tried by size and then in the order of
+    predicate names, the runtime's order, so where two subsets of one size
+    would do both sides name the same one. Without a graph the lookup takes
+    theta at its word, and the key is asked as spelt.
+    """
+    if graph is None or bidirected is None or not key.given:
+        return key
+    target = key.target_atom
+    atoms = frozenset(atom for atom, _ in key.given)
+    if target not in graph or any(atom not in graph for atom in atoms):
+        return key
+    adjacent = frozenset(
+        atom for atom in atoms
+        if graph.has_edge(atom, target) or graph.has_edge(target, atom)
+        or frozenset((atom, target)) in bidirected)
+    rest = sorted(atoms - adjacent,
+                  key=lambda atom: (atom.predicate, str(atom)))
+    from itertools import combinations
+    for size in range(len(rest) + 1):
+        for extra in combinations(rest, size):
+            kept = adjacent | frozenset(extra)
+            if any(_verifier_is_m_connected(graph, bidirected, target, atom,
+                                            kept)
+                   for atom in rest if atom not in kept):
+                continue
+            if kept == atoms:
+                return key
+            return ProbabilityKey(
+                target_atom=target,
+                target_value=key.target_value,
+                given=frozenset(pair for pair in key.given
+                                if pair[0] in kept),
+                population=key.population,
+            )
+    return key
 
 
 def _verifier_diagnose_marginal_independence_refusal(

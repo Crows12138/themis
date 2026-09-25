@@ -91,7 +91,9 @@ def test_the_block_and_the_part_of_it_this_rule_reaches():
     assert len(CARRIERS) == 53, len(CARRIERS)
     rows = sum(len(SHAPES[n]["result"]["missing_information"])
                for n in CARRIERS)
-    assert rows == 121, rows
+    # 1 fewer: the gap that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on (#777).
+    assert rows == 120, rows
     assert len(WITH_PLACE) == 6, len(WITH_PLACE)
     assert len(ANSWERS) == 5, ANSWERS
 

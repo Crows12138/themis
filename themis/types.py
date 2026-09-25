@@ -343,10 +343,11 @@ class ProbabilityStatement:
     #   conditional that may condition on descendants or non-parents
     #   (e.g. CLadder Q6772 Berkson-style "for accepted-AND-non-
     #   talented students, P(hard-working)=0.94"). Parent-subset
-    #   validation is RELAXED — identification never requests
-    #   observational keys (their shape doesn't match parent-aligned
-    #   formula keys), so the entry is consumed only by direct lookup
-    #   in associational / probability queries.
+    #   validation is RELAXED. The entry is keyed like any other, so a
+    #   formula factor of its shape reads it: a back-door adjustment
+    #   expanded by the chain rule names P(w|z) for two confounders that
+    #   share a cause, and the ask for that factor is written
+    #   observational.
     # - ``"llm_prior"`` (Fix 3+4, v0.1.5): LLM-proposed prior from
     #   common knowledge when the user didn't supply a number AND
     #   the kernel reported InsufficientTheta. Strict parent-subset

@@ -88,12 +88,16 @@ def test_the_items_that_send_a_reader_to_measure_something():
         for item in req.get("items") or []
         if isinstance(item.get("skeleton"), dict) and item["skeleton"]
     ]
-    assert len(skeletons) == 396, len(skeletons)
+    # 3 more patches and 1 fewer probability stub (#777): the framing asks two
+    # mediation answers gained when written back from their producers, and
+    # the stub that went when a reader stopped being asked for a
+    # conditioning the graph says the target does not depend on.
+    assert len(skeletons) == 398, len(skeletons)
     kinds = {}
     for sk in skeletons:
         kinds[sk.get("kind")] = kinds.get(sk.get("kind"), 0) + 1
-    assert kinds == {"variable_patch": 311, "probability": 85}, kinds
-    assert len(TARGETS) == 85, len(TARGETS)
+    assert kinds == {"variable_patch": 314, "probability": 84}, kinds
+    assert len(TARGETS) == 84, len(TARGETS)
 
 
 @pytest.mark.parametrize("name", sorted({n for n, _, _ in TARGETS}))
@@ -113,7 +117,8 @@ def test_every_moved_unit_is_refused():
         with pytest.raises(Exception, match="no such variable"):  # noqa: B017
             the_door_for(row["result"])(row["program"], forged)
         refused += 1
-    assert refused == 85, refused
+    # 1 fewer: the probability stub that went in #777, as counted above.
+    assert refused == 84, refused
 
 
 def test_the_given_side_is_held_too():
