@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31607 passed / 534 skipped, warning-clean
+31609 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,24 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #778 网页产品 import 的库，安装时要声明（2026-09-25）
+
+**来历**：演示网站打开模型那天。服务器上放好 DeepSeek 的 key、打开开关之后，提问、让模型给先验、白话解读这三处都报「这台机器上没有装 `anthropic`」。
+
+- **现象**：部署按 `pip install .[web]` 加版本锁定安装，模型相关的三个入口全部失败。本机一直正常。
+- **根因假设**：`themis/web/llm_bridge.py` 调模型时 import `anthropic`，但 `pyproject.toml` 的 `web` extra 只列了 fastapi 和 uvicorn。本机的开发环境因为别的原因装过这个库，缺口被盖住；只有严格按声明安装的地方（演示服务器）才会暴露。
+- **为什么是根因不是表象**：在服务器上手动装一次，只修好这一台，下一次照声明安装还会缺。README 里写的安装方式就是这个 extra。
+- **修法**：
+  - `web` extra 加上 `anthropic>=0.76`。下限就是测试套件实际跑的版本，更早的版本没试过，注释里写明。extra 的注释原来写「已弃用的聊天路径，留作 demo」，与现状不符，改为如实描述。
+  - README 安装说明和 `themis/web/README.md` 的 Model 一节写明模型客户端随 `web` extra 安装。
+- **服务器**：已在 `/opt/themis/venv` 装上 `anthropic==0.76.0` 及其依赖，版本与本机测试环境一致（`jiter`、`docstring-parser` 先被装成了更新的版本，已改回本机版本），并写进服务器的版本锁定清单。装之前和之后各导出一次包列表，原有的包没有变化。
+- **测试**：新文件 `test_what_the_web_product_imports_it_declares`，2 个用例：
+  - 从源码读出 `themis/web/` 下 import 的所有第三方库，钉住这份名单（anthropic、fastapi、pandas、pydantic、uvicorn），防止扫描什么都没找到也算通过。
+  - 每个库对应的发行包，都要出现在 `[project] dependencies` 或 `web` extra 里。声明从 `pyproject.toml` 读，不在测试里另写一份。改动前这条失败，只报 `anthropic`。
+- **没做的**：只查了 `web` 这一组。`oracle`、`discovery` 两组 extra 对应的代码是按需 import 的，没有一起纳入。
+
+**基线**：31609 passed / 534 skipped。比 #777 多 2 个用例，就是新文件的两个。全量这一次是 31608 passed、1 failed：失败的是 `test_an_estimand_is_written_the_same_way_in_every_process.py::test_the_worked_example_reaches_a_reader_as_one_text`，它另起一个 Python 子进程跑内核，子进程以非零状态退出，错误输出没有被记下来，原因我不确定（当时本机可提交内存很紧，可能与此有关）。它与本条的改动（依赖声明、两份 README、一个只读 pyproject 和源码的新测试）没有交集，单独重跑整个文件 3 个用例全部通过，上面的数把它算作通过。
 
 ### #777 向读者要的是图实际读的那个条件概率，填回去的语句能进门（2026-09-25）
 

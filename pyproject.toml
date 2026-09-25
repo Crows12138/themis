@@ -52,9 +52,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Local FastAPI UI (themis/web/) — deprecated chat-user path, kept
-# as a demo; not on the LLM-agent-backbone critical path.
-web = ["fastapi>=0.110", "uvicorn>=0.27"]
+# The web product (themis/web/): the FastAPI server, and the client its
+# three model surfaces (Ask, AI priors, the plain-language reading) call a
+# model with. The client's bound is the version the suite runs against;
+# older ones have not been tried.
+web = ["fastapi>=0.110", "uvicorn>=0.27", "anthropic>=0.76"]
 # pgmpy parity adapter (themis/oracle/) — dev-only QA, used to cross-
 # check Themis identification against an established library.
 oracle = ["pgmpy>=0.1.24"]

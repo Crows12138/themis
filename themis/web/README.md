@@ -74,7 +74,8 @@ paths work in the production build.
 
 ## Model (Ask, AI priors, plain-language reading)
 
-Declared on the server, read in one place (`llm_bridge._endpoint`):
+Declared on the server, read in one place (`llm_bridge._endpoint`). The
+client is the `anthropic` package, which the `web` extra installs:
 
 | Setting | Meaning |
 |---|---|
