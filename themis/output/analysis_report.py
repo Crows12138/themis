@@ -333,7 +333,7 @@ def build_analysis_report(
     parts += _what_the_verdict_rests_on(result, lang=lang)
 
     parts += _section(language.fill(_SECTION_QUESTION, lang),
-                      _render_question(result, program, lang=lang))
+                      question_line(result, program, lang=lang))
     answer = _render_answer(result, lang=lang)
     parts += _section(
         language.fill(_SECTION_ANSWER, lang),
@@ -764,8 +764,15 @@ _QUESTION_LINES: dict = questions.bind({
 })
 
 
-def _render_question(result: dict, program: dict | None, *,
-                     lang: language.Lang | str) -> str:
+def question_line(result: dict, program: dict | None, *,
+                  lang: language.Lang | str) -> str:
+    """The question this result answers, in the words this report asks it.
+
+    Public because a second surface shows it: the page puts it under the
+    reader's own words, so that what the kernel was asked can be told apart
+    from what the reader meant. A program written by a model from a sentence
+    is a reading of that sentence, and this line is the reading said back.
+    """
     q = _find_query(program, result.get("query_id"))
     kind = result.get("query_kind") or (q or {}).get("kind")
     if q is not None and q.get("kind") != kind:

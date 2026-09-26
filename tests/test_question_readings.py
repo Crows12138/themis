@@ -23,7 +23,7 @@ from themis import language
 from themis import questions, registry
 from tests import web_source
 from themis.output.analysis_report import (
-    _render_answer, _render_question, build_analysis_report,
+    _render_answer, build_analysis_report, question_line,
 )
 
 SCHEMA = (pathlib.Path(__file__).resolve().parent.parent / "themis" / "schemas"
@@ -249,7 +249,7 @@ def test_a_question_line_names_what_it_was_asked_about(kind):
     prog = {"version": "0.1", "domain": {"objects": []},
             "statements": [{"kind": "query", "id": "q",
                             "query": {"kind": kind, **query}}]}
-    line = _render_question({"query_kind": kind}, prog, lang=language.DEFAULT)
+    line = question_line({"query_kind": kind}, prog, lang=language.DEFAULT)
     assert line != f"（查询类型：`{kind}`）", "the fallback shape survives"
     missing = [t for t in expected if t not in line]
     assert not missing, f"{kind} dropped {missing} from: {line!r}"
@@ -265,7 +265,7 @@ def test_a_question_with_no_program_still_says_what_was_asked(kind):
     a token-presence rule cannot tell that apart from the token standing in
     for it.
     """
-    line = _render_question({"query_kind": kind}, None, lang=language.DEFAULT)
+    line = question_line({"query_kind": kind}, None, lang=language.DEFAULT)
     assert line != f"（查询类型：`{kind}`）", "the fallback shape survives"
     assert sum(1 for ch in line if "一" <= ch <= "鿿") >= 6, line
 
@@ -288,7 +288,7 @@ def test_each_result_is_asked_its_own_question():
                 {"kind": "query", "id": "a", "query": {
                     "kind": "assoc", "left": _atom("x"), "right": _atom("y"),
                     "given": []}}]}
-    lines = {r["query_kind"]: _render_question(r, prog, lang=language.DEFAULT)
+    lines = {r["query_kind"]: question_line(r, prog, lang=language.DEFAULT)
              for r in themis.run(prog)["results"]}
     assert "因果影响" in lines["cause"]
     assert "相关联" in lines["assoc"]
@@ -300,7 +300,7 @@ def test_a_query_id_the_program_does_not_carry_falls_back_to_prose():
     prog = {"version": "0.1", "domain": {"objects": []}, "statements": [
         {"kind": "query", "id": "c", "query": {
             "kind": "cause", "from": _atom("x"), "to": _atom("y")}}]}
-    line = _render_question({"query_kind": "assoc", "query_id": "elsewhere"}, prog, lang=language.DEFAULT)
+    line = question_line({"query_kind": "assoc", "query_id": "elsewhere"}, prog, lang=language.DEFAULT)
     assert "x" not in line and "y" not in line
     assert "相关联" in line
 
@@ -313,7 +313,7 @@ def test_a_query_of_another_kind_is_not_handed_to_this_kinds_renderer():
     prog = {"version": "0.1", "domain": {"objects": []}, "statements": [
         {"kind": "query", "id": "c", "query": {
             "kind": "cause", "from": _atom("x"), "to": _atom("y")}}]}
-    line = _render_question({"query_kind": "causation"}, prog, lang=language.DEFAULT)
+    line = question_line({"query_kind": "causation"}, prog, lang=language.DEFAULT)
     assert "?" not in line
     assert "归因概率" in line
 

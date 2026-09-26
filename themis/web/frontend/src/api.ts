@@ -119,6 +119,13 @@ export function auditResult(program: Record<string, unknown>, result: unknown): 
   return post<{ audits: AuditRow[] }>('/api/audit', { program, result })
 }
 
+// The question a result answers, as the kernel's report words it. Every
+// language comes back, like a refusal's words, so a reader switching
+// language needs no second request.
+export function questionOf(program: Record<string, unknown>, result: QueryResult): Promise<{ words: Words }> {
+  return post<{ words: Words }>('/api/question', { program, result })
+}
+
 export interface ClarifyPick {
   predicate: string
   fields: Record<string, string>

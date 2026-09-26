@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
-import { assume, clarify, errorText, getApiKey, render, runProgram, type ClarifyPick } from '../api'
+import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, type ClarifyPick } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
 import { useOffers } from '../lib/offers'
 import { framingVariables, framingDefaultsInProgram, framingFieldLabel } from '../lib/verdict'
@@ -28,6 +28,10 @@ const SAYS = {
   askAnother: { zh: '← 再问一个', en: '← Ask another' },
   noResult: { zh: '这个程序没有返回结果。', en: 'That program came back with nothing.' },
   asked: { zh: '问：', en: 'Asked:' },
+  // What the kernel was asked, under what the reader said. The two differ
+  // whenever a model read the sentence, and the reader is the only one who
+  // can say whether the reading is theirs.
+  readAs: { zh: '理解为：', en: 'Read as:' },
   defaultedRegion: { zh: '操作化采用默认', en: 'Operationalisation left at its defaults' },
   defaultedTitle: { zh: '⚠ 这个答案用的是默认操作化，你没确认过', en: '⚠ This answer used default operationalisations that you never confirmed' },
   // The list separator is part of the sentence, not part of the data: the two
@@ -84,6 +88,21 @@ export function ResultView({
   const [naive, setNaive] = useState<number | null | undefined>(payload.naive)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [question, setQuestion] = useState<Words | null>(null)
+
+  // The reading follows the result on the screen: a re-run with an edited
+  // graph, a clarification or priors can each change which question is
+  // answered, and a line left over from the last one would say otherwise.
+  useEffect(() => {
+    if (!program) { setQuestion(null); return }
+    let current = true
+    setQuestion(null)
+    questionOf(program, result).then(
+      ({ words }) => { if (current) setQuestion(words) },
+      (e) => { if (current) setError(errorText(e, lang)) },
+    )
+    return () => { current = false }
+  }, [program, result])
 
   useEffect(() => {
     setResult(payload.result)
@@ -190,6 +209,11 @@ export function ResultView({
       {payload.asked ? (
         <p className="askedline">
           <b>{fill(SAYS.asked, lang)}</b> {payload.asked}
+        </p>
+      ) : null}
+      {question ? (
+        <p className="askedline">
+          <b>{fill(SAYS.readAs, lang)}</b> {fill(question, lang)}
         </p>
       ) : null}
 

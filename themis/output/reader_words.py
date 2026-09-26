@@ -987,7 +987,7 @@ def _language_order() -> list[str]:
     return answered + sorted(language.written() - set(answered))
 
 
-def _without_emphasis(text: str) -> str:
+def without_emphasis(text: str) -> str:
     """One word, for a surface that renders no markdown.
 
     The report writes markdown and puts ``**`` around the clause a reader
@@ -1009,7 +1009,7 @@ def tables() -> dict[str, dict[str, dict[str, str]]]:
     """
     return {
         row.browser_table: {
-            member: {lang: _without_emphasis(word(name, member, lang))
+            member: {lang: without_emphasis(word(name, member, lang))
                      for lang in _language_order()}
             for member in sorted(row.members())
         }

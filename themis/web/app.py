@@ -264,6 +264,32 @@ def api_audit(req: VerifyRequest):
         return failure.refused("audit", exc)
 
 
+@app.post("/api/question")
+def api_question(req: VerifyRequest):
+    """The question a result answers, as the kernel's report words it.
+
+    Shown under the reader's own words. When a model turned a sentence into
+    the program, the program is a READING of the sentence, and two runs of
+    one sentence can read it differently — one as whether x causes y, one
+    as how large the effect is with a confounder the model added. Nothing on
+    the page said which reading was answered; the reader had to reconstruct
+    it from the graph and the reply. This is that reading, said back.
+
+    Every language at once, like a refusal: which reader sees which is the
+    page's decision, made where the reader is. No model is involved: the
+    line is rendered from the program and the result.
+    """
+    from themis.output import analysis_report, reader_words
+    try:
+        return {"words": {
+            str(lang): reader_words.without_emphasis(
+                analysis_report.question_line(req.result, req.program,
+                                              lang=lang))
+            for lang in language.Lang}}
+    except Exception as exc:
+        return failure.refused("question", exc)
+
+
 # An endpoint the product does not call itself, and the one that reaches it.
 # Both are MCP-parity shapes (themis_verify / themis_verify_bounds_results are
 # their own tools), so they stay; what a reader can reach is /api/audit, which

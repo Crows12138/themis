@@ -82,6 +82,10 @@ STAGE: dict[str, language.Words] = {
         "zh": "在这份数据上估计时没能跑完",
         "en": "the estimate did not run to completion on this data",
     },
+    "question": {
+        "zh": "说出这个结果回答的是哪个问题，这一步没有成功",
+        "en": "saying which question this result answers did not succeed",
+    },
     "nl_to_kernel_ast": {
         "zh": "把这个问题变成因果图没有成功（已重试三次）",
         "en": "turning this question into a causal graph did not succeed "
