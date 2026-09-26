@@ -232,11 +232,18 @@ def _ask_model(client, **kwargs):
     declined, a reply that was not JSON, and a socket that was never
     opened. The call is this module's, so its failures are this module's
     to word, and there is one line for them to be raised at.
+
+    No call here asks a model to think first, and it is said here rather
+    than left to the provider. Each call's ``max_tokens`` is a budget for
+    the answer, and only text blocks are read. A model that thinks unless
+    told not to spends the budget on thinking nobody reads and is cut off
+    before the answer: DeepSeek's did, and two of five worked examples came
+    back with no JSON and two more with an empty reading.
     """
     from anthropic import AnthropicError
 
     try:
-        return client.messages.create(**kwargs)
+        return client.messages.create(thinking={"type": "disabled"}, **kwargs)
     except AnthropicError as exc:
         raise _unreached(exc, str(client.base_url)) from exc
 
