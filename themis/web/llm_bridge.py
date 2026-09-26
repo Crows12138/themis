@@ -294,6 +294,53 @@ def nl_to_kernel_ast(
     """Turn one NL question into a kernel_ast dict via the project's
     canonical prompt. Returns the dict the LLM emits — caller runs
     ``themis.run`` on it.
+    """
+    return _program_from([{"role": "user", "content": nl}], api_key=api_key,
+                         model=model, max_attempts=max_attempts)
+
+
+def revise_kernel_ast(
+    nl: str,
+    program: dict,
+    correction: str,
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+    max_attempts: int = 3,
+) -> dict:
+    """A reading of ``nl`` corrected in the reader's own words.
+
+    A program written from a sentence is one reading of it, and the page
+    shows the reader which one. When it is not what they meant they say so
+    in a sentence rather than by editing a graph, and the model is handed
+    the question, the program it wrote and that sentence, as the turns of
+    one exchange. Asked again from the question alone it would read the
+    whole sentence afresh and could change what the reader had accepted;
+    handed the program, it has something to change only part of.
+
+    The reader's sentence is sent as it was written, the way the question
+    is: what a reply after a program means, and what to do with it, is the
+    prompt's to say, in its section "When the reader corrects a reading".
+
+    ``program`` is the one on the reader's screen, which may already carry
+    their own edits to the graph, not necessarily the one first written.
+    """
+    return _program_from([
+        {"role": "user", "content": nl},
+        {"role": "assistant",
+         "content": json.dumps(program, ensure_ascii=False)},
+        {"role": "user", "content": correction},
+    ], api_key=api_key, model=model, max_attempts=max_attempts)
+
+
+def _program_from(
+    turns: list[dict],
+    *,
+    api_key: str | None,
+    model: str | None,
+    max_attempts: int,
+) -> dict:
+    """The program a model writes at the end of ``turns``.
 
     Retries only on a *parse* failure. Emitting malformed JSON is an
     occasional model slip — most common on the complex query shapes
@@ -312,7 +359,7 @@ def nl_to_kernel_ast(
             model=model,
             max_tokens=4000,
             system=system,
-            messages=[*fewshot, {"role": "user", "content": nl}],
+            messages=[*fewshot, *turns],
         )
         text = "".join(
             b.text for b in msg.content if getattr(b, "type", None) == "text"

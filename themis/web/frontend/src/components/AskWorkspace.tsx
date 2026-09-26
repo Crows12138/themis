@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ask, errorText, fetchExamples, getApiKey, KernelError, runProgram } from '../api'
+import { ask, errorText, fetchExamples, getApiKey, KernelError, revise, runProgram } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
 import { useOffers } from '../lib/offers'
 import { TIER_META, tierMeta } from '../lib/verdict'
@@ -30,6 +30,7 @@ const SAYS = {
     en: 'Ask a causal question… e.g. "does sitting all day cost you years of life?"',
   },
   send: { zh: '提问', en: 'Ask' },
+  revisedToNothing: { zh: '改过的程序没有返回结果。', en: 'The revised program came back with nothing.' },
   examples: { zh: '现成案例 · 用内核直接跑，不需要 key', en: 'Worked examples · run straight through the kernel, no key needed' },
   running: { zh: '运行中…', en: 'Running…' },
   thinking: { zh: '正在把问题落成因果图、交给内核核验…', en: 'Turning the question into a causal graph and handing it to the kernel…' },
@@ -66,6 +67,9 @@ export function AskWorkspace({
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<false | 'ask' | string>(false)
   const [payload, setPayload] = useState<ResultPayload | null>(null)
+  // The readings a correction replaced, newest last, so a correction that
+  // made things worse is one step from undone.
+  const [earlier, setEarlier] = useState<ResultPayload[]>([])
   const [error, setError] = useState<{ title: string; msg: string; needKey?: boolean } | null>(null)
   const [examples, setExamples] = useState<ExampleItem[]>([])
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -115,6 +119,25 @@ export function AskWorkspace({
     }
   }
 
+  async function correct(said: string, program: Record<string, unknown>) {
+    if (!payload) return
+    const res = await revise(payload.asked, program, said, lang, getApiKey())
+    const r = first(res.envelope)
+    if (!r) throw new KernelError('', { words: SAYS.revisedToNothing })
+    setEarlier((e) => [...e, payload])
+    setPayload({
+      asked: payload.asked, result: r, reply: res.reply, program: res.kernel_ast,
+      revision: { said, before: program, after: res.kernel_ast },
+    })
+  }
+
+  function back() {
+    const previous = earlier[earlier.length - 1]
+    if (!previous) return
+    setEarlier(earlier.slice(0, -1))
+    setPayload(previous)
+  }
+
   function autosize(e: FormEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget
     el.style.height = 'auto'
@@ -127,8 +150,11 @@ export function AskWorkspace({
       <ResultView
         payload={payload}
         onSendTo={onSendTo}
+        onRevise={offers?.llm ? correct : undefined}
+        onBack={earlier.length ? back : undefined}
         onReset={() => {
           setPayload(null)
+          setEarlier([])
           setError(null)
           setQ('')
         }}

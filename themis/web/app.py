@@ -95,6 +95,16 @@ class AskRequest(BaseModel):
     api_key: str | None = None
 
 
+class ReviseRequest(BaseModel):
+    nl: str
+    #: The program on the reader's screen, edits and all.
+    program: dict
+    #: What the reader says is wrong with the reading, in their words.
+    correction: str
+    lang: language.Lang = language.DEFAULT
+    api_key: str | None = None
+
+
 class EstimateRequest(BaseModel):
     program: dict
     rows: list[dict]
@@ -309,19 +319,55 @@ def api_ask(req: AskRequest):
     network error) returns 400 with ``{stage, error, message}`` so the
     UI can pinpoint where in the pipeline things broke.
     """
-    import themis
-    from .llm_bridge import LLMBridgeError, nl_to_kernel_ast, render_reply
+    from .llm_bridge import nl_to_kernel_ast
 
-    # This endpoint and the two below each ask the one declaration at the
-    # top of this module. Three asks, one fact — and asked here rather
+    # This endpoint and the three below each ask the one declaration at the
+    # top of this module. Four asks, one fact — and asked here rather
     # than once at the edge, because "which of these needs a model" is a
     # fact about each endpoint and a middleware listing them would be a
     # second roster to forget an entry in.
     if not _OFFERS_A_MODEL:
         return failure.refused("no_model")
 
-    key = req.api_key
-    # Retry nl→ast→run up to 3 times for transient LLM / network failures
+    return _read_run_and_reply(
+        lambda: nl_to_kernel_ast(req.nl, api_key=req.api_key),
+        stage="nl_to_kernel_ast", nl=req.nl, lang=req.lang,
+        api_key=req.api_key)
+
+
+@app.post("/api/revise")
+def api_revise(req: ReviseRequest):
+    """A reading corrected in the reader's words, run and written up.
+
+    The page shows what the question was read as. When that is not what
+    the reader meant they say so in a sentence, and the program on their
+    screen is revised where the sentence reaches and nowhere else — then
+    run and checked by the kernel like any other, because a model's
+    revision is as much a proposal as its first reading was.
+    """
+    from .llm_bridge import revise_kernel_ast
+
+    if not _OFFERS_A_MODEL:
+        return failure.refused("no_model")
+
+    return _read_run_and_reply(
+        lambda: revise_kernel_ast(req.nl, req.program, req.correction,
+                                  api_key=req.api_key),
+        stage="revise_kernel_ast", nl=req.nl, lang=req.lang,
+        api_key=req.api_key, correction=req.correction)
+
+
+def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
+                        api_key: str | None, **echo):
+    """Have a model write a program, run it, and have the result written up.
+
+    What asking and correcting share: both end in a program a model wrote,
+    which the kernel runs and a model then reads back. ``stage`` is what a
+    failure of ``read`` is filed under.
+    """
+    from .llm_bridge import render_reply
+
+    # Retry read→run up to 3 times for transient LLM / network failures
     # (mirrors Themis_Demo). The systematic `args`-on-variable slip is fixed
     # at the root by the bridge's few-shot examples — no sanitizing here.
     # The AST and the envelope are bound together or not at all — a pair,
@@ -330,13 +376,13 @@ def api_ask(req: AskRequest):
     ran: tuple[dict, dict] | None = None
     last: Exception | None = None
     last_ast: dict | None = None
-    last_stage = "nl_to_kernel_ast"
+    last_stage = stage
     for _ in range(3):
-        last_stage = "nl_to_kernel_ast"
+        last_stage = stage
         try:
-            a = nl_to_kernel_ast(req.nl, api_key=key)
+            a = read()
             last_ast = a
-            last_stage = "themis_run"  # NL→AST done; a failure now is the kernel's
+            last_stage = "themis_run"  # the program is written; a failure now is the kernel's
             ran = (a, themis.run(a))
             break
         except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
@@ -365,14 +411,14 @@ def api_ask(req: AskRequest):
 
     kernel_ast, envelope = ran
     try:
-        reply = render_reply(envelope, nl=req.nl, lang=req.lang,
-                             api_key=req.api_key)
+        reply = render_reply(envelope, nl=nl, lang=lang, api_key=api_key)
     except Exception as exc:
         return failure.refused("render_reply", exc,
                                kernel_ast=kernel_ast, envelope=envelope)
 
     return {
-        "nl": req.nl,
+        "nl": nl,
+        **echo,
         "kernel_ast": kernel_ast,
         "envelope": envelope,
         "reply": reply,

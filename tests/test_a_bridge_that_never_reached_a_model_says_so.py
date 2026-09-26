@@ -31,7 +31,7 @@ So what is held here:
   and not a sentence that quietly says the wrong thing;
 - the two failures a reader acts differently on do not read the same, and
   neither of them reads as the stage sentence;
-- the ADDRESS is in what the reader is shown, at all three doors, because
+- the ADDRESS is in what the reader is shown, at every door to a model, because
   a proxy on this machine and an API on the internet fail identically and
   ask for different things.
 """
@@ -199,7 +199,7 @@ def test_a_call_that_did_reach_a_model_is_untouched(monkeypatch):
     assert llm_bridge._ask_model(_Client(), model="m") is sentinel
 
 
-# ===================================== the three doors a reader can be at
+# ===================================== the doors a reader can be at
 
 
 def _atom(p):
@@ -234,6 +234,9 @@ def _program_missing_its_numbers():
 #: Every door that talks to a model, and the stage each attributes to.
 DOORS = [
     ("/api/ask", {"nl": "x 导致 y 吗"}, "nl_to_kernel_ast"),
+    ("/api/revise", {"nl": "x 导致 y 吗",
+                     "program": _program_missing_its_numbers(),
+                     "correction": "z 不是混杂"}, "revise_kernel_ast"),
     ("/api/assume", {"program": _program_missing_its_numbers()},
      "propose_theta_priors"),
     ("/api/render", {"program": _program_missing_its_numbers(),
@@ -247,7 +250,7 @@ DOORS = [
                          ids=[d[0] for d in DOORS])
 def test_a_door_with_nothing_at_the_other_end_says_that(
         monkeypatch, path, body, stage):
-    """All three, because the field that tried to say this was at one."""
+    """All of them, because the field that tried to say this was at one."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(
         llm_bridge, "_client",

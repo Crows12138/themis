@@ -13,6 +13,7 @@ import { ProposedReview } from './ProposedReview'
 import { Foldout } from './Foldout'
 import { JsonEditor } from './JsonEditor'
 import { Recheck } from './Recheck'
+import { Correction, type Revision } from './Correction'
 
 export interface ResultPayload {
   asked: string
@@ -20,6 +21,10 @@ export interface ResultPayload {
   reply?: string
   program?: Record<string, unknown>
   naive?: number | null
+  // The correction this result came from, and the program before and after
+  // it. Both ends are kept because the graph can be edited afterwards, and
+  // what the correction changed is a fact about these two.
+  revision?: Revision
 }
 
 type Workspace = 'ask' | 'build' | 'estimate'
@@ -74,11 +79,17 @@ export function ResultView({
   onReset,
   resetLabel,
   onSendTo,
+  onRevise,
+  onBack,
 }: {
   payload: ResultPayload
   onReset: () => void
   resetLabel?: string
   onSendTo?: (target: Workspace, program: Record<string, unknown>) => void
+  // Offered where the question was a sentence and a model is behind this
+  // deployment: the reading can then be corrected in a sentence too.
+  onRevise?: (said: string, program: Record<string, unknown>) => Promise<void>
+  onBack?: () => void
 }) {
   const lang = useLang()
   const offers = useOffers()
@@ -215,6 +226,9 @@ export function ResultView({
         <p className="askedline">
           <b>{fill(SAYS.readAs, lang)}</b> {fill(question, lang)}
         </p>
+      ) : null}
+      {program && (onRevise || payload.revision) ? (
+        <Correction revision={payload.revision} program={program} onRevise={onRevise} onBack={onBack} />
       ) : null}
 
       {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} /> : null}

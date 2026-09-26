@@ -91,6 +91,11 @@ STAGE: dict[str, language.Words] = {
         "en": "turning this question into a causal graph did not succeed "
               "(after three attempts)",
     },
+    "revise_kernel_ast": {
+        "zh": "按你的纠正改写因果图没有成功（已重试三次）",
+        "en": "revising the causal graph as you corrected it did not succeed "
+              "(after three attempts)",
+    },
     "themis_run": {
         "zh": "因果图生成出来了，但 kernel 不接受它（已重试三次）",
         "en": "a causal graph was produced and the kernel would not accept "

@@ -1,13 +1,14 @@
 """A page is not a door, and a deployment says once which ones it opens.
 
-Three of the things this server offers need a model behind it: turning a
-question in prose into a program, sourcing a prior for each distribution
-the kernel says is missing, and writing a result up as a reply. Nothing
+Four of the things this server offers need a model behind it: turning a
+question in prose into a program, revising that program as the reader
+corrects it in prose, sourcing a prior for each distribution the kernel
+says is missing, and writing a result up as a reply. Nothing
 else does — the graph, the verdict, the gap report, filling in a
 definition and estimating from data are the kernel's, and the kernel
 holds no model.
 
-A deployment with no model behind it therefore offers three fewer
+A deployment with no model behind it therefore offers four fewer
 things, and both halves have to know: the page, so it does not draw a
 button that leads nowhere, and the endpoints, so that drawing no button
 is not the whole of the protection. Drawing none and leaving the
@@ -20,13 +21,13 @@ What is asserted here:
   spelling cannot read as one of the two
 - ``/api/offers`` is that declaration, and whether a visitor is asked
   for a key, and nothing else
-- with no model, each of the three refuses, in the reader's language,
+- with no model, each of them refuses, in the reader's language,
   with a sentence that says what still works
 - with no model, everything that needs none still answers
-- the three that guard are exactly the three that reach for the bridge —
+- the ones that guard are exactly the ones that reach for the bridge —
   derived from the source rather than listed here, so an endpoint added
   tomorrow that forgets the guard fails here rather than shipping open
-- both surfaces that can offer one of the three ask what is offered
+- both surfaces that can offer one of them ask what is offered
   rather than deciding for themselves.
 """
 from __future__ import annotations
@@ -73,10 +74,12 @@ def _program():
     }
 
 
-#: What each of the three is asked, so that a guard is exercised by the
+#: What each of them is asked, so that a guard is exercised by the
 #: shape the endpoint really takes rather than by an empty body.
 NEEDS_A_MODEL = {
     "/api/ask": {"nl": "x 会不会导致 y", "lang": "zh"},
+    "/api/revise": {"nl": "x 会不会导致 y", "program": _program(),
+                    "correction": "只问会不会", "lang": "zh"},
     "/api/assume": {"program": _program(), "lang": "zh"},
     "/api/render": {"program": _program(),
                     "result": themis.run(_program())["results"][0],
@@ -247,12 +250,12 @@ def test_nothing_else_carries_the_guard():
 
 @pytest.mark.parametrize("where", ["App.tsx", "components/ResultView.tsx"])
 def test_the_page_asks_what_is_offered(where):
-    """Two surfaces can offer one of the three — the workspace chooser
-    and the result view, which carries the priors fallback and the
-    reply. Each asks; neither decides."""
+    """Two surfaces can offer one of them — the workspace chooser and
+    the result view, which carries the priors fallback, the reply and the
+    correction. Each asks; neither decides."""
     said = web_source.read(web_source.SRC / where)
     assert "useOffers" in said, (
-        f"{where} draws one of the three without asking whether this "
+        f"{where} draws one of them without asking whether this "
         f"deployment offers it"
     )
 

@@ -70,6 +70,7 @@ paths work in the production build.
 | `POST /api/verify_bounds_results` | `{program, result}` | `{ok}` (bounds-only audit) — likewise |
 | `POST /api/question` | `{program, result}` | `{words}` — the question this result answers, as the kernel's report words it, in every language; shown under the reader's own words. No model |
 | `POST /api/ask` | `{nl, api_key?}` | `{nl, kernel_ast, envelope, reply}` |
+| `POST /api/revise` | `{nl, program, correction, api_key?}` | `{nl, correction, kernel_ast, envelope, reply}` — the program on screen, revised where the reader's one-sentence correction reaches, then run and written up |
 | `GET /api/offers` | — | `{llm, visitor_key}` — what this deployment offers |
 | `GET /api/examples` | — | `[{name, nl_input, program}]` |
 

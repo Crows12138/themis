@@ -139,7 +139,7 @@ export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]):
   return post<MergedEnvelope>('/api/clarify', { program, picks })
 }
 
-// The three calls whose answer is PROSE, and the only three that have to
+// The four calls whose answer is PROSE, and the only four that have to
 // tell the server who is reading.
 //
 // Everywhere else this surface asks for an artifact and renders it here,
@@ -166,6 +166,12 @@ export function render(program: Record<string, unknown>, result: QueryResult, nl
 
 export function ask(nl: string, lang: Lang, apiKey?: string): Promise<AskResponse> {
   return post<AskResponse>('/api/ask', { nl, lang, api_key: apiKey || undefined })
+}
+
+// The program on the screen, revised where the reader's sentence reaches.
+// Prose comes back with it, so it too says who is reading.
+export function revise(nl: string, program: Record<string, unknown>, correction: string, lang: Lang, apiKey?: string): Promise<AskResponse> {
+  return post<AskResponse>('/api/revise', { nl, program, correction, lang, api_key: apiKey || undefined })
 }
 
 // What this deployment offers. Raised rather than defaulted: what to do

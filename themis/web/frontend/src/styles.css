@@ -218,6 +218,14 @@ button { font-family: inherit; cursor: pointer; }
 
 .askedline { font-size: var(--text-sm); color: var(--ink-faint); margin-bottom: var(--space-md); }
 .askedline b { color: var(--ink-soft); font-weight: 600; }
+.correction { margin: calc(-1 * var(--space-xs)) 0 var(--space-lg); font-size: var(--text-sm); color: var(--ink-soft); }
+.correction__last { margin-bottom: var(--space-sm); display: grid; gap: var(--space-2xs); }
+.correction__last b { color: var(--ink-soft); font-weight: 600; }
+.correction__lead { color: var(--ink-faint); margin-bottom: var(--space-xs); }
+.correction__row { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.correction__input { flex: 1 1 16rem; min-width: 0; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); }
+.correction__input:focus { outline: none; border-color: var(--accent); }
+.correction__error { color: var(--tier-none); margin-top: var(--space-xs); white-space: pre-line; }
 
 .verdict {
   background: var(--surface-raise); border: 1px solid var(--line);
