@@ -60,13 +60,16 @@ const TIER_ORDER = Object.keys(TIER_META) as (keyof typeof TIER_META)[]
 export function AskWorkspace({
   onNeedKey,
   onSendTo,
+  opened,
 }: {
   onNeedKey: () => void
   onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+  // A result opened from a saved file, shown in place of the landing page.
+  opened?: ResultPayload
 }) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<false | 'ask' | string>(false)
-  const [payload, setPayload] = useState<ResultPayload | null>(null)
+  const [payload, setPayload] = useState<ResultPayload | null>(opened ?? null)
   // The readings a correction replaced, newest last, so a correction that
   // made things worse is one step from undone.
   const [earlier, setEarlier] = useState<ResultPayload[]>([])
@@ -148,6 +151,7 @@ export function AskWorkspace({
   if (payload) {
     return (
       <ResultView
+        workspace="ask"
         payload={payload}
         onSendTo={onSendTo}
         onRevise={offers?.llm ? correct : undefined}

@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { errorText } from './api'
 import { ApiKeyPanel } from './components/ApiKeyPanel'
 import { AskWorkspace } from './components/AskWorkspace'
 import { BuildWorkspace } from './components/BuildWorkspace'
 import { EstimateWorkspace } from './components/EstimateWorkspace'
+import type { ResultPayload, Workspace } from './components/ResultView'
 import { ENDONYM } from './lib/kernelWords.generated'
 import { chooseLang, fill, LANGS, useLang, type Words } from './lib/language'
 import { useOffers } from './lib/offers'
+import { openSaved } from './lib/saved'
 import { TIER_META, tierMeta } from './lib/verdict'
-
-type Workspace = 'ask' | 'build' | 'estimate'
 
 const SAYS = {
   tag: { zh: '因果验证器', en: 'Causal verifier' },
@@ -21,6 +22,7 @@ const SAYS = {
   ask: { zh: '问一问', en: 'Ask' },
   build: { zh: '建因果图', en: 'Build a graph' },
   estimate: { zh: '数据估计', en: 'Estimate from data' },
+  open: { zh: '打开已保存的结果', en: 'Open a saved result' },
   foot: {
     zh: 'Themis · 本地因果验证器 · 识别 + 缺口诊断 + 数据估计（themis.run / estimate）',
     en: 'Themis · a local causal verifier · identification + gap diagnosis + estimation from data (themis.run / estimate)',
@@ -54,19 +56,45 @@ export default function App() {
   // A graph handed from a result into another workspace's canvas. Consumed by
   // the matching workspace; cleared when the user navigates by hand.
   const [pending, setPending] = useState<{ target: Workspace; program: Record<string, unknown> } | null>(null)
+  // A result opened from a saved file, for the workspace it was saved in.
+  // Counted, so that opening one where a result is already on the screen
+  // replaces it: the count is the workspace's key, and a new key is a fresh
+  // workspace rather than one that has to be told its state changed.
+  const [opened, setOpened] = useState<{ target: Workspace; payload: ResultPayload; n: number } | null>(null)
+  const [openError, setOpenError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const lang = useLang()
 
   const workspace: Workspace = picked ?? (offers?.llm ? 'ask' : 'build')
 
   function sendTo(target: Workspace, program: Record<string, unknown>) {
+    setOpened(null)
     setPending({ target, program })
     setPicked(target)
   }
   function navTo(target: Workspace) {
+    setOpened(null)
+    setOpenError(null)
     setPending(null)
     setPicked(target)
   }
+  async function open(file: File) {
+    try {
+      const saved = await openSaved(file)
+      // Saved where a question was asked, opened where no model is behind
+      // this deployment: there is no Ask here, and the canvas shows the same
+      // result without offering what needs one.
+      const target = saved.workspace === 'ask' && !offers?.llm ? 'build' : saved.workspace
+      setPending(null)
+      setOpenError(null)
+      setOpened({ target, payload: saved.payload, n: (opened?.n ?? 0) + 1 })
+      setPicked(target)
+    } catch (e) {
+      setOpenError(errorText(e, lang))
+    }
+  }
   const seedProgram = pending && pending.target === workspace ? pending.program : undefined
+  const openedHere = opened && opened.target === workspace ? opened : null
 
   return (
     <div className="app">
@@ -97,30 +125,47 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="langs" role="group" aria-label={fill(SAYS.language, lang)}>
-          {LANGS.map((one) => (
-            <button
-              key={one}
-              className="langs__item"
-              lang={one}
-              aria-current={one === lang}
-              onClick={() => chooseLang(one)}
-            >
-              {fill(ENDONYM, one)}
-            </button>
-          ))}
+        <div className="masthead__side">
+          <button className="masthead__open linklike" onClick={() => fileRef.current?.click()}>
+            {fill(SAYS.open, lang)}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) open(file)
+            }}
+          />
+          <div className="langs" role="group" aria-label={fill(SAYS.language, lang)}>
+            {LANGS.map((one) => (
+              <button
+                key={one}
+                className="langs__item"
+                lang={one}
+                aria-current={one === lang}
+                onClick={() => chooseLang(one)}
+              >
+                {fill(ENDONYM, one)}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
       {showKey ? <ApiKeyPanel onClose={() => setShowKey(false)} /> : null}
 
       <main className={`stage ${workspace !== 'ask' ? 'stage--wide' : ''}`}>
+        {openError ? <div className="errbox openerr" role="alert"><p className="errbox__msg">{openError}</p></div> : null}
         {offers === null ? null : workspace === 'ask' ? (
-          <AskWorkspace onNeedKey={() => setShowKey(true)} onSendTo={sendTo} />
+          <AskWorkspace key={openedHere?.n ?? 0} opened={openedHere?.payload} onNeedKey={() => setShowKey(true)} onSendTo={sendTo} />
         ) : workspace === 'build' ? (
-          <BuildWorkspace initialProgram={seedProgram} onSendTo={sendTo} />
+          <BuildWorkspace key={openedHere?.n ?? 0} opened={openedHere?.payload} initialProgram={seedProgram} onSendTo={sendTo} />
         ) : (
-          <EstimateWorkspace initialProgram={seedProgram} onSendTo={sendTo} />
+          <EstimateWorkspace key={openedHere?.n ?? 0} opened={openedHere?.payload} initialProgram={seedProgram} onSendTo={sendTo} />
         )}
       </main>
 

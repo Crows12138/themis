@@ -3,6 +3,7 @@ import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, type ClarifyPick } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
 import { useOffers } from '../lib/offers'
+import { saveResult, whenSaved } from '../lib/saved'
 import { framingVariables, framingDefaultsInProgram, framingFieldLabel } from '../lib/verdict'
 import type { LlmProposedReview } from '../types'
 import { Verdict } from './Verdict'
@@ -25,9 +26,12 @@ export interface ResultPayload {
   // it. Both ends are kept because the graph can be edited afterwards, and
   // what the correction changed is a fact about these two.
   revision?: Revision
+  // When this result was saved, if it was opened from a file rather than
+  // made on this page (lib/saved.ts).
+  savedAt?: string
 }
 
-type Workspace = 'ask' | 'build' | 'estimate'
+export type Workspace = 'ask' | 'build' | 'estimate'
 
 const SAYS = {
   askAnother: { zh: '← 再问一个', en: '← Ask another' },
@@ -72,9 +76,15 @@ const SAYS = {
   toEstimate: { zh: '上传数据做数值估计', en: 'Upload data and estimate' },
   toBuild: { zh: '在画布上重画 / 改结构', en: 'Redraw it / change the structure' },
   rawEnvelope: { zh: '查看这份结果的原始信封（JSON）', en: 'See the raw envelope for this result (JSON)' },
+  save: { zh: '保存这个结果（下载文件）', en: 'Save this result (download a file)' },
+  savedAt: {
+    zh: '这是 {when} 保存的结果，从文件打开，没有重新计算。',
+    en: 'Saved on {when} and opened from a file; nothing here was computed again.',
+  },
 } satisfies Record<string, Words>
 
 export function ResultView({
+  workspace,
   payload,
   onReset,
   resetLabel,
@@ -82,6 +92,9 @@ export function ResultView({
   onRevise,
   onBack,
 }: {
+  // Where this view is shown, which a saved copy records so that opening it
+  // puts it back there.
+  workspace: Workspace
   payload: ResultPayload
   onReset: () => void
   resetLabel?: string
@@ -217,6 +230,11 @@ export function ResultView({
 
   return (
     <div className="result">
+      {/* Only while the saved result is the one on the screen: a re-run
+          from it is today's, and the line would then say otherwise. */}
+      {payload.savedAt && result === payload.result ? (
+        <p className="savedline">{fill(SAYS.savedAt, lang, { when: whenSaved(payload.savedAt) })}</p>
+      ) : null}
       {payload.asked ? (
         <p className="askedline">
           <b>{fill(SAYS.asked, lang)}</b> {payload.asked}
@@ -318,6 +336,13 @@ export function ResultView({
 
       <div className="ask__meta" style={{ marginTop: 'var(--space-xl)' }}>
         <button className="linklike" onClick={onReset}>{resetLabel ?? fill(SAYS.askAnother, lang)}</button>
+        {/* What is on the screen now, re-runs and all, not what first arrived. */}
+        <button
+          className="linklike"
+          onClick={() => saveResult(workspace, { asked: payload.asked, result, program, reply, naive, revision: payload.revision })}
+        >
+          {fill(SAYS.save, lang)}
+        </button>
       </div>
     </div>
   )

@@ -50,13 +50,17 @@ interface Dataset {
 export function EstimateWorkspace({
   initialProgram,
   onSendTo,
+  opened,
 }: {
   initialProgram?: Record<string, unknown>
   onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+  // A result opened from a saved file; its graph is on the canvas behind it.
+  // The data it was estimated from is not in the file.
+  opened?: ResultPayload
 } = {}) {
   const [data, setData] = useState<Dataset | null>(null)
   const [busy, setBusy] = useState(false)
-  const [payload, setPayload] = useState<ResultPayload | null>(null)
+  const [payload, setPayload] = useState<ResultPayload | null>(opened ?? null)
   const [error, setError] = useState<string | null>(null)
   const lang = useLang()
 
@@ -127,14 +131,14 @@ export function EstimateWorkspace({
     URL.revokeObjectURL(url)
   }
 
-  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
+  if (payload) return <ResultView workspace="estimate" payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
 
   return (
     <DagBuilder
       submitLabel={fill(data ? SAYS.estimateGo : SAYS.needUpload, lang)}
       onSubmit={runEstimate}
       busy={busy}
-      initialProgram={initialProgram}
+      initialProgram={initialProgram ?? opened?.program}
       intro={
         <div className="build__intro">
           <h2 className="build__title">{fill(SAYS.title, lang)}</h2>

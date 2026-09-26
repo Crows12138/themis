@@ -126,6 +126,10 @@ button { font-family: inherit; cursor: pointer; }
 .nav__item:disabled { color: var(--ink-ghost); cursor: not-allowed; }
 .nav__soon { font-size: 0.62rem; color: var(--ink-ghost); margin-left: 4px; letter-spacing: 0.04em; }
 
+.masthead__side { display: flex; align-items: center; gap: var(--space-md); }
+.masthead__open { font-size: var(--text-sm); white-space: nowrap; }
+.openerr { margin: 0 0 var(--space-lg); }
+.savedline { font-size: var(--text-sm); color: var(--ink-faint); margin-bottom: var(--space-sm); }
 .langs { display: flex; align-items: center; gap: 2px; background: var(--surface-sunk); padding: 3px; border-radius: var(--radius-md); border: 1px solid var(--line-soft); }
 .langs__item {
   border: none; background: transparent; color: var(--ink-soft);
@@ -639,6 +643,7 @@ button { font-family: inherit; cursor: pointer; }
   .readout__bar { margin: 0; }
   .nav__label { display: none; }
   .wordmark__tag { display: none; }
+  .masthead { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {

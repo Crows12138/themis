@@ -24,12 +24,15 @@ const SAYS = {
 export function BuildWorkspace({
   initialProgram,
   onSendTo,
+  opened,
 }: {
   initialProgram?: Record<string, unknown>
   onSendTo?: (target: 'ask' | 'build' | 'estimate', program: Record<string, unknown>) => void
+  // A result opened from a saved file; its graph is on the canvas behind it.
+  opened?: ResultPayload
 } = {}) {
   const [busy, setBusy] = useState(false)
-  const [payload, setPayload] = useState<ResultPayload | null>(null)
+  const [payload, setPayload] = useState<ResultPayload | null>(opened ?? null)
   const [error, setError] = useState<string | null>(null)
   const lang = useLang()
 
@@ -48,14 +51,14 @@ export function BuildWorkspace({
     }
   }
 
-  if (payload) return <ResultView payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
+  if (payload) return <ResultView workspace="build" payload={payload} onSendTo={onSendTo} onReset={() => setPayload(null)} resetLabel={fill(SAYS.back, lang)} />
 
   return (
     <DagBuilder
       submitLabel={fill(SAYS.submit, lang)}
       onSubmit={run}
       busy={busy}
-      initialProgram={initialProgram}
+      initialProgram={initialProgram ?? opened?.program}
       intro={
         <div className="build__intro">
           <h2 className="build__title">{fill(SAYS.title, lang)}</h2>

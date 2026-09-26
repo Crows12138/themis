@@ -94,6 +94,21 @@ request, never stored on the server).
 
 Run JSON / Build / Estimate / examples need no model.
 
+## Saving a result
+
+The server keeps no answer: a result lives in the page until it is
+reloaded or closed. Every result view can save what it shows to a JSON
+file (`themis-result-YYYYMMDDHHMM.json`), and **Open a saved result** in
+the header puts one back in the workspace it was saved in.
+
+The file (`kind: "themis.saved_result"`, `version: 1`) holds the question
+as asked, the program, the kernel's result, the reply if one was written,
+the correction the result came from if any, the workspace, and when it was
+saved. It is a record, not a recomputation: opened again, the page says
+when it was saved, and anything re-run from it is run by the kernel of
+the day. An estimate's data is not in the file. See
+`frontend/src/lib/saved.ts`.
+
 ## Stack
 
 - **Backend** `app.py` — FastAPI; thin JSON wrappers over the in-process
