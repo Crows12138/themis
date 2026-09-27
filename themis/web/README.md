@@ -92,6 +92,12 @@ to the oauth proxy on this machine (`OAUTH_PROXY_URL`, default
 paste an Anthropic key instead (kept in browser `localStorage`, sent per
 request, never stored on the server).
 
+AI priors ask the model for one prior per probability the kernel is
+missing. A long list goes out in parts of at most 50, four at a time, and
+the rows of one distribution always travel together; a graph missing more
+than 400 is refused before any call, with the count (see
+`llm_bridge._prior_calls`).
+
 Run JSON / Build / Estimate / examples need no model.
 
 ## Saving a result

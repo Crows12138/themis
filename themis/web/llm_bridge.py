@@ -69,6 +69,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import NamedTuple
 
@@ -445,6 +446,54 @@ def _prob_key_repr(skeleton: dict) -> str:
     return f"P({head} | {conds})"
 
 
+#: What one prior costs a reply, and how many one call carries. On
+#: deepseek-v4-pro (2026-09-27) 52 priors and their reasons came back in 1826
+#: output tokens, about 35 each; 60 leaves room for a longer reason or a
+#: wordier language. A call's budget is sized to the priors it carries: a
+#: fixed 2000 ran out at about 55, which a graph with five common causes of
+#: its outcome already needs. A call is kept to 50 because the reply is
+#: written at about 57 tokens a second — 70 priors in one call took 44
+#: seconds — and the parts run side by side.
+_PRIOR_TOKENS_EACH = 60
+_PRIOR_TOKENS_AROUND = 500
+_PRIORS_PER_CALL = 50
+#: A reader waits for the slowest round rather than for the sum, and a list
+#: that would take more calls than this is refused before any is made
+#: rather than left to run out the request: two rounds, about a minute.
+_PRIOR_CALLS_AT_ONCE = 4
+_PRIOR_CALLS_AT_MOST = 8
+
+
+def _prior_calls(skeletons: list[dict]) -> list[list[int]]:
+    """The indices of ``skeletons``, as the calls they are asked for in.
+
+    Rows are gathered by the distribution they belong to — one variable
+    under one condition, whose values must sum to one — in the order the
+    kernel listed them, and whole distributions are packed into as few
+    calls of at most ``_PRIORS_PER_CALL`` as the list needs, filled about
+    evenly, since the calls run side by side and the reader waits for the
+    largest. So the rows that must agree with each other are always written
+    by one reply; one distribution larger than a call goes alone rather
+    than be split.
+    """
+    distributions: dict[tuple, list[int]] = {}
+    for i, sk in enumerate(skeletons):
+        target = _atom_label((sk.get("target") or {}).get("atom", {}))
+        given = tuple(sorted(
+            (_atom_label(g.get("atom", {})), repr(g.get("value")))
+            for g in sk.get("given") or []))
+        distributions.setdefault((target, given), []).append(i)
+    parts = -(-len(skeletons) // _PRIORS_PER_CALL)
+    size = -(-len(skeletons) // parts) if parts else 0
+    calls: list[list[int]] = []
+    for rows in distributions.values():
+        if calls and len(calls[-1]) + len(rows) <= size:
+            calls[-1].extend(rows)
+        else:
+            calls.append(list(rows))
+    return calls
+
+
 def propose_theta_priors(
     program: dict,
     skeletons: list[dict],
@@ -468,45 +517,65 @@ def propose_theta_priors(
     Which is why the reason is asked for in the reader's language, the way
     the reply is: it is not a note this bridge keeps, it is the ground the
     person is shown beside a number they are being asked to review.
+
+    A long list is asked for in parts (:func:`_prior_calls`), each call
+    sent the whole graph and its own rows under their indices in the whole
+    list, and the parts are asked side by side.
     """
     if not skeletons:
         return []
+    calls = _prior_calls(skeletons)
+    if len(calls) > _PRIOR_CALLS_AT_MOST:
+        raise LLMBridgeError(
+            Bridge.TOO_MANY_PRIORS_TO_ASK_FOR, needed=len(skeletons),
+            most=_PRIORS_PER_CALL * _PRIOR_CALLS_AT_MOST)
     system = _load_system_prompt(_PROMPT_PROPOSE_PRIORS)
     client = _client(api_key)
     model = model or _endpoint(api_key).model
-
-    enumerated = [
-        {"index": i, "probability": _prob_key_repr(sk)}
-        for i, sk in enumerate(skeletons)
-    ]
-    user_msg = (
+    frame = (
         f"Write every reason in {language.endonym(lang)}.\n\n"
         "The causal graph (kernel program):\n"
         + json.dumps(program, ensure_ascii=False, indent=2)
         + "\n\nThe probabilities that need a prior. Fill in value and "
         "reason for every index; leave none out:\n"
-        + json.dumps(enumerated, ensure_ascii=False, indent=2)
     )
-    msg = _ask_model(
-        client,
-        model=model,
-        max_tokens=2000,
-        system=system,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-    text = "".join(
-        b.text for b in msg.content if getattr(b, "type", None) == "text"
-    )
-    parsed = _extract_first_json_object(text)
-    priors = parsed.get("priors")
-    if not isinstance(priors, list):
-        raise LLMBridgeError(
-            Bridge.THE_REPLY_CARRIES_NO_PRIORS, reply=text[:200])
 
+    def ask(rows: list[int]) -> dict[int, dict]:
+        enumerated = [
+            {"index": i, "probability": _prob_key_repr(skeletons[i])}
+            for i in rows
+        ]
+        user_msg = frame + json.dumps(enumerated, ensure_ascii=False, indent=2)
+        msg = _ask_model(
+            client,
+            model=model,
+            max_tokens=_PRIOR_TOKENS_AROUND + _PRIOR_TOKENS_EACH * len(rows),
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        text = "".join(
+            b.text for b in msg.content if getattr(b, "type", None) == "text"
+        )
+        parsed = _extract_first_json_object(text)
+        priors = parsed.get("priors")
+        if not isinstance(priors, list):
+            raise LLMBridgeError(
+                Bridge.THE_REPLY_CARRIES_NO_PRIORS, reply=text[:200])
+        # A reply is read for the rows it was asked for and no others, so
+        # an index it strays onto cannot stand in for another call's.
+        asked = set(rows)
+        return {p["index"]: p for p in priors
+                if isinstance(p, dict) and p.get("index") in asked}
+
+    if len(calls) == 1:
+        replies = [ask(calls[0])]
+    else:
+        with ThreadPoolExecutor(
+                max_workers=min(_PRIOR_CALLS_AT_ONCE, len(calls))) as pool:
+            replies = list(pool.map(ask, calls))
     by_index: dict[int, dict] = {}
-    for p in priors:
-        if isinstance(p, dict) and isinstance(p.get("index"), int):
-            by_index[p["index"]] = p
+    for reply in replies:
+        by_index.update(reply)
 
     filled: list[dict] = []
     for i, sk in enumerate(skeletons):

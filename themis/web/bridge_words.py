@@ -15,7 +15,7 @@ while the reader got only the stage. That is the shape
 :mod:`themis.input.semantic_validator` had before its own species existed,
 and the door has read the carrier rather than a list of classes since.
 
-**One class, fourteen species, and that is the arrangement rather than a
+**One class, fifteen species, and that is the arrangement rather than a
 shortfall.** A caller catches the CHANNEL — this bridge did not produce
 what was asked of it — and reads the SPECIES off the exception. Nothing
 between here and the endpoint distinguishes them, and nothing should: the
@@ -23,10 +23,12 @@ retry loop in ``nl_to_kernel_ast`` retries a parse failure and re-raises a
 refusal, and it tells them apart by catching where it calls rather than by
 what was raised.
 
-Four audiences run through the fourteen, and naming them is what keeps the
+Four audiences run through the fifteen, and naming them is what keeps the
 wordings honest rather than uniform. A missing prompt file and an
 uninstalled SDK are for whoever runs this; a model that declined the
-question is for whoever asked it; a reply that was the wrong shape is for
+question is for whoever asked it, and so is a graph missing more
+probabilities than a model is asked to estimate at once, which is refused
+before any model is asked; a reply that was the wrong shape is for
 neither of them and has to say plainly that the model, not the person, is
 what did not deliver.
 
@@ -38,7 +40,7 @@ Nothing came back at all is raised by the SDK instead, at the one line
 that speaks to it, so it travelled out unworded and a person who had
 neither a proxy nor a key was shown the stage sentence: that turning the
 question into a causal graph did not succeed, after three attempts. True
-of all fourteen, and it reads as a claim about what this project can do
+of all of them, and it reads as a claim about what this project can do
 rather than about a socket. The last three are that call's own failures,
 split by what the reader does next: start the thing at that address, fix
 the credential it refused, or neither because it answered and the answer
@@ -61,10 +63,19 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
     A model is asked for one of two things here — a program, or a prior
     for each probability the kernel is missing — and each species names
     the step of that ask which did not produce something usable. In the
-    order those steps run: the prompt and the SDK this machine needs, then
-    reaching a model at all, then what it sent back.
+    order those steps run: how much is being asked for, the prompt and the
+    SDK this machine needs, then reaching a model at all, then what it sent
+    back.
     """
 
+    TOO_MANY_PRIORS_TO_ASK_FOR = ("too_many_priors_to_ask_for", {
+        "zh": "这张图缺 {needed} 个概率，超过了一次最多请模型估的 {most} "
+              "个；删掉图里用不上的变量，或者补上数据，再试",
+        "en": "this graph is missing {needed} probabilities, more than the "
+              "{most} a model is asked to estimate at once; remove the "
+              "variables the graph does not need, or supply data, and try "
+              "again",
+    })
     A_PROMPT_IS_MISSING = ("a_prompt_is_missing", {
         "zh": "这一步要用的提示词文件不在它该在的地方：`{path}`",
         "en": "the prompt file this step reads is not where it should be: "
