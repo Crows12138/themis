@@ -532,6 +532,25 @@ def _recognize_identification_pattern(
     else:
         annotation = {"pattern": "c_factor"}
 
+    # Whether setting X can move Y at all. With no directed path from X to
+    # Y the third rule of the do-calculus removes the intervention —
+    # P(Y | do(X)) = P(Y), whatever X is set to — and the back-door formula
+    # already drops X for that reason. Nothing said so to a reader, who asked
+    # whether X changes Y and was shown a request for data about Y, which
+    # reads as the answer waiting on the data when the graph has settled it.
+    #
+    # A conditional question P(Y | do(X), Z) is settled the same way only
+    # when X reaches no Z either. Once do(X) cuts the edges into X, a path
+    # from X to Y leaves it forward and, not being directed, meets a collider
+    # downstream of X, which only a Z downstream of X could open; so
+    # P(Y | do(X), Z) = P(Y | Z). A Z downstream of X can open one — X -> Z
+    # <- Y is the plain case — and there X moves Y given Z although no
+    # directed path joins them, so the claim is not made.
+    if not any(structural_solver.has_directed_path(graph, x, end)
+               for end in (y, *given)):
+        annotation["no_directed_path"] = {
+            "from": _atom_to_str(x), "to": _atom_to_str(y)}
+
     # Conditional estimand P(Y | do(X), Z): the conditioning is PART of
     # the question (e.g. conditioning on a collider) and the formula is
     # the IDC ratio — not a plain "adjust and done". Surface it so the

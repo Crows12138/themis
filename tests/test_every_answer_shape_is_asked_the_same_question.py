@@ -2720,6 +2720,10 @@ def test_the_sweep_asks_about_the_whole_envelope():
     the percentile-bootstrap premise its stored copy had fallen behind on,
     7 questions. The 26 asks the same change stopped making took none with
     them: each was of a sort its row still carries.
+
+    Then 33899, by a refresh: two conditional identify answers whose
+    treatment reaches neither the outcome nor what they condition on now
+    say so (#785), and each asks the two ends it names -- 4 questions.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -2729,9 +2733,8 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    # 5 more with the rows #777 wrote back; the previous commit's code counts
-    # the same on the new corpus.
-    assert asked_total == 33895, asked_total
+    # 4 more with the two rows #785 wrote back.
+    assert asked_total == 33899, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

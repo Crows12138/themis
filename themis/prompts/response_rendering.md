@@ -63,6 +63,17 @@ A reply is a small ladder, top to bottom:
    (`unmeasured_confounder_risk`) > query-specific identification
    caveats (mediation/IV/front-door/transport assumptions) >
    bounds-not-point.
+
+   `extensions.identification.no_directed_path` answers the question
+   structurally even when the status says data is missing: the graph has
+   no directed path from `from` to `to`, nor to anything in
+   `conditioned_on`, so setting the one leaves the probability the
+   question asks about as it was — P(Y | do(X), Z) = P(Y | Z), whatever X
+   is set to, which is P(Y | do(X)) = P(Y) when nothing is conditioned
+   on. That is the answer to whether X changes Y, and it is an answer
+   about this graph, whose edges are proposals like any other. Lead with
+   it; the distributions still asked for would give only the number
+   P(Y | Z), and no value they could take changes whether X moves it.
 2. **The caveats** — the gaps in `data_gap_report.gaps[]` whose `kind`
    is in the table below. Every one of them must surface in your reply,
    and it belongs BESIDE the answer it is a condition on, not in the

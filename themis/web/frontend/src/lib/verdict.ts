@@ -1315,7 +1315,34 @@ const IDENTIFICATION_SAYS = {
   point_id_also_needs: {
     zh: '点识别另需', en: 'Point identification also needs',
   },
+  no_directed_path: { zh: '有没有因果路径', en: 'Is there a causal path' },
+  unreached: {
+    zh: '图上没有从 {x} 到 {y} 的有向路径：设定 {x} 不改变 {y} 本身的概率，P({y} | do({x})) = P({y})，要数据的只是 P({y}) 这个数',
+    en: 'The graph has no directed path from {x} to {y}: setting {x} leaves the probability of {y} itself as it was, P({y} | do({x})) = P({y}), and data is needed only for the number P({y})',
+  },
+  unreached_given: {
+    zh: '从 {x} 出发的有向路径既到不了 {y}，也到不了问题所条件的 {given}：设定 {x} 不改变在这些条件下 {y} 的概率，P({y} | do({x}), {given}) = P({y} | {given})，要数据的只是 P({y} | {given}) 这个数',
+    en: 'No directed path from {x} reaches {y} or what the question conditions on, {given}: setting {x} leaves the probability of {y} given those as it was, P({y} | do({x}), {given}) = P({y} | {given}), and data is needed only for the number P({y} | {given})',
+  },
 } satisfies Record<string, Words>
+
+// What the graph settles before any data: that setting X cannot move Y,
+// because no directed path runs from X to Y, nor to anything the question
+// conditions on. Shown beside the verdict as well as in the route rows,
+// since the question was whether X changes Y and the tier above it answers
+// a different one — how much data the probability of Y needs.
+export function unreachedTarget(
+  ext: Record<string, any> | undefined, lang: Lang,
+): string | null {
+  const block = ext?.identification
+  const b = block?.no_directed_path
+  if (!b) return null
+  const ends = { x: String(b.from), y: String(b.to) }
+  const given: string[] = block.conditioned_on ?? []
+  return given.length
+    ? fill(IDENTIFICATION_SAYS.unreached_given, lang, { ...ends, given: given.join(', ') })
+    : fill(IDENTIFICATION_SAYS.unreached, lang, ends)
+}
 
 // A loop the reader DECLARED, said back to them as the reason an ordinary
 // answer was not given. The withdrawn route ids are not among these words on
@@ -1702,6 +1729,12 @@ const ROUTE_RENDERERS: Record<string, BlockRenderer> = {
       }
     } else if (b.pattern === 'instrumental_variable') {
       rows.push({ label: fill(w.instrument, lang), value: String(b.instrument ?? '?') })
+    }
+    if (b.no_directed_path) {
+      rows.push({
+        label: fill(w.no_directed_path, lang),
+        value: unreachedTarget({ identification: b }, lang) ?? '',
+      })
     }
     if (b.conditioned_on?.length) {
       rows.push({ label: fill(w.conditioned_on, lang), value: varset(b.conditioned_on) })

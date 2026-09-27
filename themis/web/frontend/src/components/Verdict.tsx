@@ -1,5 +1,5 @@
 import type { LedgerEntry, QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict, unreachedTarget } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Lang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -114,6 +114,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const sens = num?.sensitivity_analysis
   const ledger = result.extensions?.assumption_ledger
   const premises = ledger?.assumptions?.filter(goesWithTheVerdict) ?? []
+  const unreached = unreachedTarget(result.extensions, lang)
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num, lang) : null
   const refusal = refusalKind(result.estimator_failure?.kind, lang)
@@ -193,6 +194,12 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
           {statusBlurb(result.status, lang) ? <p className="verdict__blurb">{statusBlurb(result.status, lang)}</p> : null}
         </div>
       </div>
+
+      {/* What the graph settled before any data, beside the verdict rather
+          than in the foldout: the question was whether X changes Y, and a
+          graph with no directed path between them has answered it while
+          the readout above is still about the data Y's probability needs. */}
+      {unreached ? <p className="verdict__settled">{unreached}</p> : null}
 
       {/* The ledger lines the verdict cannot be read without: a proposal
           nobody took on, a premise this run's own data refused. Beside the

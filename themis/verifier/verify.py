@@ -5523,6 +5523,7 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
     import networkx as nx
 
     from .rules import (
+        _atom_label_verifier,
         _verifier_directed_descendants,
         _verifier_is_m_connected,
         _verifier_nodes_by_label,
@@ -5563,6 +5564,31 @@ def verify_identification_pattern(block: dict, graph, bidirected, query) -> None
         return n
 
     _hold_the_conditioning_a_block_names(block, given, _node, _err)
+
+    # Whether the intervention reaches the target is a fact about the graph
+    # that a reader is told, so it is asked of the graph, both ways and with
+    # this module's own descendant walk: claimed where a directed path runs
+    # from X to Y, and left unsaid where none does. A conditional question
+    # is settled that way only when X reaches none of what it conditions on
+    # either — a Z downstream of X can open a path X -> Z <- Y — so the
+    # conditioning counts as an end too. The two names it carries are the
+    # question's two ends and no other variables.
+    downstream = _verifier_directed_descendants(graph, x)
+    reaches = y in downstream or bool(given & set(downstream))
+    unreached = block.get("no_directed_path")
+    pair = f"{_atom_label_verifier(x)} to {_atom_label_verifier(y)}"
+    ends = pair
+    if given:
+        ends += " or to " + ", ".join(sorted(_atom_label_verifier(g) for g in given))
+    if unreached is not None:
+        if reaches:
+            _err(f"says no directed path runs from {ends}, and one does")
+        if (_node(unreached.get("from", "")), _node(unreached.get("to", ""))) != (x, y):
+            _err(f"names {unreached.get('from')!r} → {unreached.get('to')!r} "
+                 f"as the ends a directed path does not join, where the "
+                 f"question asks from {pair}")
+    elif not reaches:
+        _err(f"leaves unsaid that no directed path runs from {ends}")
 
     cut: dict = {}
 

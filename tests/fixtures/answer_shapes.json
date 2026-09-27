@@ -211708,6 +211708,10 @@ false
 "f(me)"
 ],
 "estimand": "conditional_idc_ratio",
+"no_directed_path": {
+"from": "x(me)",
+"to": "y(me)"
+},
 "pattern": "backdoor"
 }
 },
@@ -214720,6 +214724,10 @@ false
 "d(me)"
 ],
 "estimand": "conditional_idc_ratio",
+"no_directed_path": {
+"from": "x(me)",
+"to": "y(me)"
+},
 "pattern": "backdoor"
 }
 },

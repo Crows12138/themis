@@ -2790,6 +2790,22 @@ _POINT_ALSO_NEEDS: language.Words = {
     "zh": "。点识别另需：{assumption}",
     "en": ". Point identification also needs: {assumption}",
 }
+_NO_DIRECTED_PATH: language.Words = {
+    "zh": "。图上没有从 `{x}` 到 `{y}` 的有向路径，设定 `{x}` 不改变 `{y}` "
+          "本身的概率：P({y} | do({x})) = P({y})",
+    "en": ". The graph has no directed path from `{x}` to `{y}`, so setting "
+          "`{x}` leaves the probability of `{y}` itself as it was: "
+          "P({y} | do({x})) = P({y})",
+}
+_NO_DIRECTED_PATH_GIVEN: language.Words = {
+    "zh": "。从 `{x}` 出发的有向路径既到不了 `{y}`，也到不了问题所条件的变量，"
+          "设定 `{x}` 不改变在这些条件下 `{y}` 的概率："
+          "P({y} | do({x}), {given}) = P({y} | {given})",
+    "en": ". No directed path from `{x}` reaches `{y}` or anything the "
+          "question conditions on, so setting `{x}` leaves the probability "
+          "of `{y}` given those as it was: "
+          "P({y} | do({x}), {given}) = P({y} | {given})",
+}
 
 
 def _route_identification(block: dict, result: dict, *,
@@ -2824,6 +2840,13 @@ def _route_identification(block: dict, result: dict, *,
         line += language.fill(
             _POINT_ALSO_NEEDS, lang,
             assumption=language.spoke(block["required_assumption"], lang))
+    unreached = block.get("no_directed_path")
+    if unreached:
+        given = block.get("conditioned_on")
+        line += language.fill(
+            _NO_DIRECTED_PATH_GIVEN if given else _NO_DIRECTED_PATH, lang,
+            x=unreached.get("from", "?"), y=unreached.get("to", "?"),
+            **({"given": ", ".join(given)} if given else {}))
     return line
 
 
