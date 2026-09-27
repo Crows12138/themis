@@ -1317,13 +1317,15 @@ const IDENTIFICATION_SAYS = {
   },
   no_directed_path: { zh: '有没有因果路径', en: 'Is there a causal path' },
   unreached: {
-    zh: '图上没有从 {x} 到 {y} 的有向路径：设定 {x} 不改变 {y} 本身的概率，P({y} | do({x})) = P({y})，要数据的只是 P({y}) 这个数',
-    en: 'The graph has no directed path from {x} to {y}: setting {x} leaves the probability of {y} itself as it was, P({y} | do({x})) = P({y}), and data is needed only for the number P({y})',
+    zh: '图上没有从 {x} 到 {y} 的有向路径：设定 {x} 不改变 {y} 本身的概率，P({y} | do({x})) = {p}',
+    en: 'The graph has no directed path from {x} to {y}: setting {x} leaves the probability of {y} itself as it was, P({y} | do({x})) = {p}',
   },
   unreached_given: {
-    zh: '从 {x} 出发的有向路径既到不了 {y}，也到不了问题所条件的 {given}：设定 {x} 不改变在这些条件下 {y} 的概率，P({y} | do({x}), {given}) = P({y} | {given})，要数据的只是 P({y} | {given}) 这个数',
-    en: 'No directed path from {x} reaches {y} or what the question conditions on, {given}: setting {x} leaves the probability of {y} given those as it was, P({y} | do({x}), {given}) = P({y} | {given}), and data is needed only for the number P({y} | {given})',
+    zh: '从 {x} 出发的有向路径既到不了 {y}，也到不了问题所条件的 {given}：设定 {x} 不改变在这些条件下 {y} 的概率，P({y} | do({x}), {given}) = {p}',
+    en: 'No directed path from {x} reaches {y} or what the question conditions on, {given}: setting {x} leaves the probability of {y} given those as it was, P({y} | do({x}), {given}) = {p}',
   },
+  unreached_needs: { zh: '，要数据的只是 {p} 这个数', en: ', and data is needed only for the number {p}' },
+  unreached_computed: { zh: '，下面算出的数就是 {p}', en: ', and the number below is {p}' },
 } satisfies Record<string, Words>
 
 // What the graph settles before any data: that setting X cannot move Y,
@@ -1331,17 +1333,29 @@ const IDENTIFICATION_SAYS = {
 // conditions on. Shown beside the verdict as well as in the route rows,
 // since the question was whether X changes Y and the tier above it answers
 // a different one — how much data the probability of Y needs.
+//
+// `computed` is whether the result carries the number the identity ends
+// in: then the number shown is that probability, and otherwise it is all
+// the data asked for can give. Left out where the sentence is read as a
+// fact about the route alone, which holds in either state.
 export function unreachedTarget(
-  ext: Record<string, any> | undefined, lang: Lang,
+  ext: Record<string, any> | undefined, lang: Lang, computed?: boolean,
 ): string | null {
   const block = ext?.identification
   const b = block?.no_directed_path
   if (!b) return null
-  const ends = { x: String(b.from), y: String(b.to) }
-  const given: string[] = block.conditioned_on ?? []
-  return given.length
-    ? fill(IDENTIFICATION_SAYS.unreached_given, lang, { ...ends, given: given.join(', ') })
-    : fill(IDENTIFICATION_SAYS.unreached, lang, ends)
+  const x = cleanPathNode(String(b.from))
+  const y = cleanPathNode(String(b.to))
+  const given = ((block.conditioned_on ?? []) as unknown[])
+    .map((g) => cleanPathNode(String(g))).join(', ')
+  const p = given ? `P(${y} | ${given})` : `P(${y})`
+  const said = fill(
+    given ? IDENTIFICATION_SAYS.unreached_given : IDENTIFICATION_SAYS.unreached,
+    lang, { x, y, given, p })
+  if (computed === undefined) return said
+  return said + fill(
+    computed ? IDENTIFICATION_SAYS.unreached_computed : IDENTIFICATION_SAYS.unreached_needs,
+    lang, { p })
 }
 
 // A loop the reader DECLARED, said back to them as the reason an ordinary

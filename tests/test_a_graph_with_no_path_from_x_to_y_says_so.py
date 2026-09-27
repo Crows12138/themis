@@ -159,7 +159,11 @@ def test_the_page_says_it_beside_the_verdict_and_not_only_in_the_foldout():
     verdict = (FRONTEND / "components" / "Verdict.tsx").read_text(encoding="utf-8")
     shown = verdict.index('className="verdict__settled"')
     assert shown < verdict.index("<Foldout")
-    assert "unreachedTarget(result.extensions, lang)" in verdict
+    # Beside the verdict the sentence ends on what the number is, or on what
+    # the data asked for can give, by whether a number was computed.
+    assert ("unreachedTarget(result.extensions, lang, "
+            "num?.point != null || runNum != null)") in verdict
     words = (FRONTEND / "lib" / "verdict.ts").read_text(encoding="utf-8")
-    assert "IDENTIFICATION_SAYS.unreached_given" in words
+    assert "IDENTIFICATION_SAYS.unreached_computed" in words
+    assert "IDENTIFICATION_SAYS.unreached_needs" in words
     assert "if (b.no_directed_path)" in words

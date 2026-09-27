@@ -114,7 +114,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
   const sens = num?.sensitivity_analysis
   const ledger = result.extensions?.assumption_ledger
   const premises = ledger?.assumptions?.filter(goesWithTheVerdict) ?? []
-  const unreached = unreachedTarget(result.extensions, lang)
+  const unreached = unreachedTarget(result.extensions, lang, num?.point != null || runNum != null)
   const showCompare = num != null && num.point != null && naive != null
   const shaped = num ? answerRows(num, lang) : null
   const refusal = refusalKind(result.estimator_failure?.kind, lang)
