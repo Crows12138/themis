@@ -1,10 +1,13 @@
 """0.15 world-modeling pressure harness — fix Phase 4 / Phase 15
 upstream-modeling pressure cases as repeatable end-to-end runs.
 
-No new kernel semantics, no LLM. Threads existing A1/A2/A5 prompt
+No new kernel semantics, no LLM. Threads existing A2/A5 prompt
 examples + ``themis.upstream.compose_program(...)`` +
 ``themis.run(...)`` + ``verify`` / ``verify_data_gap_report`` into
-five pinned cases that historically surfaced upstream-layer pain:
+five pinned cases that historically surfaced upstream-layer pain. Each
+case holds its own question-side program: the A1 examples teach the
+translator what a whole question looks like and grow with that teaching,
+while a case here pins the merge layer on one fixed question.
 
 1. **exercise_waist_variable_merge** — narrative framing shrinks
    `running` gap but `belly_fat_loss` stays under-framed
@@ -86,6 +89,10 @@ def _atom(predicate: str) -> dict[str, Any]:
     }
 
 
+def _atom_at(predicate: str, step: int) -> dict[str, Any]:
+    return {**_atom(predicate), "time_index": {"kind": "relative", "value": step}}
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -147,8 +154,50 @@ def _edge_pairs(program: dict[str, Any]) -> list[list[str]]:
     return pairs
 
 
+def _exercise_question_program() -> dict[str, Any]:
+    """我每天跑步，肚子上的肉会瘦下来吗 — the effect of running, with one
+    common cause drawn."""
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "running", "domain": [True, False]},
+            {"kind": "variable", "predicate": "belly_fat_loss", "domain": [True, False]},
+            {"kind": "variable", "predicate": "dietary_self_discipline", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": _atom("running"),
+                "to": _atom("belly_fat_loss"),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "cause",
+                "from": _atom("dietary_self_discipline"),
+                "to": _atom("running"),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "cause",
+                "from": _atom("dietary_self_discipline"),
+                "to": _atom("belly_fat_loss"),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "effect",
+                    "target": {"atom": _atom("belly_fat_loss"), "value": True},
+                    "intervention": {"atom": _atom("running"), "value": True},
+                    "given": [],
+                },
+            },
+        ],
+    }
+
+
 def pressure_exercise_waist_variable_merge() -> PressureResult:
-    question = _load_example("exercise_waist.json")["kernel_ast"]
+    question = _exercise_question_program()
     narrative = _load_example("narrative_running.json")
 
     before_predicates = _declared_predicates(question)
@@ -253,8 +302,36 @@ def pressure_exercise_waist_variable_merge() -> PressureResult:
     )
 
 
+def _late_sleep_question_program() -> dict[str, Any]:
+    """熬夜真的会让第二天没精神吗 — asked as whether a path runs from the
+    night before to the next morning."""
+    return {
+        "version": "0.1",
+        "domain": {"objects": [{"kind": "object", "name": "me"}]},
+        "statements": [
+            {"kind": "variable", "predicate": "stays_up_late", "domain": [True, False]},
+            {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [True, False]},
+            {
+                "kind": "cause",
+                "from": _atom_at("stays_up_late", -1),
+                "to": _atom_at("feels_tired_next_morning", 0),
+                "annotations": {"source": "llm_proposal"},
+            },
+            {
+                "kind": "query",
+                "id": "q",
+                "query": {
+                    "kind": "cause",
+                    "from": _atom_at("stays_up_late", -1),
+                    "to": _atom_at("feels_tired_next_morning", 0),
+                },
+            },
+        ],
+    }
+
+
 def pressure_late_sleep_predicate_drift() -> PressureResult:
-    question = _load_example("late_night_tired_temporal.json")["kernel_ast"]
+    question = _late_sleep_question_program()
     narrative = _load_example("narrative_late_sleep.json")
 
     before_predicates = _declared_predicates(question)

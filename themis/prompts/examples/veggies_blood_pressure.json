@@ -2,56 +2,465 @@
   "nl_input": "多吃青菜能降血压吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'多吃' signals an intervention; the user asks about the effect of increased vegetable intake on blood pressure",
+    "intent_reason": "'多吃' signals an intervention; the user asks whether eating more vegetables lowers blood pressure.",
     "predicates": [
-      {"name": "eating_more_vegetables", "role": "intervention", "translation": "多吃青菜"},
-      {"name": "blood_pressure_lowered", "role": "target", "translation": "血压降下来"},
-      {"name": "health_consciousness", "role": "confounder", "translation": "健康意识"}
+      {
+        "name": "eating_more_vegetables",
+        "role": "intervention",
+        "translation": "多吃青菜"
+      },
+      {
+        "name": "blood_pressure_lowered",
+        "role": "target",
+        "translation": "血压降下来"
+      },
+      {
+        "name": "potassium_intake",
+        "role": "mediator",
+        "translation": "钾摄入"
+      },
+      {
+        "name": "health_consciousness",
+        "role": "confounder",
+        "translation": "健康意识"
+      },
+      {
+        "name": "age",
+        "role": "confounder",
+        "translation": "年龄"
+      },
+      {
+        "name": "high_baseline_blood_pressure",
+        "role": "confounder",
+        "translation": "原本血压就高"
+      },
+      {
+        "name": "low_salt_diet",
+        "role": "other_cause",
+        "translation": "少盐饮食"
+      }
     ],
     "edges": [
-      {"from": "eating_more_vegetables", "to": "blood_pressure_lowered", "source": "llm_proposal", "note": "real nutritional mechanism (potassium/fiber)"},
-      {"from": "health_consciousness", "to": "eating_more_vegetables", "source": "llm_proposal"},
-      {"from": "health_consciousness", "to": "blood_pressure_lowered", "source": "llm_proposal"}
+      {
+        "from": "eating_more_vegetables",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal",
+        "note": "fibre and weight, beyond potassium"
+      },
+      {
+        "from": "eating_more_vegetables",
+        "to": "potassium_intake",
+        "source": "llm_proposal",
+        "note": "the mechanism: potassium"
+      },
+      {
+        "from": "potassium_intake",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "health_consciousness",
+        "to": "eating_more_vegetables",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "health_consciousness",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "health_consciousness",
+        "to": "low_salt_diet",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "low_salt_diet",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "eating_more_vegetables",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "high_baseline_blood_pressure",
+        "to": "eating_more_vegetables",
+        "source": "llm_proposal",
+        "note": "people told their pressure is high are told to eat more vegetables"
+      },
+      {
+        "from": "high_baseline_blood_pressure",
+        "to": "blood_pressure_lowered",
+        "source": "llm_proposal"
+      }
     ],
-    "confounder_note": "Eating more vegetables is a self-selected behavior (§3 unit 1: observed confounder). A latent disposition — health-consciousness — makes a person both more likely to eat vegetables AND more likely to do the OTHER blood-pressure-lowering things (less salt, more exercise, weight control, medication adherence). So the vegetable→BP edge is confounded even though it has a real nutritional mechanism. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal); identification routes through backdoor adjustment over health_consciousness and the kernel flags its missing data — not a bare P(blood_pressure_lowered | eating_more_vegetables).",
-    "framing_left_blank": "No time window ('after a week? after a year?'), no intake threshold (what counts as 'more'?), no BP measurement standard (systolic vs diastolic? which cutoff?). A0/F1 flags the framing fields on the predicates the user named."
+    "brainstorm_note": "Brainstormed per §3's opening: every common cause domain knowledge makes plausible for the pair (and for each pair an added variable creates), the steps the mechanism runs through, and the other major causes of the outcome. The kernel adjusts over the common causes, not over the mediator, and flags their missing data. Health-consciousness also lowers pressure through a low-salt diet, drawn as its own cause of the outcome.",
+    "framing_left_blank": "No time window, no intake threshold for 'more', no blood-pressure measurement standard; the fields stay unset."
   },
   "kernel_ast": {
     "version": "0.1",
-    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
     "statements": [
-      {"kind": "variable", "predicate": "eating_more_vegetables", "domain": [true, false]},
-      {"kind": "variable", "predicate": "blood_pressure_lowered", "domain": [true, false]},
-      {"kind": "variable", "predicate": "health_consciousness", "domain": [true, false]},
       {
-        "kind": "cause",
-        "from": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "kind": "variable",
+        "predicate": "eating_more_vegetables",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "blood_pressure_lowered",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "potassium_intake",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "health_consciousness",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "age",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "high_baseline_blood_pressure",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "low_salt_diet",
+        "domain": [
+          true,
+          false
+        ]
       },
       {
         "kind": "cause",
-        "from": {"predicate": "health_consciousness", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "eating_more_vegetables",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "cause",
-        "from": {"predicate": "health_consciousness", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "eating_more_vegetables",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "potassium_intake",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "potassium_intake",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "health_consciousness",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "eating_more_vegetables",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "health_consciousness",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "health_consciousness",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "low_salt_diet",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "low_salt_diet",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "eating_more_vegetables",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "high_baseline_blood_pressure",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "eating_more_vegetables",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "high_baseline_blood_pressure",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "blood_pressure_lowered",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "query",
         "id": "q",
         "query": {
           "kind": "effect",
-          "target": {
-            "atom": {"predicate": "blood_pressure_lowered", "args": [{"type": "const", "name": "me"}]},
+          "intervention": {
+            "atom": {
+              "predicate": "eating_more_vegetables",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
-          "intervention": {
-            "atom": {"predicate": "eating_more_vegetables", "args": [{"type": "const", "name": "me"}]},
+          "target": {
+            "atom": {
+              "predicate": "blood_pressure_lowered",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
           "given": []

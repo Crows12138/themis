@@ -83,16 +83,17 @@ def test_example_flags_every_declared_predicate_for_framing(example_path):
         s["predicate"] for s in ast["statements"]
         if s.get("kind") == "variable"
     }
-    # A self-selection confounder is an llm_proposal structural device, not a
-    # variable the user named: the kernel surfaces its data need through the
-    # data-gap channel (missing adjustment data / unmeasured_confounder_risk),
-    # NOT the framing channel. So framing-flagging covers the declared
-    # predicates MINUS those confounders.
-    confounders = {
+    # What the brainstorm adds around the question — common causes, the
+    # steps of the mechanism, other causes of the outcome — is llm_proposal
+    # structure, not a variable the user named: the kernel surfaces its data
+    # need through the data-gap channel (missing adjustment data /
+    # unmeasured_confounder_risk), NOT the framing channel, which covers the
+    # variables the question itself is about.
+    added = {
         p["name"] for p in payload.get("reasoning", {}).get("predicates", [])
-        if p.get("role") == "confounder"
+        if p.get("role") in ("confounder", "mediator", "other_cause")
     }
-    expected = declared - confounders
+    expected = declared - added
     out = themis.run(ast)
     r = out["results"][0]
     define_reqs = [
@@ -109,8 +110,8 @@ def test_example_flags_every_declared_predicate_for_framing(example_path):
     )
     assert flagged == expected, (
         f"{example_path.name}: framing-flagged set {flagged} should match "
-        f"declared-minus-confounders {expected} (confounders surface via the "
-        f"data-gap channel, not framing)"
+        f"the declared variables minus those the brainstorm added {expected} "
+        f"(those surface via the data-gap channel, not framing)"
     )
 
 
@@ -126,38 +127,37 @@ def test_example_output_is_json_serializable(example_path):
 
 def test_temporal_example_lifts_lag_into_time_index_instead_of_ambiguity():
     """Phase 5 §T / S.T.6: a clean t-1 -> t question should be encoded
-    directly with time_index, not downgraded to a temporal ambiguity."""
+    directly with time_index, not downgraded to a temporal ambiguity.
+
+    Asked as an effect (#783): whether staying up late changes the next
+    morning is a question about the world, and the night's other
+    circumstances are drawn at the same step as staying up."""
     path = EXAMPLES_DIR / "late_night_tired_temporal.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     ast = payload["kernel_ast"]
+    before, now = {"kind": "relative", "value": -1}, {"kind": "relative", "value": 0}
 
-    cause_stmt = next(
-        s for s in ast["statements"]
-        if s.get("kind") == "cause"
-    )
-    query_stmt = next(
+    query = next(
         s for s in ast["statements"]
         if s.get("kind") == "query"
-    )
+    )["query"]
+    assert query["kind"] == "effect"
+    assert query["intervention"]["atom"]["time_index"] == before
+    assert query["target"]["atom"]["time_index"] == now
 
-    assert cause_stmt["from"]["time_index"] == {"kind": "relative", "value": -1}
-    assert cause_stmt["to"]["time_index"] == {"kind": "relative", "value": 0}
-    assert query_stmt["query"]["from"]["time_index"] == {
-        "kind": "relative", "value": -1
-    }
-    assert query_stmt["query"]["to"]["time_index"] == {
-        "kind": "relative", "value": 0
-    }
+    # Every edge ends where the question does or at the night before it,
+    # and none runs backwards in time.
+    for edge in (s for s in ast["statements"] if s.get("kind") == "cause"):
+        assert edge["from"]["time_index"] == before
+        assert edge["to"]["time_index"] in (before, now)
 
     ambiguities = ast.get("extensions", {}).get("ambiguities", [])
     assert all(item.get("kind") != "temporal" for item in ambiguities)
 
-    out = themis.run(ast)
-    r = out["results"][0]
-    assert r["status"] == "structurally_solved"
-    assert r["structural_result"]["supporting_paths"] == [
-        ["stays_up_late(me)@t-1", "feels_tired_next_morning(me)@t"]
-    ]
+    r = themis.run(ast)["results"][0]
+    assert r["query_kind"] == "effect"
+    assert r["status"] == "needs_investigation"
+    assert r["missing_information"]
 
 
 def test_counterfactual_example_lifts_case17_into_counterfactual_query():

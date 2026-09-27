@@ -1,62 +1,483 @@
 {
   "nl_input": "熬夜真的会让第二天没精神吗？",
   "reasoning": {
-    "intent": "cause",
-    "intent_reason": "The question uses pure causal wording ('会让') without an explicit action plan like '每天' or '坚持', so the conservative reading is cause rather than effect.",
+    "intent": "effect",
+    "intent_reason": "Asked in prose whether staying up late makes one tired the next day: a question about the world — whether making X happen changes Y — so effect, not cause (§1: cause would only read back the edge proposed here).",
     "predicates": [
-      {"name": "stays_up_late", "role": "source", "translation": "熬夜"},
-      {"name": "feels_tired_next_morning", "role": "target", "translation": "第二天没精神"}
+      {
+        "name": "stays_up_late",
+        "role": "intervention",
+        "translation": "熬夜"
+      },
+      {
+        "name": "feels_tired_next_morning",
+        "role": "target",
+        "translation": "第二天没精神"
+      },
+      {
+        "name": "short_sleep",
+        "role": "mediator",
+        "translation": "睡眠不足"
+      },
+      {
+        "name": "work_stress",
+        "role": "confounder",
+        "translation": "压力大"
+      },
+      {
+        "name": "low_mood",
+        "role": "confounder",
+        "translation": "情绪低落"
+      },
+      {
+        "name": "feeling_unwell",
+        "role": "confounder",
+        "translation": "身体不适"
+      }
     ],
     "temporal_mapping": {
-      "why": "The temporal lag is explicit and is the core semantics of the question: tonight's staying up late is being linked to next morning's fatigue.",
+      "why": "The lag is explicit and is the core of the question: tonight's staying up is linked to tomorrow morning's fatigue. The night's other circumstances (stress, mood, feeling unwell, how short the sleep was) sit at the same step as staying up.",
       "source_time_index": -1,
       "target_time_index": 0,
-      "note": "Under Phase 5 §T, this is encoded directly in the AST instead of being downgraded to extensions.ambiguities[kind=temporal]."
+      "note": "Encoded directly with time_index, not as an extensions.ambiguities[kind=temporal] entry."
     },
     "edges": [
       {
-        "from": "stays_up_late@t-1",
-        "to": "feels_tired_next_morning@t",
-        "source": "common_knowledge"
+        "from": "stays_up_late",
+        "to": "feels_tired_next_morning",
+        "source": "llm_proposal",
+        "note": "circadian disruption, beyond the lost hours"
+      },
+      {
+        "from": "stays_up_late",
+        "to": "short_sleep",
+        "source": "llm_proposal",
+        "note": "the mechanism: staying up cuts the night short"
+      },
+      {
+        "from": "short_sleep",
+        "to": "feels_tired_next_morning",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "work_stress",
+        "to": "stays_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "work_stress",
+        "to": "feels_tired_next_morning",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "low_mood",
+        "to": "stays_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "low_mood",
+        "to": "feels_tired_next_morning",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "feeling_unwell",
+        "to": "stays_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "feeling_unwell",
+        "to": "feels_tired_next_morning",
+        "source": "llm_proposal"
       }
     ],
-    "framing_left_blank": "The question gives no operational definition of what counts as staying up late, no measurement for '没精神', and no explicit threshold or observability contract. Those framing fields remain unset so DEFINE_VARIABLE can ask next."
+    "brainstorm_note": "Brainstormed per §3's opening: every common cause domain knowledge makes plausible for the pair (and for each pair an added variable creates), the steps the mechanism runs through, and the other major causes of the outcome. The kernel adjusts over the common causes, not over the mediator, and flags their missing data. Staying up late is chosen, and what drives the choice — stress, low mood, feeling unwell — also makes one tired the next day by itself; leaving them out would credit their effect to staying up.",
+    "framing_left_blank": "What counts as staying up late, and how tiredness is measured, are not stated; the fields stay unset so DEFINE_VARIABLE asks next."
   },
   "kernel_ast": {
     "version": "0.1",
-    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
     "statements": [
-      {"kind": "variable", "predicate": "stays_up_late", "domain": [true, false]},
-      {"kind": "variable", "predicate": "feels_tired_next_morning", "domain": [true, false]},
+      {
+        "kind": "variable",
+        "predicate": "stays_up_late",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "feels_tired_next_morning",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "short_sleep",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "work_stress",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "low_mood",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "feeling_unwell",
+        "domain": [
+          true,
+          false
+        ]
+      },
       {
         "kind": "cause",
         "from": {
           "predicate": "stays_up_late",
-          "args": [{"type": "const", "name": "me"}],
-          "time_index": {"kind": "relative", "value": -1}
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
         },
         "to": {
           "predicate": "feels_tired_next_morning",
-          "args": [{"type": "const", "name": "me"}],
-          "time_index": {"kind": "relative", "value": 0}
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": 0
+          }
         },
-        "annotations": {"source": "llm_proposal"}
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "stays_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "short_sleep",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "short_sleep",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": 0
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "work_stress",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "stays_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "work_stress",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": 0
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "low_mood",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "stays_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "low_mood",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": 0
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "feeling_unwell",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "stays_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "feeling_unwell",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": -1
+          }
+        },
+        "to": {
+          "predicate": "feels_tired_next_morning",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ],
+          "time_index": {
+            "kind": "relative",
+            "value": 0
+          }
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "query",
         "id": "q",
         "query": {
-          "kind": "cause",
-          "from": {
-            "predicate": "stays_up_late",
-            "args": [{"type": "const", "name": "me"}],
-            "time_index": {"kind": "relative", "value": -1}
+          "kind": "effect",
+          "intervention": {
+            "atom": {
+              "predicate": "stays_up_late",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ],
+              "time_index": {
+                "kind": "relative",
+                "value": -1
+              }
+            },
+            "value": true
           },
-          "to": {
-            "predicate": "feels_tired_next_morning",
-            "args": [{"type": "const", "name": "me"}],
-            "time_index": {"kind": "relative", "value": 0}
-          }
+          "target": {
+            "atom": {
+              "predicate": "feels_tired_next_morning",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ],
+              "time_index": {
+                "kind": "relative",
+                "value": 0
+              }
+            },
+            "value": true
+          },
+          "given": []
         }
       }
     ]

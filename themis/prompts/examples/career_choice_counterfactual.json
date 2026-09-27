@@ -2,47 +2,226 @@
   "nl_input": "我大学选了历史专业，现在做图书管理员，月薪八千。如果当初我选的是计算机专业，现在收入会更高吗？",
   "reasoning": {
     "intent": "counterfactual",
-    "intent_reason": "The question asks about this individual's alternative outcome under a contrary-to-fact past choice ('如果当初我选的是…'), so the right query family is Layer-3 counterfactual rather than a population do-effect proxy.",
+    "intent_reason": "Contrary-to-fact past choice ('如果当初我选的是…') about this person: a Layer-3 counterfactual, not a population effect.",
     "predicates": [
-      {"name": "chose_cs_major", "role": "counterfactual_intervention", "translation": "当初是否选择计算机专业"},
-      {"name": "higher_current_income", "role": "counterfactual_target", "translation": "现在收入是否更高"}
+      {
+        "name": "chose_cs_major",
+        "role": "counterfactual_intervention",
+        "translation": "当初是否选择计算机专业"
+      },
+      {
+        "name": "higher_current_income",
+        "role": "counterfactual_target",
+        "translation": "现在收入是否更高"
+      },
+      {
+        "name": "quantitative_ability",
+        "role": "confounder",
+        "translation": "数理能力"
+      },
+      {
+        "name": "family_background",
+        "role": "confounder",
+        "translation": "家庭背景"
+      }
     ],
     "observed_fact": {
       "atom": "chose_cs_major(me)",
       "value": false,
-      "why": "Narrative explicitly says the actual major was history, so the observed factual world sets chose_cs_major=False."
-    },
-    "counterfactual_mapping": {
-      "intervention_value": true,
-      "target_value": true,
-      "note": "No monotonicity assumption is stated in the NL, so the query is emitted without assumptions and the kernel will surface needs_assumption next."
+      "why": "The actual major was history, so the factual world sets chose_cs_major=False."
     },
     "edges": [
       {
         "from": "chose_cs_major",
         "to": "higher_current_income",
-        "source": "common_knowledge"
+        "source": "llm_proposal"
+      },
+      {
+        "from": "quantitative_ability",
+        "to": "chose_cs_major",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "quantitative_ability",
+        "to": "higher_current_income",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "family_background",
+        "to": "chose_cs_major",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "family_background",
+        "to": "higher_current_income",
+        "source": "llm_proposal"
       }
     ],
-    "framing_left_blank": "The question leaves '更高收入' without an explicit threshold and does not define the exact measurement window, so variable framing remains blank for follow-up."
+    "brainstorm_note": "Quantitative ability and family background each shape who picks computer science AND what they go on to earn; without them the counterfactual would credit the major with their effect. Causes of income alone (city, years worked) are left out, as §3's opening says for a counterfactual: each would multiply the distribution the kernel asks for without changing the answer.",
+    "framing_left_blank": "'更高收入' has no threshold and no measurement window; the fields stay unset."
   },
   "kernel_ast": {
     "version": "0.1",
-    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
     "statements": [
-      {"kind": "variable", "predicate": "chose_cs_major", "domain": [true, false]},
-      {"kind": "variable", "predicate": "higher_current_income", "domain": [true, false]},
+      {
+        "kind": "variable",
+        "predicate": "chose_cs_major",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "higher_current_income",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "quantitative_ability",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "family_background",
+        "domain": [
+          true,
+          false
+        ]
+      },
       {
         "kind": "cause",
         "from": {
           "predicate": "chose_cs_major",
-          "args": [{"type": "const", "name": "me"}]
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
         },
         "to": {
           "predicate": "higher_current_income",
-          "args": [{"type": "const", "name": "me"}]
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
         },
-        "annotations": {"source": "llm_proposal"}
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "quantitative_ability",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "chose_cs_major",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "quantitative_ability",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "higher_current_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "family_background",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "chose_cs_major",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "family_background",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "higher_current_income",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "query",
@@ -52,21 +231,36 @@
           "observed": {
             "atom": {
               "predicate": "chose_cs_major",
-              "args": [{"type": "const", "name": "me"}]
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
             },
             "value": false
           },
           "counterfactual_intervention": {
             "atom": {
               "predicate": "chose_cs_major",
-              "args": [{"type": "const", "name": "me"}]
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
             },
             "value": true
           },
           "counterfactual_target": {
             "atom": {
               "predicate": "higher_current_income",
-              "args": [{"type": "const", "name": "me"}]
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
             },
             "value": true
           }

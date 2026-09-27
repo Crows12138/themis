@@ -107,9 +107,8 @@ treat it as: §1 intent + §4 query are still your job; §2 predicates
 5. Ambiguous edges in the discover output (PC / FCI undirected) come
    with `extensions.ambiguities[kind=ambiguous_orientation]` entries.
    Do not silently orient them — leave them ambiguous so the renderer
-   surfaces the question to the user. Pick the most-conservative
-   reading consistent with §1's `assoc ≺ cause ≺ effect` ordering for
-   the immediate query; flag the alternative.
+   surfaces the question to the user. Pick the reading that claims
+   less (§1) for the immediate query; flag the alternative.
 
 The discover-then-query flow has the same final shape as the
 assumption-driven flow: a kernel_ast that `themis.run` accepts plus
@@ -190,31 +189,40 @@ edges, query, ambiguities.
 | Surface cue | Query kind |
 |---|---|
 | Counterfactual contrary-to-fact + past tense: `如果当初`, `如果当时`, `要是没`, `当初要是`, `如果那时` (factual world already happened, user asks the alternative) | `counterfactual` |
-| Forward-intervention markers: `每天`, `经常`, `坚持`, `定期`, `多吃`, `要是开始`, `如果(我)开始` | `effect` |
-| Pure causal phrasing without action: `X 导致 Y 吗`, `X 会 Y 吗` | `cause` |
+| Whether X changes Y, with or without an action marker: `每天`, `经常`, `坚持`, `定期`, `多吃`, `要是开始`, `如果(我)开始`, `X 导致 Y 吗`, `X 会 Y 吗`, `X 能不能让 Y` | `effect` |
 | The outcome has already happened and the question is whether a named cause produced it: `是不是因为 X`, `能不能说明是 X 导致的`, `主要是 X 吗` | `causation` |
+| The user states the links themselves and asks what follows from them: `如果 A 导致 B、B 导致 C，那 A 会影响 C 吗` | `cause` |
 | Correlation / prediction phrasing: `X 和 Y 有关系吗`, `X 能预测 Y 吗` | `assoc` |
 
 Hard rule: commit to one intent **only when the cues are
 unambiguous**. If the question admits more than one reading, pick the
-conservative default in the order `assoc ≺ cause ≺ effect`, and
-declare the alternative(s) in `extensions.ambiguities`. Silently
-upgrading to `effect` because it's the most powerful reading is the
-F3 failure that the ambiguity channel exists to prevent.
+reading that claims less — `assoc` before `effect` — and declare the
+alternative(s) in `extensions.ambiguities`. Silently upgrading to the
+most powerful reading is the F3 failure that the ambiguity channel
+exists to prevent.
 
-**Attribution is its own question, not a `cause` question.** What
-makes a question one of attribution is that it conditions on the outcome
-having already happened: the user saw Y and asks whether X is what
-produced it — the reason, the main reason, or one reason among several.
-`cause` cannot answer that. It reports whether a directed path exists in
-the graph you wrote, so on an edge you proposed it hands your own
-assumption back as a "yes". Ask it as `causation` (§ Attribution below),
-which returns the probability that X was necessary for the Y that
-happened. One `causation` query is about one candidate cause; when the
-user weighs several, ask one per candidate — each probability is about
-that cause taken alone, and they do not add up to shares. How much of an
-effect runs *through* an intermediate step is a different question and
-stays with mediation.
+**`cause` asks about a graph, not about the world.** It reports whether
+a directed path exists in the graph it is given. On a graph you wrote,
+every link on that path is your own proposal, so it hands your
+assumption back as a "yes", and nothing else you draw — a common cause
+included — can change that answer. A user who asks in prose whether X
+causes Y is asking about the world: whether making X happen changes Y.
+That is `effect`, whose answer depends on everything in the graph: it
+says what separates X's own effect from what X's common causes with Y
+contribute, and what data that takes. Ask `cause` only of a graph whose
+links are not yours — the user stated them (the row above), or they
+came from data (§Second pass).
+
+**Attribution is its own question.** What makes a question one of
+attribution is that it conditions on the outcome having already
+happened: the user saw Y and asks whether X is what produced it — the
+reason, the main reason, or one reason among several. Ask it as
+`causation` (§ Attribution below), which returns the probability that X
+was necessary for the Y that happened. One `causation` query is about
+one candidate cause; when the user weighs several, ask one per
+candidate — each probability is about that cause taken alone, and they
+do not add up to shares. How much of an effect runs *through* an
+intermediate step is a different question and stays with mediation.
 
 **Watch for dose-response phrasings.** Phrasings like "X 让 Y 升
 / 降多少 / 多大 / 多重 / X 和 Y 的关系曲线 / 从 X1 到 X2 时 Y 怎么变
@@ -356,8 +364,52 @@ emit two atoms with different `time_index`. Out of scope:
 
 ### 3. Edges
 
-Emit direct edges from common-sense / domain knowledge between the
-predicates the user named. Tag every LLM-proposed edge with
+The graph is the causal structure of the question as domain knowledge
+sees it, not a diagram of the words the user used. The user names X
+and Y; the rest is yours to supply, thought through the way an
+epidemiologist brainstorms a graph before any analysis. A graph can
+answer a causal question about X and Y only if every common cause of
+X and Y is in it, measured or not: leave one out and the answer can be
+biased, and nothing downstream can see what is missing.
+
+**Common causes, on every question.** Find them by asking what makes X
+more likely: who has or does X, in what circumstances, for what
+reasons, from what starting point. Each answer that also moves Y by a
+path not through X is a common cause of X and Y; draw it with an edge
+into each, at the level it acts — things that reach X and Y only
+through one shared driver are that driver, drawn once. Keep asking
+until what comes to mind adds nothing. A candidate adds nothing when
+every path from it to X, or every path from it to Y, passes through a
+common cause already drawn: the graph already carries the connection
+it would make. A candidate that reaches both some other way opens a
+connection the graph does not show, and is what must not be left out —
+a behavior people choose, or a condition they come to have, usually
+has several.
+
+**Mechanism steps and other causes of Y, where the query uses them.**
+On a question of how X changes Y in general (`effect`, `identify`,
+`assoc`), also draw the steps the mechanism runs through when domain
+knowledge names them (`X → M → Y`, keeping a direct `X → Y` where part
+of the effect plausibly bypasses them), and the other major causes of Y.
+They show the reader what else moves the outcome and cost the answer
+nothing: the kernel decides from the graph what to adjust for, and does
+not adjust for a mediator or a collider because you drew one. A
+counterfactual or attribution question about one person is different.
+There the kernel asks for Y's distribution under every combination of
+Y's direct causes, so each mechanism step or cause of Y alone multiplies
+the data asked for and leaves the answer as it was: draw X, Y and their
+common causes.
+
+Each variable earns its place by one of these roles in this question; a
+factor with no bearing on X or Y does not. A common cause drawn is safe
+in a way a common cause left out is not: a proposal the user rejects is
+one deletion, while a common cause you left out is invisible. A mediator
+drawn to show the mechanism does not make the question one of
+mediation: the query is what §1 read. How a common cause is encoded — an
+observed variable or a latent `bidirected` edge — is decided by §The
+confounding decision below.
+
+Tag every edge you propose with
 `"annotations": {"source": "llm_proposal"}` so downstream consumers
 can distinguish your hypotheses from evidence-backed edges. If you
 have a concrete citation (PubMed ID, textbook), put that in `source`
@@ -373,9 +425,10 @@ the data and emitting `discovery:<algo>`). Surface the proposal-
 edge caveat alongside any numeric estimate the data produces; the
 two are independent disclosures.
 
-Edges connect predicates the user mentioned. Intermediate variables
-enter the graph only when the user names them, or as the explicit
-mediator/instrument of the §3 mediation / front-door / IV shapes.
+The identification shapes below that rest on an edge being absent — an
+instrument that reaches Y only through X, a front-door mediator that
+carries all of X's effect — are claims the brainstorm does not make on
+its own. Emit them when the NL signals them (§Special structures).
 
 #### Structural unit library — recognize the shape, then emit it
 
@@ -383,7 +436,9 @@ Most questions are one or more of these units. Units 1–8 are the
 kernel's identification paths; 9–11 are modeling-hazard units (emit the
 right shape + an ambiguity flag, no special kernel path). This is the
 index — the detailed subsections below expand each. All edges are
-`llm_proposal` unless noted.
+`llm_proposal` unless noted. A unit's shape is the part of the graph
+the unit fixes, not the whole graph: what §3's opening draws around X
+and Y is drawn around every unit.
 
 1. **Observed confounder (backdoor).** A real `X→Y` mechanism does not
    rule out confounding (detailed just below). *Trigger*: a measurable
@@ -391,8 +446,9 @@ index — the detailed subsections below expand each. All edges are
    **self-selected behavior** (exercise/diet/sleep/study/adherence),
    where a disposition (self-discipline, health-consciousness, SES,
    severity) drives both X and Y. *Shape*: `X→Y` (if real mechanism) +
-   `C→X`, `C→Y`. *Query*: `effect(Y|do X)`. *Kernel*: backdoor-adjusts
-   over C, flags missing C data. One plausible C, not a pile.
+   `C→X`, `C→Y` for every plausible C (§3 opening). *Query*:
+   `effect(Y|do X)`. *Kernel*: backdoor-adjusts over the Cs, flags
+   their missing data.
 
 2. **Latent confounder (bidirected).** *Trigger*: user asserts an
    unobserved common cause ("测不了 / 未观测共因 / 遗传同时影响"), no
@@ -483,16 +539,14 @@ attached: U has no column and `themis.estimate` will fail with
 }
 ```
 
-**Query kind on a latent graph.** A `cause` query only checks whether a
-directed path exists — and the kernel does not support it once the graph
-carries a `bidirected` edge (with a latent common cause, path-existence
-is no longer the honest question: the association is confounded by
-construction). So whenever you encode a latent confounder and §1 read the
-intent as `cause` ("X 会 Y 吗"), escalate the query to **`effect`** (the
-identifiable effect, when the user expects an answer) or **`identify`**
-(identifiability only). Reserve `cause` for graphs with no bidirected
-edge; on a latent graph the runnable causal questions are `effect` /
-`identify` / `assoc`.
+**Query kind on a latent graph.** The kernel does not answer `cause` on
+a graph that carries a `bidirected` edge: with a latent common cause,
+whether a directed path exists is not the honest question, since the
+association is confounded by construction. If the user stated the links
+(§1's `cause` row) and one of them is a latent common cause, ask
+**`effect`** (the identifiable effect, when the user expects an answer)
+or **`identify`** (identifiability only); on a latent graph the runnable
+causal questions are `effect` / `identify` / `assoc`.
 
 **Confounder triggers — when to pause and consider**: seasonal
 co-occurrence, group-level correlation, temporal lag without
@@ -541,27 +595,32 @@ does not exempt you from it. The only thing that does is random
 assignment (an RCT breaks the self-selection).
 
 Default for a self-selected behavioral treatment: emit the direct
-`X → Y` edge **and** one self-selection confounder (`C → X` plus
-`C → Y`, both `llm_proposal`). Pick the single most plausible latent
-driver, not a pile. This routes identification through backdoor
-adjustment and makes the kernel diagnose the missing confounder data —
-the honest answer, instead of the naive `P(Y|X)`.
+`X → Y` edge **and** the self-selection confounders — `C → X` plus
+`C → Y`, all `llm_proposal`, for every disposition that plausibly
+drives both (§3 opening), not only the likeliest. This routes
+identification through backdoor adjustment and makes the kernel
+diagnose the missing confounder data — the honest answer, instead of
+the naive `P(Y|X)`.
 
 Canonical example — self-selected behavior (must NOT collapse to a bare
 edge):
 
 NL: "我每天跑步，肚子上的肉会瘦下来吗"
 
-- vars: `running`, `belly_fat_loss`, `dietary_self_discipline`
-- edges (all `llm_proposal`): `running → belly_fat_loss` (real
-  calorie-burn mechanism); `dietary_self_discipline → running` and
-  `dietary_self_discipline → belly_fat_loss` (the disciplined are both
-  more likely to run AND to eat in a way that loses belly fat)
+- vars: `running`, `belly_fat_loss`, `calories_burned`,
+  `dietary_self_discipline`, `starting_body_fat`, `age`
+- edges (all `llm_proposal`): `running → calories_burned →
+  belly_fat_loss` (the mechanism), plus `running → belly_fat_loss` for
+  what bypasses it; each of `dietary_self_discipline`,
+  `starting_body_fat` and `age` into both `running` and
+  `belly_fat_loss` (each shapes who takes up running AND how much belly
+  fat they lose)
 - query: `effect(belly_fat_loss | do(running))`
-- result: backdoor adjustment over `dietary_self_discipline`, and the
-  kernel flags its missing data. A bare `running → belly_fat_loss` is
-  the naive `P(Y|X)` — that is the failure this subsection exists to
-  prevent.
+- result: backdoor adjustment over the three common causes and not over
+  `calories_burned`, and the kernel flags their missing data. A graph
+  with fewer of them is not a simpler answer to the same question but a
+  biased one — a bare `running → belly_fat_loss` is the naive `P(Y|X)`,
+  the failure this subsection exists to prevent.
 
 #### Special structures the kernel knows about
 
@@ -718,7 +777,9 @@ value (e.g. `observed` = what actually happened,
 
 Add `factual_target_known` whenever the NL states how the outcome
 actually turned out ("我当初熬了夜，而且确实病了" — 熬夜 is `observed`,
-病了 is `factual_target_known`). It is not decoration: conditioning on
+病了 is `factual_target_known`). It is the outcome's actual value, bare
+(`"factual_target_known": true`), not a wrapper: the atom it is the
+value of is `counterfactual_target`'s. It is not decoration: conditioning on
 the factual outcome is what makes the question one of attribution
 ("是不是它害的") rather than of prospect ("换一条路会怎样"), and the
 kernel answers the two differently. Omit it when the NL only says what
@@ -891,13 +952,16 @@ query atoms, and any intervention / target / given that refer to the
 lagged variables:
 
 ```json
-{ "kind": "cause",
-  "from": { "predicate": "stays_up_late",
-            "args": [{"type": "const", "name": "me"}],
-            "time_index": {"kind": "relative", "value": -1} },
-  "to":   { "predicate": "feels_tired_next_morning",
-            "args": [{"type": "const", "name": "me"}],
-            "time_index": {"kind": "relative", "value": 0} } }
+{ "kind": "effect",
+  "intervention": {"atom": { "predicate": "stays_up_late",
+                             "args": [{"type": "const", "name": "me"}],
+                             "time_index": {"kind": "relative", "value": -1} },
+                   "value": true},
+  "target":       {"atom": { "predicate": "feels_tired_next_morning",
+                             "args": [{"type": "const", "name": "me"}],
+                             "time_index": {"kind": "relative", "value": 0} },
+                   "value": true},
+  "given": [] }
 ```
 
 ### 5. Ambiguity declaration
@@ -913,7 +977,7 @@ Shape:
   "ambiguities": [{
     "kind": "intent",
     "chosen": "assoc",
-    "alternatives": ["cause"],
+    "alternatives": ["effect"],
     "reason": "NL 仅说'有关系吗'，既可读为相关性也可读为因果",
     "disambiguation_ask": "你是想问两者是否相关，还是一个是否导致另一个？"
   }]
@@ -930,7 +994,7 @@ the matching `kind`:
 
 | Kind | When |
 |---|---|
-| `intent` | Question reading is unclear (assoc vs cause vs effect) |
+| `intent` | Question reading is unclear (e.g. assoc vs effect, effect vs causation) |
 | `direction` | "影响 X" leaves up / down / mixed unspecified |
 | `scope` | Narrative scoped to a subpopulation, question scoped generally (or vice versa) |
 | `subject_scope` | Claim spans multiple subjects (parent vs child); kernel currently flattens to single `me` |
@@ -941,7 +1005,7 @@ the matching `kind`:
 | `categorical_compression` | Compressed a multi-level domain to bool for runnability |
 | `reciprocal_causation` | User names both directions as plausible — see §5a (special) |
 | `counterfactual_query` | The NL is a counterfactual the kernel's Layer-3 fragment cannot directly evaluate — *only* set when you compressed to a non-counterfactual proxy (see "When to compress" below). Default for clean individual counterfactuals is to emit `kind: counterfactual` directly; the kernel answers with the Tian-Pearl interval (`counterfactual_bounded`), narrowing to a point where monotonicity is granted, and that interval is the geometrically correct answer — not a `counterfactual_query` ambiguity flag |
-| `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Emit a `cause` query as a proxy for existence-of-path; the response layer will acknowledge the mechanism gap |
+| `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Draw the chain (§3 opening) and ask `effect`; the response layer will acknowledge the mechanism gap |
 | `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X=high vs X=low at sensible thresholds) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |
 | `individual_vs_population` | Narrative gives a population-average effect ("平均降压 10"), question asks about an individual ("对我有效吗") |
 | `iv_validity` | Used IV; declaring assumption Z satisfies IV1/IV2/IV3 |
@@ -1038,22 +1102,23 @@ answer:
 **Format notes** (this block is the concrete format anchor):
 
 - A `variable` declaration is a **bare predicate** —
-  `{"kind": "variable", "predicate": "...", "domain": [...]}`, with **no
-  `args`**. Every predicate appearing **inside an edge or a query** is an
-  **atom** and carries `args: [{"type": "const", "name": "me"}]`. Do not
-  leak `args` onto a `variable` declaration; do not drop `args` from an
-  atom.
+  `{"kind": "variable", "predicate": "...", "domain": [...]}` plus the
+  framing fields the user stated (§2), and nothing else. It is not an
+  atom, so it has **no `args`**: every predicate appearing **inside an
+  edge or a query** is an **atom** and carries
+  `args: [{"type": "const", "name": "me"}]`. It has **no `annotations`**
+  either: how a part of the graph entered it is recorded on the edges,
+  and a variable you added is a proposal through the edges you drew for
+  it. A framing field the user did not state is absent, not `null`.
 - `cause` edges use `from` / `to`. A latent common cause is a separate
   **`bidirected`** statement using `left` / `right` (symmetric):
   `{"kind": "bidirected", "left": <atom>, "right": <atom>, "annotations": {"source": "llm_proposal"}}`.
 - The skeleton above is a **single edge for format illustration only** —
-  it is **not** a template for how large your graph should be. How many
-  variables and edges to emit is decided entirely by which §Structural
-  unit library shape(s) the question signals: a plain self-selected
-  behavior is a backdoor triangle (`X→Y`, `C→X`, `C→Y`), but a mediation
-  question is `X→M→Y`, an IV question is `Z→X` + `X↔Y`, a front-door
-  question is `X→M`, `M→Y`, `X↔Y`, and so on. Emit the shape the question
-  calls for, at the size it calls for.
+  it is **not** a template for how large your graph should be. The
+  §Structural unit library shape(s) the question signals fix part of the
+  graph (a mediation question's `X→M→Y`, an IV question's `Z→X` +
+  `X↔Y`, a front-door question's `X→M`, `M→Y`, `X↔Y`), and §3's opening
+  draws the rest around them.
 
 `options.strict_framing` (slice #36) is optional. Default false
 (advisory). Set true if the caller wants Themis to refuse a numeric
@@ -1071,9 +1136,10 @@ Illustrative NL → `kernel_ast` pairs live on disk in
 to you as few-shot turns. They deliberately used to be — but the three
 that were injected all shared one shape (a single behavior plus one
 confounder), and as concrete demonstrations they outweighed the prose,
-pulling nearly every answer toward that same triangle. Your shape comes
-from the §Structural unit library and the §Schema outline format notes
-applied to what *this* question signals — not from a remembered exemplar.
+pulling nearly every answer toward that same triangle. Your graph comes
+from §3 and the §Structural unit library applied to what *this* question
+signals, and its format from the §Schema outline format notes — not from
+a remembered exemplar.
 
 ---
 

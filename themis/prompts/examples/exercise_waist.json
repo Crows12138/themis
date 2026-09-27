@@ -2,56 +2,393 @@
   "nl_input": "我每天跑步，肚子上的肉会瘦下来吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'每天' is an intervention marker; the user asks about the effect of habitually running, not whether a causal pathway exists in principle",
+    "intent_reason": "'每天' marks a habit; the user asks whether running changes belly fat — an effect question.",
     "predicates": [
-      {"name": "running", "role": "intervention", "translation": "跑步"},
-      {"name": "belly_fat_loss", "role": "target", "translation": "肚子上的肉变瘦"},
-      {"name": "dietary_self_discipline", "role": "confounder", "translation": "饮食自律 / 自控力"}
+      {
+        "name": "running",
+        "role": "intervention",
+        "translation": "跑步"
+      },
+      {
+        "name": "belly_fat_loss",
+        "role": "target",
+        "translation": "肚子上的肉变瘦"
+      },
+      {
+        "name": "calories_burned",
+        "role": "mediator",
+        "translation": "消耗的热量"
+      },
+      {
+        "name": "dietary_self_discipline",
+        "role": "confounder",
+        "translation": "饮食自律"
+      },
+      {
+        "name": "starting_body_fat",
+        "role": "confounder",
+        "translation": "起始体脂"
+      },
+      {
+        "name": "age",
+        "role": "confounder",
+        "translation": "年龄"
+      }
     ],
     "edges": [
-      {"from": "running", "to": "belly_fat_loss", "source": "llm_proposal", "note": "real calorie-burn mechanism"},
-      {"from": "dietary_self_discipline", "to": "running", "source": "llm_proposal"},
-      {"from": "dietary_self_discipline", "to": "belly_fat_loss", "source": "llm_proposal"}
+      {
+        "from": "running",
+        "to": "belly_fat_loss",
+        "source": "llm_proposal",
+        "note": "what bypasses the calorie count (appetite, metabolic adaptation)"
+      },
+      {
+        "from": "running",
+        "to": "calories_burned",
+        "source": "llm_proposal",
+        "note": "the mechanism: energy expenditure"
+      },
+      {
+        "from": "calories_burned",
+        "to": "belly_fat_loss",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "dietary_self_discipline",
+        "to": "running",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "dietary_self_discipline",
+        "to": "belly_fat_loss",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "starting_body_fat",
+        "to": "running",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "starting_body_fat",
+        "to": "belly_fat_loss",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "running",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "belly_fat_loss",
+        "source": "llm_proposal"
+      }
     ],
-    "confounder_note": "Running is a self-selected behavior (§3 structural-unit-library, unit 1: observed confounder). A latent disposition — dietary self-discipline / self-control — makes a person both more likely to run AND more likely to eat in a way that loses belly fat. So even though running has a real direct mechanism, the edge is confounded; a real mechanism does NOT exempt it. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal). Identification then routes through backdoor adjustment over dietary_self_discipline and the kernel flags its missing data — the honest answer, not a bare P(belly_fat_loss | running).",
-    "framing_left_blank": "All framing fields (time_window, measurement, threshold, observability) stay unset for the predicates the user named — the user did not specify a time window, what 'thinner' means operationally, or how it is measured. Themis surfaces these via the DEFINE_VARIABLE channel."
+    "brainstorm_note": "Brainstormed per §3's opening: every common cause domain knowledge makes plausible for the pair (and for each pair an added variable creates), the steps the mechanism runs through, and the other major causes of the outcome. The kernel adjusts over the common causes, not over the mediator, and flags their missing data. Running is self-selected (§3 unit 1): discipline, starting body fat and age each shape who runs AND how much belly fat they lose.",
+    "framing_left_blank": "No time window, no operational meaning of 'thinner', no measurement; the fields stay unset for the predicates the user named."
   },
   "kernel_ast": {
     "version": "0.1",
-    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
     "statements": [
-      {"kind": "variable", "predicate": "running", "domain": [true, false]},
-      {"kind": "variable", "predicate": "belly_fat_loss", "domain": [true, false]},
-      {"kind": "variable", "predicate": "dietary_self_discipline", "domain": [true, false]},
       {
-        "kind": "cause",
-        "from": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "kind": "variable",
+        "predicate": "running",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "belly_fat_loss",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "calories_burned",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "dietary_self_discipline",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "starting_body_fat",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "age",
+        "domain": [
+          true,
+          false
+        ]
       },
       {
         "kind": "cause",
-        "from": {"predicate": "dietary_self_discipline", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "belly_fat_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "cause",
-        "from": {"predicate": "dietary_self_discipline", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "calories_burned",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "calories_burned",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "belly_fat_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "dietary_self_discipline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "dietary_self_discipline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "belly_fat_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "starting_body_fat",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "starting_body_fat",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "belly_fat_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "running",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "belly_fat_loss",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "query",
         "id": "q",
         "query": {
           "kind": "effect",
-          "target": {
-            "atom": {"predicate": "belly_fat_loss", "args": [{"type": "const", "name": "me"}]},
+          "intervention": {
+            "atom": {
+              "predicate": "running",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
-          "intervention": {
-            "atom": {"predicate": "running", "args": [{"type": "const", "name": "me"}]},
+          "target": {
+            "atom": {
+              "predicate": "belly_fat_loss",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
           "given": []

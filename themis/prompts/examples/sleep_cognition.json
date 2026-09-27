@@ -2,56 +2,392 @@
   "nl_input": "经常熬夜会变笨吗",
   "reasoning": {
     "intent": "effect",
-    "intent_reason": "'经常' is a habitual-intervention marker similar to '每天'; user asks the effect of sustained staying-up-late, not the abstract causal pathway",
+    "intent_reason": "'经常' marks a habit, and the question asks whether sustaining it changes cognition — an effect question.",
     "predicates": [
-      {"name": "staying_up_late", "role": "intervention", "translation": "熬夜"},
-      {"name": "cognitive_decline", "role": "target", "translation": "变笨 / 认知下降"},
-      {"name": "work_stress", "role": "confounder", "translation": "工作 / 学业压力"}
+      {
+        "name": "staying_up_late",
+        "role": "intervention",
+        "translation": "熬夜"
+      },
+      {
+        "name": "cognitive_decline",
+        "role": "target",
+        "translation": "变笨 / 认知下降"
+      },
+      {
+        "name": "sleep_deprivation",
+        "role": "mediator",
+        "translation": "长期睡眠不足"
+      },
+      {
+        "name": "work_stress",
+        "role": "confounder",
+        "translation": "工作 / 学业压力"
+      },
+      {
+        "name": "age",
+        "role": "confounder",
+        "translation": "年龄"
+      },
+      {
+        "name": "poor_health",
+        "role": "confounder",
+        "translation": "健康状况差"
+      }
     ],
     "edges": [
-      {"from": "staying_up_late", "to": "cognitive_decline", "source": "llm_proposal", "note": "real sleep-deprivation mechanism"},
-      {"from": "work_stress", "to": "staying_up_late", "source": "llm_proposal"},
-      {"from": "work_stress", "to": "cognitive_decline", "source": "llm_proposal"}
+      {
+        "from": "staying_up_late",
+        "to": "cognitive_decline",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "staying_up_late",
+        "to": "sleep_deprivation",
+        "source": "llm_proposal",
+        "note": "the mechanism: chronic short sleep"
+      },
+      {
+        "from": "sleep_deprivation",
+        "to": "cognitive_decline",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "work_stress",
+        "to": "staying_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "work_stress",
+        "to": "cognitive_decline",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "staying_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "age",
+        "to": "cognitive_decline",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "poor_health",
+        "to": "staying_up_late",
+        "source": "llm_proposal"
+      },
+      {
+        "from": "poor_health",
+        "to": "cognitive_decline",
+        "source": "llm_proposal"
+      }
     ],
-    "confounder_note": "Staying up late is a self-selected behavior (§3 unit 1: observed confounder). A latent driver — work/study stress or workload — makes a person both more likely to stay up late (deadlines, overwork) AND directly impairs cognition (chronic stress harms memory/attention independent of sleep). So staying_up_late→cognitive_decline is confounded by work_stress even though sleep deprivation has a real direct mechanism. Emit the direct edge AND the confounder (C→X, C→Y, all llm_proposal); identification routes through backdoor adjustment over work_stress and the kernel flags its missing data — not a bare P(cognitive_decline | staying_up_late).",
-    "framing_left_blank": "The user gave no time scale ('occasionally' vs 'every night for a year'?), no definition of 'cognitive decline' (working memory? reaction time? self-report?), and no measurement method. The framing fields stay unset so A0/F1 flags them."
+    "brainstorm_note": "Brainstormed per §3's opening: every common cause domain knowledge makes plausible for the pair (and for each pair an added variable creates), the steps the mechanism runs through, and the other major causes of the outcome. The kernel adjusts over the common causes, not over the mediator, and flags their missing data. Stress, age and poor health each shape who keeps late hours and, independently, how cognition fares.",
+    "framing_left_blank": "No time scale, no definition of 'cognitive decline' (memory? attention? self-report?), no measurement; the fields stay unset."
   },
   "kernel_ast": {
     "version": "0.1",
-    "domain": {"objects": [{"kind": "object", "name": "me"}]},
+    "domain": {
+      "objects": [
+        {
+          "kind": "object",
+          "name": "me"
+        }
+      ]
+    },
     "statements": [
-      {"kind": "variable", "predicate": "staying_up_late", "domain": [true, false]},
-      {"kind": "variable", "predicate": "cognitive_decline", "domain": [true, false]},
-      {"kind": "variable", "predicate": "work_stress", "domain": [true, false]},
       {
-        "kind": "cause",
-        "from": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "kind": "variable",
+        "predicate": "staying_up_late",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "cognitive_decline",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "sleep_deprivation",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "work_stress",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "age",
+        "domain": [
+          true,
+          false
+        ]
+      },
+      {
+        "kind": "variable",
+        "predicate": "poor_health",
+        "domain": [
+          true,
+          false
+        ]
       },
       {
         "kind": "cause",
-        "from": {"predicate": "work_stress", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "staying_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cognitive_decline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "cause",
-        "from": {"predicate": "work_stress", "args": [{"type": "const", "name": "me"}]},
-        "to":   {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
-        "annotations": {"source": "llm_proposal"}
+        "from": {
+          "predicate": "staying_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "sleep_deprivation",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "sleep_deprivation",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cognitive_decline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "work_stress",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "staying_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "work_stress",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cognitive_decline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "staying_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "age",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cognitive_decline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "poor_health",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "staying_up_late",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
+      },
+      {
+        "kind": "cause",
+        "from": {
+          "predicate": "poor_health",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "to": {
+          "predicate": "cognitive_decline",
+          "args": [
+            {
+              "type": "const",
+              "name": "me"
+            }
+          ]
+        },
+        "annotations": {
+          "source": "llm_proposal"
+        }
       },
       {
         "kind": "query",
         "id": "q",
         "query": {
           "kind": "effect",
-          "target": {
-            "atom": {"predicate": "cognitive_decline", "args": [{"type": "const", "name": "me"}]},
+          "intervention": {
+            "atom": {
+              "predicate": "staying_up_late",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
-          "intervention": {
-            "atom": {"predicate": "staying_up_late", "args": [{"type": "const", "name": "me"}]},
+          "target": {
+            "atom": {
+              "predicate": "cognitive_decline",
+              "args": [
+                {
+                  "type": "const",
+                  "name": "me"
+                }
+              ]
+            },
             "value": true
           },
           "given": []
