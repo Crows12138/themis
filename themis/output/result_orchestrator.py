@@ -311,6 +311,8 @@ def data_gap_to_dict(gap: DataGap) -> dict:
     }
     if gap.signature is not None:
         out["signature"] = gap.signature
+    if gap.distribution is not None:
+        out["distribution"] = gap.distribution
     if gap.required_data is not None:
         rd = gap.required_data
         rd_out: dict = {}

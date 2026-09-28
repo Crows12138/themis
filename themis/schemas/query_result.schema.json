@@ -3873,6 +3873,11 @@
           "type": "string",
           "description": "Sub-classification within the kind. For missing_distribution: 'marginal' | 'conditional' | 'joint'. Omitted for kinds with no sub-shape."
         },
+        "distribution": {
+          "type": "string",
+          "x-text": "formula",
+          "description": "missing_distribution only: the distribution this gap is one cell of, named without its values — 'P(y | x, z)', or 'P_trial(y | x)' for a source population's — read off the statement the gap cites. Each missing cell is its own gap, and a graph with k binary common causes of its outcome asks for 2^k cells of one distribution; the gaps that share this name are one table for a reader to supply. Omitted where the cited item filed no statement."
+        },
         "severity": {
           "enum": ["blocking", "important", "informational"],
           "description": "blocking = downstream output cannot be produced at all; important = output produced but quality reduced (e.g. needs untestable assumption, only bounds available); informational = caveat / framing note only."

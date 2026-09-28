@@ -2111,6 +2111,36 @@ def _the_shape_of_the_ask(item: Mapping) -> str | None:
     return "conditional" if isinstance(given, list) and given else "marginal"
 
 
+def _the_distribution_of_the_ask(item: Mapping) -> str | None:
+    """The distribution the item's statement is one cell of, named without
+    its values, or ``None`` where the statement names no target.
+
+    A reader supplies the cells that share this name as one table, so the
+    name is a claim about which table a cell belongs in, and it is read off
+    the statement the way the shape is.
+    """
+    skeleton = item.get("skeleton")
+    if not isinstance(skeleton, Mapping):
+        return None
+
+    def predicate(part: object) -> str | None:
+        atom = part.get("atom") if isinstance(part, Mapping) else None
+        name = atom.get("predicate") if isinstance(atom, Mapping) else None
+        return name if isinstance(name, str) else None
+
+    target = predicate(skeleton.get("target"))
+    if target is None:
+        return None
+    given = skeleton.get("given")
+    names = sorted(
+        name for name in (predicate(part) for part in
+                          (given if isinstance(given, list) else ()))
+        if name is not None)
+    population = skeleton.get("population")
+    head = f"P_{population}" if isinstance(population, str) and population else "P"
+    return f"{head}({target} | {', '.join(names)})" if names else f"{head}({target})"
+
+
 #: The species whose shape is the occasion's, and where that occasion is read.
 _THE_ASK_READ_HERE = {
     GapKind.MISSING_DISTRIBUTION: _the_shape_of_the_ask,
@@ -2184,7 +2214,9 @@ def _verify_t10_6_shape_of_data(
         # nothing to hold either word against, and a guess here would be the
         # rule answering a question nobody asked it.
         item = _the_ask_a_gap_was_filed_for(gap, asks)
-        shape = _the_shape_of_the_ask(item) if item is not None else None
+        if item is None:
+            continue
+        shape = _the_shape_of_the_ask(item)
         if shape is None:
             continue
         owed = _WHAT_A_SHAPE_OF_ASK_NEEDS[shape]
@@ -2203,6 +2235,16 @@ def _verify_t10_6_shape_of_data(
                 f"was filed for is {shape}. The signature and the shape of "
                 f"data are one fact spelled twice, and this one is read off "
                 f"the statement rather than off either spelling",
+                step_index=None, rule=_SHAPE_RULE,
+            )
+        named = _the_distribution_of_the_ask(item)
+        if gap.get("distribution") != named:
+            raise VerificationError(
+                f"T10-6: gap[{gap_index}] kind={species.value!r} files its "
+                f"cell under {gap.get('distribution')!r}, and the statement "
+                f"it was filed for is a cell of {named!r}. A reader supplies "
+                f"the cells that share a name as one table, so a cell under "
+                f"another name is shown in the wrong table",
                 step_index=None, rule=_SHAPE_RULE,
             )
 

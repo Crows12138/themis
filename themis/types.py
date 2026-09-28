@@ -3437,6 +3437,7 @@ class DataGap:
     severity: GapSeverity = field(default=None, kw_only=True)  # type: ignore[assignment]
     provenance: tuple[GapProvenanceRef, ...] = ()
     signature: str | None = None
+    distribution: str | None = None
     required_data: GapRequiredData | None = None
     said: dict[str, str] = field(default_factory=dict)
     words: dict[str, Spoken] = field(default_factory=dict)

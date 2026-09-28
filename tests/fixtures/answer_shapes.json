@@ -44885,6 +44885,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(survival | treatment)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -44930,6 +44931,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(survival | treatment)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -44975,6 +44977,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(treatment)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -49178,6 +49181,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -49223,6 +49227,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -49269,6 +49274,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -52500,6 +52506,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | w, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -53747,6 +53754,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | c, x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -53792,6 +53800,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -53838,6 +53847,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | c, x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -55740,6 +55750,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -56248,6 +56259,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -56716,6 +56728,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -58150,6 +58163,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -58195,6 +58209,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -58241,6 +58256,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59053,6 +59069,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(engagement | raise_amount)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59751,6 +59768,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59788,6 +59806,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(d)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59826,6 +59845,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59864,6 +59884,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(e | d, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59901,6 +59922,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59938,6 +59960,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(e | d, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -59975,6 +59998,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(e | d, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -60012,6 +60036,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(e | d, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -61528,6 +61553,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(belly_fat_loss | dietary_self_discipline, running)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -61573,6 +61599,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(dietary_self_discipline)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -61619,6 +61646,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(belly_fat_loss | dietary_self_discipline, running)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -65182,6 +65210,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -65227,6 +65256,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -65273,6 +65303,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66624,6 +66655,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66662,6 +66694,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66699,6 +66732,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(d | e)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66736,6 +66770,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(e | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66773,6 +66808,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66810,6 +66846,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66847,6 +66884,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(d | e)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66884,6 +66922,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66921,6 +66960,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66958,6 +66998,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -66995,6 +67036,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -67032,6 +67074,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | d, e, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -69670,6 +69713,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | x, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -69707,6 +69751,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -69744,6 +69789,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -69782,6 +69828,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -69819,6 +69866,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | x, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71207,6 +71255,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(belly_fat_loss | running)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71762,6 +71811,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(a | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71799,6 +71849,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(b | y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71836,6 +71887,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | a, b)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71873,6 +71925,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71910,6 +71963,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | a, b)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71947,6 +72001,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | a, b)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -71984,6 +72039,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(w | a, b)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -72021,6 +72077,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(b | y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -73940,6 +73997,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(cvd_event | age, baseline_health, hrt_use)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -73985,6 +74043,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(age)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -74031,6 +74090,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(baseline_health)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -74077,6 +74137,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(cvd_event | age, baseline_health, hrt_use)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -74122,6 +74183,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(cvd_event | age, baseline_health, hrt_use)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -74167,6 +74229,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(cvd_event | age, baseline_health, hrt_use)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -75213,6 +75276,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -75258,6 +75322,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -75304,6 +75369,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -76624,6 +76690,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | a, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -76661,6 +76728,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | a)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -76698,6 +76766,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(c | a, y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -77655,6 +77724,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -77700,6 +77770,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -77745,6 +77816,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(x | z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -77790,6 +77862,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(x | z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -81893,6 +81966,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(engagement | tenure)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -82461,6 +82535,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -86205,6 +86280,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y | x)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -87213,6 +87289,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P(y)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -204008,6 +204085,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_rct_us(y | x, z1)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -204053,6 +204131,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_rct_eu(y | x, z2)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -205198,6 +205277,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_trial(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -206143,6 +206223,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_trial(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -207138,6 +207219,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_rct_meta_2022(belly_fat_loss | age, bmi, running, sex)",
 "kind": "missing_distribution",
 "provenance": [
 {
@@ -208225,6 +208307,7 @@ false
 "sentence": "a_distribution_is_missing"
 }
 ],
+"distribution": "P_trial(y | x, z)",
 "kind": "missing_distribution",
 "provenance": [
 {

@@ -42,6 +42,10 @@ export interface DataGap extends Occasion {
   severity: 'blocking' | 'important' | 'informational'
   describes: GapSentence[]
   blocks: string
+  // missing_distribution only: the distribution this gap is one cell of,
+  // named without its values. The gaps that share it are one table, and
+  // are shown as one.
+  distribution?: string
   required_data?: {
     data_type?: string
     // A NAME the caller supplied, or a STATEMENT saying which population

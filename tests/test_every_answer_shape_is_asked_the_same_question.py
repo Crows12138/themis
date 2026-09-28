@@ -2724,6 +2724,11 @@ def test_the_sweep_asks_about_the_whole_envelope():
     Then 33899, by a refresh: two conditional identify answers whose
     treatment reaches neither the outcome nor what they condition on now
     say so (#785), and each asks the two ends it names -- 4 questions.
+
+    Then 33928, by a refresh: each missing cell names the distribution it
+    is a cell of (#787). The 29 rows that file such a cell ask the name
+    once each, since a row is asked once per sort of record and all the
+    cells of one row are one sort -- 29 questions.
     """
     top_level, asked_top = set(), set()
     asked_total = 0
@@ -2733,8 +2738,8 @@ def test_the_sweep_asks_about_the_whole_envelope():
         asked_total += len(names)
         asked_top.update(name.split(".")[0] for name in names)
     assert top_level - asked_top == set(), top_level - asked_top
-    # 4 more with the two rows #785 wrote back.
-    assert asked_total == 33899, asked_total
+    # 29 more with the cells #787 named.
+    assert asked_total == 33928, asked_total
 
 
 @pytest.mark.parametrize("method,leaf", [

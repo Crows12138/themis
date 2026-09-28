@@ -2117,6 +2117,7 @@ def _species_missing_distribution(
         describes=(_sentence(Sentence.A_DISTRIBUTION_IS_MISSING,
                              what=display),),
         signature=signature,
+        distribution=_distribution_named(item.skeleton),
         # The one species that has to say which, because for this one the
         # shape is the occasion's — see ``DATA_TYPE_TURNS_ON``. It is the
         # same fact as the signature, spelled in the reader's terms.
@@ -3389,6 +3390,34 @@ def _stated_predicate(part: object) -> str | None:
     return name if isinstance(name, str) else None
 
 
+def _distribution_named(statement: object) -> str | None:
+    """The distribution this ask is one cell of, named without its values:
+    ``P(y | x, z)``, and ``P_trial(y | x)`` for a source population's.
+
+    What a reader supplies is a table, not a list of unrelated numbers. A
+    graph with k binary common causes of its outcome asks for 2^k cells of
+    one conditional distribution, and each cell is filed as a gap of its
+    own; the name they share is what lets a surface show the table once
+    with its cells under it. Read off the statement, as :class:`Ask` is,
+    and never off the rendered key. ``None`` where the statement names no
+    target.
+    """
+    if not isinstance(statement, dict):
+        return None
+    target = _stated_predicate(statement.get("target"))
+    if target is None:
+        return None
+    stated = statement.get("given")
+    given = sorted(
+        p for p in (_stated_predicate(g)
+                    for g in (stated if isinstance(stated, list) else ()))
+        if p is not None
+    )
+    population = statement.get("population")
+    head = f"P_{population}" if isinstance(population, str) and population else "P"
+    return f"{head}({target} | {', '.join(given)})" if given else f"{head}({target})"
+
+
 def _distribution_signature(ask: "Ask | None") -> str | None:
     """Which shape of distribution the ask is: conditional when it
     conditions on anything, marginal when it does not.
@@ -3539,6 +3568,7 @@ def data_gap_from_dict(d: dict) -> DataGap:
             for ref in d.get("provenance", []) or []
         ),
         signature=d.get("signature"),
+        distribution=d.get("distribution"),
         required_data=None if not isinstance(rd, dict) else GapRequiredData(
             data_type=(
                 RequiredDataType(rd["data_type"])
