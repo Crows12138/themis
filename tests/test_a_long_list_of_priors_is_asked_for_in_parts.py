@@ -210,5 +210,7 @@ def test_an_attribution_question_with_five_common_causes_is_answered(model):
     assert result["status"] == "counterfactual_bounded"
     review = result["extensions"]["llm_proposed_review"]
     assert len(review["probabilities"]) == 18
-    assert sorted(m["distribution"] for m in review["models"]) == [
+    tables = result["extensions"]["probability_models"]["models"]
+    assert sorted(m["distribution"] for m in tables) == [
         "P(x | c0, c1, c2, c3, c4)", "P(y | c0, c1, c2, c3, c4, x)"]
+    assert all(m["llm_prior"] for m in tables)

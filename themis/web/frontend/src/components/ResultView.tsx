@@ -253,7 +253,7 @@ export function ResultView({
 
       <Verdict result={result} naive={naive} />
 
-      {review ? <ProposedReview review={review} /> : null}
+      {review ? <ProposedReview review={review} models={result.extensions?.probability_models?.models} /> : null}
 
       {defaultedVars.length > 0 ? (
         <section className="assume" role="note" aria-label={fill(SAYS.defaultedRegion, lang)}>

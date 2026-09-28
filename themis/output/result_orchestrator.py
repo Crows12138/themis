@@ -393,20 +393,16 @@ def _probability_statement_key_repr(stmt: ProbabilityStatement) -> str:
     return f"{prefix}({body})"
 
 
-def _model_review(model: ProbabilityModel) -> tuple[list[dict], dict]:
-    """A probability model as the review lists it: one line per parameter,
-    and the model itself.
+def _model_review(model: ProbabilityModel) -> list[dict]:
+    """A probability model's parameters as the review lists them, one line
+    each.
 
     The parameters are what the language model supplied, each with its own
     reason, so each is a line a reader can accept or overrule. The baseline
     reads as the probability it is — the target with every condition at its
     reference — and a ratio as ``OR(target|condition=value/reference)``.
-    The model line says which table the lines compose and by what form,
-    which no line says: under ``odds_ratios``, that each ratio holds
-    whatever the other conditions are. The table is named as a gap names
-    the table it asks for, so the two can be matched, and its conditions
-    are listed as the model orders them, so a reader can tell whether that
-    form assumes anything — with one condition it does not.
+    Which table they compose, and by what form, is said of the model
+    whoever stated it (:func:`build_probability_models`).
     """
     target = f"{_atom_repr(model.target.atom)}={model.target.value}"
     where = {} if model.population is None else {"population": model.population}
@@ -425,12 +421,43 @@ def _model_review(model: ProbabilityModel) -> tuple[list[dict], dict]:
                "value": r.odds_ratio,
                "reason": reason(r.annotations), **where}
               for r in model.odds_ratios]
-    conditions = [g.atom.predicate for g in model.given]
-    return lines, {
-        "distribution": f"{p}({model.target.atom.predicate} | {', '.join(sorted(conditions))})",
-        "form": model.form,
-        "conditions": conditions,
-    }
+    return lines
+
+
+def build_probability_models(program: "Program") -> dict | None:
+    """Every distribution the program states as a model rather than cell by
+    cell: which table it composes, by what form, and whether a language
+    model supplied it.
+
+    The form is an assumption of the model's and not of whoever wrote it:
+    under ``odds_ratios``, each condition's ratio holds whatever the others
+    are, which from two conditions on is a claim no cell of the table makes.
+    So the ledger reads that line off this list, and who stated the model
+    decides only whose line it is. It was read off the LLM review, and a
+    model the caller wrote — the kernel takes one from anybody — composed
+    its cells under that assumption with no line saying so.
+
+    The table is named as a gap names the table it asks for, so the two can
+    be matched, and its conditions are listed as the model orders them, so a
+    reader can tell whether the form assumes anything — with one condition
+    it does not. Program-wide like the review, and ``None`` where the
+    program states no model, so a program that states none serialises as
+    before.
+    """
+    models = []
+    for stmt in program.statements:
+        if not isinstance(stmt, ProbabilityModel):
+            continue
+        p = "P" if stmt.population is None else f"P_{stmt.population}"
+        conditions = [g.atom.predicate for g in stmt.given]
+        models.append({
+            "distribution": f"{p}({stmt.target.atom.predicate} | "
+                            f"{', '.join(sorted(conditions))})",
+            "form": stmt.form,
+            "conditions": conditions,
+            "llm_prior": stmt.llm_prior,
+        })
+    return {"models": models} if models else None
 
 
 def build_llm_proposed_review(program: "Program") -> dict | None:
@@ -451,9 +478,10 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
       (``annotations.source``, validated non-empty by F3.1
       ``llm_prior_requires_source``).
     - **Probability models** (``ProbabilityModel``) marked the same way:
-      each parameter joins the priors as a line of its own,
-      and the model is listed under ``models`` (:func:`_model_review`),
-      a key present only when there is one.
+      each parameter joins the priors as a line of its own
+      (:func:`_model_review`). The model itself is listed with every
+      other model the program states (:func:`build_probability_models`),
+      since what its form assumes does not depend on who stated it.
 
     Returns ``None`` when neither category found any entries —
     in that case there's nothing to disclose, and the absence of
@@ -475,14 +503,11 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     """
     edges: list[dict] = []
     probabilities: list[dict] = []
-    models: list[dict] = []
 
     for stmt in program.statements:
         if isinstance(stmt, ProbabilityModel):
             if stmt.llm_prior:
-                lines, model = _model_review(stmt)
-                probabilities.extend(lines)
-                models.append(model)
+                probabilities.extend(_model_review(stmt))
             continue
         if isinstance(stmt, CauseStatement):
             if stmt.annotations is None:
@@ -514,10 +539,7 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     if not edges and not probabilities:
         return None
 
-    review: dict = {"edges": edges, "probabilities": probabilities}
-    if models:
-        review["models"] = models
-    return review
+    return {"edges": edges, "probabilities": probabilities}
 
 
 # ---------------------------------------------------------------------------
@@ -707,9 +729,7 @@ class Prior(language.Word, vocabulary="theta_prior_claim",
             between=language.BETWEEN_ITEMS):
     """A number the language model supplied, as the ledger line it becomes.
 
-    One member per kind of line: a number, and the form that composes a
-    table out of numbers when the form itself assumes something. A
-    vocabulary rather than an f-string for the reason every other sentence
+    A vocabulary rather than an f-string for the reason every other sentence
     on this envelope is one: the facts in it belong to the occasion, the
     sentence around them does not, and an f-string makes the kernel the
     author of both — this one reached every reader in Chinese, whoever they
@@ -719,6 +739,20 @@ class Prior(language.Word, vocabulary="theta_prior_claim",
     A_COMMONSENSE_PRIOR = ("a_commonsense_prior", {
         "zh": "{key} = {value}（LLM 常识 prior）",
         "en": "{key} = {value} (a commonsense prior from the language model)"})
+
+
+@unique
+class Form(language.Word, vocabulary="stated_form_claim",
+           between=language.BETWEEN_ITEMS):
+    """The form a stated table composes its cells by, as the ledger line it
+    becomes where the form assumes something.
+
+    Its own vocabulary and not a member of :class:`Prior`'s, which it was:
+    the line is owed by the model whoever stated it, and a set named for
+    what a language model supplied would have said otherwise of every
+    table a caller wrote.
+    """
+
     NO_INTERACTION = ("no_interaction", {
         "zh": "{distribution} 由一个基线概率和每个条件各自的优势比合成："
               "假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）",
@@ -737,6 +771,7 @@ def build_assumption_ledger(
     ``data_gap_report`` (which proposal edges are actually load-bearing,
     i.e. on the answer path — that analysis already ran there),
     ``extensions.llm_proposed_review`` (LLM theta priors),
+    ``extensions.probability_models`` (the form a stated table assumes),
     ``extensions.mechanism_audit`` (functional form) and
     :data:`ROUTE_PREMISES` (what an identification route says its own
     claim rests on, which is the channel that exists when no estimator
@@ -844,17 +879,26 @@ def build_assumption_ledger(
             "severity": severity,
             "testable": True,
         })
-    #     A table composed from such numbers by a form that assumes something
-    #     is one more prior: the form's, and the numbers carry it into every
-    #     cell they compose. One condition assumes nothing — a baseline and
-    #     its ratios are then the table itself.
-    for model in review.get("models") or []:
+    # 2c) A table stated by a form that assumes something carries that
+    #     assumption into every cell it composes, whoever stated it. One
+    #     condition assumes nothing — a baseline and its ratios are then the
+    #     table itself. Where the language model supplied the table the form
+    #     is one more of its priors; where the caller stated it, the form is
+    #     the caller's choice of how to state the table: withdrawn, the cells
+    #     are unstated and there is no answer rather than a wider one, and
+    #     stating them instead recomputes it.
+    stated = extensions.get(blocks.Block.PROBABILITY_MODELS) or {}
+    for model in stated.get("models") or []:
         if len(model.get("conditions") or ()) < 2:
             continue
-        layer, severity, provenance = ledger.stamp(
-            "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
+        layer, severity, provenance = (
+            ledger.stamp("theta_prior", ledger.Layer.PARAMETER,
+                         ledger.Provenance.LLM_PRIOR)
+            if model.get("llm_prior") else
+            ledger.stamp("caller_table_form", ledger.Layer.PARAMETER,
+                         ledger.Provenance.CALLER_CHOSE))
         entries.append({
-            "claim": [language.state(Prior.NO_INTERACTION,
+            "claim": [language.state(Form.NO_INTERACTION,
                                      distribution=model.get("distribution"))],
             "layer": layer,
             "provenance": provenance,

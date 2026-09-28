@@ -1,4 +1,4 @@
-import type { LlmProposedReview } from '../types'
+import type { LlmProposedReview, StatedModel } from '../types'
 import { fill, useLang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
 
@@ -32,12 +32,15 @@ const SAYS = {
  *
  * The warning banner stays visible (a trust flag must not hide); the per-item
  * detail folds so it doesn't dominate the page.
+ *
+ * `models` are the tables the program states, whoever stated them; the ones
+ * the AI gave are why an `OR(…)` row can be among the numbers here.
  */
-export function ProposedReview({ review }: { review: LlmProposedReview }) {
+export function ProposedReview({ review, models = [] }: { review: LlmProposedReview; models?: StatedModel[] }) {
   const lang = useLang()
   const edges = review.edges ?? []
   const probs = review.probabilities ?? []
-  const models = review.models ?? []
+  const proposedTables = models.filter((m) => m.llm_prior)
   if (!edges.length && !probs.length) return null
 
   const parts: string[] = []
@@ -57,7 +60,7 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
         {probs.length ? (
           <div className="proposed__group">
             <span className="proposed__grouphd">{fill(SAYS.numbersHead, lang, { n: probs.length })}</span>
-            {models.length ? <p className="proposed__intro">{fill(SAYS.oddsRatio, lang)}</p> : null}
+            {proposedTables.length ? <p className="proposed__intro">{fill(SAYS.oddsRatio, lang)}</p> : null}
             <div className="proposed__table">
               {probs.map((p, i) => (
                 <div className="proposed__row" key={i}>

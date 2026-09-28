@@ -254,9 +254,9 @@ def test_a_language_models_parameters_are_each_a_line_under_review():
         {"key": "OR(y(me)=True|z(me)=True/False)", "value": 1.5, "reason": "z=True"},
         {"key": "OR(y(me)=True|w(me)=True/False)", "value": 0.5, "reason": "w=True"},
     ]
-    assert review["models"] == [{"distribution": "P(y | w, x, z)",
-                                 "form": "odds_ratios",
-                                 "conditions": ["x", "z", "w"]}]
+    assert result["extensions"]["probability_models"] == {"models": [
+        {"distribution": "P(y | w, x, z)", "form": "odds_ratios",
+         "conditions": ["x", "z", "w"], "llm_prior": True}]}
     tokens = _ledger_tokens(result)
     assert tokens.count("a_commonsense_prior") == 4
     assert tokens.count("no_interaction") == 1
@@ -272,8 +272,9 @@ def test_one_condition_assumes_nothing():
     program["statements"].append(
         _model([("z", False, {True: 3.0})], 0.2, target="x"))
     result = _run(program)
-    assert result["extensions"]["llm_proposed_review"]["models"] == [
-        {"distribution": "P(x | z)", "form": "odds_ratios", "conditions": ["z"]}]
+    assert result["extensions"]["probability_models"]["models"] == [
+        {"distribution": "P(x | z)", "form": "odds_ratios", "conditions": ["z"],
+         "llm_prior": True}]
     assert "no_interaction" not in _ledger_tokens(result)
     themis.verify(program, result)
 
@@ -291,17 +292,17 @@ def test_the_forms_line_is_owed_to_the_ledger():
 
 
 @pytest.mark.parametrize("edit", [
-    lambda r: r.pop("models"),
-    lambda r: r["models"][0]["conditions"].pop(),
-    lambda r: r["probabilities"][1].update(value=1.0),
-    lambda r: r["probabilities"].pop(0),
+    lambda e: e.pop("probability_models"),
+    lambda e: e["probability_models"]["models"][0]["conditions"].pop(),
+    lambda e: e["llm_proposed_review"]["probabilities"][1].update(value=1.0),
+    lambda e: e["llm_proposed_review"]["probabilities"].pop(0),
 ], ids=["models dropped", "a condition dropped", "a ratio changed",
         "the baseline dropped"])
 def test_the_review_is_held_to_the_models_the_program_states(edit):
     program = _program([_model(THREE, BASELINE)])
     result = _run(program)
     bent = copy.deepcopy(result)
-    edit(bent["extensions"]["llm_proposed_review"])
+    edit(bent["extensions"])
     with pytest.raises(VerificationError):
         themis.verify(program, bent)
 

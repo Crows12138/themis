@@ -79,10 +79,12 @@ def _prior_key(stmt: dict) -> str:
 
 
 def _model_rows(stmt: dict) -> tuple[list[dict], dict]:
-    """A probability model as the review lists it, spelled again: its
-    baseline as the probability with every condition at its reference,
-    each ratio as ``OR(target|condition=value/reference)``, and the table
-    the model composes, named by its target and its sorted conditions."""
+    """A probability model as the review lists its parameters, spelled
+    again — its baseline as the probability with every condition at its
+    reference, each ratio as ``OR(target|condition=value/reference)`` — and
+    as the stated models list it: the table it composes, named by its
+    target and its sorted conditions, and whether a language model supplied
+    it."""
     population = stmt.get("population")
     where = {} if population is None else {"population": population}
     target = _valued(stmt.get("target") or {})
@@ -112,7 +114,8 @@ def _model_rows(stmt: dict) -> tuple[list[dict], dict]:
     predicate = ((stmt.get("target") or {}).get("atom") or {}).get("predicate")
     return rows, {"distribution": f"{head}({predicate} | {named})",
                   "form": stmt.get("form"),
-                  "conditions": conditions}
+                  "conditions": conditions,
+                  "llm_prior": stmt.get("llm_prior") is True}
 
 
 def _rederive_review(program: dict) -> dict | None:
@@ -122,22 +125,18 @@ def _rederive_review(program: dict) -> dict | None:
     substring, case-insensitively, because the convention is
     ``llm_proposal`` and the field is free text. A prior counts when its
     ``llm_prior`` is exactly true, and so does a probability model's,
-    whose parameters are priors like any other and which is listed under
-    ``models`` besides. Evidence-sourced edges are not LLM-proposed and
-    are left out.
+    whose parameters are priors like any other. Evidence-sourced edges are
+    not LLM-proposed and are left out.
     """
     edges: list[dict] = []
     priors: list[dict] = []
-    models: list[dict] = []
     for stmt in program.get("statements") or ():
         if not isinstance(stmt, dict):
             continue
         kind = stmt.get("kind")
         if kind == "probability_model":
             if stmt.get("llm_prior") is True:
-                rows, model = _model_rows(stmt)
-                priors.extend(rows)
-                models.append(model)
+                priors.extend(_model_rows(stmt)[0])
         elif kind == "cause":
             source = (stmt.get("annotations") or {}).get("source") or ""
             if "llm" not in str(source).lower():
@@ -161,7 +160,7 @@ def _rederive_review(program: dict) -> dict | None:
             priors.append(entry)
     if not edges and not priors:
         return None
-    return {"edges": edges, "probabilities": priors, "models": models}
+    return {"edges": edges, "probabilities": priors}
 
 
 def _canonical(rows) -> list[str]:
@@ -206,7 +205,7 @@ def verify_llm_proposed_review(block, program: dict) -> None:
             "object with edges and probabilities",
             rule="llm_proposed_review_check",
         )
-    for field in ("edges", "probabilities", "models"):
+    for field in ("edges", "probabilities"):
         got = _canonical(block.get(field))
         want = _canonical(expected[field])
         if got != want:
@@ -216,6 +215,42 @@ def verify_llm_proposed_review(block, program: dict) -> None:
                 f"{want}",
                 rule="llm_proposed_review_check",
             )
+
+
+def verify_probability_models(block, program: dict) -> None:
+    """Audit ``extensions.probability_models`` against the program.
+
+    The ledger reads the form's line off this block, and who the line is
+    owed to off its ``llm_prior`` — so both halves of a disagreement matter
+    as they do for the review: a model the program does not state is an
+    assumption nobody made, and a model it states that the block leaves out
+    composes cells under an assumption no line admits to. A model marked
+    the caller's that a language model supplied would hand the reader a
+    choice they never made.
+
+    Accepts a result with no such block when the program states no model.
+    """
+    expected = [_model_rows(stmt)[1] for stmt in program.get("statements") or ()
+                if isinstance(stmt, dict) and stmt.get("kind") == "probability_model"]
+    if not expected:
+        if block is None:
+            return
+        raise VerificationError(
+            "probability_models is present on a result whose program states "
+            "no probability model; a form nobody stated is an assumption "
+            "nobody made",
+            rule="probability_models_check",
+        )
+    got = _canonical(block.get("models") if isinstance(block, dict) else None)
+    want = _canonical(expected)
+    if got != want:
+        raise VerificationError(
+            f"probability_models.models is not what the program states: the block "
+            f"says {got} and the program says {want}; a model left out "
+            f"composes its cells under an assumption no line of the ledger "
+            f"admits to",
+            rule="probability_models_check",
+        )
 
 
 def _rederive_ambiguities(program: dict, query_id) -> list[dict]:

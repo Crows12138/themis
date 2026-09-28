@@ -3978,6 +3978,13 @@ export const SINGULAR_MATRIX_WORDS: Record<string, Words> = {
   },
 }
 
+export const STATED_FORM_CLAIM_WORDS: Record<string, Words> = {
+  no_interaction: {
+    zh: '{distribution} 由一个基线概率和每个条件各自的优势比合成：假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）',
+    en: '{distribution} is composed from a baseline and one odds ratio per condition, assuming each condition\'s effect on the odds is the same whatever the others are (no interaction)',
+  },
+}
+
 export const SUTVA_CONCERN_WORDS: Record<string, Words> = {
   spillover_must_be_recorded: {
     zh: '若有溢出 / 同侪效应，需登记并在分析中纳入',
@@ -3993,10 +4000,6 @@ export const THETA_PRIOR_CLAIM_WORDS: Record<string, Words> = {
   a_commonsense_prior: {
     zh: '{key} = {value}（LLM 常识 prior）',
     en: '{key} = {value} (a commonsense prior from the language model)',
-  },
-  no_interaction: {
-    zh: '{distribution} 由一个基线概率和每个条件各自的优势比合成：假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）',
-    en: '{distribution} is composed from a baseline and one odds ratio per condition, assuming each condition\'s effect on the odds is the same whatever the others are (no interaction)',
   },
 }
 
@@ -4139,6 +4142,7 @@ export const SEAMS: Record<string, Words> = {
   selection_recovery_shortfall: BETWEEN_STATEMENTS,
   shape: BETWEEN_ITEMS,
   singular_matrix: BETWEEN_ITEMS,
+  stated_form_claim: BETWEEN_ITEMS,
   sutva_concern: BETWEEN_STATEMENTS,
   theta_prior_claim: BETWEEN_ITEMS,
   theta_refusal: BETWEEN_STATEMENTS,

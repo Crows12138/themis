@@ -428,6 +428,14 @@ class Block(EnvelopeName):
         Family.ASSUMPTION,
         "assumption_ledger",
     )
+    PROBABILITY_MODELS = (
+        "probability_models",
+        "every distribution the program states as a baseline and ratios "
+        "rather than cell by cell, the form its cells are composed by, and "
+        "whether a language model supplied it",
+        Family.ASSUMPTION,
+        "assumption_ledger",
+    )
 
     # --- GAP: what is missing from, or wrong with, the inputs ---------------
     #

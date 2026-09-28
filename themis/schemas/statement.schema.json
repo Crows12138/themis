@@ -63,7 +63,8 @@
         "proximal_role", "query_part", "query_role", "recovery_factor",
         "recovery_mechanism", "refusal_sentence",
         "selection_recovery_shortfall", "shape", "singular_matrix",
-        "sutva_concern", "theta_prior_claim", "theta_refusal",
+        "stated_form_claim", "sutva_concern", "theta_prior_claim",
+        "theta_refusal",
         "time_window", "unbiased_distribution", "unnamed_thing",
         "workflow_refusal"
       ]
@@ -318,12 +319,16 @@
           ] } } }
         },
         {
+          "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "stated_form_claim" } } },
+          "then": { "properties": { "token": { "enum": ["no_interaction"] } } }
+        },
+        {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "sutva_concern" } } },
           "then": { "properties": { "token": { "enum": ["spillover_must_be_recorded", "units_must_not_coordinate"] } } }
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "theta_prior_claim" } } },
-          "then": { "properties": { "token": { "enum": ["a_commonsense_prior", "no_interaction"] } } }
+          "then": { "properties": { "token": { "enum": ["a_commonsense_prior"] } } }
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "time_window" } } },

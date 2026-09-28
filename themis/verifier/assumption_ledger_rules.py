@@ -330,6 +330,10 @@ _ADMISSIBLE_PAIRS = {
     "identification_premise": (("identification",), ("inherent",)),
     "proposal_edge": (("structural_edge",), ("llm_proposal", "discovery")),
     "theta_prior": (("parameter",), ("llm_prior",)),
+    # The form a table the caller stated assumes: a parameter line, and the
+    # caller's choice of how to state the table. The same line for a table
+    # the language model supplied is one of its priors, the row above.
+    "caller_table_form": (("parameter",), ("caller_chose",)),
     # The shape choice, and the only producer of a functional_form line. Who
     # settled a form is a property of the RUN, so the id is not what answers:
     # the same one is the method's definition where nothing takes a ``model=``
@@ -563,7 +567,8 @@ def verify_assumption_ledger(result: dict) -> None:
                 "assumption_ledger missing while the result declares "
                 f"{len(declared)} estimator assumption(s), {len(owed_edges)} "
                 f"load-bearing proposal edge(s), {len(owed_priors)} theta "
-                f"prior(s) and {len(owed_forms)} audited mechanism(s); an "
+                f"prior(s) or stated table form(s) and {len(owed_forms)} "
+                f"audited mechanism(s); an "
                 "absent ledger reads as 'nothing is assumed'."
             )
         return
@@ -1040,8 +1045,15 @@ def _check_caller_choices(result: dict, entries: list) -> None:
     is why the evidence is per-id: a run that declared a basis has not
     thereby declared a penalty, and a pass that took either for both would
     launder one choice into two.
+
+    A line that names no assumption is not asked here: it has no id to key
+    a record on, and it is held whole — attribution included — to the one
+    record it copies (:func:`_check_the_lines_that_name_no_assumption`).
+    The form a caller stated a table by is such a line, and its record is
+    the stated model, which the program-copy rules hold to the program.
     """
-    claimed = [e for e in entries if e.get("provenance") == "caller_chose"]
+    claimed = [e for e in entries
+               if e.get("provenance") == "caller_chose" and e.get("id")]
     if not claimed:
         return
     channels = _recorded_channels(result)
@@ -1110,22 +1122,25 @@ def _owed_proposal_edges(result: dict) -> tuple[tuple, ...]:
     return tuple(owed)
 
 
-#: The sentences a supplied prior's line is, spelled here rather than
-#: imported: they are declared as ``Prior`` in the output layer, which this
-#: module may not read. Both are members of sets the statement carrier
-#: enumerates, and a spelling that drifted from the declaration would
-#: refuse every honest answer carrying a prior rather than pass a
-#: dishonest one.
+#: The sentences a supplied prior's line and a stated table's form line
+#: are, spelled here rather than imported: they are declared as ``Prior``
+#: and ``Form`` in the output layer, which this module may not read. Each
+#: is a member of a set the statement carrier enumerates, and a spelling
+#: that drifted from the declaration would refuse every honest answer
+#: carrying one rather than pass a dishonest one.
 _PRIOR_VOCABULARY = "theta_prior_claim"
 _PRIOR_SENTENCE = "a_commonsense_prior"
+_FORM_VOCABULARY = "stated_form_claim"
 _NO_INTERACTION = "no_interaction"
 
 
 def _owed_theta_priors(extensions: dict) -> tuple[tuple, ...]:
     """The line each prior the language model supplied owes: its key and
-    its value, in the one sentence there is for them — and, for a table it
-    composed by a form, the form's line wherever the form assumes
-    something, which it does from two conditions on."""
+    its value, in the one sentence there is for them — and the line each
+    stated table's form owes wherever the form assumes something, which it
+    does from two conditions on. That one is owed by the table whoever
+    stated it, and is the language model's or the caller's choice as the
+    table says."""
     review = extensions.get("llm_proposed_review") or {}
     numbers = tuple(
         _unnamed_line(
@@ -1137,10 +1152,10 @@ def _owed_theta_priors(extensions: dict) -> tuple[tuple, ...]:
     )
     forms = tuple(
         _unnamed_line(
-            [language.spelt(_PRIOR_VOCABULARY, _NO_INTERACTION,
+            [language.spelt(_FORM_VOCABULARY, _NO_INTERACTION,
                             distribution=m.get("distribution"))],
-            "parameter", "llm_prior")
-        for m in review.get("models") or ()
+            "parameter", "llm_prior" if m.get("llm_prior") else "caller_chose")
+        for m in (extensions.get("probability_models") or {}).get("models") or ()
         if isinstance(m, Mapping) and len(m.get("conditions") or ()) >= 2
     )
     return numbers + forms
@@ -1712,9 +1727,10 @@ def _check_the_lines_that_name_no_assumption(entries: list,
                                              owed: tuple) -> None:
     """The lines with no id are the lines this answer's records owe, one each.
 
-    Two channels write a line without naming an assumption: a load-bearing
-    proposal edge, from its gap, and a prior the language model supplied,
-    from the review. Having no id, such a line is outside everything keyed
+    Three channels write a line without naming an assumption: a
+    load-bearing proposal edge, from its gap, a prior the language model
+    supplied, from the review, and the form a stated table assumes, from
+    the stated models. Having no id, such a line is outside everything keyed
     on one — what the declaration says the assumption is, the claim held to
     its id, the fabrication check — and it used to be counted instead: at
     least as many lines of its layer as records. A record reduced to its

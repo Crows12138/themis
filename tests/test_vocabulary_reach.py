@@ -937,19 +937,22 @@ _ROWS: dict[str, Vocabulary] = {
                 "provenance"),
                (_KA, "$defs", "probabilityModelStatement", "properties",
                 "provenance")),
-        no_gloss="Where a supplied probability came from, on the way IN. "
-                 "What comes back out is the ledger line it produced, and "
-                 "`assumption_provenance` is the vocabulary of that.",
+        no_gloss="What kind of conditional a supplied probability is — a "
+                 "CPT entry or an observational one — on the way IN, where "
+                 "the parent check reads it. Who supplied it is a field of "
+                 "its own, and what comes back out is the ledger line it "
+                 "produced, `assumption_provenance` being the vocabulary of "
+                 "that.",
     ),
     "probability_model_form": Vocabulary(
         sites=((_KA, "$defs", "probabilityModelStatement", "properties",
                 "form"),
-               (*_EXT, "llm_proposed_review", "properties", "models", "items",
+               (*_EXT, "probability_models", "properties", "models", "items",
                 "properties", "form")),
         no_gloss="How a model's parameters compose its table. What the form "
                  "assumes reaches a reader as a ledger line of its own, "
-                 "`theta_prior_claim.no_interaction`, and that sentence is "
-                 "the one to disagree with; the review carries the token so "
+                 "`stated_form_claim.no_interaction`, and that sentence is "
+                 "the one to disagree with; the block carries the token so "
                  "the line can be rederived, not so it can be shown.",
     ),
     "ate_estimator_option": Vocabulary(
@@ -1248,8 +1251,19 @@ _ROWS: dict[str, Vocabulary] = {
         carried_by="A number the language model supplied, as the ledger "
                      "line it becomes. Through the carrier, into the same "
                      "field as the row above — which is what a statement "
-                     "carrying its own vocabulary is for: one field, three "
+                     "carrying its own vocabulary is for: one field, four "
                      "authors, and no author having to know the others.",
+    ),
+    "stated_form_claim": Vocabulary(
+        sites=(_closed("stated_form_claim"),),
+        declares="themis.output.result_orchestrator.Form",
+        carried_by="The form a stated table composes its cells by, as the "
+                     "ledger line it becomes wherever it assumes something — "
+                     "whoever stated the table. Through the carrier, into "
+                     "the same field as the row above, and not a member of "
+                     "that row's set: that set is what a language model "
+                     "supplied, and this line is owed by a table a caller "
+                     "wrote too.",
     ),
     # What is true of a symbolic interval that no other field on its row
     # carries — its width, the size of the response-function partition,

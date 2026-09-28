@@ -25,10 +25,11 @@ member could be named ``assumption`` on an assumption ledger and say
 nothing for nineteen entries before anyone lined the six up.
 
 **The rows of** :data:`ADMISSIBLE` **are producers**, because that is what
-the domain depends on. A ledger entry is assembled by one of four: the
+the domain depends on. A ledger entry is assembled by one of these: the
 estimator's own assumptions, a proposal edge the answer traverses, an LLM
-theta prior, an audited mechanism. Each knows a different amount, and the
-pair it may write is fixed by which one it is — which is a stronger
+theta prior, the form a caller's table assumes, an audited mechanism. Each
+knows a different amount, and the pair it may write is fixed by which one
+it is — which is a stronger
 statement than membership, and it is the one the verifier can re-derive:
 ``llm_prior`` belongs to a parameter and nothing else, ``default`` to a
 functional form and nothing else. Membership alone would let a back-door
@@ -440,8 +441,8 @@ def checked(check: Check, refuted: bool) -> tuple[Check, Verdict]:
 #: The rows are producers because a producer is exactly what fixes the
 #: pair. One of them assembles entries out of an estimator's own words and
 #: may therefore say any of the three things an estimator's assumptions can
-#: be about; the other three each read one channel that is about one thing,
-#: and so write one layer apiece.
+#: be about; the others each read one channel that is about one thing, and
+#: so write one layer apiece.
 #:
 #: The structured identification spec and the flat declaration list are ONE
 #: producer here, not two. A spec IS the flat declaration said in better
@@ -490,6 +491,18 @@ ADMISSIBLE: dict[str, tuple[frozenset[Layer], frozenset[Provenance]]] = {
     "theta_prior": (
         frozenset({Layer.PARAMETER}),
         frozenset({Provenance.LLM_PRIOR}),
+    ),
+    # The form a table the caller stated composes its cells by, where it
+    # assumes something. A parameter line like a prior's, and not a row of
+    # its own for both authors: a table the language model supplied is one
+    # more of its priors, and the row above writes that line. This one is
+    # the caller's choice of how to state a table — withdrawn, the cells
+    # are unstated and there is no answer rather than a wider one — and a
+    # row that wrote both would be one channel writing a guess and a line
+    # somebody owns under one name.
+    "caller_table_form": (
+        frozenset({Layer.PARAMETER}),
+        frozenset({Provenance.CALLER_CHOSE}),
     ),
     # The shape choice, pointed at by the mechanism audit — and the only
     # producer of a functional-form line, for the reason above. Every

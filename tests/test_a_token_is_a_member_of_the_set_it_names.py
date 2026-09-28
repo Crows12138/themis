@@ -107,7 +107,7 @@ NO_ROW_TO_FORGE_ON = frozenset({
     "monotonicity_refutation", "outcome_error_premise",
     "proximal_criterion_failure", "proximal_role", "query_part",
     "recovery_factor", "recovery_mechanism", "selection_recovery_shortfall",
-    "unbiased_distribution",
+    "stated_form_claim", "unbiased_distribution",
 })
 
 FORGEABLE = sorted(set(LISTED) - NO_ROW_TO_FORGE_ON)

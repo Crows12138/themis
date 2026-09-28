@@ -562,6 +562,7 @@ const SIMEX_OUTCOME_MODEL_WORDS = generated.SIMEX_OUTCOME_MODEL_WORDS
 const SIMEX_EXTRAPOLANT_WORDS = generated.SIMEX_EXTRAPOLANT_WORDS
 const SIMEX_NO_INTERVAL_WORDS = generated.SIMEX_NO_INTERVAL_WORDS
 const THETA_PRIOR_CLAIM_WORDS = generated.THETA_PRIOR_CLAIM_WORDS
+const STATED_FORM_CLAIM_WORDS = generated.STATED_FORM_CLAIM_WORDS
 // And the four the two recovery verdicts are made of. Each block could
 // name the theorem that carried a POSITIVE verdict and had nothing to name
 // what a negative came back empty on, so the whole of a negative was one
@@ -614,14 +615,16 @@ const WORDS: Record<string, Record<string, Words>> = {
   observable_required: OBSERVABLE_REQUIRED_WORDS,
   bound_side: BOUND_SIDE_WORDS,
   monotonicity: MONOTONICITY_WORDS,
-  // What a ledger line says the answer rests on. Three vocabularies for one
+  // What a ledger line says the answer rests on. Four vocabularies for one
   // field, which is what a statement carrying its own set is for: the
   // glossary words the assumptions an estimator declares, a gap's own
-  // statements word an unverified edge, and a number the model supplied
-  // words itself. The field used to arrive as text, so this surface printed
-  // whatever language the kernel had been asked for.
+  // statements word an unverified edge, a number the model supplied words
+  // itself, and so does the form a stated table assumes, whoever stated it.
+  // The field used to arrive as text, so this surface printed whatever
+  // language the kernel had been asked for.
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
+  stated_form_claim: STATED_FORM_CLAIM_WORDS,
   discovery_note: DISCOVERY_NOTE_WORDS,
   // And what the run warned about without refusing. Both tables land on
   // one field, and the vocabulary name beside each token is what tells
@@ -2473,11 +2476,12 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   missing_data_shortfall: MISSING_DATA_SHORTFALL_WORDS,
   recovery_factor: RECOVERY_FACTOR_WORDS,
 
-  // And the two the ASSUMPTION LEDGER's line is made of. The third is
+  // And the three the ASSUMPTION LEDGER's line is made of. The fourth is
   // `gap_describes` above: one channel's line is the statements the gap it
   // came from is made of, which is why the field is a list.
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
+  stated_form_claim: STATED_FORM_CLAIM_WORDS,
   // And what a discovery run says about itself. It rides on the same
   // carrier from a kernel_ast's `discovery_metadata` and from a
   // `notears_fit`, which is why this surface needs it even though no

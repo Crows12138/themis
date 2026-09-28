@@ -519,18 +519,27 @@
                   "population": { "type": "string" }
                 }
               }
-            },
+            }
+          }
+        },
+        "probability_models": {
+          "type": "object",
+          "description": "Every distribution the program states as a probability model — a baseline and odds ratios — rather than cell by cell, whoever stated it. Program-wide like llm_proposed_review, and attached only when the program states one. A model's parameters are listed under llm_proposed_review.probabilities like any prior when a language model supplied them; this says what no parameter says: which table they compose and by which form. What the form assumes is the model's, not its author's, so the assumption ledger reads its line here for every model and takes only whose line it is from llm_prior.",
+          "required": ["models"],
+          "additionalProperties": false,
+          "properties": {
             "models": {
               "type": "array",
-              "description": "The LLM-proposed probability models, present only when there is one. A model's parameters are listed under probabilities like any prior — its baseline as P(target|every condition at its reference), each odds ratio as OR(target|condition=value/reference) — and this entry says what no parameter says: which table they compose and by which form. The table is named as a missing_distribution gap names the table it asks for.",
+              "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["distribution", "form", "conditions"],
+                "required": ["distribution", "form", "conditions", "llm_prior"],
                 "additionalProperties": false,
                 "properties": {
-                  "distribution": { "type": "string", "x-text": "formula", "description": "P(target | conditions, sorted), with the population as a subscript when there is one." },
+                  "distribution": { "type": "string", "x-text": "formula", "description": "P(target | conditions, sorted), with the population as a subscript when there is one — named as a missing_distribution gap names the table it asks for." },
                   "form":         { "enum": ["odds_ratios"] },
-                  "conditions":   { "type": "array", "items": { "type": "string" }, "description": "The conditions' predicates, in the model's order. From two on, the form assumes the conditions do not interact, and the assumption ledger carries that as a line of its own." }
+                  "conditions":   { "type": "array", "items": { "type": "string" }, "description": "The conditions' predicates, in the model's order. From two on, the form assumes the conditions do not interact, and the assumption ledger carries that as a line of its own." },
+                  "llm_prior":    { "type": "boolean", "description": "Whether a language model supplied the model, as the statement says. The ledger's line on the form is then the model's prior; otherwise it is the caller's choice of how to state the table." }
                 }
               }
             }

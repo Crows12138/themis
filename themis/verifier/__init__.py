@@ -403,7 +403,9 @@ Public surface (re-exports from sub-modules):
   ``llm_prior``, collected again from the program JSON and compared with the
   block a reader accepts or rejects the graph on — both directions, because an
   LLM-proposed edge that never reaches that surface reads as one a person
-  drew) and ``verify_ambiguity_copy`` (the program's declared ambiguities
+  drew), ``verify_probability_models`` (every model the program states,
+  whoever stated it, which the ledger reads the form's line and its owner
+  off) and ``verify_ambiguity_copy`` (the program's declared ambiguities
   filtered to this query, which is the whole of what the producer does, so the
   copy is checked entire; the gap report READS this block, and an entry the
   program never declared suppresses the measurement-error concern — one
@@ -1088,6 +1090,7 @@ from .program_copy_rules import (
     verify_answer_names_its_question,
     verify_longitudinal_option_copy,
     verify_llm_proposed_review,
+    verify_probability_models,
 )
 from .envelope_arithmetic_rules import verify_envelope_arithmetic
 from .confidence_level_rules import verify_confidence_level
@@ -1256,6 +1259,7 @@ __all__ = [
     "verify_identify",
     "verify_joint_identification",
     "verify_llm_proposed_review",
+    "verify_probability_models",
     "verify_longitudinal_identification",
     "verify_longitudinal_numeric",
     "verify_manski_natural_bounds_result",

@@ -53,6 +53,7 @@ from .input.syntactic_validator import validate_ast, validate_result
 from .output.result_orchestrator import (
     build_assumption_ledger,
     build_llm_proposed_review,
+    build_probability_models,
     to_dict,
 )
 from .runtime.graph_projection import project
@@ -192,6 +193,7 @@ from .verifier import (
     verify_no_acyclic_criterion_is_claimed_under_a_loop,
     verify_iv_surfaces,
     verify_llm_proposed_review,
+    verify_probability_models,
     verify_numeric_display_agrees,
     verify_joint_identification,
     verify_longitudinal_identification,
@@ -729,6 +731,12 @@ def _run_typed(prog) -> dict:
         for rd in result_dicts:
             ext = rd.setdefault("extensions", {})
             ext[blocks.Block.LLM_PROPOSED_REVIEW] = review
+    # Every table the program states as a model, whoever stated it: the
+    # form's assumption is the model's, and the ledger below reads it here.
+    models = build_probability_models(prog)
+    if models is not None:
+        for rd in result_dicts:
+            rd.setdefault("extensions", {})[blocks.Block.PROBABILITY_MODELS] = models
     # Assumption ledger — unified, severity-ranked view over the
     # per-result assumption channels (load-bearing proposal edges from
     # ``data_gap_report`` + LLM theta priors on the structural-query
@@ -2017,14 +2025,16 @@ def _hold_what_the_answer_says(result: dict, ast: dict, prog, ctx) -> None:
         feedback=ctx.feedback, selection_nodes=ctx.selection_nodes,
         longitudinal=(prog.options or {}).get("longitudinal")))
 
-    # The two blocks that are not conclusions but copies of what the
-    # caller said, held against the caller's own document. Outside the
-    # table above because they are outside that family and because the
-    # premise they are re-derived from is the program JSON rather than
-    # the graph projected out of it — reading what was submitted is what
-    # lets a serialisation that dropped an annotation be seen at all.
+    # The blocks that are not conclusions but copies of what the caller
+    # said, held against the caller's own document. Outside the table
+    # above because they are outside that family and because the premise
+    # they are re-derived from is the program JSON rather than the graph
+    # projected out of it — reading what was submitted is what lets a
+    # serialisation that dropped an annotation be seen at all.
     verify_llm_proposed_review(
         (result.get("extensions") or {}).get("llm_proposed_review"), ast)
+    verify_probability_models(
+        (result.get("extensions") or {}).get("probability_models"), ast)
     verify_ambiguity_copy(
         (result.get("extensions") or {}).get("ambiguities"), ast,
         query_id=target_id)

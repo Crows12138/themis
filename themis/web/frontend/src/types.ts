@@ -648,18 +648,23 @@ export interface ProposedProbability {
 // counted turned out to be a second record of it — no producer has filled the
 // key since, nothing here reads it, and a required field nobody sends is the
 // dangerous half of this file's claim: `undefined` typed as a string.
-// A table the AI gave as a baseline and odds ratios. Its numbers are rows of
-// `probabilities` like any other; this says which table they compose, and is
-// read here only to know that an `OR(…)` row needs saying how to read.
-export interface ProposedModel {
-  distribution: string
-  form: string
-  conditions: string[]
-}
 export interface LlmProposedReview {
   edges: ProposedEdge[]
   probabilities: ProposedProbability[]
-  models?: ProposedModel[]
+}
+// A table the program states as a baseline and odds ratios, whoever stated
+// it. Where the AI gave it, its numbers are rows of the review's
+// `probabilities` like any other; this says which table they compose, and is
+// read here only to know that an `OR(…)` row needs saying how to read. What
+// the form assumes is a line of the assumption ledger, for every table.
+export interface StatedModel {
+  distribution: string
+  form: string
+  conditions: string[]
+  llm_prior: boolean
+}
+export interface StatedModels {
+  models: StatedModel[]
 }
 
 // One step of the machine-verifiable chain, and the chain itself. `rule`
@@ -794,6 +799,7 @@ export interface QueryResult {
   extensions?: {
     assumption_ledger?: AssumptionLedger
     llm_proposed_review?: LlmProposedReview
+    probability_models?: StatedModels
   } & Record<string, unknown>
 }
 
@@ -961,9 +967,6 @@ export const MIRRORS: Record<string, string[]> = {
   ProposedEdge: [
     '#/properties/extensions/properties/llm_proposed_review/properties/edges/items',
   ],
-  ProposedModel: [
-    '#/properties/extensions/properties/llm_proposed_review/properties/models/items',
-  ],
   ProposedProbability: [
     '#/properties/extensions/properties/llm_proposed_review/properties/probabilities/items',
   ],
@@ -974,6 +977,10 @@ export const MIRRORS: Record<string, string[]> = {
   Sensitivity: ['#/properties/numeric_estimate/properties/sensitivity_analysis'],
   Simex: ['#/properties/numeric_estimate/properties/simex'],
   Stated: ['statement.schema.json#/$defs/statement'],
+  StatedModel: [
+    '#/properties/extensions/properties/probability_models/properties/models/items',
+  ],
+  StatedModels: ['#/properties/extensions/properties/probability_models'],
   StratifiedWald: ['#/properties/numeric_estimate/properties/stratified_wald'],
   StratumSupport: ['#/properties/numeric_estimate/properties/stratum_support'],
   StructuralResult: ['#/properties/structural_result'],

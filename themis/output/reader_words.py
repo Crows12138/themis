@@ -607,6 +607,12 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="THETA_PRIOR_CLAIM_WORDS",
         members=lambda: _stated("themis.output.result_orchestrator.Prior"),
     ),
+    # And the line a table's form owes, whoever stated the table.
+    "stated_form_claim": Glossed(
+        gloss="themis.output.result_orchestrator.Form.said",
+        browser_table="STATED_FORM_CLAIM_WORDS",
+        members=lambda: _stated("themis.output.result_orchestrator.Form"),
+    ),
 
     # --- and the four the two recovery verdicts are made of -----------------
     #
