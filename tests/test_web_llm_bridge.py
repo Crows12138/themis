@@ -516,15 +516,24 @@ def test_propose_theta_priors_empty_is_noop():
 
 def test_api_assume_happy_path(monkeypatch):
     """Data-scarce effect query → AI priors → point estimate + disclosure.
-    The LLM is mocked to return a valid prior per index; the kernel does the
-    real fill + re-run, so numerically_solved and the disclosure surface are
-    the kernel's, not the mock's."""
+    The LLM is mocked to return a valid prior per index — a number for a
+    probability, a baseline and ratios for a table (P(y | x, z) is one); the
+    kernel does the real fill + re-run, so numerically_solved and the
+    disclosure surface are the kernel's, not the mock's."""
     import json as _json
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
     def fake_create(**kw):
-        # Over-provide indices; propose_theta_priors reads only those it needs.
-        priors = [{"index": i, "value": 0.5, "reason": f"先验 {i}"} for i in range(12)]
+        asked = _json.loads(kw["messages"][0]["content"].split("leave none out:\n", 1)[1])
+        priors = [
+            {"index": a["index"], "baseline": {"value": 0.3, "reason": "基线"},
+             "odds_ratios": [{"ratio": x["ratio"], "value": 2.0, "reason": f"倍数 {x['ratio']}"}
+                             for x in a["ratios"]]}
+            if "table" in a else
+            {"index": a["index"], "value": 0.5, "reason": f"先验 {a['index']}"}
+            for a in asked]
+        # Over-provide an index; propose_theta_priors reads only those it asked.
+        priors.append({"index": 99, "value": 0.5, "reason": "没问到"})
         return _make_message(_json.dumps({"priors": priors}))
 
     monkeypatch.setattr(
@@ -538,6 +547,7 @@ def test_api_assume_happy_path(monkeypatch):
     assert res["numeric_result"]["value"] is not None
     review = res["extensions"]["llm_proposed_review"]
     assert len(review["probabilities"]) >= 1
+    assert [m["distribution"] for m in review["models"]] == ["P(y | x, z)"]
     assert "summary" not in review  # counted by whoever renders it
 
 

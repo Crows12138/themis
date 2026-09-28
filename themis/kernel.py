@@ -1295,8 +1295,12 @@ def apply_patch_and_run(
       ``observability``); handled by
       ``workflow.variable_framing.merge_variable_declaration``.
     - ``parameter_fill_bundle`` — appends filled
-      ``probabilityStatement`` records; handled by
+      ``probabilityStatement`` records, or ``probability_model`` records
+      stating a whole distribution; handled by
       ``workflow.parameter_fill.merge_skeleton_bundle``.
+
+    The merged program is validated as ``run`` validates a program before
+    it is run, so a record is held to every rule a statement is.
 
     ``patches`` may be a single bundle dict or a list of bundles; both
     bundle kinds can be mixed in the same call. Patches are applied in
@@ -1320,8 +1324,13 @@ def apply_patch_and_run(
         else:  # PARAMETER_BUNDLE_KIND — _normalize guarantees one of the two
             prog = merge_skeleton_bundle(prog, patch)
 
-    out = _run_typed(prog)
-    out["merged_program"] = _program_to_ast_dict(prog)
+    # What a bundle added is held to every rule the program's own statements
+    # were, by reading the merged program the way ``run`` reads a program:
+    # a record is a statement once merged, and a statement no program could
+    # have been written with is not one a patch can add.
+    merged = _program_to_ast_dict(prog)
+    out = _run_typed(validate_program(validate_ast(merged)))
+    out["merged_program"] = merged
     return _leaving(out)
 
 

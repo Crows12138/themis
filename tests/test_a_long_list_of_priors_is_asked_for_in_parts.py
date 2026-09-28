@@ -21,7 +21,13 @@ What is held:
   refused before any model is asked, with the count, in the reader's
   words;
 - a real attribution question with five common causes, 101 rows, is
-  filled end to end through ``/api/assume`` and answered.
+  filled end to end through ``/api/assume`` and answered — asked for, now
+  that its two large distributions are tables (#791), as 18 numbers in one
+  call.
+
+The long lists below ask for ``x`` at one value and declare nothing, so
+no condition has a second value to give a ratio between: every row is a
+cell, and the packing is what is under test.
 """
 from __future__ import annotations
 
@@ -170,8 +176,10 @@ def _attribution_with_common_causes(k):
 
 
 def test_an_attribution_question_with_five_common_causes_is_answered(model):
-    """101 rows, where one call ran out, asked for in parts, and the kernel
-    answers."""
+    """101 rows, where one call ran out. Two distributions hold 96 of them —
+    y under x and the five causes, x under the five — and each is asked for
+    as a baseline and a ratio per cause, so the model is asked for 18
+    numbers in one call, and the kernel answers."""
     program = _attribution_with_common_causes(5)
     rows = web_app._probability_skeletons(themis.run(program)["results"][0])
     assert len(rows) == 101
@@ -181,15 +189,28 @@ def test_an_attribution_question_with_five_common_causes_is_answered(model):
     def create(**kwargs):
         with model.lock:
             model.sent.append(kwargs)
-        priors = [{"index": i, "value": 0.3 + (i % 5) / 10, "reason": f"r{i}"}
-                  for i in _rows_in(kwargs)]
+        content = kwargs["messages"][0]["content"]
+        asked = json.loads(content.split("leave none out:\n", 1)[1])
+        priors = [
+            {"index": r["index"],
+             "baseline": {"value": 0.2, "reason": f"b{r['index']}"},
+             "odds_ratios": [{"ratio": x["ratio"], "value": 1.5,
+                              "reason": f"or{x['ratio']}"} for x in r["ratios"]]}
+            if "table" in r else
+            {"index": r["index"], "value": 0.3 + (r["index"] % 5) / 10,
+             "reason": f"r{r['index']}"}
+            for r in asked]
         return SimpleNamespace(content=[SimpleNamespace(
             type="text", text=json.dumps({"priors": priors}))])
 
     model.create = create
     r = TestClient(web_app.app).post("/api/assume", json={"program": program})
     assert r.status_code == 200, r.text
-    assert len(model.sent) == -(-101 // PER_CALL)
+    assert len(model.sent) == 1
+    assert model.sent[0]["max_tokens"] == AROUND + 18 * EACH
     result = r.json()["results"][0]
     assert result["status"] == "counterfactual_bounded"
-    assert len(result["extensions"]["llm_proposed_review"]["probabilities"]) == 101
+    review = result["extensions"]["llm_proposed_review"]
+    assert len(review["probabilities"]) == 18
+    assert sorted(m["distribution"] for m in review["models"]) == [
+        "P(x | c0, c1, c2, c3, c4)", "P(y | c0, c1, c2, c3, c4, x)"]

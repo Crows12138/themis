@@ -15,7 +15,7 @@ while the reader got only the stage. That is the shape
 :mod:`themis.input.semantic_validator` had before its own species existed,
 and the door has read the carrier rather than a list of classes since.
 
-**One class, fifteen species, and that is the arrangement rather than a
+**One class, seventeen species, and that is the arrangement rather than a
 shortfall.** A caller catches the CHANNEL — this bridge did not produce
 what was asked of it — and reads the SPECIES off the exception. Nothing
 between here and the endpoint distinguishes them, and nothing should: the
@@ -23,11 +23,11 @@ retry loop in ``nl_to_kernel_ast`` retries a parse failure and re-raises a
 refusal, and it tells them apart by catching where it calls rather than by
 what was raised.
 
-Four audiences run through the fifteen, and naming them is what keeps the
+Four audiences run through the seventeen, and naming them is what keeps the
 wordings honest rather than uniform. A missing prompt file and an
 uninstalled SDK are for whoever runs this; a model that declined the
-question is for whoever asked it, and so is a graph missing more
-probabilities than a model is asked to estimate at once, which is refused
+question is for whoever asked it, and so is a graph needing more
+numbers estimated than a model is asked for at once, which is refused
 before any model is asked; a reply that was the wrong shape is for
 neither of them and has to say plainly that the model, not the person, is
 what did not deliver.
@@ -69,12 +69,11 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
     """
 
     TOO_MANY_PRIORS_TO_ASK_FOR = ("too_many_priors_to_ask_for", {
-        "zh": "这张图缺 {needed} 个概率，超过了一次最多请模型估的 {most} "
+        "zh": "这张图要请模型估 {needed} 个数，超过了一次最多估的 {most} "
               "个；删掉图里用不上的变量，或者补上数据，再试",
-        "en": "this graph is missing {needed} probabilities, more than the "
-              "{most} a model is asked to estimate at once; remove the "
-              "variables the graph does not need, or supply data, and try "
-              "again",
+        "en": "this graph needs {needed} numbers estimated, more than the "
+              "{most} a model is asked for at once; remove the variables "
+              "the graph does not need, or supply data, and try again",
     })
     A_PROMPT_IS_MISSING = ("a_prompt_is_missing", {
         "zh": "这一步要用的提示词文件不在它该在的地方：`{path}`",
@@ -152,4 +151,17 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
               "and nothing to say what it rests on; the number is shown to "
               "you as the model's estimate to review, and an estimate with "
               "no ground under it gives you nothing to review",
+    })
+    A_BASELINE_IS_AT_AN_END = ("a_baseline_is_at_an_end", {
+        "zh": "第 {index} 条的基线概率 {probability} 拿到的是 {value}；基线要"
+              "严格在 0 和 1 之间，各个优势比才乘得动它",
+        "en": "the baseline {probability} of entry {index} came back as "
+              "{value}; a baseline has to lie strictly between 0 and 1 for "
+              "the odds ratios to move it",
+    })
+    AN_ODDS_RATIO_IS_NOT_POSITIVE = ("an_odds_ratio_is_not_positive", {
+        "zh": "第 {index} 条的优势比 {probability} 拿到的是 {value}；优势比"
+              "是大于 0 的有限数",
+        "en": "the odds ratio {probability} of entry {index} came back as "
+              "{value}; an odds ratio is a finite number above 0",
     })

@@ -648,9 +648,18 @@ export interface ProposedProbability {
 // counted turned out to be a second record of it — no producer has filled the
 // key since, nothing here reads it, and a required field nobody sends is the
 // dangerous half of this file's claim: `undefined` typed as a string.
+// A table the AI gave as a baseline and odds ratios. Its numbers are rows of
+// `probabilities` like any other; this says which table they compose, and is
+// read here only to know that an `OR(…)` row needs saying how to read.
+export interface ProposedModel {
+  distribution: string
+  form: string
+  conditions: string[]
+}
 export interface LlmProposedReview {
   edges: ProposedEdge[]
   probabilities: ProposedProbability[]
+  models?: ProposedModel[]
 }
 
 // One step of the machine-verifiable chain, and the chain itself. `rule`
@@ -951,6 +960,9 @@ export const MIRRORS: Record<string, string[]> = {
   Occasion: ['statement.schema.json#/$defs/statement'],
   ProposedEdge: [
     '#/properties/extensions/properties/llm_proposed_review/properties/edges/items',
+  ],
+  ProposedModel: [
+    '#/properties/extensions/properties/llm_proposed_review/properties/models/items',
   ],
   ProposedProbability: [
     '#/properties/extensions/properties/llm_proposed_review/properties/probabilities/items',

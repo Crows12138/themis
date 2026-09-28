@@ -142,8 +142,12 @@ def extract_skeleton_bundle(results: Iterable[QueryResult]) -> dict:
 # ----------------------------------------------------------- merge
 
 def merge_skeleton_bundle(program: Program, filled_bundle: dict) -> Program:
-    """Return a new ``Program`` with the filled skeletons appended as
-    ``probabilityStatement`` records.
+    """Return a new ``Program`` with the filled records appended.
+
+    A record is a filled skeleton — a ``probabilityStatement`` — or a
+    ``probability_model`` stating the whole distribution several skeletons
+    are cells of, which is how a filler that knows a baseline and each
+    cause's effect answers them.
 
     Requirements on the bundle:
     - Shape matches what ``extract_skeleton_bundle`` emitted.
@@ -153,15 +157,15 @@ def merge_skeleton_bundle(program: Program, filled_bundle: dict) -> Program:
       may edit ``annotations`` (e.g. fill ``source``) but shouldn't
       reshape target / given.
 
-    Does NOT re-validate the new program against the ast schema here —
-    callers that want schema-level assurance should run
-    ``syntactic_validator.validate_ast`` on a round-tripped dict.
-    ``theta_builder`` will still catch conflicting entries downstream.
+    Does NOT validate the new program here: ``apply_patch_and_run``
+    holds the merged program to the schema and to every semantic rule
+    before it runs it.
     """
     skeletons = envelope(filled_bundle, kind=BUNDLE_KIND,
                          key=BUNDLE_RECORDS)
 
-    unfilled = [i for i, s in enumerate(skeletons) if s.get("value") is None]
+    unfilled = [i for i, s in enumerate(skeletons)
+                if s.get("kind") != "probability_model" and s.get("value") is None]
     if unfilled:
         raise UnfilledSkeletonError(unfilled)
 

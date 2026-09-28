@@ -25,9 +25,15 @@ honest choice, and the reason should say so.
 
 - The causal graph (a kernel program) so you understand each variable's
   role and the query being asked.
-- An enumerated list of the exact probabilities needed. Each is a
-  conditional `P(target | given)` or marginal `P(target)` over the
-  program's variables, with an `index`.
+- An enumerated list of what is needed, each entry with an `index`, in
+  one of two kinds:
+  - a `probability`: a conditional `P(target | given)` or marginal
+    `P(target)` over the program's variables;
+  - a `table`: one conditional distribution of a two-valued target over
+    two or more conditions, asked for the way a person knows it rather
+    than cell by cell — its `baseline`, the probability with every
+    condition at a reference value, and numbered `ratios`, one for each
+    other value of each condition.
 
 ## What you return
 
@@ -35,29 +41,41 @@ Raw JSON, no prose, no code fence:
 
 ```json
 {"priors": [
-  {"index": 0, "value": 0.7, "reason": "among people who keep eating their vegetables, a drop in blood pressure is a common outcome; about 0.7"},
-  {"index": 1, "value": 0.4, "reason": "the share of the general population that is health-conscious, roughly four in ten"}
+  {"index": 0, "value": 0.4, "reason": "the share of the general population that is health-conscious, roughly four in ten"},
+  {"index": 1,
+   "baseline": {"value": 0.1, "reason": "with neither habit, roughly one person in ten develops it"},
+   "odds_ratios": [{"ratio": 0, "value": 2.5, "reason": "a well-known risk factor, commonly reported to raise the odds two- to threefold"},
+                   {"ratio": 1, "value": 0.6, "reason": "mildly protective; the odds fall by around a third"}]}
 ]}
 ```
 
 Rules that actually matter:
 
-- One entry per index you were given — fill **all** of them, or the
-  kernel stays blocked on the ones you skip.
+- One entry per index you were given, and for a table every numbered
+  ratio — fill **all** of them, or the kernel stays blocked on the ones
+  you skip.
 - Write every `reason` in the language the request names. This document is
   in English whoever is reading the answer; the reader's language is said
-  once, in the request, and the reason is the one thing here they see.
-- `value` is a probability in `[0, 1]`. It is `P(target=<its value> |
-  given)` exactly as enumerated — respect the truth-value each row asks
-  for (a row for `P(X=false)` wants the complement).
-- Rows for the values of one variable under the same `given` are one
-  distribution and must sum to 1 — the kernel refuses them otherwise.
-  Rows under different `given` are different distributions and need not.
-- `reason` is one sentence a layperson can weigh — the ground for the
-  number, not a restatement of it.
+  once, in the request, and the reasons are the one thing here they see.
+- A `probability`'s `value` is in `[0, 1]` and is `P(target=<its value> |
+  given)` exactly as enumerated — respect the value each row asks for (a
+  row for `P(X=false)` wants the complement). Rows for the values of one
+  variable under the same `given` are one distribution and must sum to 1 —
+  the kernel refuses them otherwise; rows under different `given` are
+  different distributions and need not.
+- A table's `baseline` is a probability strictly between 0 and 1. Each
+  odds ratio is how many times the odds of the target — `p / (1 − p)` —
+  are multiplied when that one condition takes the named value instead of
+  its reference, the others staying where they are: 1 is no effect, above
+  1 makes the target more likely, below 1 less; it is always positive.
+  Give each condition's effect as common knowledge supports it on its own.
+  The table assumes each effect is the same whatever the other conditions
+  are, and the reader is told so beside your numbers.
+- Every `reason` is one sentence a layperson can weigh — the ground for
+  the number, not a restatement of it.
 
-If a requested probability is not something common knowledge can even
-roughly anchor (a highly specialized clinical rate, an organization's
-private metric), still return a midpoint value but say plainly in the
-reason that it is an uninformed placeholder — that honesty is what lets
-the user know to replace it first.
+If a requested number is not something common knowledge can even roughly
+anchor (a highly specialized clinical rate, an organization's private
+metric), still give a midpoint probability or a ratio of 1, but say
+plainly in the reason that it is an uninformed placeholder — that honesty
+is what lets the user know to replace it first.

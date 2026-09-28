@@ -67,6 +67,7 @@ display.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -502,34 +503,266 @@ _PRIOR_CALLS_AT_ONCE = 4
 _PRIOR_CALLS_AT_MOST = 8
 
 
-def _prior_calls(skeletons: list[dict]) -> list[list[int]]:
-    """The indices of ``skeletons``, as the calls they are asked for in.
+class _Table(NamedTuple):
+    """Rows of one conditional distribution, asked for as a model.
 
-    Rows are gathered by the distribution they belong to — one variable
-    under one condition, whose values must sum to one — in the order the
-    kernel listed them, and whole distributions are packed into as few
-    calls of at most ``_PRIORS_PER_CALL`` as the list needs, filled about
-    evenly, since the calls run side by side and the reader waits for the
-    largest. So the rows that must agree with each other are always written
-    by one reply; one distribution larger than a call goes alone rather
-    than be split.
+    ``given`` holds each condition at its reference value and ``ratios``
+    each condition at another, in the order the conditions and their
+    declared values come; ``rows`` are the skeletons it answers.
+    """
+    rows: tuple[int, ...]
+    target: dict
+    given: tuple[dict, ...]
+    ratios: tuple[dict, ...]
+    population: str | None
+
+
+def _numbers(request: "dict | _Table") -> int:
+    """How many numbers a request asks for: a cell is one, a table its
+    baseline and each of its ratios."""
+    return 1 + len(request.ratios) if isinstance(request, _Table) else 1
+
+
+def _valued_label(valued: dict) -> str:
+    return f"{_atom_label(valued.get('atom', {}))}={valued.get('value')}"
+
+
+def _table_repr(t: _Table) -> str:
+    conditions = ", ".join(_atom_label(g.get("atom", {})) for g in t.given)
+    return f"P({_atom_label(t.target.get('atom', {}))} | {conditions})"
+
+
+def _baseline_repr(t: _Table) -> str:
+    return (f"P({_valued_label(t.target)} | "
+            f"{', '.join(_valued_label(g) for g in t.given)})")
+
+
+def _reference_of(t: _Table, ratio: dict) -> dict:
+    return next(g for g in t.given if g.get("atom") == ratio.get("atom"))
+
+
+def _ratio_repr(t: _Table, j: int) -> str:
+    ratio = t.ratios[j]
+    return (f"OR({_valued_label(t.target)} | {_valued_label(ratio)}"
+            f"/{_reference_of(t, ratio).get('value')})")
+
+
+def _reference(domain: list) -> object:
+    """The value a condition's ratios are relative to: its absence where it
+    is a yes-or-no, and otherwise the first value it declares."""
+    return False if any(v is False for v in domain) else domain[0]
+
+
+def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
+    """The rows asked for as tables, keyed by the first row of each.
+
+    One conditional distribution — one target under the same conditions in
+    one population — is asked for as a baseline and an odds ratio for each
+    other value of each condition, rather than cell by cell, when it can
+    be: its target takes two values, as it declares or, declaring none, as
+    a yes-or-no; it has two conditions or more, since with one the table
+    is as many numbers either way; each condition has two values or more
+    to give a ratio between; and the program states none of its cells,
+    since a model states every cell and one already written would then be
+    stated twice.
+
+    A condition's values are the ones it declares, where it declares
+    them, since the model is held to a declaration; where it declares
+    none they are the values the kernel asks the table at, which are the
+    values it reads it at.
+
+    That is what a person knows of such a table — how common the target
+    is, and how much each condition moves it — and it is k + 1 numbers
+    where the cells are 2^k. What it assumes is said beside the answer.
+    """
+    statements = [s for s in program.get("statements") or ()
+                  if isinstance(s, dict)]
+    declared = {s.get("predicate"): list(s["domain"]) for s in statements
+                if s.get("kind") == "variable" and s.get("domain")}
+
+    def asked_at(rows: list[int], atom: object) -> list:
+        return list(dict.fromkeys(
+            g.get("value") for i in rows for g in skeletons[i].get("given") or ()
+            if g.get("atom") == atom))
+
+    def which(record: dict) -> tuple:
+        atom = json.dumps((record.get("target") or {}).get("atom"),
+                          sort_keys=True)
+        given = frozenset(json.dumps(g.get("atom"), sort_keys=True)
+                          for g in record.get("given") or ())
+        return atom, given, record.get("population")
+
+    stated = {which(s) for s in statements
+              if s.get("kind") in ("probability", "probability_model")}
+    groups: dict[tuple, list[int]] = {}
+    for i, sk in enumerate(skeletons):
+        groups.setdefault(which(sk), []).append(i)
+    tables: dict[int, _Table] = {}
+    for key, rows in groups.items():
+        first = skeletons[rows[0]]
+        target = first.get("target") or {}
+        given = list(first.get("given") or ())
+        target_values = declared.get(_atom_label(target.get("atom", {})))
+        two_valued = (len(target_values) == 2 if target_values is not None
+                      else isinstance(target.get("value"), bool))
+        domains = [declared.get(_atom_label(g.get("atom", {})))
+                   or asked_at(rows, g.get("atom")) for g in given]
+        if (len(given) < 2 or key in stated or not two_valued
+                or any(len(d) < 2 for d in domains)):
+            continue
+        references = [_reference(d) for d in domains]
+        tables[rows[0]] = _Table(
+            rows=tuple(rows),
+            target={"atom": target.get("atom"), "value": target.get("value")},
+            given=tuple({"atom": g.get("atom"), "value": ref}
+                        for g, ref in zip(given, references)),
+            ratios=tuple({"atom": g.get("atom"), "value": v}
+                         for g, d, ref in zip(given, domains, references)
+                         for v in d
+                         if not (v == ref and type(v) is type(ref))),
+            population=first.get("population"),
+        )
+    return tables
+
+
+def _prior_calls(requests: list) -> list[list[int]]:
+    """The indices of ``requests``, as the calls they are asked for in.
+
+    A request is a skeleton or a :class:`_Table`. Skeletons are gathered by
+    the distribution they belong to — one variable under one condition,
+    whose values must sum to one — in the order the kernel listed them; a
+    table is a distribution of its own. Whole distributions are packed into
+    as few calls of at most ``_PRIORS_PER_CALL`` numbers as the list needs,
+    filled about evenly, since the calls run side by side and the reader
+    waits for the largest. So the numbers that must agree with each other
+    are always written by one reply; one distribution larger than a call
+    goes alone rather than be split.
     """
     distributions: dict[tuple, list[int]] = {}
-    for i, sk in enumerate(skeletons):
-        target = _atom_label((sk.get("target") or {}).get("atom", {}))
-        given = tuple(sorted(
-            (_atom_label(g.get("atom", {})), repr(g.get("value")))
-            for g in sk.get("given") or []))
-        distributions.setdefault((target, given), []).append(i)
-    parts = -(-len(skeletons) // _PRIORS_PER_CALL)
-    size = -(-len(skeletons) // parts) if parts else 0
+    for i, request in enumerate(requests):
+        if isinstance(request, _Table):
+            key: tuple = ("table", i)
+        else:
+            target = _atom_label((request.get("target") or {}).get("atom", {}))
+            key = (target, tuple(sorted(
+                (_atom_label(g.get("atom", {})), repr(g.get("value")))
+                for g in request.get("given") or [])))
+        distributions.setdefault(key, []).append(i)
+    total = sum(_numbers(r) for r in requests)
+    parts = -(-total // _PRIORS_PER_CALL)
+    size = -(-total // parts) if parts else 0
     calls: list[list[int]] = []
+    loads: list[int] = []
     for rows in distributions.values():
-        if calls and len(calls[-1]) + len(rows) <= size:
+        load = sum(_numbers(requests[i]) for i in rows)
+        if calls and loads[-1] + load <= size:
             calls[-1].extend(rows)
+            loads[-1] += load
         else:
             calls.append(list(rows))
+            loads.append(load)
     return calls
+
+
+def _request(i: int, request: "dict | _Table") -> dict:
+    """One request as the model is shown it, under its index."""
+    if isinstance(request, _Table):
+        return {
+            "index": i,
+            "table": _table_repr(request),
+            "baseline": _baseline_repr(request),
+            "ratios": [{"ratio": j, "condition": _valued_label(r),
+                        "against": _valued_label(_reference_of(request, r))}
+                       for j, r in enumerate(request.ratios)],
+        }
+    return {"index": i, "probability": _prob_key_repr(request)}
+
+
+def _number(i: int, entry: object, label: str) -> float:
+    """The number a reply gave one parameter, or the refusal that says it
+    gave none."""
+    if not isinstance(entry, dict):
+        raise LLMBridgeError(
+            Bridge.A_PROBABILITY_GOT_NO_PRIOR, index=i, probability=label)
+    raw = entry.get("value")
+    try:
+        if not isinstance(raw, (bool, int, float, str)):
+            # Absent or structured: the same failure as a non-numeric
+            # string, and the handler below says so once for both.
+            raise TypeError(type(raw).__name__)
+        return float(raw)
+    except (TypeError, ValueError) as exc:
+        raise LLMBridgeError(
+            Bridge.A_PRIOR_IS_NOT_A_NUMBER, index=i, value=raw) from exc
+
+
+def _reason(i: int, entry: dict, label: str) -> str:
+    # Refused rather than filled in. ``annotations.source`` is required
+    # non-empty on an ``llm_prior`` — the checker's own note says an
+    # empty one would let a fabricated number through undisclosed — and
+    # a constant written here satisfies that check while disclosing
+    # nothing, which is the check defeated rather than met. It is also
+    # the one text in this module a reader would meet that no reader's
+    # language could be chosen for: the reason beside every other prior
+    # is the model's, and this one would have been ours.
+    reason = str(entry.get("reason") or "").strip()
+    if not reason:
+        raise LLMBridgeError(
+            Bridge.A_PRIOR_CAME_WITH_NO_REASON, index=i, probability=label)
+    return reason
+
+
+def _cell_from(i: int, skeleton: dict, reply: dict | None) -> dict:
+    label = _prob_key_repr(skeleton)
+    value = _number(i, reply, label)
+    if not (0.0 <= value <= 1.0):
+        raise LLMBridgeError(
+            Bridge.A_PRIOR_IS_NOT_A_PROBABILITY, index=i, value=value)
+    assert reply is not None  # _number refuses a missing entry
+    out = dict(skeleton)
+    out["value"] = value
+    out["provenance"] = "llm_prior"
+    out["annotations"] = {"source": _reason(i, reply, label)}
+    return out
+
+
+def _model_from(i: int, table: _Table, reply: dict | None) -> dict:
+    """The ``probability_model`` a reply to a table states, every
+    parameter with its own reason."""
+    if reply is None:
+        raise LLMBridgeError(Bridge.A_PROBABILITY_GOT_NO_PRIOR,
+                             index=i, probability=_table_repr(table))
+    entry = reply.get("baseline")
+    label = _baseline_repr(table)
+    baseline = _number(i, entry, label)
+    if not (0.0 < baseline < 1.0):
+        raise LLMBridgeError(Bridge.A_BASELINE_IS_AT_AN_END,
+                             index=i, probability=label, value=baseline)
+    assert isinstance(entry, dict)  # _number refuses anything else
+    given = {r.get("ratio"): r for r in reply.get("odds_ratios") or ()
+             if isinstance(r, dict)}
+    ratios = []
+    for j, ratio in enumerate(table.ratios):
+        label_j = _ratio_repr(table, j)
+        value = _number(i, given.get(j), label_j)
+        if not (value > 0.0 and math.isfinite(value)):
+            raise LLMBridgeError(Bridge.AN_ODDS_RATIO_IS_NOT_POSITIVE,
+                                 index=i, probability=label_j, value=value)
+        ratios.append({**ratio, "odds_ratio": value,
+                       "annotations": {"source": _reason(i, given[j], label_j)}})
+    model = {
+        "kind": "probability_model",
+        "form": "odds_ratios",
+        "provenance": "llm_prior",
+        "target": table.target,
+        "given": list(table.given),
+        "baseline": {"value": baseline,
+                     "annotations": {"source": _reason(i, entry, label)}},
+        "odds_ratios": ratios,
+    }
+    if table.population is not None:
+        model["population"] = table.population
+    return model
 
 
 def propose_theta_priors(
@@ -543,29 +776,39 @@ def propose_theta_priors(
     """Ask the LLM for a common-knowledge prior for each missing probability.
 
     ``skeletons`` are the ``kind == "probability"`` records the kernel
-    emitted in ``investigation_requests`` (value == null). Returns the same
-    skeletons, in the same order, each with ``value`` filled, ``provenance``
-    set to ``"llm_prior"``, and ``annotations.source`` carrying the model's
-    one-line reason — i.e. ready to drop into a ``parameter_fill_bundle``.
+    emitted in ``investigation_requests`` (value == null). Returns the
+    records to drop into a ``parameter_fill_bundle``, in the order of the
+    skeletons: each skeleton with ``value`` filled, ``provenance`` set to
+    ``"llm_prior"`` and ``annotations.source`` carrying the model's one-line
+    reason — or, where the skeletons are cells of a distribution asked for
+    as a table (:func:`_tables`), one ``probability_model`` in their place,
+    where the first of them was, every parameter with its own reason.
 
     The disclosure is the kernel's job: every ``llm_prior`` value surfaces in
     ``extensions.llm_proposed_review`` so the answer says which numbers are
-    assumed. This bridge only sources the numbers; it never hides them.
+    assumed, and a table's form is a line of the assumption ledger. This
+    bridge only sources the numbers; it never hides them.
 
     Which is why the reason is asked for in the reader's language, the way
     the reply is: it is not a note this bridge keeps, it is the ground the
     person is shown beside a number they are being asked to review.
 
     A long list is asked for in parts (:func:`_prior_calls`), each call
-    sent the whole graph and its own rows under their indices in the whole
-    list, and the parts are asked side by side.
+    sent the whole graph and its own requests under their indices in the
+    whole list, and the parts are asked side by side.
     """
     if not skeletons:
         return []
-    calls = _prior_calls(skeletons)
+    tables = _tables(program, skeletons)
+    tabled = {i for t in tables.values() for i in t.rows}
+    requests: list[dict | _Table] = [
+        tables.get(i, sk) for i, sk in enumerate(skeletons)
+        if i in tables or i not in tabled]
+    calls = _prior_calls(requests)
     if len(calls) > _PRIOR_CALLS_AT_MOST:
         raise LLMBridgeError(
-            Bridge.TOO_MANY_PRIORS_TO_ASK_FOR, needed=len(skeletons),
+            Bridge.TOO_MANY_PRIORS_TO_ASK_FOR,
+            needed=sum(_numbers(r) for r in requests),
             most=_PRIORS_PER_CALL * _PRIOR_CALLS_AT_MOST)
     system = _load_system_prompt(_PROMPT_PROPOSE_PRIORS)
     client = _client(api_key)
@@ -574,20 +817,18 @@ def propose_theta_priors(
         f"Write every reason in {language.endonym(lang)}.\n\n"
         "The causal graph (kernel program):\n"
         + json.dumps(program, ensure_ascii=False, indent=2)
-        + "\n\nThe probabilities that need a prior. Fill in value and "
-        "reason for every index; leave none out:\n"
+        + "\n\nThe numbers that need a prior. Fill in every index, and "
+        "every ratio of a table; leave none out:\n"
     )
 
     def ask(rows: list[int]) -> dict[int, dict]:
-        enumerated = [
-            {"index": i, "probability": _prob_key_repr(skeletons[i])}
-            for i in rows
-        ]
+        enumerated = [_request(i, requests[i]) for i in rows]
         user_msg = frame + json.dumps(enumerated, ensure_ascii=False, indent=2)
         msg = _ask_model(
             client,
             model=model,
-            max_tokens=_PRIOR_TOKENS_AROUND + _PRIOR_TOKENS_EACH * len(rows),
+            max_tokens=_PRIOR_TOKENS_AROUND + _PRIOR_TOKENS_EACH * sum(
+                _numbers(requests[i]) for i in rows),
             system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
@@ -615,46 +856,9 @@ def propose_theta_priors(
     for reply in replies:
         by_index.update(reply)
 
-    filled: list[dict] = []
-    for i, sk in enumerate(skeletons):
-        p = by_index.get(i)
-        if p is None:
-            raise LLMBridgeError(
-                Bridge.A_PROBABILITY_GOT_NO_PRIOR,
-                index=i, probability=_prob_key_repr(sk))
-        try:
-            raw_value = p.get("value")
-            if not isinstance(raw_value, (bool, int, float, str)):
-                # Absent or structured: the same failure as a non-numeric
-                # string, and the handler below says so once for both.
-                raise TypeError(type(raw_value).__name__)
-            value = float(raw_value)
-        except (TypeError, ValueError) as exc:
-            raise LLMBridgeError(
-                Bridge.A_PRIOR_IS_NOT_A_NUMBER,
-                index=i, value=p.get("value")) from exc
-        if not (0.0 <= value <= 1.0):
-            raise LLMBridgeError(
-                Bridge.A_PRIOR_IS_NOT_A_PROBABILITY, index=i, value=value)
-        # Refused rather than filled in. ``annotations.source`` is required
-        # non-empty on an ``llm_prior`` — the checker's own note says an
-        # empty one would let a fabricated number through undisclosed — and
-        # a constant written here satisfies that check while disclosing
-        # nothing, which is the check defeated rather than met. It is also
-        # the one text in this module a reader would meet that no reader's
-        # language could be chosen for: the reason beside every other prior
-        # is the model's, and this one would have been ours.
-        reason = str(p.get("reason") or "").strip()
-        if not reason:
-            raise LLMBridgeError(
-                Bridge.A_PRIOR_CAME_WITH_NO_REASON,
-                index=i, probability=_prob_key_repr(sk))
-        out = dict(sk)
-        out["value"] = value
-        out["provenance"] = "llm_prior"
-        out["annotations"] = {"source": reason}
-        filled.append(out)
-    return filled
+    return [_model_from(i, r, by_index.get(i)) if isinstance(r, _Table)
+            else _cell_from(i, r, by_index.get(i))
+            for i, r in enumerate(requests)]
 
 
 def ask(

@@ -15,6 +15,13 @@ const SAYS = {
   },
   numbersHead: { zh: '估的数值 · {n} 项', en: 'Estimated numbers · {n}' },
   edgesHead: { zh: 'AI 提议的因果边 · {n} 条', en: 'AI-proposed causal edges · {n}' },
+  // How to read an `OR(…)` row, which a table the AI gave as a baseline and
+  // odds ratios puts among the numbers. What that form assumes is a line of
+  // the assumption ledger, shown with the others, and is not said again here.
+  oddsRatio: {
+    zh: '优势比 OR(y=甲 | x=乙/丙)：其他条件不变，x 取乙而不是丙时，y=甲 的优势（发生的概率 ÷ 不发生的概率）乘以这个数。1 是没有影响，大于 1 更容易发生，小于 1 更不容易。',
+    en: 'An odds ratio OR(y=a | x=b/c): with the other conditions unchanged, x at b rather than c multiplies the odds of y=a (its probability ÷ the probability it does not happen) by this number. 1 is no effect, above 1 more likely, below 1 less likely.',
+  },
 } satisfies Record<string, Words>
 
 /**
@@ -30,6 +37,7 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
   const lang = useLang()
   const edges = review.edges ?? []
   const probs = review.probabilities ?? []
+  const models = review.models ?? []
   if (!edges.length && !probs.length) return null
 
   const parts: string[] = []
@@ -49,6 +57,7 @@ export function ProposedReview({ review }: { review: LlmProposedReview }) {
         {probs.length ? (
           <div className="proposed__group">
             <span className="proposed__grouphd">{fill(SAYS.numbersHead, lang, { n: probs.length })}</span>
+            {models.length ? <p className="proposed__intro">{fill(SAYS.oddsRatio, lang)}</p> : null}
             <div className="proposed__table">
               {probs.map((p, i) => (
                 <div className="proposed__row" key={i}>
