@@ -229,7 +229,8 @@ intermediate step is a different question and stays with mediation.
 / dose-response" ask for a **curve** `E[Y|do(X=x)]` over varying x.
 Themis doesn't compute curves — that's regression-engine territory
 (EconML / DoubleML / GAM). Emit a closest-fit binary `effect` query
-for Themis to validate (e.g. X=high vs X=low at sensible thresholds)
+for Themis to validate (X at a high value against a low one, both
+values of X itself)
 AND flag `dose_response_query` in `extensions.ambiguities`. The
 kernel's `dose_response_data_required` gap_kind will list the data
 spec the user needs to fit the curve elsewhere — sampling points,
@@ -259,6 +260,14 @@ When to omit `domain`:
 When in doubt, prefer omitting `domain` over declaring bool.
 `themis.estimate` handles either, but bool weakens the eventual
 point estimate.
+
+A quantity is one predicate, however the question speaks of it. The
+levels a question contrasts — more or fewer, high or low — are values of
+that predicate, written as the query's `value` (and as its `domain`
+where the question names them); where the cut between them lies is the
+`threshold` framing field. A second predicate computed from the first
+would be a child of it with nothing downstream, and a query that set it
+would ask what relabelling does rather than what the quantity does.
 
 **Leave framing fields unset** (`time_window`, `measurement`,
 `threshold`, `observability`, `direction`, `baseline`,
@@ -386,15 +395,24 @@ connection the graph does not show, and is what must not be left out —
 a behavior people choose, or a condition they come to have, usually
 has several.
 
+**X's own link to Y.** Whether X acts on Y at all is itself a claim the
+graph makes: a path from X to Y says it does, and no path says it has no
+effect whatever. An edge carries no direction of effect — X raising Y
+and X lowering Y are drawn alike — so draw X's link wherever domain
+knowledge holds that X moves Y either way, and leave it out only where
+it holds that X does not. An association that X's common causes with Y
+explain decides nothing here: those causes are drawn in both cases, and
+X's own link stands or falls on what X itself does.
+
 **Mechanism steps and other causes of Y.** Also draw the steps the
 mechanism runs through when domain knowledge names them (`X → M → Y`,
 keeping a direct `X → Y` where part of the effect plausibly bypasses
 them), and the other major causes of Y. They show the reader what else
 moves the outcome and cost the answer nothing: the kernel decides from
 the graph what to adjust for, and does not adjust for a mediator or a
-collider because you drew one. A step drawn between X and Y says X does
-reach Y through it, which is what most questions ask, so draw one only
-where the domain's evidence holds that X acts through it.
+collider because you drew one. A step drawn between X and Y says X acts
+on Y through it, so draw one only where the domain's evidence holds that
+X acts through it.
 
 Each variable earns its place by one of these roles in this question; a
 factor with no bearing on X or Y does not. A common cause drawn is safe
@@ -1002,7 +1020,7 @@ the matching `kind`:
 | `reciprocal_causation` | User names both directions as plausible — see §5a (special) |
 | `counterfactual_query` | The NL is a counterfactual the kernel's Layer-3 fragment cannot directly evaluate — *only* set when you compressed to a non-counterfactual proxy (see "When to compress" below). Default for clean individual counterfactuals is to emit `kind: counterfactual` directly; the kernel answers with the Tian-Pearl interval (`counterfactual_bounded`), narrowing to a point where monotonicity is granted, and that interval is the geometrically correct answer — not a `counterfactual_query` ambiguity flag |
 | `mechanism_vs_existence` | NL asks 为什么 / 通过什么机制 — wants the mechanism chain, not whether a path exists. Draw the chain (§3 opening) and ask `effect`; the response layer will acknowledge the mechanism gap |
-| `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X=high vs X=low at sensible thresholds) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |
+| `dose_response_query` | NL asks "X 让 Y 升 / 降多少 / 多大 / X 和 Y 的关系图 / 从 X1 到 X2 时 Y 怎么变 / 关系曲线 / dose-response" — wants the dose-response curve `E[Y|do(X=x)]` as a function of x. Themis is a validator + diagnostician, not a regression engine — it doesn't compute curves. Emit a closest-fit binary `effect` query (X at a high value against a low one, both values of X itself) for Themis to validate AND flag this ambiguity. The kernel emits a `dose_response_data_required` gap_kind that lists the data spec (X sampling points / per-point sample size / confounders / time window / SUTVA concerns) so the user can fit the curve in EconML / DoubleML / GAM externally |
 | `individual_vs_population` | Narrative gives a population-average effect ("平均降压 10"), question asks about an individual ("对我有效吗") |
 | `iv_validity` | Used IV; declaring assumption Z satisfies IV1/IV2/IV3 |
 | `mediation_intermediate_confounder` | M4 violation flagged in §3 mediation |

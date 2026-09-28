@@ -22,11 +22,13 @@ is one entry, and the other variables that shape the exposure and the
 outcome belong in the list as well.
 
 A mediator is a different kind of entry from the other two. Listing one
-says the exposure does reach the outcome, through it — which is what the
-question asks. So list a mediator only where the domain's evidence holds
-that the exposure acts through it; a route that sounds plausible, or that
-people commonly believe, but that the evidence does not bear out is not
-one, and where no route is established the list has no mediators.
+says the exposure acts on the outcome through it — raising it or lowering
+it; which way is not something a mediator says, and a route that runs
+against what the question suspects is still a route. So list a mediator
+only where the domain's evidence holds that the exposure acts through it;
+a route that sounds plausible, or that people commonly believe, but that
+the evidence does not bear out is not one, and where no route is
+established the list has no mediators.
 
 Each entry is one variable someone could in principle measure. Two names
 for one quantity, or a variable and a measure of it, are one entry; the
