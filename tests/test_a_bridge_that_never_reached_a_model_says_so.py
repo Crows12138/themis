@@ -231,9 +231,11 @@ def _program_missing_its_numbers():
     }
 
 
-#: Every door that talks to a model, and the stage each attributes to.
+#: Every door that talks to a model, and the stage each attributes to —
+#: the step the door takes first, which is the one a model that never
+#: answers stops it at. A question is listed before it is drawn.
 DOORS = [
-    ("/api/ask", {"nl": "x 导致 y 吗"}, "nl_to_kernel_ast"),
+    ("/api/ask", {"nl": "x 导致 y 吗"}, "variables_to_consider"),
     ("/api/revise", {"nl": "x 导致 y 吗",
                      "program": _program_missing_its_numbers(),
                      "correction": "z 不是混杂"}, "revise_kernel_ast"),

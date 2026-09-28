@@ -386,19 +386,15 @@ connection the graph does not show, and is what must not be left out —
 a behavior people choose, or a condition they come to have, usually
 has several.
 
-**Mechanism steps and other causes of Y, where the query uses them.**
-On a question of how X changes Y in general (`effect`, `identify`,
-`assoc`), also draw the steps the mechanism runs through when domain
-knowledge names them (`X → M → Y`, keeping a direct `X → Y` where part
-of the effect plausibly bypasses them), and the other major causes of Y.
-They show the reader what else moves the outcome and cost the answer
-nothing: the kernel decides from the graph what to adjust for, and does
-not adjust for a mediator or a collider because you drew one. A
-counterfactual or attribution question about one person is different.
-There the kernel asks for Y's distribution under every combination of
-Y's direct causes, so each mechanism step or cause of Y alone multiplies
-the data asked for and leaves the answer as it was: draw X, Y and their
-common causes.
+**Mechanism steps and other causes of Y.** Also draw the steps the
+mechanism runs through when domain knowledge names them (`X → M → Y`,
+keeping a direct `X → Y` where part of the effect plausibly bypasses
+them), and the other major causes of Y. They show the reader what else
+moves the outcome and cost the answer nothing: the kernel decides from
+the graph what to adjust for, and does not adjust for a mediator or a
+collider because you drew one. A step drawn between X and Y says X does
+reach Y through it, which is what most questions ask, so draw one only
+where the domain's evidence holds that X acts through it.
 
 Each variable earns its place by one of these roles in this question; a
 factor with no bearing on X or Y does not. A common cause drawn is safe
@@ -1046,6 +1042,30 @@ Two distinctions decide which statement is right:
   steps is refused.
 
 ---
+
+## When the question comes with variables to consider
+
+The question may arrive as an object rather than as text: `question` is
+the reader's question as they wrote it, and `variables_to_consider` is a
+list an earlier step drew up from domain knowledge — not the reader. It
+names the exposure and the outcome and lists candidates by the role each
+would play: common causes, other causes of the outcome, mediators.
+
+The list is the brainstorm §3 asks for, begun ahead of you: draw every
+entry in the role it is listed under. A common cause gets an edge into
+the exposure and one into the outcome; another cause of the outcome gets
+an edge into the outcome; a mediator sits between them, exposure → M →
+outcome, with the direct edge kept where part of the effect plausibly
+bypasses it. Each entry is a variable of this graph, named and declared
+as §2 says, and each of its edges is your proposal (`llm_proposal`),
+since the reader said none of it.
+
+What the list does not do is read the question. The query is what §1
+reads from `question`, and what the reader states or denies there stands
+over the list. An entry naming the same quantity as another, or as the
+exposure or the outcome, is drawn once; one that cannot be a variable of
+this question is left out. The list is where §3's brainstorm starts, not
+where it has to stop.
 
 ## When a program is followed by another turn
 

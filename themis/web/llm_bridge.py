@@ -3,8 +3,11 @@
 Sits OUTSIDE the kernel by design. Themis itself never calls an LLM;
 this module is web-side glue that:
 
-1. Loads ``themis/prompts/nl_to_kernel_ast.md`` as the system prompt.
-2. Asks the LLM to emit one kernel_ast JSON for the user's NL.
+1. Asks the LLM, under ``themis/prompts/variables_to_consider.md``, for
+   the variables the user's question has to consider.
+2. Loads ``themis/prompts/nl_to_kernel_ast.md`` as the system prompt and
+   asks the LLM to emit one kernel_ast JSON for the user's NL, with that
+   list beside it.
 3. Runs ``themis.run`` on the emitted JSON.
 4. Loads ``themis/prompts/response_rendering.md``, feeds the structured
    result back, and asks the LLM for a reply in the language the caller
@@ -80,6 +83,7 @@ from themis.output import bounded_view
 from .bridge_words import Bridge
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
+_PROMPT_CONSIDER = _REPO_ROOT / "themis" / "prompts" / "variables_to_consider.md"
 _PROMPT_NL_TO_AST = _REPO_ROOT / "themis" / "prompts" / "nl_to_kernel_ast.md"
 _PROMPT_RENDER = _REPO_ROOT / "themis" / "prompts" / "response_rendering.md"
 _PROMPT_PROPOSE_PRIORS = _REPO_ROOT / "themis" / "prompts" / "propose_theta_priors.md"
@@ -286,19 +290,70 @@ def _extract_first_json_object(text: str) -> dict:
             complaint=exc, payload=raw[:200]) from exc
 
 
-def nl_to_kernel_ast(
+def variables_to_consider(
     nl: str,
     *,
     api_key: str | None = None,
     model: str | None = None,
     max_attempts: int = 3,
 ) -> dict:
-    """Turn one NL question into a kernel_ast dict via the project's
-    canonical prompt. Returns the dict the LLM emits — caller runs
-    ``themis.run`` on it.
+    """The variables a careful reader of the domain would have a graph of
+    ``nl`` consider, listed before any graph is drawn.
+
+    Asked of its own call because the translation, asked to do it too,
+    does not. Measured on the demo's model: a question known for one
+    answer — a correlation explained by one hidden common cause — was
+    drawn with that cause and nothing else in nine translations of nine,
+    and three rewordings of the prompt and a thinking budget left it
+    there, while a call asked only to list the domain's variables named
+    the rest of it. A common cause left out of a graph biases the answer,
+    and nothing downstream can see what is missing.
+
+    Retried on a reply that does not parse, as a program is.
     """
-    return _program_from([{"role": "user", "content": nl}], api_key=api_key,
-                         model=model, max_attempts=max_attempts)
+    system = _load_system_prompt(_PROMPT_CONSIDER)
+    client = _client(api_key)
+    model = model or _endpoint(api_key).model
+    last_parse_err: LLMBridgeError | None = None
+    for _ in range(max(1, max_attempts)):
+        msg = _ask_model(client, model=model, max_tokens=2000, system=system,
+                         messages=[{"role": "user", "content": nl}])
+        text = "".join(
+            b.text for b in msg.content if getattr(b, "type", None) == "text")
+        try:
+            return _extract_first_json_object(text)
+        except LLMBridgeError as exc:
+            last_parse_err = exc
+    raise last_parse_err  # type: ignore[misc]  # set once the loop ran ≥1 time
+
+
+def _question(nl: str, considered: dict | None) -> str:
+    """The turn a program is written from: the question, and beside it the
+    variables to consider where a list was drawn up — as one object, so
+    that the prompt can tell the reader's words from the list by the
+    turn's form (its section "When the question comes with variables to
+    consider")."""
+    if considered is None:
+        return nl
+    return json.dumps({"question": nl, "variables_to_consider": considered},
+                      ensure_ascii=False)
+
+
+def nl_to_kernel_ast(
+    nl: str,
+    *,
+    considered: dict | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    max_attempts: int = 3,
+) -> dict:
+    """Turn one NL question into a kernel_ast dict via the project's
+    canonical prompt, with ``considered`` — what
+    :func:`variables_to_consider` listed — beside it where there is one.
+    Returns the dict the LLM emits — caller runs ``themis.run`` on it.
+    """
+    return _program_from([{"role": "user", "content": _question(nl, considered)}],
+                         api_key=api_key, model=model, max_attempts=max_attempts)
 
 
 def revise_kernel_ast(
@@ -341,11 +396,16 @@ def repair_kernel_ast(
     program: dict,
     refusal: BaseException,
     *,
+    considered: dict | None = None,
     api_key: str | None = None,
     model: str | None = None,
     max_attempts: int = 3,
 ) -> dict:
     """The program ``nl`` was read as, with what the kernel refused mended.
+
+    The exchange opens with the turn the program was written from, the
+    list beside the question included, so that the model mends the reading
+    it made rather than one of a shorter question.
 
     A program the kernel refuses was a reading with a slip in its form — a
     key a declaration does not take, a statement of no kind the language
@@ -364,7 +424,7 @@ def repair_kernel_ast(
                               refusal.words, lang=language.Lang.EN)
             if isinstance(refusal, language.Voiced) else str(refusal))
     return _program_from([
-        {"role": "user", "content": nl},
+        {"role": "user", "content": _question(nl, considered)},
         {"role": "assistant",
          "content": json.dumps(program, ensure_ascii=False)},
         {"role": "user",
@@ -868,7 +928,8 @@ def ask(
     api_key: str | None = None,
     model: str | None = None,
 ) -> dict:
-    """End-to-end: NL → kernel_ast → themis.run → a reply in ``lang``.
+    """End-to-end: NL → the variables to consider → kernel_ast →
+    themis.run → a reply in ``lang``.
 
     Returns ``{nl, kernel_ast, envelope, reply}``. Bridge-layer errors
     propagate as ``LLMBridgeError``; semantic errors from
@@ -881,7 +942,9 @@ def ask(
     """
     import themis
 
-    kernel_ast = nl_to_kernel_ast(nl, api_key=api_key, model=model)
+    considered = variables_to_consider(nl, api_key=api_key, model=model)
+    kernel_ast = nl_to_kernel_ast(nl, considered=considered, api_key=api_key,
+                                  model=model)
     envelope = themis.run(kernel_ast)
     reply = render_reply(envelope, nl=nl, lang=lang, api_key=api_key,
                          model=model)

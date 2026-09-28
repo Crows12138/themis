@@ -86,6 +86,11 @@ STAGE: dict[str, language.Words] = {
         "zh": "说出这个结果回答的是哪个问题，这一步没有成功",
         "en": "saying which question this result answers did not succeed",
     },
+    "variables_to_consider": {
+        "zh": "列出这个问题要考虑哪些变量，这一步没有成功",
+        "en": "listing the variables this question has to consider did not "
+              "succeed",
+    },
     "nl_to_kernel_ast": {
         "zh": "把这个问题变成因果图没有成功（已重试三次）",
         "en": "turning this question into a causal graph did not succeed "

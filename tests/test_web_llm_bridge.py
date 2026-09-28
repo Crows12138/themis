@@ -6,6 +6,7 @@ is the user's responsibility to verify when they paste a key.
 """
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -46,6 +47,25 @@ def _make_message(text: str):
     """Mimic anthropic.types.Message.content = [TextBlock(...)]."""
     block = SimpleNamespace(type="text", text=text)
     return SimpleNamespace(content=[block])
+
+
+#: The system prompt of the call that lists a question's variables, and
+#: what the fakes below answer it with.
+LISTING = llm_bridge._PROMPT_CONSIDER.read_text(encoding="utf-8")
+LISTED = {"exposure": "x", "outcome": "y", "common_causes": [],
+          "other_causes_of_outcome": [], "mediators": []}
+
+
+def _listing_answered(create):
+    """``create`` for every call but the one listing the variables to
+    consider, which is answered with :data:`LISTED`. Every question takes
+    that step first now, and it is not what the tests handing ``create``
+    in are about."""
+    def answer(**kwargs):
+        if kwargs.get("system") == LISTING:
+            return _make_message(json.dumps(LISTED))
+        return create(**kwargs)
+    return answer
 
 
 # ============================================ unit: JSON extractor
@@ -218,7 +238,7 @@ def test_ask_full_pipeline_mocked(monkeypatch):
             return _make_message("一句话中文回复。")
 
     fake_client = SimpleNamespace(
-        messages=SimpleNamespace(create=fake_messages_create),
+        messages=SimpleNamespace(create=_listing_answered(fake_messages_create)),
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
@@ -233,9 +253,8 @@ def test_ask_full_pipeline_mocked(monkeypatch):
 def test_ask_surfaces_llm_refusal(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
     fake_client = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=lambda **kw: _make_message('{"error": "question is unfalsifiable"}')
-        ),
+        messages=SimpleNamespace(create=_listing_answered(
+            lambda **kw: _make_message('{"error": "question is unfalsifiable"}'))),
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
@@ -261,7 +280,7 @@ def test_api_ask_happy_path(monkeypatch):
         return _make_message("回复：x 导致 y。")
 
     fake_client = SimpleNamespace(
-        messages=SimpleNamespace(create=fake_create),
+        messages=SimpleNamespace(create=_listing_answered(fake_create)),
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
@@ -280,9 +299,8 @@ def test_api_ask_attributes_stage_on_failure(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
     fake_client = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=lambda **kw: _make_message("not even close to JSON")
-        ),
+        messages=SimpleNamespace(create=_listing_answered(
+            lambda **kw: _make_message("not even close to JSON"))),
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
@@ -306,9 +324,8 @@ def test_api_ask_attributes_themis_run_failure(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
     fake_client = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=lambda **kw: _make_message('{"version": "0.1"}')  # missing domain
-        ),
+        messages=SimpleNamespace(create=_listing_answered(
+            lambda **kw: _make_message('{"version": "0.1"}'))),  # missing domain
     )
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
@@ -342,7 +359,7 @@ def test_api_ask_transport_failure_blamed_on_nl_stage(monkeypatch):
 
     fake_client = SimpleNamespace(
         base_url="http://127.0.0.1:9/",
-        messages=SimpleNamespace(create=boom))
+        messages=SimpleNamespace(create=_listing_answered(boom)))
     monkeypatch.setattr(llm_bridge, "_client", lambda api_key=None: fake_client)
 
     r = client.post("/api/ask", json={"nl": "x"})

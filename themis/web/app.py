@@ -315,14 +315,21 @@ COVERED_BY = {
 
 @app.post("/api/ask")
 def api_ask(req: AskRequest):
-    """End-to-end NL → kernel_ast → run → reply via the LLM bridge.
+    """End-to-end NL → the variables to consider → kernel_ast → run →
+    reply via the LLM bridge.
 
     Returns ``{nl, kernel_ast, envelope, reply}`` on success. On any
     failure (missing API key, LLM refusal, kernel semantic rejection,
     network error) returns 400 with ``{stage, error, message}`` so the
     UI can pinpoint where in the pipeline things broke.
+
+    The variables are listed once, before the first program, and every
+    program written for this question is written with that list beside
+    it. A list that could not be drawn up refuses the question rather
+    than translating without one: the graph would then be the thin one
+    the list exists to prevent, and nothing on the page would say so.
     """
-    from .llm_bridge import nl_to_kernel_ast
+    from .llm_bridge import nl_to_kernel_ast, variables_to_consider
 
     # This endpoint and the three below each ask the one declaration at the
     # top of this module. Four asks, one fact — and asked here rather
@@ -332,10 +339,16 @@ def api_ask(req: AskRequest):
     if not _OFFERS_A_MODEL:
         return failure.refused("no_model")
 
+    try:
+        considered = variables_to_consider(req.nl, api_key=req.api_key)
+    except Exception as exc:
+        return failure.refused("variables_to_consider", exc)
+
     return _read_run_and_reply(
-        lambda: nl_to_kernel_ast(req.nl, api_key=req.api_key),
+        lambda: nl_to_kernel_ast(req.nl, considered=considered,
+                                 api_key=req.api_key),
         stage="nl_to_kernel_ast", nl=req.nl, lang=req.lang,
-        api_key=req.api_key)
+        api_key=req.api_key, considered=considered)
 
 
 @app.post("/api/revise")
@@ -369,12 +382,15 @@ _THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError)
 
 
 def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
-                        api_key: str | None, **echo):
+                        api_key: str | None, considered: dict | None = None,
+                        **echo):
     """Have a model write a program, run it, and have the result written up.
 
     What asking and correcting share: both end in a program a model wrote,
     which the kernel runs and a model then reads back. ``stage`` is what a
-    failure of ``read`` is filed under.
+    failure of ``read`` is filed under; ``considered`` is the list of
+    variables ``read`` wrote its program with, if it had one, which a
+    repair is written with too.
     """
     from .llm_bridge import render_reply, repair_kernel_ast
 
@@ -404,6 +420,7 @@ def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
             last = exc
             if last_stage == "themis_run" and isinstance(exc, _THE_PROGRAM_AS_WRITTEN):
                 write = functools.partial(repair_kernel_ast, nl, a, exc,
+                                          considered=considered,
                                           api_key=api_key)
     if ran is None:
         # Attribute the failure to where it actually happened, by position —

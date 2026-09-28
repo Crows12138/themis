@@ -33,7 +33,7 @@ const SAYS = {
   revisedToNothing: { zh: '改过的程序没有返回结果。', en: 'The revised program came back with nothing.' },
   examples: { zh: '现成案例 · 用内核直接跑，不需要 key', en: 'Worked examples · run straight through the kernel, no key needed' },
   running: { zh: '运行中…', en: 'Running…' },
-  thinking: { zh: '正在把问题落成因果图、交给内核核验…', en: 'Turning the question into a causal graph and handing it to the kernel…' },
+  thinking: { zh: '正在列出要考虑的变量、把问题落成因果图、交给内核核验…', en: 'Listing the variables to consider, turning the question into a causal graph and handing it to the kernel…' },
   fillKey: { zh: '填入 API Key', en: 'Enter an API key' },
   orExamples: { zh: '，或直接点上面的现成案例。', en: ', or just click one of the worked examples above.' },
   tiersCap: { zh: '答案有三档', en: 'Answers come in three tiers' },

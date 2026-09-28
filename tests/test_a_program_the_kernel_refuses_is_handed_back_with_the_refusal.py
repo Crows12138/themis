@@ -114,17 +114,32 @@ def _message(text):
     return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)])
 
 
+#: The system prompt of the call that lists a question's variables before a
+#: program is written, and the list the stub answers it with.
+LISTING = llm_bridge._PROMPT_CONSIDER.read_text(encoding="utf-8")
+LISTED = {"exposure": "吸烟", "outcome": "肺癌", "common_causes": [],
+          "other_causes_of_outcome": [], "mediators": []}
+#: The turn a program for :data:`QUESTION` is written from at the door.
+ASKED = {"question": QUESTION, "variables_to_consider": LISTED}
+
+
 class _Model:
     """Answers each call with the next reply, the last one for as long as it
-    is asked, and keeps what it was sent."""
+    is asked, and keeps what it was sent. The call listing the variables is
+    answered with :data:`LISTED` and kept apart, so that ``sent`` holds the
+    calls that write programs and replies."""
 
     def __init__(self, *replies):
         self.replies = list(replies)
         self.sent: list[dict] = []
+        self.listed: list[dict] = []
         self.base_url = "http://stub.invalid"
         self.messages = SimpleNamespace(create=self._create)
 
     def _create(self, **kwargs):
+        if kwargs["system"] == LISTING:
+            self.listed.append(kwargs)
+            return _message(json.dumps(LISTED, ensure_ascii=False))
         self.sent.append(kwargs)
         return _message(self.replies.pop(0) if len(self.replies) > 1
                         else self.replies[0])
@@ -207,11 +222,11 @@ def test_a_repair_the_kernel_refuses_goes_back_with_its_own_refusal(model):
 
 def test_a_program_never_written_is_written_again_from_the_question(model):
     """A reply with no JSON in it is the bridge's to retry, three times, and
-    then the door's to ask again — from the question, since there is no
-    program to hand back."""
+    then the door's to ask again — from the question and its list, since
+    there is no program to hand back."""
     stub = model("no json", "no json", "no json", json.dumps(GOOD), "回答")
     assert _ask().status_code == 200
-    assert stub.sent[3]["messages"][-1]["content"] == QUESTION
+    assert json.loads(stub.sent[3]["messages"][-1]["content"]) == ASKED
     assert all(_refused_turn(sent) is None for sent in stub.sent)
 
 
@@ -228,4 +243,4 @@ def test_a_failure_that_is_not_about_the_program_is_not_handed_back(model, monke
 
     monkeypatch.setattr(themis, "run", once_broken)
     assert _ask().status_code == 200
-    assert stub.sent[1]["messages"][-1]["content"] == QUESTION
+    assert json.loads(stub.sent[1]["messages"][-1]["content"]) == ASKED
