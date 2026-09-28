@@ -78,7 +78,10 @@ from ..types import (
     EffectQueryAssumptions,
     IdentifyQuery,
     Intervention,
+    ModelParameter,
     ObservationStatement,
+    OddsRatio,
+    ProbabilityModel,
     ProbabilityQuery,
     ProbabilityStatement,
     Program,
@@ -125,6 +128,11 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         # lists. Every layer past this one reads a domain as those values;
         # a program saying another of one variable says two things of it.
         "values_in_domains",
+        # A probability model has to name one table: a two-valued target,
+        # each condition once, and a ratio for every value but the
+        # reference. Expanded otherwise, it would be cells of a table that
+        # does not exist.
+        "probability_models",
     }
 )
 
@@ -462,6 +470,64 @@ class Malformed(language.Word, vocabulary="malformed_program",
               "LLM-proposed prior with no stated reason is silent "
               "fabrication, and Themis will not launder one through the "
               "audit channel",
+    })
+    LLM_PRIOR_PARAMETER_WITHOUT_SOURCE = (
+        "llm_prior_parameter_without_source", {
+            "zh": "statements[{index}]：provenance='llm_prior' 的概率模型里，"
+                  "{parameter} 没有带非空的 annotations.source。模型的每个"
+                  "参数都是单独估的一个数，各自要有一句理由，读者才审得了",
+            "en": "statements[{index}]: in a probability model with "
+                  "provenance='llm_prior', {parameter} carries no non-empty "
+                  "annotations.source. Every parameter of a model is a number "
+                  "estimated on its own, and a reader can audit it only "
+                  "beside its own reason",
+        })
+    MODEL_TARGET_NOT_TWO_VALUED = ("model_target_not_two_valued", {
+        "zh": "statements[{index}]：概率模型的目标 {predicate} 要恰好有两个取值，"
+              "另一个取值的概率才是补数；它的取值是 {values}。未声明取值范围时，"
+              "目标值要写成 true 或 false",
+        "en": "statements[{index}]: the target of a probability model, "
+              "{predicate}, has to take exactly two values, so that the "
+              "other value's probability is the complement; its values are "
+              "{values}. Without a declared domain the target value has to be "
+              "true or false",
+    })
+    MODEL_CONDITION_TWICE = ("model_condition_twice", {
+        "zh": "statements[{index}]：概率模型的 given 把 {predicate} 写了不止一次，"
+              "或者把目标本身写成了条件。每个条件在 given 里只出现一次",
+        "en": "statements[{index}]: a probability model's given names "
+              "{predicate} more than once, or names its own target. Each "
+              "condition appears in given once",
+    })
+    MODEL_RATIO_WITHOUT_REFERENCE = ("model_ratio_without_reference", {
+        "zh": "statements[{index}]：概率模型有一个优势比说的是 {predicate}，而 given "
+              "里没有它。优势比是相对于这个条件的参照值而言的，所以它说到的每个"
+              "条件都要以参照值出现在 given 里",
+        "en": "statements[{index}]: an odds ratio of a probability model names "
+              "{predicate}, which given does not list. A ratio is relative to "
+              "the condition's reference value, so each condition a ratio "
+              "names has to be in given at that value",
+    })
+    MODEL_CONDITION_WITHOUT_RATIO = ("model_condition_without_ratio", {
+        "zh": "statements[{index}]：{predicate} 是概率模型 given 里的条件，但没有"
+              "一个优势比说到它。只取参照值的条件不是这张表的条件：要么去掉它，"
+              "要么给它参照值之外的每个取值各写一个优势比",
+        "en": "statements[{index}]: {predicate} is a condition in a probability "
+              "model's given and no odds ratio names it. A condition that only "
+              "takes its reference value is not a condition of the table: leave "
+              "it out, or give a ratio for each of its other values",
+    })
+    MODEL_CONDITION_VALUES = ("model_condition_values", {
+        "zh": "statements[{index}]：概率模型给条件 {predicate} 写的取值——given 里的"
+              "参照值，加上每个优势比的取值——是 {named}，它们要互不相同，并且包含"
+              "这个变量的每个取值 {domain}：参照值之外的每个取值各一个优势比，"
+              "展开出的表才完整",
+        "en": "statements[{index}]: the values a probability model writes for "
+              "the condition {predicate} — its reference in given, then each "
+              "odds ratio's — are {named}; they have to be distinct and to "
+              "include each of the variable's values {domain}, one odds ratio "
+              "for each value but the reference, or the table the model "
+              "expands into is incomplete",
     })
     LATENT_UNREAD_BY_THIS_QUERY = ("latent_unread_by_this_query", {
         "zh": "statements[{index}]（{query}）：这份程序声明了潜在共因，"
@@ -847,6 +913,23 @@ def _to_statement(d: dict):
             provenance=d.get("provenance", "structural"),
             annotations=_to_annotation(d.get("annotations")),
         )
+    if k == "probability_model":
+        return ProbabilityModel(
+            form=d["form"],
+            target=_to_grounded(d["target"]),
+            given=tuple(_to_grounded(a) for a in d["given"]),
+            baseline=ModelParameter(
+                value=d["baseline"]["value"],
+                annotations=_to_annotation(d["baseline"].get("annotations"))),
+            odds_ratios=tuple(
+                OddsRatio(atom=_to_atom(r["atom"]), value=r["value"],
+                          odds_ratio=r["odds_ratio"],
+                          annotations=_to_annotation(r.get("annotations")))
+                for r in d["odds_ratios"]),
+            forall=tuple(d.get("forall", ())),
+            population=d.get("population"),
+            provenance=d.get("provenance", "structural"),
+        )
     if k == "observation":
         return ObservationStatement(
             atom=_to_atom(d["atom"]),
@@ -913,6 +996,9 @@ def _atoms_in_statement(stmt) -> tuple[Atom, ...]:
         return (stmt.missing_var, *stmt.caused_by)
     if isinstance(stmt, ProbabilityStatement):
         return (_as_atom(stmt.target), *(_as_atom(g) for g in stmt.given))
+    if isinstance(stmt, ProbabilityModel):
+        return (stmt.target.atom, *(g.atom for g in stmt.given),
+                *(r.atom for r in stmt.odds_ratios))
     if isinstance(stmt, ObservationStatement):
         return (stmt.atom,)
     if isinstance(stmt, QueryStatement):
@@ -996,7 +1082,8 @@ def _check_bound_variables(program: Program) -> None:
     """
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, (CauseStatement, BidirectedStatement,
-                                 FeedbackLoop, ProbabilityStatement)):
+                                 FeedbackLoop, ProbabilityStatement,
+                                 ProbabilityModel)):
             continue
         declared = set(stmt.forall)
         for atom in _atoms_in_statement(stmt):
@@ -1433,15 +1520,88 @@ def _check_llm_prior_requires_source(program: Program) -> None:
     enforce non-empty here (semantic minimum), the Skill enforces
     "useful sentence" (prompt minimum).
     """
+    def unsourced(ann: Annotation | None) -> bool:
+        source = ann.source if ann is not None else None
+        return source is None or not source.strip()
+
     for idx, stmt in enumerate(program.statements):
-        if not isinstance(stmt, ProbabilityStatement):
+        if not isinstance(stmt, (ProbabilityStatement, ProbabilityModel)):
             continue
         if stmt.provenance != "llm_prior":
             continue
-        ann = stmt.annotations
-        source = ann.source if ann is not None else None
-        if source is None or not source.strip():
-            raise SemanticError(Malformed.LLM_PRIOR_WITHOUT_SOURCE, index=idx)
+        if isinstance(stmt, ProbabilityStatement):
+            if unsourced(stmt.annotations):
+                raise SemanticError(Malformed.LLM_PRIOR_WITHOUT_SOURCE, index=idx)
+            continue
+        # Each parameter is a number of its own, so each owes its reason;
+        # one reason for the model would leave every ratio but one unsaid.
+        named = [("baseline", stmt.baseline.annotations)] + [
+            (f"odds_ratio({r.atom.predicate}={r.value!r})", r.annotations)
+            for r in stmt.odds_ratios]
+        for parameter, ann in named:
+            if unsourced(ann):
+                raise SemanticError(Malformed.LLM_PRIOR_PARAMETER_WITHOUT_SOURCE,
+                                    index=idx, parameter=parameter)
+
+
+def _check_probability_models(program: Program) -> None:
+    """A probability model names one table, and every cell of it.
+
+    The model is expanded into one cell per combination of its conditions'
+    values, so it has to say what those combinations are. The target takes
+    two values, because a ratio of odds fixes one value's probability and
+    the other's is its complement. Each condition is in ``given`` once, at
+    its reference, and is not the target; each ratio names one of them;
+    and the values written for a condition — its reference, then one per
+    ratio — are distinct and include every value it declares, since the
+    parameter store reads a declared domain as the values a variable takes,
+    and a value the model gives no ratio for would be a cell of the table
+    it never states. A value it does not declare is not this rule's to
+    refuse: it is refused as any value beside its atom is.
+    """
+    domains = {st.predicate: tuple(st.domain) for st in program.statements
+               if isinstance(st, VariableDeclaration) and st.domain}
+    for idx, stmt in enumerate(program.statements):
+        if not isinstance(stmt, ProbabilityModel):
+            continue
+        target = stmt.target.atom.predicate
+        declared = domains.get(target)
+        two_valued = (len(declared) == 2 if declared is not None
+                      else isinstance(stmt.target.value, bool))
+        if not two_valued:
+            raise SemanticError(Malformed.MODEL_TARGET_NOT_TWO_VALUED,
+                                index=idx, predicate=target,
+                                values=list(declared) if declared else
+                                [stmt.target.value])
+        named: dict[Atom, list] = {}
+        for condition in stmt.given:
+            if condition.atom in named or condition.atom == stmt.target.atom:
+                raise SemanticError(Malformed.MODEL_CONDITION_TWICE, index=idx,
+                                    predicate=condition.atom.predicate)
+            named[condition.atom] = [condition.value]
+        for ratio in stmt.odds_ratios:
+            if ratio.atom not in named:
+                raise SemanticError(Malformed.MODEL_RATIO_WITHOUT_REFERENCE,
+                                    index=idx, predicate=ratio.atom.predicate)
+            named[ratio.atom].append(ratio.value)
+        for atom, values in named.items():
+            if len(values) == 1:
+                raise SemanticError(Malformed.MODEL_CONDITION_WITHOUT_RATIO,
+                                    index=idx, predicate=atom.predicate)
+            distinct = len({(type(v), v) for v in values}) == len(values)
+            declared = domains.get(atom.predicate)
+            # Every declared value, and not "only declared values": a value
+            # the variable does not take is refused where every value beside
+            # its atom is, by ``values_in_domains``.
+            covers = declared is None or all(
+                any(v == d and type(v) is type(d) for v in values)
+                for d in declared)
+            if not (distinct and covers):
+                raise SemanticError(
+                    Malformed.MODEL_CONDITION_VALUES, index=idx,
+                    predicate=atom.predicate, named=values,
+                    domain=list(declared) if declared else
+                    list(dict.fromkeys(values)))
 
 
 #: Every side of every sieve design: which bridge holds it, which of that
@@ -1581,6 +1741,7 @@ _CHECK_FUNCS = {
     "temporal_monotonicity": _check_temporal_monotonicity,
     "llm_prior_requires_source": _check_llm_prior_requires_source,
     "values_in_domains": _check_values_in_declared_domains,
+    "probability_models": _check_probability_models,
 }
 
 

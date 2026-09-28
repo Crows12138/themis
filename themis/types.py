@@ -362,6 +362,54 @@ class ProbabilityStatement:
     annotations: Annotation | None = None
 
 
+@dataclass(frozen=True)
+class OddsRatio:
+    """A condition at a value other than its reference, and the factor the
+    target's odds are multiplied by there."""
+    atom: Atom
+    value: "AtomValue"
+    odds_ratio: float
+    annotations: Annotation | None = None
+
+
+@dataclass(frozen=True)
+class ModelParameter:
+    value: float
+    annotations: Annotation | None = None
+
+
+@dataclass(frozen=True)
+class ProbabilityModel:
+    """One conditional distribution, stated by one cell and odds ratios.
+
+    A two-valued target's probability under every combination of the
+    conditions' values, written as one cell and a ratio per other value
+    where the table has one cell per combination: ``baseline`` is
+    P(target | given), each condition in ``given`` at its reference value,
+    and each odds ratio names a condition at another value and the factor
+    it multiplies the odds by. Written as a probability statement is, so
+    every value sits beside its atom. The runtime expands it into the
+    :class:`ProbabilityStatement` cells it stands for
+    (:mod:`themis.runtime.probability_models`) before the parameter store
+    is built, so nothing downstream reads a model.
+
+    ``form`` names how the conditions combine, and the one form there is
+    carries an assumption a table does not: the ratios multiply whatever
+    the other conditions are. It is disclosed on the assumption ledger for
+    that reason. ``provenance``, ``population`` and ``forall`` mean what
+    they mean on a probability statement, and every expanded cell carries
+    them.
+    """
+    form: str
+    target: "ValuedAtom"
+    given: tuple["ValuedAtom", ...]
+    baseline: ModelParameter
+    odds_ratios: tuple[OddsRatio, ...]
+    forall: tuple[str, ...] = ()
+    population: str | None = None
+    provenance: str = "structural"
+
+
 # ---------------------------------------------------------------------------
 # kernel_ast.schema.json — queries
 # ---------------------------------------------------------------------------
@@ -1207,6 +1255,7 @@ Statement = Union[
     BidirectedStatement,
     FeedbackLoop,
     ProbabilityStatement,
+    ProbabilityModel,
     ObservationStatement,
     QueryStatement,
     VariableDeclaration,

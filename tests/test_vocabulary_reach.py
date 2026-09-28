@@ -931,11 +931,26 @@ _ROWS: dict[str, Vocabulary] = {
                  "reader rendered, never as its parse tree.",
     ),
     "theta_provenance": Vocabulary(
+        # A probability model's cells carry its provenance, so it is the one
+        # set on both statements that state parameters.
         sites=((_KA, "$defs", "probabilityStatement", "properties",
-                "provenance"),),
+                "provenance"),
+               (_KA, "$defs", "probabilityModelStatement", "properties",
+                "provenance")),
         no_gloss="Where a supplied probability came from, on the way IN. "
                  "What comes back out is the ledger line it produced, and "
                  "`assumption_provenance` is the vocabulary of that.",
+    ),
+    "probability_model_form": Vocabulary(
+        sites=((_KA, "$defs", "probabilityModelStatement", "properties",
+                "form"),
+               (*_EXT, "llm_proposed_review", "properties", "models", "items",
+                "properties", "form")),
+        no_gloss="How a model's parameters compose its table. What the form "
+                 "assumes reaches a reader as a ledger line of its own, "
+                 "`theta_prior_claim.no_interaction`, and that sentence is "
+                 "the one to disagree with; the review carries the token so "
+                 "the line can be rederived, not so it can be shown.",
     ),
     "ate_estimator_option": Vocabulary(
         sites=((_KA, "properties", "options", "properties", "ate_estimator"),),

@@ -32,6 +32,7 @@ from ..types import (
     FormulaExpr,
     FractionExpr,
     NumericResult,
+    ProbabilityModel,
     ProbabilityRefExpr,
     ProbabilityStatement,
     ProductExpr,
@@ -392,6 +393,46 @@ def _probability_statement_key_repr(stmt: ProbabilityStatement) -> str:
     return f"{prefix}({body})"
 
 
+def _model_review(model: ProbabilityModel) -> tuple[list[dict], dict]:
+    """A probability model as the review lists it: one line per parameter,
+    and the model itself.
+
+    The parameters are what the language model supplied, each with its own
+    reason, so each is a line a reader can accept or overrule. The baseline
+    reads as the probability it is — the target with every condition at its
+    reference — and a ratio as ``OR(target|condition=value/reference)``.
+    The model line says which table the lines compose and by what form,
+    which no line says: under ``odds_ratios``, that each ratio holds
+    whatever the other conditions are. The table is named as a gap names
+    the table it asks for, so the two can be matched, and its conditions
+    are listed as the model orders them, so a reader can tell whether that
+    form assumes anything — with one condition it does not.
+    """
+    target = f"{_atom_repr(model.target.atom)}={model.target.value}"
+    where = {} if model.population is None else {"population": model.population}
+
+    def reason(ann) -> str:
+        return ((ann.source if ann is not None else "") or "")
+
+    reference = {g.atom: g.value for g in model.given}
+    at_reference = ",".join(f"{_atom_repr(g.atom)}={g.value}" for g in model.given)
+    p = "P" if model.population is None else f"P_{model.population}"
+    odds = "OR" if model.population is None else f"OR_{model.population}"
+    lines = [{"key": f"{p}({target}|{at_reference})",
+              "value": model.baseline.value,
+              "reason": reason(model.baseline.annotations), **where}]
+    lines += [{"key": f"{odds}({target}|{_atom_repr(r.atom)}={r.value}/{reference[r.atom]})",
+               "value": r.odds_ratio,
+               "reason": reason(r.annotations), **where}
+              for r in model.odds_ratios]
+    conditions = [g.atom.predicate for g in model.given]
+    return lines, {
+        "distribution": f"{p}({model.target.atom.predicate} | {', '.join(sorted(conditions))})",
+        "form": model.form,
+        "conditions": conditions,
+    }
+
+
 def build_llm_proposed_review(program: "Program") -> dict | None:
     """Walk the program's statements and collect every LLM-proposed
     element (cause edges + probability priors) into a single audit
@@ -409,14 +450,18 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
       target/given key, the population label, and the reason
       (``annotations.source``, validated non-empty by F3.1
       ``llm_prior_requires_source``).
+    - **Probability models** (``ProbabilityModel``) of the same
+      provenance: each parameter joins the priors as a line of its own,
+      and the model is listed under ``models`` (:func:`_model_review`),
+      a key present only when there is one.
 
     Returns ``None`` when neither category found any entries —
     in that case there's nothing to disclose, and the absence of
     the field keeps single-population non-LLM-prior fixtures byte-
     identical to pre-Fix-3+4 serialisations.
 
-    Two lists and nothing else. There was a third key here, a
-    ``summary`` sentence counting what the two lists beside it hold —
+    Nothing that restates the lists. There was a ``summary`` key here,
+    a sentence counting what the two lists beside it hold —
     a second record of them, and one written before anyone knew who
     would read it. It is assembled where the reader's language is
     known; this paragraph outlived it by long enough for the
@@ -430,8 +475,15 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     """
     edges: list[dict] = []
     probabilities: list[dict] = []
+    models: list[dict] = []
 
     for stmt in program.statements:
+        if isinstance(stmt, ProbabilityModel):
+            if stmt.provenance == "llm_prior":
+                lines, model = _model_review(stmt)
+                probabilities.extend(lines)
+                models.append(model)
+            continue
         if isinstance(stmt, CauseStatement):
             if stmt.annotations is None:
                 continue
@@ -462,7 +514,10 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
     if not edges and not probabilities:
         return None
 
-    return {"edges": edges, "probabilities": probabilities}
+    review: dict = {"edges": edges, "probabilities": probabilities}
+    if models:
+        review["models"] = models
+    return review
 
 
 # ---------------------------------------------------------------------------
@@ -652,16 +707,24 @@ class Prior(language.Word, vocabulary="theta_prior_claim",
             between=language.BETWEEN_ITEMS):
     """A number the language model supplied, as the ledger line it becomes.
 
-    One member, because there is one such line. A vocabulary rather than an
-    f-string for the reason every other sentence on this envelope is one:
-    the two facts in it belong to the occasion, the sentence around them
-    does not, and an f-string makes the kernel the author of both — this one
-    reached every reader in Chinese, whoever they were.
+    One member per kind of line: a number, and the form that composes a
+    table out of numbers when the form itself assumes something. A
+    vocabulary rather than an f-string for the reason every other sentence
+    on this envelope is one: the facts in it belong to the occasion, the
+    sentence around them does not, and an f-string makes the kernel the
+    author of both — this one reached every reader in Chinese, whoever they
+    were.
     """
 
     A_COMMONSENSE_PRIOR = ("a_commonsense_prior", {
         "zh": "{key} = {value}（LLM 常识 prior）",
         "en": "{key} = {value} (a commonsense prior from the language model)"})
+    NO_INTERACTION = ("no_interaction", {
+        "zh": "{distribution} 由一个基线概率和每个条件各自的优势比合成："
+              "假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）",
+        "en": "{distribution} is composed from a baseline and one odds ratio "
+              "per condition, assuming each condition's effect on the odds is "
+              "the same whatever the others are (no interaction)"})
 
 
 def build_assumption_ledger(
@@ -776,6 +839,23 @@ def build_assumption_ledger(
             "claim": [language.state(Prior.A_COMMONSENSE_PRIOR,
                                      key=prob.get("key"),
                                      value=prob.get("value"))],
+            "layer": layer,
+            "provenance": provenance,
+            "severity": severity,
+            "testable": True,
+        })
+    #     A table composed from such numbers by a form that assumes something
+    #     is one more prior: the form's, and the numbers carry it into every
+    #     cell they compose. One condition assumes nothing — a baseline and
+    #     its ratios are then the table itself.
+    for model in review.get("models") or []:
+        if len(model.get("conditions") or ()) < 2:
+            continue
+        layer, severity, provenance = ledger.stamp(
+            "theta_prior", ledger.Layer.PARAMETER, ledger.Provenance.LLM_PRIOR)
+        entries.append({
+            "claim": [language.state(Prior.NO_INTERACTION,
+                                     distribution=model.get("distribution"))],
             "layer": layer,
             "provenance": provenance,
             "severity": severity,

@@ -202,18 +202,19 @@ def test_every_schema_shape_that_carries_a_level_is_the_shape_this_reads():
                 if isinstance(d, dict) and "value" in (d.get("properties") or {})}
     assert set(carriers) == {
         "intervention", "observationStatement", "probabilityStatement",
-        "counterfactualEvent",
+        "counterfactualEvent", "oddsRatio", "modelParameter",
     }
     levels, not_levels = set(), set()
     for name, d in carriers.items():
         props = d["properties"]
         (levels if any(k in props for k in declared._NAMES_A_VARIABLE)
          else not_levels).add(name)
-    assert not_levels == {"probabilityStatement"}, (
+    assert not_levels == {"probabilityStatement", "modelParameter"}, (
         "a shape carrying a value with no variable beside it is not a level; "
-        "the probability statement's is a number in [0, 1]")
+        "a probability statement's is a number in [0, 1], and so is a "
+        "probability model's baseline")
     assert levels == {"intervention", "observationStatement",
-                      "counterfactualEvent"}
+                      "counterfactualEvent", "oddsRatio"}
 
 
 def test_the_grounded_atom_the_other_shapes_nest_is_read_too():

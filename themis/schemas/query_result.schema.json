@@ -519,6 +519,20 @@
                   "population": { "type": "string" }
                 }
               }
+            },
+            "models": {
+              "type": "array",
+              "description": "The LLM-proposed probability models, present only when there is one. A model's parameters are listed under probabilities like any prior — its baseline as P(target|every condition at its reference), each odds ratio as OR(target|condition=value/reference) — and this entry says what no parameter says: which table they compose and by which form. The table is named as a missing_distribution gap names the table it asks for.",
+              "items": {
+                "type": "object",
+                "required": ["distribution", "form", "conditions"],
+                "additionalProperties": false,
+                "properties": {
+                  "distribution": { "type": "string", "x-text": "formula", "description": "P(target | conditions, sorted), with the population as a subscript when there is one." },
+                  "form":         { "enum": ["odds_ratios"] },
+                  "conditions":   { "type": "array", "items": { "type": "string" }, "description": "The conditions' predicates, in the model's order. From two on, the form assumes the conditions do not interact, and the assumption ledger carries that as a line of its own." }
+                }
+              }
             }
           }
         },

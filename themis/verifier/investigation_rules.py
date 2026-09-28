@@ -1461,9 +1461,10 @@ def _check_no_ask_is_settled_by_the_others(
     statement supplies. A variable with no declared domain is left alone,
     for the reason the rule above gives — its values are whatever the data
     met, which is the kernel's reading and not a record this rule holds
-    independently. A supply this rule cannot see, a quantified statement or
-    a data file, only makes the true shortfall smaller, so a list refused
-    here asks too much on any reading of what was given.
+    independently. A supply this rule cannot see — a quantified statement,
+    the cells of a probability model, a data file — only makes the true
+    shortfall smaller, so a list refused here asks too much on any reading
+    of what was given.
     """
     domains: dict[str, tuple] = {}
     for predicate, declaration in declarations_of(program).items():

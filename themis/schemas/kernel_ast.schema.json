@@ -351,6 +351,121 @@
         }
       }
     },
+    "probabilityModelStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One conditional distribution of a two-valued target, stated as one of its cells — the baseline, with every condition at a reference value — and an odds ratio for each other value of each condition, rather than cell by cell. The kernel expands it into the probability statements it stands for — one per combination of the conditions' values — before anything reads a parameter, so every consumer of the parameter store sees ordinary cells. The form is an assumption and is disclosed as one: each condition multiplies the odds of the target by its own ratio whatever the others are, so the cells cannot show one condition's effect depending on another's value. With one condition there is no such assumption: the baseline and the ratios fix the cells.",
+      "required": [
+        "kind",
+        "form",
+        "target",
+        "given",
+        "baseline",
+        "odds_ratios"
+      ],
+      "properties": {
+        "kind": {
+          "const": "probability_model"
+        },
+        "form": {
+          "enum": ["odds_ratios"],
+          "description": "How the conditions combine. 'odds_ratios': the odds of the target are the baseline's odds multiplied by the ratio of each condition at a value other than its reference — a logistic model with no interaction terms."
+        },
+        "forall": {
+          "type": "array",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/variableName"
+          }
+        },
+        "target": {
+          "$ref": "atom.schema.json#/$defs/groundedAtom",
+          "description": "The target atom and the value whose probability the model gives. The target's domain has two values; the other value's probability is the complement."
+        },
+        "given": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The conditions, each at its reference value: the cell the baseline is. The same parent-subset rule applies as to a probability statement of the same provenance.",
+          "items": {
+            "$ref": "atom.schema.json#/$defs/groundedAtom"
+          }
+        },
+        "baseline": {
+          "$ref": "#/$defs/modelParameter",
+          "description": "P(target | given): the probability with every condition at its reference value."
+        },
+        "odds_ratios": {
+          "type": "array",
+          "minItems": 1,
+          "description": "One entry for every value of every condition other than its reference: the condition at that value, and the factor the target's odds are multiplied by there.",
+          "items": {
+            "$ref": "#/$defs/oddsRatio"
+          }
+        },
+        "provenance": {
+          "type": "string",
+          "enum": ["structural", "observational", "llm_prior"],
+          "description": "The same three sources as a probability statement's, with the same validation, carried by every cell the model expands into. Under 'llm_prior' every parameter — the baseline and each odds ratio — carries its own non-empty annotations.source."
+        },
+        "population": {
+          "$ref": "#/$defs/populationName"
+        }
+      }
+    },
+    "oddsRatio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atom",
+        "value",
+        "odds_ratio"
+      ],
+      "properties": {
+        "atom": {
+          "$ref": "atom.schema.json#/$defs/atom",
+          "description": "A condition the model's given lists."
+        },
+        "value": {
+          "$ref": "atom.schema.json#/$defs/literalValue",
+          "description": "A value of that condition other than its reference."
+        },
+        "odds_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The factor the odds of the target are multiplied by when the condition takes this value rather than its reference."
+        },
+        "annotations": {
+          "$ref": "#/$defs/parameterAnnotation"
+        }
+      }
+    },
+    "parameterAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Why a model's parameter is the number it is. A reason and nothing else: every cell a model expands into rests on several of its parameters, so a confidence on one of them is not the confidence of any cell, and nothing reads one.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "The reason, shown beside the number wherever the number is reviewed; required non-empty under provenance 'llm_prior'."
+        }
+      }
+    },
+    "modelParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "annotations": {
+          "$ref": "#/$defs/parameterAnnotation"
+        }
+      }
+    },
     "observationStatement": {
       "type": "object",
       "additionalProperties": false,
@@ -1117,6 +1232,9 @@
         },
         {
           "$ref": "#/$defs/probabilityStatement"
+        },
+        {
+          "$ref": "#/$defs/probabilityModelStatement"
         },
         {
           "$ref": "#/$defs/observationStatement"

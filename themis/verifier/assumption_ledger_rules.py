@@ -1110,21 +1110,24 @@ def _owed_proposal_edges(result: dict) -> tuple[tuple, ...]:
     return tuple(owed)
 
 
-#: The sentence a supplied prior's line is, spelled here rather than
-#: imported: it is declared as ``Prior`` in the output layer, which this
+#: The sentences a supplied prior's line is, spelled here rather than
+#: imported: they are declared as ``Prior`` in the output layer, which this
 #: module may not read. Both are members of sets the statement carrier
 #: enumerates, and a spelling that drifted from the declaration would
 #: refuse every honest answer carrying a prior rather than pass a
 #: dishonest one.
 _PRIOR_VOCABULARY = "theta_prior_claim"
 _PRIOR_SENTENCE = "a_commonsense_prior"
+_NO_INTERACTION = "no_interaction"
 
 
 def _owed_theta_priors(extensions: dict) -> tuple[tuple, ...]:
     """The line each prior the language model supplied owes: its key and
-    its value, in the one sentence there is for them."""
+    its value, in the one sentence there is for them — and, for a table it
+    composed by a form, the form's line wherever the form assumes
+    something, which it does from two conditions on."""
     review = extensions.get("llm_proposed_review") or {}
-    return tuple(
+    numbers = tuple(
         _unnamed_line(
             [language.spelt(_PRIOR_VOCABULARY, _PRIOR_SENTENCE,
                             key=p.get("key"), value=p.get("value"))],
@@ -1132,6 +1135,15 @@ def _owed_theta_priors(extensions: dict) -> tuple[tuple, ...]:
         for p in review.get("probabilities") or ()
         if isinstance(p, Mapping)
     )
+    forms = tuple(
+        _unnamed_line(
+            [language.spelt(_PRIOR_VOCABULARY, _NO_INTERACTION,
+                            distribution=m.get("distribution"))],
+            "parameter", "llm_prior")
+        for m in review.get("models") or ()
+        if isinstance(m, Mapping) and len(m.get("conditions") or ()) >= 2
+    )
+    return numbers + forms
 
 
 def _owed_mechanisms(extensions: dict) -> tuple[str, ...]:

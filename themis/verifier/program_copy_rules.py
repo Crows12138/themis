@@ -78,22 +78,67 @@ def _prior_key(stmt: dict) -> str:
     return f"{prefix}({body})"
 
 
+def _model_rows(stmt: dict) -> tuple[list[dict], dict]:
+    """A probability model as the review lists it, spelled again: its
+    baseline as the probability with every condition at its reference,
+    each ratio as ``OR(target|condition=value/reference)``, and the table
+    the model composes, named by its target and its sorted conditions."""
+    population = stmt.get("population")
+    where = {} if population is None else {"population": population}
+    target = _valued(stmt.get("target") or {})
+    given = [g for g in stmt.get("given") or () if isinstance(g, dict)]
+    reference = {_atom_text(g.get("atom") or {}): g.get("value") for g in given}
+    baseline = stmt.get("baseline") or {}
+    rows = [{
+        "key": f"{'P' if population is None else f'P_{population}'}"
+               f"({target}|{','.join(_valued(g) for g in given)})",
+        "value": baseline.get("value"),
+        "reason": (baseline.get("annotations") or {}).get("source") or "",
+        **where,
+    }]
+    for ratio in stmt.get("odds_ratios") or ():
+        condition = _atom_text(ratio.get("atom") or {})
+        rows.append({
+            "key": f"{'OR' if population is None else f'OR_{population}'}"
+                   f"({target}|{condition}={ratio.get('value')}"
+                   f"/{reference.get(condition)})",
+            "value": ratio.get("odds_ratio"),
+            "reason": (ratio.get("annotations") or {}).get("source") or "",
+            **where,
+        })
+    conditions = [str((g.get("atom") or {}).get("predicate")) for g in given]
+    head = "P" if population is None else f"P_{population}"
+    named = ", ".join(sorted(conditions))
+    predicate = ((stmt.get("target") or {}).get("atom") or {}).get("predicate")
+    return rows, {"distribution": f"{head}({predicate} | {named})",
+                  "form": stmt.get("form"),
+                  "conditions": conditions}
+
+
 def _rederive_review(program: dict) -> dict | None:
     """Every LLM-proposed element of a program, collected again.
 
     An edge counts when its annotation's source names a language model —
     substring, case-insensitively, because the convention is
     ``llm_proposal`` and the field is free text. A prior counts when its
-    provenance is exactly ``llm_prior``. Evidence-sourced edges are not
-    LLM-proposed and are left out.
+    provenance is exactly ``llm_prior``, and so does a probability model,
+    whose parameters are priors like any other and which is listed under
+    ``models`` besides. Evidence-sourced edges are not LLM-proposed and
+    are left out.
     """
     edges: list[dict] = []
     priors: list[dict] = []
+    models: list[dict] = []
     for stmt in program.get("statements") or ():
         if not isinstance(stmt, dict):
             continue
         kind = stmt.get("kind")
-        if kind == "cause":
+        if kind == "probability_model":
+            if stmt.get("provenance") == "llm_prior":
+                rows, model = _model_rows(stmt)
+                priors.extend(rows)
+                models.append(model)
+        elif kind == "cause":
             source = (stmt.get("annotations") or {}).get("source") or ""
             if "llm" not in str(source).lower():
                 continue
@@ -116,7 +161,7 @@ def _rederive_review(program: dict) -> dict | None:
             priors.append(entry)
     if not edges and not priors:
         return None
-    return {"edges": edges, "probabilities": priors}
+    return {"edges": edges, "probabilities": priors, "models": models}
 
 
 def _canonical(rows) -> list[str]:
@@ -161,7 +206,7 @@ def verify_llm_proposed_review(block, program: dict) -> None:
             "object with edges and probabilities",
             rule="llm_proposed_review_check",
         )
-    for field in ("edges", "probabilities"):
+    for field in ("edges", "probabilities", "models"):
         got = _canonical(block.get(field))
         want = _canonical(expected[field])
         if got != want:

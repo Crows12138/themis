@@ -172,10 +172,16 @@
             "given_not_parents",
             "identify_query_cannot_transport",
             "latent_unread_by_this_query",
+            "llm_prior_parameter_without_source",
             "llm_prior_without_source",
             "loop_across_time_steps",
             "loop_has_one_end",
             "missingness_atom_not_in_graph",
+            "model_condition_twice",
+            "model_condition_values",
+            "model_condition_without_ratio",
+            "model_ratio_without_reference",
+            "model_target_not_two_valued",
             "no_diagram_for_this_target",
             "observation_not_ground",
             "predicate_declared_twice",
@@ -318,7 +324,7 @@
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "theta_prior_claim" } } },
-          "then": { "properties": { "token": { "enum": ["a_commonsense_prior"] } } }
+          "then": { "properties": { "token": { "enum": ["a_commonsense_prior", "no_interaction"] } } }
         },
         {
           "if": { "required": ["vocabulary"], "properties": { "vocabulary": { "const": "time_window" } } },

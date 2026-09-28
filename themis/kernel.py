@@ -78,6 +78,7 @@ from .types import (
     NumericResult,
     ObservationStatement,
     ProbabilityQuery,
+    ProbabilityModel,
     ProbabilityStatement,
     MissingnessIndicator,
     Program,
@@ -1068,6 +1069,31 @@ def _statement_to_dict(s) -> dict:
         if ann is not None:
             d["annotations"] = ann
         return d
+    if isinstance(s, ProbabilityModel):
+        # The model and not its cells: what the caller wrote is what the
+        # merged program echoes, and verify expands it again as the run did.
+        def annotated(fields: dict, ann) -> dict:
+            written = _annotation_to_dict(ann)
+            return fields if written is None else {**fields, "annotations": written}
+
+        d = {
+            "kind": "probability_model",
+            "form": s.form,
+            "target": _valued_atom_to_dict(s.target),
+            "given": [_valued_atom_to_dict(va) for va in s.given],
+            "baseline": annotated({"value": s.baseline.value}, s.baseline.annotations),
+            "odds_ratios": [
+                annotated({"atom": _atom_to_dict(r.atom), "value": r.value,
+                           "odds_ratio": r.odds_ratio}, r.annotations)
+                for r in s.odds_ratios],
+        }
+        if s.forall:
+            d["forall"] = list(s.forall)
+        if s.population is not None:
+            d["population"] = s.population
+        if s.provenance != "structural":
+            d["provenance"] = s.provenance
+        return d
     if isinstance(s, QueryStatement):
         return {"kind": "query", "id": s.id, "query": _query_to_dict(s.query)}
     if isinstance(s, SelectionNode):
@@ -1612,6 +1638,10 @@ def _premises_of(program: dict | str | bytes, result: dict):
     # reading, not the builder's: the builder is what made them.
     from .verifier.theta_rules import verify_theta_is_a_distribution
     verify_theta_is_a_distribution(theta)
+    # Nor whether a model's cells are the model's: the expansion that made
+    # them is the one this context was rebuilt by.
+    from .verifier.probability_model_rules import verify_models_are_their_cells
+    verify_models_are_their_cells(ast, theta)
     # Phase 2.latent S4: thread bidirected edge set into verification
     # context so backdoor_criterion / front_door_criterion /
     # m_separation_witness rules can independently re-check ADMG

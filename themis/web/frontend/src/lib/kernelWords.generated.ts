@@ -2857,6 +2857,10 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: 'statements[{index}]（{query}）：这份程序声明了潜在共因，而 `{kind}` 查询只会照有向边作答，读不到它',
     en: 'statements[{index}] ({query}): this program declares a latent common cause, and a `{kind}` query would be answered off the directed edges alone',
   },
+  llm_prior_parameter_without_source: {
+    zh: 'statements[{index}]：provenance=\'llm_prior\' 的概率模型里，{parameter} 没有带非空的 annotations.source。模型的每个参数都是单独估的一个数，各自要有一句理由，读者才审得了',
+    en: 'statements[{index}]: in a probability model with provenance=\'llm_prior\', {parameter} carries no non-empty annotations.source. Every parameter of a model is a number estimated on its own, and a reader can audit it only beside its own reason',
+  },
   llm_prior_without_source: {
     zh: 'statements[{index}]：provenance=\'llm_prior\' 的 probabilityStatement 必须带一个非空的 annotations.source（一句话的理由，它会出现在 extensions.llm_proposed_review 里供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，Themis 拒绝让它从审计通道洗过去',
     en: 'statements[{index}]: a probabilityStatement with provenance=\'llm_prior\' has to carry a non-empty annotations.source — a one-sentence reason, which appears in extensions.llm_proposed_review for the end user to audit. An LLM-proposed prior with no stated reason is silent fabrication, and Themis will not launder one through the audit channel',
@@ -2872,6 +2876,26 @@ export const MALFORMED_WORDS: Record<string, Words> = {
   missingness_atom_not_in_graph: {
     zh: 'ground_statements[{index}]（{indicator}）：缺失指示变量用到的原子 {atoms} 不是图里的节点。缺失的变量和导致缺失的原因都要按图里节点的写法写——参数一样，时间下标也一样；图里没有的原因跟图里哪个变量都连不上，要么给它加上 cause 边，要么把它去掉',
     en: 'ground_statements[{index}] ({indicator}): the missingness indicator references the atoms {atoms}, which are not nodes of the graph. The missing variable and each cause of its missingness have to be written the way the graph\'s node is written — the same arguments and the same time index; a cause the graph does not contain is connected to none of its variables, so either give it cause edges or leave it out',
+  },
+  model_condition_twice: {
+    zh: 'statements[{index}]：概率模型的 given 把 {predicate} 写了不止一次，或者把目标本身写成了条件。每个条件在 given 里只出现一次',
+    en: 'statements[{index}]: a probability model\'s given names {predicate} more than once, or names its own target. Each condition appears in given once',
+  },
+  model_condition_values: {
+    zh: 'statements[{index}]：概率模型给条件 {predicate} 写的取值——given 里的参照值，加上每个优势比的取值——是 {named}，它们要互不相同，并且包含这个变量的每个取值 {domain}：参照值之外的每个取值各一个优势比，展开出的表才完整',
+    en: 'statements[{index}]: the values a probability model writes for the condition {predicate} — its reference in given, then each odds ratio\'s — are {named}; they have to be distinct and to include each of the variable\'s values {domain}, one odds ratio for each value but the reference, or the table the model expands into is incomplete',
+  },
+  model_condition_without_ratio: {
+    zh: 'statements[{index}]：{predicate} 是概率模型 given 里的条件，但没有一个优势比说到它。只取参照值的条件不是这张表的条件：要么去掉它，要么给它参照值之外的每个取值各写一个优势比',
+    en: 'statements[{index}]: {predicate} is a condition in a probability model\'s given and no odds ratio names it. A condition that only takes its reference value is not a condition of the table: leave it out, or give a ratio for each of its other values',
+  },
+  model_ratio_without_reference: {
+    zh: 'statements[{index}]：概率模型有一个优势比说的是 {predicate}，而 given 里没有它。优势比是相对于这个条件的参照值而言的，所以它说到的每个条件都要以参照值出现在 given 里',
+    en: 'statements[{index}]: an odds ratio of a probability model names {predicate}, which given does not list. A ratio is relative to the condition\'s reference value, so each condition a ratio names has to be in given at that value',
+  },
+  model_target_not_two_valued: {
+    zh: 'statements[{index}]：概率模型的目标 {predicate} 要恰好有两个取值，另一个取值的概率才是补数；它的取值是 {values}。未声明取值范围时，目标值要写成 true 或 false',
+    en: 'statements[{index}]: the target of a probability model, {predicate}, has to take exactly two values, so that the other value\'s probability is the complement; its values are {values}. Without a declared domain the target value has to be true or false',
   },
   no_diagram_for_this_target: {
     zh: 'statements[{index}]（{query}）：这个查询问的是 target_population={population}，而声明的每个选择节点说的都是 {declared}；这些图描述的不是这个问题所问的那个人群',
@@ -3973,6 +3997,10 @@ export const THETA_PRIOR_CLAIM_WORDS: Record<string, Words> = {
   a_commonsense_prior: {
     zh: '{key} = {value}（LLM 常识 prior）',
     en: '{key} = {value} (a commonsense prior from the language model)',
+  },
+  no_interaction: {
+    zh: '{distribution} 由一个基线概率和每个条件各自的优势比合成：假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）',
+    en: '{distribution} is composed from a baseline and one odds ratio per condition, assuming each condition\'s effect on the odds is the same whatever the others are (no interaction)',
   },
 }
 

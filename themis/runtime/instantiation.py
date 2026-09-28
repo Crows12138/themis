@@ -9,6 +9,7 @@ working model V.
 """
 from __future__ import annotations
 
+import dataclasses
 from itertools import product
 from typing import Iterable
 
@@ -19,14 +20,17 @@ from ..types import (
     CauseStatement,
     ConstTerm,
     ObservationStatement,
+    ProbabilityModel,
     ProbabilityStatement,
     Program,
     QueryStatement,
     Statement,
     Term,
     ValuedAtom,
+    VariableDeclaration,
     VarTerm,
 )
+from .probability_models import expand
 
 
 def _subst_term(term: Term, subst: dict[str, str]) -> Term:
@@ -71,12 +75,30 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             annotations=stmt.annotations,
         )
     if isinstance(stmt, ProbabilityStatement):
+        # Population and provenance are part of what the entry IS — its key
+        # and which rule validates it — so a ground copy that dropped them
+        # was a universal structural entry where a population's prior had
+        # been written.
         return ProbabilityStatement(
             target=_subst_valued(stmt.target, subst),
             given=_subst_valued_tuple(stmt.given, subst),
             value=stmt.value,
             forall=(),
+            population=stmt.population,
+            provenance=stmt.provenance,
             annotations=stmt.annotations,
+        )
+    if isinstance(stmt, ProbabilityModel):
+        return ProbabilityModel(
+            form=stmt.form,
+            target=_subst_valued(stmt.target, subst),
+            given=_subst_valued_tuple(stmt.given, subst),
+            baseline=stmt.baseline,
+            odds_ratios=tuple(dataclasses.replace(r, atom=_subst_atom(r.atom, subst))
+                              for r in stmt.odds_ratios),
+            forall=(),
+            population=stmt.population,
+            provenance=stmt.provenance,
         )
     return stmt
 
@@ -84,20 +106,27 @@ def _instantiate_one(stmt, subst: dict[str, str]):
 def instantiate(program: Program) -> tuple[Statement, ...]:
     """Return the fully ground statement list for a program.
 
-    No statement in the output has a non-empty ``forall``.
+    No statement in the output has a non-empty ``forall``, and none is a
+    :class:`ProbabilityModel`: a model is ground like any statement and then
+    stands in the list as the cells it expands into, so every reader of
+    ground statements reads ordinary probability entries.
     The order is: all ground copies of statement i appear before any
     ground copies of statement i+1.
     """
     domain = program.objects
+    declared = {s.predicate: tuple(s.domain) for s in program.statements
+                if isinstance(s, VariableDeclaration) and s.domain}
     result: list[Statement] = []
     for stmt in program.statements:
         forall = getattr(stmt, "forall", ())
-        if not forall:
-            result.append(stmt)
-            continue
-        for assignment in product(domain, repeat=len(forall)):
-            subst = dict(zip(forall, assignment))
-            result.append(_instantiate_one(stmt, subst))
+        copies = [stmt] if not forall else [
+            _instantiate_one(stmt, dict(zip(forall, assignment)))
+            for assignment in product(domain, repeat=len(forall))]
+        for copy in copies:
+            if isinstance(copy, ProbabilityModel):
+                result.extend(expand(copy, declared))
+            else:
+                result.append(copy)
     return tuple(result)
 
 
