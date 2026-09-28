@@ -161,8 +161,8 @@ def test_a_review_on_a_program_that_proposed_nothing(bare):
 
 def test_a_prior_is_collected_and_spelled_the_way_a_reader_sees_it():
     """The other half of the review, and the half the estimate path does
-    not produce here. A prior counts by its provenance being exactly
-    ``llm_prior``, and what a reader is asked to accept is the statement
+    not produce here. A prior counts by its ``llm_prior`` being exactly
+    true, and what a reader is asked to accept is the statement
     as it was written — so the key is the statement's own surface, not a
     canonicalised one."""
     prog = _program()
@@ -171,7 +171,7 @@ def test_a_prior_is_collected_and_spelled_the_way_a_reader_sees_it():
         "target": {"atom": _atom("y"), "value": True},
         "given": [{"atom": _atom("x"), "value": True}],
         "value": 0.42,
-        "provenance": "llm_prior",
+        "llm_prior": True,
         "annotations": {"source": "guessed by a language model"},
     })
     review = {"edges": [], "probabilities": [

@@ -121,7 +121,7 @@ def _rederive_review(program: dict) -> dict | None:
     An edge counts when its annotation's source names a language model —
     substring, case-insensitively, because the convention is
     ``llm_proposal`` and the field is free text. A prior counts when its
-    provenance is exactly ``llm_prior``, and so does a probability model,
+    ``llm_prior`` is exactly true, and so does a probability model's,
     whose parameters are priors like any other and which is listed under
     ``models`` besides. Evidence-sourced edges are not LLM-proposed and
     are left out.
@@ -134,7 +134,7 @@ def _rederive_review(program: dict) -> dict | None:
             continue
         kind = stmt.get("kind")
         if kind == "probability_model":
-            if stmt.get("provenance") == "llm_prior":
+            if stmt.get("llm_prior") is True:
                 rows, model = _model_rows(stmt)
                 priors.extend(rows)
                 models.append(model)
@@ -148,7 +148,7 @@ def _rederive_review(program: dict) -> dict | None:
                 "source": source,
             })
         elif kind == "probability":
-            if stmt.get("provenance") != "llm_prior":
+            if stmt.get("llm_prior") is not True:
                 continue
             reason = (stmt.get("annotations") or {}).get("source") or ""
             entry: dict = {

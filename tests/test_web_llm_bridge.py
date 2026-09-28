@@ -408,8 +408,8 @@ def _prob_skeleton(pred, val, given):
 
 
 def test_propose_theta_priors_fills_skeletons(monkeypatch):
-    """The bridge returns each skeleton with value filled, provenance set to
-    'llm_prior', and the model's reason in annotations.source — ready for a
+    """The bridge returns each skeleton with value filled, llm_prior set,
+    and the model's reason in annotations.source — ready for a
     parameter_fill_bundle."""
     import json as _json
     skeletons = [
@@ -429,7 +429,7 @@ def test_propose_theta_priors_fills_skeletons(monkeypatch):
 
     out = llm_bridge.propose_theta_priors({"version": "0.1"}, skeletons)
     assert [s["value"] for s in out] == [0.7, 0.3]
-    assert all(s["provenance"] == "llm_prior" for s in out)
+    assert all(s["llm_prior"] is True for s in out)
     assert out[0]["annotations"]["source"] == "常识：约七成"
     # Original target/given structure preserved untouched.
     assert out[0]["target"] == skeletons[0]["target"]

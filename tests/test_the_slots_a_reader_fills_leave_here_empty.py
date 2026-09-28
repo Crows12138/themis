@@ -283,14 +283,14 @@ def test_the_refusal_says_which_of_the_two_slots_went_wrong():
 def test_the_inbound_rule_this_one_pairs_with_is_the_narrower_one():
     """Said in the docstring, so held here: the return door refuses an
     empty source only where the value is declared an LLM prior, and a
-    merged stub is ``structural`` unless the caller says otherwise. The
+    merged stub is not one unless the caller marks it. The
     pairing is real and it is not symmetric, and a comment claiming a
     rule that does not exist is worse than no comment."""
     from themis.input import semantic_validator as sv
 
     guard = inspect.getsource(sv._check_llm_prior_requires_source)
-    assert 'stmt.provenance != "llm_prior"' in guard
-    assert 'provenance=d.get("provenance", "structural")' in inspect.getsource(
+    assert "if not stmt.llm_prior:" in guard
+    assert 'llm_prior=d.get("llm_prior", False)' in inspect.getsource(
         sv._to_statement)
 
 

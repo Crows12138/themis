@@ -2858,12 +2858,12 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     en: 'statements[{index}] ({query}): this program declares a latent common cause, and a `{kind}` query would be answered off the directed edges alone',
   },
   llm_prior_parameter_without_source: {
-    zh: 'statements[{index}]：provenance=\'llm_prior\' 的概率模型里，{parameter} 没有带非空的 annotations.source。模型的每个参数都是单独估的一个数，各自要有一句理由，读者才审得了',
-    en: 'statements[{index}]: in a probability model with provenance=\'llm_prior\', {parameter} carries no non-empty annotations.source. Every parameter of a model is a number estimated on its own, and a reader can audit it only beside its own reason',
+    zh: 'statements[{index}]：llm_prior 为 true 的概率模型里，{parameter} 没有带非空的 annotations.source。模型的每个参数都是单独估的一个数，各自要有一句理由，读者才审得了',
+    en: 'statements[{index}]: in a probability model with llm_prior true, {parameter} carries no non-empty annotations.source. Every parameter of a model is a number estimated on its own, and a reader can audit it only beside its own reason',
   },
   llm_prior_without_source: {
-    zh: 'statements[{index}]：provenance=\'llm_prior\' 的 probabilityStatement 必须带一个非空的 annotations.source（一句话的理由，它会出现在 extensions.llm_proposed_review 里供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，Themis 拒绝让它从审计通道洗过去',
-    en: 'statements[{index}]: a probabilityStatement with provenance=\'llm_prior\' has to carry a non-empty annotations.source — a one-sentence reason, which appears in extensions.llm_proposed_review for the end user to audit. An LLM-proposed prior with no stated reason is silent fabrication, and Themis will not launder one through the audit channel',
+    zh: 'statements[{index}]：llm_prior 为 true 的 probabilityStatement 必须带一个非空的 annotations.source（一句话的理由，它会出现在 extensions.llm_proposed_review 里供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，Themis 拒绝让它从审计通道洗过去',
+    en: 'statements[{index}]: a probabilityStatement with llm_prior true has to carry a non-empty annotations.source — a one-sentence reason, which appears in extensions.llm_proposed_review for the end user to audit. An LLM-proposed prior with no stated reason is silent fabrication, and Themis will not launder one through the audit channel',
   },
   loop_across_time_steps: {
     zh: 'statements[{index}]：这个反馈环的两端在不同的时间步上，那不是环——{left} 在一步、{right} 在另一步，这是两个时间片之间普通的 cause 边，而且这样写的效应不需要工具变量就可识别。\'feedback\' 只用于同时性的环，也就是你说不出谁先谁后的那种',

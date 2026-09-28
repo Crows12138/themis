@@ -75,10 +75,11 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             annotations=stmt.annotations,
         )
     if isinstance(stmt, ProbabilityStatement):
-        # Population and provenance are part of what the entry IS — its key
-        # and which rule validates it — so a ground copy that dropped them
-        # was a universal structural entry where a population's prior had
-        # been written.
+        # Population, provenance and who supplied the number are part of
+        # what the entry IS — its key, which rule validates it, and whether
+        # it is disclosed — so a ground copy that dropped them was a
+        # universal structural entry where a population's prior had been
+        # written.
         return ProbabilityStatement(
             target=_subst_valued(stmt.target, subst),
             given=_subst_valued_tuple(stmt.given, subst),
@@ -87,6 +88,7 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             population=stmt.population,
             provenance=stmt.provenance,
             annotations=stmt.annotations,
+            llm_prior=stmt.llm_prior,
         )
     if isinstance(stmt, ProbabilityModel):
         return ProbabilityModel(
@@ -99,6 +101,7 @@ def _instantiate_one(stmt, subst: dict[str, str]):
             forall=(),
             population=stmt.population,
             provenance=stmt.provenance,
+            llm_prior=stmt.llm_prior,
         )
     return stmt
 

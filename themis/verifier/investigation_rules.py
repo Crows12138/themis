@@ -80,8 +80,8 @@ leaves on the envelope and comes back through ``apply_patch_and_run``
 verbatim. The inbound half is held where it matters most — semantic
 validation refuses an LLM-PROPOSED statement whose source is empty,
 because a number somebody guessed and nobody sourced is one no reader can
-weigh. A stub merged back carries ``provenance="structural"`` unless the
-caller says otherwise, so that guard covers the fabrication case rather
+weigh. A stub merged back is not an ``llm_prior`` unless the caller
+marks it one, so that guard covers the fabrication case rather
 than every return, which is worth saying exactly: the inbound rule is
 narrower than this one. The outbound half was read for what it says and
 never for what it must not say, and the two halves want opposite things

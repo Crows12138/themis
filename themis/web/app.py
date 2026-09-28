@@ -540,7 +540,7 @@ def _probability_skeletons(result: dict) -> list[dict]:
 @app.post("/api/assume")
 def api_assume(req: AssumeRequest):
     """数据不足时的诚实兜底：让 LLM 给缺的概率分布填一组 common-knowledge
-    先验（``provenance: llm_prior``），重跑得到点估计。
+    先验（``llm_prior: true``），重跑得到点估计。
 
     每个先验都被内核收进 ``extensions.llm_proposed_review``，于是渲染面
     的披露面板会把这些数标成 AI 估的、请用户审核后再用——这是 opt-in 的

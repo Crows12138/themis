@@ -195,7 +195,7 @@ def test_a_table_comes_back_as_a_model_in_the_place_of_its_rows(model):
     assert [r["kind"] for r in out] == ["probability", "probability_model",
                                         "probability"]
     table = out[1]
-    assert table["provenance"] == "llm_prior"
+    assert table["llm_prior"] is True and "provenance" not in table
     assert table["given"] == [{"atom": _atom("x"), "value": False},
                               {"atom": _atom("z"), "value": False}]
     assert table["baseline"] == {"value": 0.2,
@@ -295,7 +295,7 @@ def test_a_merged_program_is_held_to_every_rule_a_program_is():
     program = _confounded()
     table = {
         "kind": "probability_model", "form": "odds_ratios",
-        "provenance": "llm_prior",
+        "llm_prior": True,
         "target": {"atom": _atom("y"), "value": True},
         "given": [{"atom": _atom("x"), "value": False},
                   {"atom": _atom("z"), "value": False}],

@@ -112,7 +112,7 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "bidirected_runtime_gate",
         "transport_runtime_gate",
         "temporal_monotonicity",
-        # Fix 3+4 (v0.1.5): llm_prior provenance demands a non-empty
+        # Fix 3+4 (v0.1.5): an llm_prior demands a non-empty
         # annotations.source so the audit-trail review surface
         # (extensions.llm_proposed_review) has a reason string per
         # entry. Empty / null source on llm_prior would let LLM
@@ -457,13 +457,13 @@ class Malformed(language.Word, vocabulary="malformed_program",
               "end to end — use themis.estimate(...) with raw data",
     })
     LLM_PRIOR_WITHOUT_SOURCE = ("llm_prior_without_source", {
-        "zh": "statements[{index}]：provenance='llm_prior' 的 "
+        "zh": "statements[{index}]：llm_prior 为 true 的 "
               "probabilityStatement 必须带一个非空的 annotations.source"
               "（一句话的理由，它会出现在 extensions.llm_proposed_review 里"
               "供终端用户审计）。没有说明理由的 LLM 先验就是无声的编造，"
               "Themis 拒绝让它从审计通道洗过去",
         "en": "statements[{index}]: a probabilityStatement with "
-              "provenance='llm_prior' has to carry a non-empty "
+              "llm_prior true has to carry a non-empty "
               "annotations.source — a one-sentence reason, which appears in "
               "extensions.llm_proposed_review for the end user to audit. An "
               "LLM-proposed prior with no stated reason is silent "
@@ -472,11 +472,11 @@ class Malformed(language.Word, vocabulary="malformed_program",
     })
     LLM_PRIOR_PARAMETER_WITHOUT_SOURCE = (
         "llm_prior_parameter_without_source", {
-            "zh": "statements[{index}]：provenance='llm_prior' 的概率模型里，"
+            "zh": "statements[{index}]：llm_prior 为 true 的概率模型里，"
                   "{parameter} 没有带非空的 annotations.source。模型的每个"
                   "参数都是单独估的一个数，各自要有一句理由，读者才审得了",
             "en": "statements[{index}]: in a probability model with "
-                  "provenance='llm_prior', {parameter} carries no non-empty "
+                  "llm_prior true, {parameter} carries no non-empty "
                   "annotations.source. Every parameter of a model is a number "
                   "estimated on its own, and a reader can audit it only "
                   "beside its own reason",
@@ -901,6 +901,7 @@ def _to_statement(d: dict):
             population=d.get("population"),
             provenance=d.get("provenance", "structural"),
             annotations=_to_annotation(d.get("annotations")),
+            llm_prior=d.get("llm_prior", False),
         )
     if k == "probability_model":
         return ProbabilityModel(
@@ -918,6 +919,7 @@ def _to_statement(d: dict):
             forall=tuple(d.get("forall", ())),
             population=d.get("population"),
             provenance=d.get("provenance", "structural"),
+            llm_prior=d.get("llm_prior", False),
         )
     if k == "observation":
         return ObservationStatement(
@@ -1496,7 +1498,7 @@ def _check_temporal_monotonicity(program: Program) -> None:
 
 def _check_llm_prior_requires_source(program: Program) -> None:
     """Fix 3+4 §3.1 (v0.1.5): every probability statement tagged
-    ``provenance == "llm_prior"`` must carry a non-empty
+    ``llm_prior`` must carry a non-empty
     ``annotations.source`` string. The source field is the audit-trail
     reason that surfaces in ``extensions.llm_proposed_review``; if it's
     empty / null / whitespace, the end user has no way to evaluate
@@ -1516,7 +1518,7 @@ def _check_llm_prior_requires_source(program: Program) -> None:
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, (ProbabilityStatement, ProbabilityModel)):
             continue
-        if stmt.provenance != "llm_prior":
+        if not stmt.llm_prior:
             continue
         if isinstance(stmt, ProbabilityStatement):
             if unsourced(stmt.annotations):
@@ -1793,7 +1795,9 @@ def _check_probability_parents(
         # expanded by the chain rule names such factors — P(w|z) for two
         # confounders that share a cause — and the ask for one says it is
         # observational. What this check guards is the other claim: that
-        # a statement IS a CPT entry.
+        # a statement IS a CPT entry. Who supplied the number does not
+        # bear on it — a language model's guess at that factor is still
+        # an observational conditional, and ``llm_prior`` says the rest.
         if stmt.provenance == "observational":
             continue
         target_atom = stmt.target.atom

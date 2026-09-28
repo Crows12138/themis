@@ -399,7 +399,7 @@ Public surface (re-exports from sub-modules):
   ``strata[].n``, a channel's treated and control halves — are never mistaken
   for it)
 - Copies of the caller's own words: ``verify_llm_proposed_review`` (every edge
-  whose annotation names a language model and every prior whose provenance is
+  whose annotation names a language model and every prior marked
   ``llm_prior``, collected again from the program JSON and compared with the
   block a reader accepts or rejects the graph on — both directions, because an
   LLM-proposed edge that never reaches that surface reads as one a person

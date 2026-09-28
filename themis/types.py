@@ -335,10 +335,10 @@ class ProbabilityStatement:
     value: float
     forall: tuple[str, ...] = ()
     population: str | None = None  # Phase 9 §T9.1: source population label
-    # Provenance of this probability entry; three accepted values:
+    # What kind of conditional this entry is; two accepted values:
     #
-    # - ``"structural"`` (default, 2026-05-14): user-stated CPT entry,
-    #   DAG parent-aligned. Strict parent-subset validation applies.
+    # - ``"structural"`` (default, 2026-05-14): a CPT entry, DAG
+    #   parent-aligned. Strict parent-subset validation applies.
     # - ``"observational"`` (Gap B, v0.1.3): empirical / joint-derived
     #   conditional that may condition on descendants or non-parents
     #   (e.g. CLadder Q6772 Berkson-style "for accepted-AND-non-
@@ -348,18 +348,22 @@ class ProbabilityStatement:
     #   expanded by the chain rule names P(w|z) for two confounders that
     #   share a cause, and the ask for that factor is written
     #   observational.
-    # - ``"llm_prior"`` (Fix 3+4, v0.1.5): LLM-proposed prior from
-    #   common knowledge when the user didn't supply a number AND
-    #   the kernel reported InsufficientTheta. Strict parent-subset
-    #   validation applies (it IS a CPT in the model's shape — the
-    #   only difference from structural is sourcing). ``annotations.source``
-    #   is REQUIRED non-empty for llm_prior — a one-sentence reason
-    #   that surfaces in ``extensions.llm_proposed_review`` for the
-    #   end user to audit before trusting the answer. Bounded fallback
-    #   mode only (not opportunistic) — see charter
-    #   FIX_3_4_CHARTER_llm_mediated_transport.md §1.4.
     provenance: str = "structural"
     annotations: Annotation | None = None
+    # Who supplied the number, which is a second fact and not a third kind
+    # of conditional: a language model's commonsense prior (Fix 3+4,
+    # v0.1.5), given when the user supplied none AND the kernel reported
+    # InsufficientTheta — bounded fallback, never opportunistic, charter
+    # FIX_3_4_CHARTER_llm_mediated_transport.md §1.4. It is a guess at
+    # whatever the kernel asked for, a CPT entry or an observational
+    # factor, and ``provenance`` still says which. It was a third value of
+    # ``provenance``, so a guess at an observational factor had no
+    # spelling: filled as a prior it was held to parents and refused, and
+    # kept observational it was admitted undisclosed. ``annotations.source``
+    # is REQUIRED non-empty on one — the one-sentence reason that surfaces
+    # in ``extensions.llm_proposed_review`` for the end user to audit
+    # before trusting the answer.
+    llm_prior: bool = False
 
 
 @dataclass(frozen=True)
@@ -397,9 +401,9 @@ class ProbabilityModel:
     ``form`` names how the conditions combine, and the one form there is
     carries an assumption a table does not: the ratios multiply whatever
     the other conditions are. It is disclosed on the assumption ledger for
-    that reason. ``provenance``, ``population`` and ``forall`` mean what
-    they mean on a probability statement, and every expanded cell carries
-    them.
+    that reason. ``provenance``, ``llm_prior``, ``population`` and
+    ``forall`` mean what they mean on a probability statement, and every
+    expanded cell carries them.
     """
     form: str
     target: "ValuedAtom"
@@ -409,6 +413,7 @@ class ProbabilityModel:
     forall: tuple[str, ...] = ()
     population: str | None = None
     provenance: str = "structural"
+    llm_prior: bool = False
 
 
 # ---------------------------------------------------------------------------

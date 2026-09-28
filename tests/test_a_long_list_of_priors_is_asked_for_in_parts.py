@@ -117,7 +117,7 @@ def test_a_long_list_is_asked_for_in_parts_and_filled_from_each(model):
     assert len(sizes) == 3 and max(sizes) - min(sizes) <= 1
     assert sorted(i for rows in asked for i in rows) == list(range(n))
     assert [s["value"] for s in out] == [i / 10000 for i in range(n)]
-    assert all(s["provenance"] == "llm_prior" for s in out)
+    assert all(s["llm_prior"] is True for s in out)
 
 
 @pytest.mark.parametrize("before", range(0, 2 * PER_CALL, 7))

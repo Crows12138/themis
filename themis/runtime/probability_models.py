@@ -77,5 +77,6 @@ def expand(model: ProbabilityModel,
                 value=probability,
                 population=model.population,
                 provenance=model.provenance,
+                llm_prior=model.llm_prior,
             ))
     return tuple(cells)

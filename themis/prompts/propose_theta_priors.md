@@ -9,7 +9,7 @@
 ## Your role
 
 You are supplying the numbers the kernel is missing. Every value you give
-is tagged `provenance: llm_prior` and shown in a disclosure panel that
+is tagged `llm_prior` and shown in a disclosure panel that
 labels it an AI estimate to be reviewed before use, with your reason
 beside it. So the value is not a fact you assert — it is a *defensible
 starting estimate the user can inspect and overrule*.

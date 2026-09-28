@@ -46,7 +46,7 @@ Any question matching:
 
    **Theta encoding — structural vs observational**: probability statements default to `provenance: "structural"` — the `given` must be a subset of the target's structural parents in the DAG. This is the right encoding when the user supplies CPTs aligned with the model's causal direction.
 
-   When the user has supplied **empirical observational conditionals** that condition on non-parents (e.g. CLadder-style collider questions: "for students who are accepted AND non-talented, P(hard-working)=0.94" — `accepted` is a descendant of `effort` in the DAG), mark those statements with `provenance: "observational"`. This relaxes the parent-subset check. The entry is keyed like any other, so any formula factor of the same shape reads it, which is correct: the factors of an identification formula are observational conditionals. The kernel's own asks carry `provenance: "observational"` where they need it, so a stub filled and pasted back verbatim is admitted.
+   When the user has supplied **empirical observational conditionals** that condition on non-parents (e.g. CLadder-style collider questions: "for students who are accepted AND non-talented, P(hard-working)=0.94" — `accepted` is a descendant of `effort` in the DAG), mark those statements with `provenance: "observational"`. This relaxes the parent-subset check. The entry is keyed like any other, so any formula factor of the same shape reads it, which is correct: the factors of an identification formula are observational conditionals. The kernel's own asks carry `provenance: "observational"` where they need it, so a stub filled and pasted back verbatim is admitted — keep that field whoever supplies the number.
 
    You only supply K-1 of K domain values for a (target, given) group — the kernel auto-completes the K-th via the probability axiom (∑ = 1). Don't waste verbosity supplying `P(X=true)=0.43` AND `P(X=false)=0.57`; one is enough.
 
@@ -78,9 +78,9 @@ When the user's stratum is outside the source data (different country / age / co
 
 At that point, you MAY propose those marginals from common knowledge via a second-turn `themis_apply_patch_and_run` patch bundle. Each LLM-proposed probability statement MUST carry:
 
-- `provenance: "llm_prior"` — explicit marker, not optional
+- `llm_prior: true` — explicit marker, not optional. It says who supplied the number and nothing else: `provenance` stays what the kernel's ask wrote, `observational` included
 - `population: "<target_name>"` — matching the SelectionNode's `target_population`
-- `annotations.source: "<one-sentence reason>"` — REQUIRED non-empty. Validator rejects empty / null source on llm_prior. The reason will be shown to the user verbatim — write a real sentence (e.g. "common knowledge: rural Indian cohort age distribution from WHO 2020 estimate"), not "因为" or "guess".
+- `annotations.source: "<one-sentence reason>"` — REQUIRED non-empty. Validator rejects empty / null source on an llm_prior. The reason will be shown to the user verbatim — write a real sentence (e.g. "common knowledge: rural Indian cohort age distribution from WHO 2020 estimate"), not "因为" or "guess".
 
 ### Disclosure protocol (when you used Path B)
 
@@ -94,7 +94,7 @@ vanilla LLMs silently elide step 1 and 2 — they pretend to make individual pre
 
 ### Bounded fallback only
 
-LLM-proposed priors are a SECOND-TURN fallback after `InsufficientTheta`. Do NOT proactively supply `llm_prior` probability statements on the first turn — kernel must always have the chance to identify "you actually need this number" before you propose. User-supplied numbers always take priority over LLM priors.
+LLM-proposed priors are a SECOND-TURN fallback after `InsufficientTheta`. Do NOT proactively supply `llm_prior: true` probability statements on the first turn — kernel must always have the chance to identify "you actually need this number" before you propose. User-supplied numbers always take priority over LLM priors.
 
 ## Hard rules
 

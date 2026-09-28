@@ -136299,8 +136299,8 @@ false
 },
 "given": [],
 "kind": "probability",
+"llm_prior": true,
 "population": "rural_india",
-"provenance": "llm_prior",
 "target": {
 "atom": {
 "args": [

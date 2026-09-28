@@ -487,7 +487,7 @@
         },
         "llm_proposed_review": {
           "type": "object",
-          "description": "Fix 3+4 §3.2 (v0.1.5): aggregated audit surface listing every LLM-proposed element in the program (cause edges tagged annotations.source containing 'llm' + probability statements with provenance='llm_prior'). Attached only when at least one such element exists, so single-population non-LLM-prior runs serialise byte-identically to pre-fix. The Skill v3 contract requires the agent's reply to lead with this list before stating any numeric answer. A `summary` stood here saying how many of each there were and that the answer depends on them; both counts are the arrays below, and the rest was a constant frame belonging to whoever renders it.",
+          "description": "Fix 3+4 §3.2 (v0.1.5): aggregated audit surface listing every LLM-proposed element in the program (cause edges tagged annotations.source containing 'llm' + probability statements and models marked llm_prior, of either provenance). Attached only when at least one such element exists, so single-population non-LLM-prior runs serialise byte-identically to pre-fix. The Skill v3 contract requires the agent's reply to lead with this list before stating any numeric answer. A `summary` stood here saying how many of each there were and that the answer depends on them; both counts are the arrays below, and the rest was a constant frame belonging to whoever renders it.",
           "required": ["edges", "probabilities"],
           "additionalProperties": false,
           "properties": {

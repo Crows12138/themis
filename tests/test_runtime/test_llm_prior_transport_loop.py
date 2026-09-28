@@ -14,7 +14,7 @@ First themis.run:
 
 Second turn (apply_patch_and_run):
   - LLM proposes P*(Z) from common knowledge — patch bundle entries
-    carry provenance='llm_prior' + non-empty annotations.source reason
+    carry llm_prior: true + non-empty annotations.source reason
   - kernel re-runs → numerically_solved
   - extensions.llm_proposed_review surfaces every llm_prior entry
     with its reason for the user to audit BEFORE trusting the answer
@@ -112,7 +112,7 @@ def _llm_prior_patch_bundle() -> dict:
                 "given": [],
                 "value": 0.65,
                 "population": "rural_india",
-                "provenance": "llm_prior",
+                "llm_prior": True,
                 "annotations": {
                     "source": (
                         "Common knowledge: aging-population prevalence "
@@ -237,7 +237,7 @@ def test_round2_verify_round_trip():
 
 
 def test_llm_prior_without_source_rejected():
-    """A probability statement with provenance='llm_prior' but empty /
+    """A probability statement with llm_prior true but empty /
     null annotations.source must be rejected at semantic-validation
     time. Empty source on llm_prior would let LLM silently launder
     fabricated numbers — direct contract violation."""
@@ -251,7 +251,7 @@ def test_llm_prior_without_source_rejected():
         "given": [],
         "value": 0.65,
         "population": "rural_india",
-        "provenance": "llm_prior",
+        "llm_prior": True,
         # No "annotations" key at all.
     })
     from themis.input.semantic_validator import SemanticError
@@ -271,7 +271,7 @@ def test_llm_prior_with_empty_source_rejected():
         "given": [],
         "value": 0.65,
         "population": "rural_india",
-        "provenance": "llm_prior",
+        "llm_prior": True,
         "annotations": {"source": "   "},  # whitespace-only
     })
     from themis.input.semantic_validator import SemanticError

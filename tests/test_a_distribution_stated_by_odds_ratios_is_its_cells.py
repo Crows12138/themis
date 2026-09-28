@@ -58,7 +58,7 @@ def _model(conditions, baseline, *, prior=True, target="y"):
                         for p, _, ratios in conditions for v, r in ratios.items()],
     }
     if prior:
-        model["provenance"] = "llm_prior"
+        model["llm_prior"] = True
     return model
 
 
@@ -216,7 +216,7 @@ def test_a_model_is_ground_once_per_object_and_keeps_its_population():
     prior["given"][0]["atom"]["args"] = var
     prior["odds_ratios"][0]["atom"]["args"] = var
     written = {"kind": "probability", "forall": ["P"], "population": "trial",
-               "provenance": "llm_prior", "annotations": _why("base"),
+               "llm_prior": True, "annotations": _why("base"),
                "target": {"atom": {"predicate": "x", "args": var}, "value": True},
                "given": [], "value": 0.4}
     program = {
@@ -232,7 +232,8 @@ def test_a_model_is_ground_once_per_object_and_keeps_its_population():
              if isinstance(s, ProbabilityStatement)]
     assert {s.target.atom.args[0].name for s in cells} == {"ann", "bo"}
     assert len(cells) == 2 * (1 + 2 * 2)
-    assert {(s.population, s.provenance) for s in cells} == {("trial", "llm_prior")}
+    assert ({(s.population, s.provenance, s.llm_prior) for s in cells}
+            == {("trial", "structural", True)})
 
 
 # ============================================================ what a reader is shown

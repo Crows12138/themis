@@ -568,13 +568,17 @@ class _Table(NamedTuple):
 
     ``given`` holds each condition at its reference value and ``ratios``
     each condition at another, in the order the conditions and their
-    declared values come; ``rows`` are the skeletons it answers.
+    declared values come; ``rows`` are the skeletons it answers, and
+    ``provenance`` the kind of conditional they say they are, where they
+    say one — the same for every row, since it follows from the target and
+    the conditions, which the rows share.
     """
     rows: tuple[int, ...]
     target: dict
     given: tuple[dict, ...]
     ratios: tuple[dict, ...]
     population: str | None
+    provenance: str | None
 
 
 def _numbers(request: "dict | _Table") -> int:
@@ -708,6 +712,7 @@ def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
                          for v in d
                          if not (v == ref and type(v) is type(ref))),
             population=first.get("population"),
+            provenance=first.get("provenance"),
         )
     return tables
 
@@ -800,6 +805,10 @@ def _reason(i: int, entry: dict, label: str) -> str:
 
 
 def _cell_from(i: int, skeleton: dict, reply: dict | None) -> dict:
+    """The skeleton filled: its value, who supplied it, and why. What the
+    kernel wrote — the key, and the kind of conditional it asked for — is
+    kept as written, because the statement that settles an ask is the one
+    the kernel keyed it to."""
     label = _prob_key_repr(skeleton)
     value = _number(i, reply, label)
     if not (0.0 <= value <= 1.0):
@@ -808,7 +817,7 @@ def _cell_from(i: int, skeleton: dict, reply: dict | None) -> dict:
     assert reply is not None  # _number refuses a missing entry
     out = dict(skeleton)
     out["value"] = value
-    out["provenance"] = "llm_prior"
+    out["llm_prior"] = True
     out["annotations"] = {"source": _reason(i, reply, label)}
     return out
 
@@ -840,7 +849,7 @@ def _model_from(i: int, table: _Table, reply: dict | None) -> dict:
     model = {
         "kind": "probability_model",
         "form": "odds_ratios",
-        "provenance": "llm_prior",
+        "llm_prior": True,
         "target": table.target,
         "given": list(table.given),
         "baseline": {"value": baseline,
@@ -849,6 +858,8 @@ def _model_from(i: int, table: _Table, reply: dict | None) -> dict:
     }
     if table.population is not None:
         model["population"] = table.population
+    if table.provenance is not None:
+        model["provenance"] = table.provenance
     return model
 
 
@@ -865,13 +876,14 @@ def propose_theta_priors(
     ``skeletons`` are the ``kind == "probability"`` records the kernel
     emitted in ``investigation_requests`` (value == null). Returns the
     records to drop into a ``parameter_fill_bundle``, in the order of the
-    skeletons: each skeleton with ``value`` filled, ``provenance`` set to
-    ``"llm_prior"`` and ``annotations.source`` carrying the model's one-line
-    reason — or, where the skeletons are cells of a distribution asked for
+    skeletons: each skeleton with ``value`` filled, ``llm_prior`` set and
+    ``annotations.source`` carrying the model's one-line reason, and
+    everything else as the kernel wrote it — or, where the skeletons are
+    cells of a distribution asked for
     as a table (:func:`_tables`), one ``probability_model`` in their place,
     where the first of them was, every parameter with its own reason.
 
-    The disclosure is the kernel's job: every ``llm_prior`` value surfaces in
+    The disclosure is the kernel's job: every ``llm_prior`` surfaces in
     ``extensions.llm_proposed_review`` so the answer says which numbers are
     assumed, and a table's form is a line of the assumption ledger. This
     bridge only sources the numbers; it never hides them.

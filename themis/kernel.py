@@ -1065,6 +1065,8 @@ def _statement_to_dict(s) -> dict:
             d["population"] = s.population
         if s.provenance != "structural":
             d["provenance"] = s.provenance
+        if s.llm_prior:
+            d["llm_prior"] = True
         ann = _annotation_to_dict(s.annotations)
         if ann is not None:
             d["annotations"] = ann
@@ -1093,6 +1095,8 @@ def _statement_to_dict(s) -> dict:
             d["population"] = s.population
         if s.provenance != "structural":
             d["provenance"] = s.provenance
+        if s.llm_prior:
+            d["llm_prior"] = True
         return d
     if isinstance(s, QueryStatement):
         return {"kind": "query", "id": s.id, "query": _query_to_dict(s.query)}

@@ -445,13 +445,13 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
       ``"llm_proposal"`` (A2 convention) and any variant. Edges
       sourced from evidence (PubMed, KB, user) are excluded — they
       are not LLM-proposed.
-    - **Probability priors** (``ProbabilityStatement``):
-      ``provenance == "llm_prior"``. Includes the prior value, the
+    - **Probability priors** (``ProbabilityStatement``): ``llm_prior``,
+      whichever kind of conditional they are. Includes the prior value, the
       target/given key, the population label, and the reason
       (``annotations.source``, validated non-empty by F3.1
       ``llm_prior_requires_source``).
-    - **Probability models** (``ProbabilityModel``) of the same
-      provenance: each parameter joins the priors as a line of its own,
+    - **Probability models** (``ProbabilityModel``) marked the same way:
+      each parameter joins the priors as a line of its own,
       and the model is listed under ``models`` (:func:`_model_review`),
       a key present only when there is one.
 
@@ -479,7 +479,7 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
 
     for stmt in program.statements:
         if isinstance(stmt, ProbabilityModel):
-            if stmt.provenance == "llm_prior":
+            if stmt.llm_prior:
                 lines, model = _model_review(stmt)
                 probabilities.extend(lines)
                 models.append(model)
@@ -496,7 +496,7 @@ def build_llm_proposed_review(program: "Program") -> dict | None:
                 "source": source,
             })
         elif isinstance(stmt, ProbabilityStatement):
-            if stmt.provenance != "llm_prior":
+            if not stmt.llm_prior:
                 continue
             reason = (
                 stmt.annotations.source
