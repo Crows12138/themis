@@ -643,8 +643,15 @@ def _theta_from_scm(
     its target/given atoms and their values, not the population tag). The key
     set equals :func:`enumerate_keys`'s distinct output and each value equals
     :func:`_observational_cond` (both pinned by test); may raise
-    ``_VEIntractable`` (→ inconclusive) on a high-treewidth graph."""
-    th = Theta()
+    ``_VEIntractable`` (→ inconclusive) on a high-treewidth graph.
+
+    The store carries the domains the model was sampled over. The keys are
+    enumerated over them, and the evaluator ranges each sum over the
+    store's domain of the atom summed: a store with none answers true and
+    false, so a sum over a variable of three values asked for keys at
+    ``True`` that nothing had made, and an honest estimand was refused as
+    asking for a factor its graph does not contain."""
+    th = Theta(domains=dict(scm.domains))
     keys = referenced_keys(bound_formula, scm.domains)
 
     # Group keys by (target atom, population, conditioning atom-SET). Keys in a
