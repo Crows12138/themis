@@ -29,7 +29,7 @@ from . import web_source
 client = TestClient(app_module.app)
 PROMPT = (pathlib.Path(llm_bridge.__file__).resolve().parent.parent
           / "prompts" / "nl_to_kernel_ast.md")
-SECTION = "When the reader corrects a reading"
+SECTION = "When a program is followed by another turn"
 
 
 def _atom(p):

@@ -14,6 +14,7 @@ for this slice. Bind to localhost; if you want to share, change
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,8 @@ from pydantic import BaseModel
 
 import themis
 from themis import framing, language
+from themis.input.semantic_validator import SemanticError
+from themis.input.syntactic_validator import SyntacticError
 
 from . import failure
 
@@ -357,6 +360,14 @@ def api_revise(req: ReviseRequest):
         api_key=req.api_key, correction=req.correction)
 
 
+#: What the kernel raises about a program as it was written: its form
+#: against the schema, and the rules the language holds a well-formed
+#: program to. A model that wrote the program can mend these. Anything else
+#: a run raises is about what the kernel did with a program it accepted,
+#: and handing that back would ask the model to mend the kernel.
+_THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError)
+
+
 def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
                         api_key: str | None, **echo):
     """Have a model write a program, run it, and have the result written up.
@@ -365,11 +376,14 @@ def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
     which the kernel runs and a model then reads back. ``stage`` is what a
     failure of ``read`` is filed under.
     """
-    from .llm_bridge import render_reply
+    from .llm_bridge import render_reply, repair_kernel_ast
 
-    # Retry read→run up to 3 times for transient LLM / network failures
-    # (mirrors Themis_Demo). The systematic `args`-on-variable slip is fixed
-    # at the root by the bridge's few-shot examples — no sanitizing here.
+    # Up to three programs. A failure to write one (a transient LLM or
+    # network error, a reply that is not JSON) is met by writing again. A
+    # program the kernel refuses as written is met by handing it back with
+    # the refusal, so the next attempt mends that slip in that reading
+    # rather than drawing a new reading that may slip elsewhere; a repair
+    # the kernel refuses in turn is handed back with its own refusal.
     # The AST and the envelope are bound together or not at all — a pair,
     # not two variables that happen to be assigned in the same block, so
     # that the guard below speaks for both of them.
@@ -377,16 +391,20 @@ def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
     last: Exception | None = None
     last_ast: dict | None = None
     last_stage = stage
+    write = read
     for _ in range(3):
         last_stage = stage
         try:
-            a = read()
+            a = write()
             last_ast = a
             last_stage = "themis_run"  # the program is written; a failure now is the kernel's
             ran = (a, themis.run(a))
             break
         except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
             last = exc
+            if last_stage == "themis_run" and isinstance(exc, _THE_PROGRAM_AS_WRITTEN):
+                write = functools.partial(repair_kernel_ast, nl, a, exc,
+                                          api_key=api_key)
     if ran is None:
         # Attribute the failure to where it actually happened, by position —
         # NOT by exception type. A transport error during the LLM call (proxy

@@ -16,7 +16,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 from referencing import Registry, Resource
 
 from ..audits import Artifact, artifact_of
@@ -78,9 +78,37 @@ def validator_for(
     return Draft202012Validator(schema_doc, registry=registry)
 
 
+def _what_is_wrong(error: ValidationError) -> list[ValidationError]:
+    """The failures that say what is wrong, for one failure reported.
+
+    A statement that fits none of the shapes a ``oneOf`` offers fails once
+    per shape, and the one failure reported for it says only that — "… is
+    not valid under any of the given schemas" — which names the statement
+    and not what is wrong with it. Every shape here says which one it is by
+    its ``kind``, so the instance says which shape it means: the one branch
+    whose ``kind`` it did not fail. That branch's failures are what is
+    wrong, and they are read the same way in turn, since a query inside a
+    statement is chosen by its ``kind`` too. Where no single branch is meant
+    — no ``kind``, or one no shape takes — the failure is reported as it
+    came, because choosing a branch would be guessing what was meant.
+    """
+    if error.validator not in ("oneOf", "anyOf") or not error.context:
+        return [error]
+    branches: dict[object, list[ValidationError]] = {}
+    for sub in error.context:
+        branches.setdefault(sub.relative_schema_path[0], []).append(sub)
+    meant = [subs for subs in branches.values()
+             if not any(list(sub.relative_path) == ["kind"] for sub in subs)]
+    if len(meant) != 1:
+        return [error]
+    return [wrong for sub in meant[0] for wrong in _what_is_wrong(sub)]
+
+
 def _validate(payload: dict, schema_name: str, schema_dir: Path | None) -> dict:
     validator = validator_for(schema_name, schema_dir)
-    errors = sorted(validator.iter_errors(payload), key=lambda e: list(e.absolute_path))
+    errors = sorted(
+        (wrong for e in validator.iter_errors(payload) for wrong in _what_is_wrong(e)),
+        key=lambda e: list(e.absolute_path))
     if errors:
         formatted = "; ".join(
             f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}"

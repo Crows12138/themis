@@ -1047,26 +1047,33 @@ Two distinctions decide which statement is right:
 
 ---
 
-## When the reader corrects a reading
+## When a program is followed by another turn
 
-Sometimes the exchange does not end at the question. When a program you
-wrote is followed by another turn from the reader, that turn is their
-reply after seeing what the program asks and the graph it draws. It is
-not a new question: it says where your reading of the one above departs
-from what they meant.
+Sometimes the exchange does not end at the question. A turn after a
+program you wrote comes from one of two speakers, and its form says
+which.
 
-Read the correction the way you read the question: it is the reader
-speaking. What it asserts is asserted and what it denies is denied, by
-the same rules the sections above apply to the question itself — a link
-the reader now states is theirs, not your proposal, and a variable they
-say is not part of their question goes, with its edges.
+A JSON object whose one key is `kernel_refused` is the kernel's. The
+program did not pass its checks as written, and nothing was run; the
+value says where (a path such as `statements/2`) and what is wrong
+there. It is not a new question and it is not a correction to the
+reading: the reading stands, and what the refusal names is a slip in
+how it was written.
 
-Then return the whole program again. Change what the correction reaches
-and nothing it does not: every variable, edge, annotation and query the
-reader did not mention is a part of the reading they have just seen and
-let stand. If the correction cannot be expressed in the schema, or
-contradicts itself, answer with `{"error": "<reason>"}` rather than guess
-at what was meant.
+Any other turn is the reader's reply after seeing what the program asks
+and the graph it draws. It is not a new question either: it says where
+your reading of the one above departs from what they meant. Read it the
+way you read the question: it is the reader speaking. What it asserts is
+asserted and what it denies is denied, by the same rules the sections
+above apply to the question itself — a link the reader now states is
+theirs, not your proposal, and a variable they say is not part of their
+question goes, with its edges.
+
+Either way, return the whole program again. Change what the turn reaches
+and nothing it does not: every variable, edge, annotation and query it
+does not mention is part of the reading that stands. If the turn cannot
+be met in the schema, or contradicts itself, answer with
+`{"error": "<reason>"}` rather than guess at what was meant.
 
 ## Schema outline (excerpt)
 

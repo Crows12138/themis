@@ -321,7 +321,8 @@ def revise_kernel_ast(
 
     The reader's sentence is sent as it was written, the way the question
     is: what a reply after a program means, and what to do with it, is the
-    prompt's to say, in its section "When the reader corrects a reading".
+    prompt's to say, in its section "When a program is followed by another
+    turn".
 
     ``program`` is the one on the reader's screen, which may already carry
     their own edits to the graph, not necessarily the one first written.
@@ -331,6 +332,43 @@ def revise_kernel_ast(
         {"role": "assistant",
          "content": json.dumps(program, ensure_ascii=False)},
         {"role": "user", "content": correction},
+    ], api_key=api_key, model=model, max_attempts=max_attempts)
+
+
+def repair_kernel_ast(
+    nl: str,
+    program: dict,
+    refusal: BaseException,
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+    max_attempts: int = 3,
+) -> dict:
+    """The program ``nl`` was read as, with what the kernel refused mended.
+
+    A program the kernel refuses was a reading with a slip in its form — a
+    key a declaration does not take, a statement of no kind the language
+    has. Asked again from the question alone, the model writes a new
+    reading, which may slip again elsewhere and need not be the reading it
+    had; handed the program and the refusal, it has one thing to mend.
+
+    The refusal is the kernel's turn in the same exchange a reader's
+    correction takes, and it is sent as data under ``kernel_refused`` so
+    that the prompt can tell the two speakers apart by the turn's form — see
+    its section "When a program is followed by another turn". Its words are
+    the kernel's own, said in the language the prompt is written in: the
+    reader of this turn is the model, not the person who asked.
+    """
+    said = (language.assemble(refusal.species.words, refusal.said,
+                              refusal.words, lang=language.Lang.EN)
+            if isinstance(refusal, language.Voiced) else str(refusal))
+    return _program_from([
+        {"role": "user", "content": nl},
+        {"role": "assistant",
+         "content": json.dumps(program, ensure_ascii=False)},
+        {"role": "user",
+         "content": json.dumps({"kernel_refused": said},
+                               ensure_ascii=False)},
     ], api_key=api_key, model=model, max_attempts=max_attempts)
 
 

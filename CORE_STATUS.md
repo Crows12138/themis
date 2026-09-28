@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-31688 passed / 534 skipped, warning-clean
+31698 passed / 534 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,19 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #789 内核拒收的程序带着拒收原因交回模型修（2026-09-28）
+
+**来历**：网页「问」一句话，模型先写程序，内核再跑。模型偶尔把程序写出格式错误：变量声明带上只有边才有的 `annotations`，某个字段写成 null，查询里多一个键。在线上模型上量，6 道题各译 3 次，18 个程序里 3 个被内核按 schema 拒收。被拒收后，入口的做法是拿原问题重新译一遍，最多三次；每次都是一份新的读法，可能在别处又写错，也不再是刚才那份读法。另外，拒收信息只说到「哪一条陈述」为止：一条陈述对 `oneOf` 里的每个形状都不合，jsonschema 报的是 `statements/2: {…} is not valid under any of the given schemas`，没说错在哪；而且这句话从来没交给模型看过。
+
+- **做法**：
+  - `syntactic_validator._what_is_wrong`：某条失败是 `oneOf`/`anyOf` 全不匹配时，按实例自己的 `kind` 找它要的那个分支，也就是唯一一个在 `kind` 上没失败的分支，改报这个分支的失败；嵌套的（陈述里的查询）同样处理。找不出唯一分支时（没有 `kind`，或 `kind` 哪个形状都不收）照原样报，不猜。所有经 `_validate` 的文档都这样报，信封自检也一样。
+  - `llm_bridge.repair_kernel_ast(nl, program, refusal)`：把问题、刚写的程序和拒收原因作为同一段对话的三轮交给模型，拒收原因放在 `{"kernel_refused": …}` 里；带自己句子的拒收（`Voiced`，如语义规则的 `SemanticError`）按英文拼，和提示词同一种语言，因为这一轮的读者是模型。
+  - `app._read_run_and_reply`：内核因为程序本身的写法拒收（`SyntacticError`、`SemanticError`）时，下一次改为修复；修复又被拒收，就带着新的拒收原因再修。写不出程序（不是 JSON、网络错误）仍然重新译；其他运行时异常不交回模型。三次的上限不变。
+  - 提示词 `nl_to_kernel_ast.md` 里「When the reader corrects a reading」一节扩为「When a program is followed by another turn」：程序后面的一轮来自两种说话人，按形式区分，`kernel_refused` 是内核的，其余是读者的；两种都要整份程序重交，只改这一轮涉及的地方。
+- **核实**：新测试 `tests/test_a_program_the_kernel_refuses_is_handed_back_with_the_refusal.py`（10 个）：变量多带 `annotations` 时报出这个键；查询多一个键时报到 `statements/3/query`；没有 `kind` 的陈述照原样报；交给模型的是问题、程序和拒收原因三轮；语义拒收按英文拼；入口上被拒收的程序修好后能答、修复再被拒收就带新原因再修、写不出程序时从原问题重译、非程序写法的异常不交回。服务器上用线上模型定向测：三份真实程序（冰激凌两份、喝咖啡一份）各注入一种线上见过的写法错误（变量带 `annotations`、`measurement` 为 null、查询多一个键），每种修 2 次，18 次全部修好并通过内核，变量、边和查询与原程序相同，每次 4–11 秒。
+
+**基线**：31698 passed / 534 skipped。比 #788 多 10 个，都是新测试文件里的。一次跑完，0 failed，`-n 6` 用时 27 分 28 秒。
 
 ### #788 回复的开头一句只由「标题」一处决定（2026-09-28）
 
