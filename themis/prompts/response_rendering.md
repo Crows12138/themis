@@ -11,7 +11,10 @@ the kernel.
 You read one entry from `themis.run(...)["results"]` (a
 `query_result.schema.json` document) and write a reply for a person,
 not a machine: plain text, no JSON, no code fences except for formulas
-or citations.
+or citations. The reply is the message itself. It opens on its first
+sentence to the reader, with nothing about the reply, the envelope or
+these instructions, and it says each thing once: a later part that
+needs what an earlier part said points back to it.
 
 **The reader's language is an input, not a property of this file.** The
 user message names it; write the whole reply in that language. This
@@ -40,40 +43,45 @@ contract, not optional context the orchestrator might forget to pass.
 
 A reply is a small ladder, top to bottom:
 
-1. **Headline** — can the question be answered? Possible shapes:
+1. **Headline** — the answer to the question the user asked, or why
+   there is none yet. Possible shapes:
    with-number / with-bounds / structurally / not-yet-because-data /
    not-yet-because-named-assumption (a `missing_assumption` gap —
    identification works once that premise is settled, same headline
-   tier as missing-data). The with-number shape
-   triggers on the *presence of a numeric block*, not on `status`
-   alone — a mediation result with
-   `numeric_estimate.decomposition.proportion_mediated` is
-   with-number even when `status == "structurally_solved"` (kernel
-   keeps that status to preserve the structural derivation; the
-   numeric block is supplementary detail at the schema level but
-   the *primary* answer at the renderer level for a question about
-   what share of an effect runs through M). When multiple caveats stack
-   and conflict (e.g. mediation says "structurally decomposable" but
-   every supporting edge is your own proposal), lead with the
-   **most-undermining** caveat. The ranking is: ambiguities that
-   question the question itself (mechanism_vs_existence) >
-   all-edges-are-proposals
+   tier as missing-data). The shape is what the envelope settles about
+   the user's question, which `status` alone does not always say. Two
+   things settle more than it does:
+
+   - A *numeric block* makes the shape with-number whatever the status:
+     a mediation result with
+     `numeric_estimate.decomposition.proportion_mediated` is
+     with-number even when `status == "structurally_solved"` (kernel
+     keeps that status to preserve the structural derivation; the
+     numeric block is supplementary detail at the schema level but
+     the *primary* answer at the renderer level for a question about
+     what share of an effect runs through M).
+   - `extensions.identification.no_directed_path` makes the shape
+     structurally, and the answer is that setting X does not change Y,
+     whatever the status says about data. The graph has no chain of
+     arrows from `from` to `to` — X reaches Y neither directly nor
+     through anything X causes — nor to anything in `conditioned_on`,
+     so P(Y | do(X), Z) = P(Y | Z) whatever X is set to (P(Y | do(X)) =
+     P(Y) with nothing conditioned on). It is an answer about this
+     graph, whose edges are proposals like any other. The distributions
+     still asked for give only the number P(Y | Z); where the asks are
+     listed, they are that number's inputs, and no value they could take
+     changes whether X moves Y.
+
+   When multiple caveats stack and conflict (e.g. mediation says
+   "structurally decomposable" but every supporting edge is your own
+   proposal), lead with the **most-undermining** caveat. The ranking
+   is: ambiguities that question the question itself
+   (mechanism_vs_existence) > all-edges-are-proposals
    (`graph_learned_from_data` or every supporting edge carrying
    `llm_proposal`) > DAG-completeness caveats
    (`unmeasured_confounder_risk`) > query-specific identification
    caveats (mediation/IV/front-door/transport assumptions) >
    bounds-not-point.
-
-   `extensions.identification.no_directed_path` answers the question
-   structurally even when the status says data is missing: the graph has
-   no directed path from `from` to `to`, nor to anything in
-   `conditioned_on`, so setting the one leaves the probability the
-   question asks about as it was — P(Y | do(X), Z) = P(Y | Z), whatever X
-   is set to, which is P(Y | do(X)) = P(Y) when nothing is conditioned
-   on. That is the answer to whether X changes Y, and it is an answer
-   about this graph, whose edges are proposals like any other. Lead with
-   it; the distributions still asked for would give only the number
-   P(Y | Z), and no value they could take changes whether X moves it.
 2. **The caveats** — the gaps in `data_gap_report.gaps[]` whose `kind`
    is in the table below. Every one of them must surface in your reply,
    and it belongs BESIDE the answer it is a condition on, not in the
@@ -228,11 +236,13 @@ supply. Keep the gaps' order — that ordering is the kernel's judgement
 of impact — and keep each line to the thing itself, not a restatement
 of the bullet above it.
 
-**Severity → headline tone**:
+**Severity → what the gap does to the answer**. The headline is settled
+once, in §"How a reply is composed"; a gap's severity says what the gap
+does to that answer, not what the reply opens on:
 
-| Severity | What the opening line does |
+| Severity | What it does to the answer |
 |---|---|
-| `blocking` | Says no number can be given, and names the one absence that stops it. |
+| `blocking` | Stops a number: say that it cannot be given and name the one absence that stops it. Where nothing else is settled, that is the headline (not-yet-because-data); where the headline has an answer of another shape, this follows it. |
 | `important` | Gives the answer, then names the assumption it rests on or the warning it carries. |
 | `informational` | Gives the answer and marks what interpretation it was computed under. |
 
@@ -2252,10 +2262,12 @@ examples": a concrete demonstration outweighs the prose around it, and
 what gets copied is everything about it — there, one graph shape; here,
 one language. What each demonstrated is written out instead.
 
-**A result with no answer yet.** Open by restating the question as the
-query that actually ran. The user asked in their own words and the
-kernel answered a formalisation of it; they cannot check the answer
-without seeing which formalisation. Then group the asks by what each
+**A result with no answer yet.** The user asked in their own words and
+the kernel answered a formalisation of it; they cannot check the answer
+without seeing which formalisation. So the headline says why there is no
+answer yet of the query that actually ran — what is set, what is
+measured, what is held fixed — within its own sentence rather than in a
+restatement before it. Then group the asks by what each
 one unlocks — some make the next reply better structured, some are what
 a number is waiting on — and say which is which at the end. "Here are
 five things I need" leaves the user unable to tell whether doing two of
