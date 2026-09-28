@@ -570,6 +570,12 @@ button { font-family: inherit; cursor: pointer; }
 .framefield__input { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-xs); font-family: inherit; font-size: var(--text-sm); color: var(--ink); background: var(--surface); outline: none; }
 .framefield__input:focus { border-color: var(--accent); }
 .framing__go { margin-top: var(--space-md); }
+/* 自己填缺的数: one row per number, its label beside its field. */
+.supply__row { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--space-2xs) var(--space-sm); align-items: center; padding: var(--space-2xs) 0; }
+.supply__label { font-size: 0.78rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.supply__input { width: 100%; }
+.supply__wrong { grid-column: 1 / -1; font-size: var(--text-xs); color: var(--tier-none); margin-top: var(--space-2xs); }
+.supply__source { margin-top: var(--space-md); max-width: var(--measure); }
 
 /* ---- result: 独立复核 + 原始信封 ---- */
 .recheck { margin-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); align-items: flex-start; }

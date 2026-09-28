@@ -134,6 +134,21 @@ STAGE: dict[str, language.Words] = {
         "zh": "提议先验没有成功",
         "en": "proposing priors did not succeed",
     },
+    "nothing_to_supply": {
+        "zh": "这个查询没有缺的概率要填——可能它已经算得出来，"
+              "也可能缺的是结构或定义而不是数值",
+        "en": "this query is short of no probability to fill in — either "
+              "it is already answerable, or what is missing is structure "
+              "or a definition rather than a number",
+    },
+    "no_number_supplied": {
+        "zh": "一个数都没有填",
+        "en": "no number was filled in",
+    },
+    "supply": {
+        "zh": "填进这些数之后重跑没有成功",
+        "en": "re-running with these numbers filled in did not succeed",
+    },
     "llm_bridge": {
         "zh": "LLM 桥接没能加载",
         "en": "the LLM bridge could not be loaded",

@@ -139,6 +139,39 @@ export function clarify(program: Record<string, unknown>, picks: ClarifyPick[]):
   return post<MergedEnvelope>('/api/clarify', { program, picks })
 }
 
+// What a reader is asked for when the kernel is short of probabilities, as
+// /api/asks lists it: the requests a model is shown, under the same indices,
+// with each ratio written out whole and each table's own cells.
+export interface AskedCell {
+  index: number
+  probability: string
+}
+export interface AskedTable {
+  index: number
+  table: string
+  baseline: string
+  ratios: { ratio: number; condition: string; against: string; label: string }[]
+  cells: { cell: number; probability: string }[]
+}
+export type Asked = AskedCell | AskedTable
+
+// One request answered, under the index /api/asks gave it: a cell's value, a
+// table's baseline and ratios, or a table's cells.
+export type SupplyAnswer =
+  | { index: number; value: number }
+  | { index: number; baseline: number; odds_ratios: number[] }
+  | { index: number; cells: { cell: number; value: number }[] }
+
+export function asks(program: Record<string, unknown>): Promise<{ requests: Asked[] }> {
+  return post<{ requests: Asked[] }>('/api/asks', { program })
+}
+
+// The reader's numbers filled in and the program run again. No model is
+// involved, and nothing the reader supplied is listed as a guess.
+export function supply(program: Record<string, unknown>, answers: SupplyAnswer[], source?: string): Promise<MergedEnvelope> {
+  return post<MergedEnvelope>('/api/supply', { program, answers, source: source?.trim() || undefined })
+}
+
 // The four calls whose answer is PROSE, and the only four that have to
 // tell the server who is reading.
 //

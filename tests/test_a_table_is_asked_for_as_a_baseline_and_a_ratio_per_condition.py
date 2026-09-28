@@ -34,7 +34,7 @@ import pytest
 
 import themis
 from themis.input.semantic_validator import Malformed, SemanticError
-from themis.web import llm_bridge
+from themis.web import asked_for, llm_bridge
 from themis.web.bridge_words import Bridge
 
 EACH = llm_bridge._PRIOR_TOKENS_EACH
@@ -163,7 +163,7 @@ def test_a_table_is_what_can_be_asked_for_as_one(program, rows, tabled):
     for s in program["statements"]:
         if s.get("domain") is None:
             s.pop("domain", None)
-    tables = llm_bridge._tables(program, rows)
+    tables = asked_for.tables(program, rows)
     assert bool(tables) is tabled
     if tabled:
         assert list(tables) == [0] and tables[0].rows == tuple(range(len(rows)))

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { QueryResult } from '../types'
-import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, type ClarifyPick } from '../api'
+import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, supply, type ClarifyPick, type MergedEnvelope, type SupplyAnswer } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
 import { useOffers } from '../lib/offers'
 import { saveResult, whenSaved } from '../lib/saved'
@@ -11,6 +11,7 @@ import { GapReport } from './GapReport'
 import { ResultGraph } from './ResultGraph'
 import { FramingFill } from './FramingFill'
 import { ProposedReview } from './ProposedReview'
+import { SupplyNumbers } from './SupplyNumbers'
 import { Foldout } from './Foldout'
 import { JsonEditor } from './JsonEditor'
 import { Recheck } from './Recheck'
@@ -140,25 +141,27 @@ export function ResultView({
   const fvars = program ? framingVariables(gaps) : []
   const defaultedVars = program ? framingDefaultsInProgram(program) : []
   const review = (result.extensions?.llm_proposed_review as LlmProposedReview | undefined) ?? undefined
-  // The data-scarcity escape hatch: a structurally-identifiable query whose
-  // needed distributions have no data. Offer to source AI priors (disclosed).
-  //
+  // The data-scarcity case: a structurally-identifiable query whose needed
+  // distributions have no data. The reader can type in numbers they have,
+  // which needs no model, or have AI priors sourced (disclosed).
+  const shortOfNumbers =
+    program != null &&
+    result.status === 'needs_investigation' &&
+    gaps.some((g) => g.kind === 'missing_distribution')
   // Both this and the reply below are the two places in the product that
   // need a model outside the Ask workspace, which is why hiding that tab
   // is not the whole of turning a model off. What they offer is a step
   // this deployment can take; a deployment with no model cannot take it.
-  const canAssume =
-    offers?.llm === true &&
-    program != null &&
-    result.status === 'needs_investigation' &&
-    gaps.some((g) => g.kind === 'missing_distribution')
+  const canAssume = offers?.llm === true && shortOfNumbers
 
-  async function doAssume() {
+  // Each way of filling a gap comes back as the merged program run again,
+  // and the page moves on to it the same way.
+  async function merge(fetch: (program: Record<string, unknown>) => Promise<MergedEnvelope>) {
     if (!program) return
     setBusy(true)
     setError(null)
     try {
-      const env = await assume(program, lang, getApiKey())
+      const env = await fetch(program)
       const r = env.results?.[0]
       if (r) {
         setResult(r)
@@ -173,25 +176,9 @@ export function ResultView({
     }
   }
 
-  async function doClarify(picks: ClarifyPick[]) {
-    if (!program) return
-    setBusy(true)
-    setError(null)
-    try {
-      const env = await clarify(program, picks)
-      const r = env.results?.[0]
-      if (r) {
-        setResult(r)
-        setProgram((env.merged_program as Record<string, unknown>) ?? program)
-        setReply(undefined)
-        setNaive(undefined)
-      }
-    } catch (e) {
-      setError(errorText(e, lang))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const doAssume = () => merge((p) => assume(p, lang, getApiKey()))
+  const doClarify = (picks: ClarifyPick[]) => merge((p) => clarify(p, picks))
+  const doSupply = (answers: SupplyAnswer[], source: string) => merge((p) => supply(p, answers, source))
 
   const [rendering, setRendering] = useState(false)
   async function doRender() {
@@ -289,6 +276,7 @@ export function ResultView({
           </button>
         </section>
       ) : null}
+      {program && shortOfNumbers ? <SupplyNumbers program={program} busy={busy} onSubmit={doSupply} /> : null}
 
       {reply ? (
         <section className="reply">

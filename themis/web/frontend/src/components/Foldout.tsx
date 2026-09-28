@@ -14,15 +14,23 @@ export function Foldout({
   defaultOpen = false,
   tone,
   count,
+  onToggle,
 }: {
   summary: ReactNode
   children: ReactNode
   defaultOpen?: boolean
   tone?: 'warn'
   count?: number | string
+  // Told when the reader opens or shuts it, for a body worth fetching only
+  // once somebody looks.
+  onToggle?: (open: boolean) => void
 }) {
   return (
-    <details className={`foldout${tone ? ` foldout--${tone}` : ''}`} open={defaultOpen}>
+    <details
+      className={`foldout${tone ? ` foldout--${tone}` : ''}`}
+      open={defaultOpen}
+      onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
+    >
       <summary className="foldout__summary">
         <span className="foldout__chev" aria-hidden>▸</span>
         <span className="foldout__label">{summary}</span>

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import os
 from pathlib import Path
 
@@ -29,7 +30,7 @@ from themis import framing, language
 from themis.input.semantic_validator import SemanticError
 from themis.input.syntactic_validator import SyntacticError
 
-from . import failure
+from . import asked_for, failure
 
 #: Whether this deployment has a model behind it.
 #:
@@ -122,6 +123,21 @@ class AssumeRequest(BaseModel):
     program: dict
     lang: language.Lang = language.DEFAULT
     api_key: str | None = None
+
+
+class AsksRequest(BaseModel):
+    program: dict
+
+
+class SupplyRequest(BaseModel):
+    program: dict
+    #: One per request answered, under the index ``/api/asks`` gave it: a
+    #: cell's ``value``; a table's ``baseline`` and ``odds_ratios``; or a
+    #: table's ``cells``, each ``{"cell", "value"}``, for a reader who has
+    #: the table cell by cell.
+    answers: list[dict]
+    #: Where the numbers come from, in the reader's words, if they say.
+    source: str | None = None
 
 
 class RenderRequest(BaseModel):
@@ -579,6 +595,149 @@ def api_assume(req: AssumeRequest):
         return out
     except Exception as exc:
         return failure.refused("assume", exc)
+
+
+def _asked(program: dict) -> tuple[list[dict], list[dict | asked_for.Table]]:
+    """The skeletons a run of ``program`` is short of, and what a filler is
+    asked for in their place."""
+    env = themis.run(program)
+    skeletons = _probability_skeletons((env.get("results") or [{}])[0])
+    return skeletons, asked_for.requests(program, skeletons)
+
+
+@app.post("/api/asks")
+def api_asks(req: AsksRequest):
+    """The numbers a reader would type in to answer this program, asked the
+    way a model is asked for them — a table as a baseline and a ratio per
+    condition where that is fewer numbers — with each ratio written out
+    whole and each table's own cells, for a reader who has it cell by cell.
+
+    No model is involved: what is asked is decided in
+    :mod:`themis.web.asked_for`, and it is the same whoever answers.
+    """
+    try:
+        skeletons, requests = _asked(req.program)
+    except Exception as exc:
+        return failure.refused("run", exc)
+    shown = []
+    for i, request in enumerate(requests):
+        one = asked_for.shown(i, request)
+        if isinstance(request, asked_for.Table):
+            for ratio in one["ratios"]:
+                ratio["label"] = asked_for.ratio_label(request, ratio["ratio"])
+            one["cells"] = [
+                {"cell": k, "probability": asked_for.cell_label(skeletons[row])}
+                for k, row in enumerate(asked_for.cells(request, skeletons))]
+        shown.append(one)
+    return {"requests": shown}
+
+
+def _number(raw: object, where: str) -> float:
+    """A number the reader typed. Its range is the kernel's to hold — a
+    probability, a baseline strictly between 0 and 1 and a positive ratio
+    are each a rule of the program schema — and what is refused here is
+    what is not a finite number at all, which no range excludes."""
+    if (isinstance(raw, bool) or not isinstance(raw, (int, float))
+            or not math.isfinite(raw)):
+        raise ValueError(f"{where} is {raw!r}, which is not a finite number")
+    return float(raw)
+
+
+def _index(raw: object, count: int) -> int | None:
+    """``raw`` as a position among ``count``, or None where it is not one."""
+    if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw < count:
+        return raw
+    return None
+
+
+def _supplied(requests: list[dict | asked_for.Table], skeletons: list[dict],
+              answers: list[dict], source: str | None) -> list[dict]:
+    """The records a reader's answers state, in the order the requests
+    come. An answer is to one request, under its index, in the shape that
+    request asks for; anything else is not an answer to this program, which
+    is what a page still showing another program's requests would send."""
+    by_index: dict[int, dict] = {}
+    for one in answers:
+        i = _index(one.get("index") if isinstance(one, dict) else None,
+                   len(requests))
+        if i is None or i in by_index:
+            raise ValueError(
+                f"answer {one!r} is to no request of this program, or to "
+                f"one already answered; it has {len(requests)}")
+        by_index[i] = one
+    records: list[dict] = []
+    for i, request in enumerate(requests):
+        answer = by_index.get(i)
+        if answer is None:
+            continue
+        if not isinstance(request, asked_for.Table):
+            if set(answer) != {"index", "value"}:
+                raise ValueError(f"request {i} is one probability, answered "
+                                 f"with a value and not with {sorted(answer)}")
+            records.append(asked_for.cell_record(
+                request, _number(answer["value"], f"request {i}"),
+                llm_prior=False, source=source))
+        elif set(answer) == {"index", "baseline", "odds_ratios"}:
+            ratios = answer["odds_ratios"]
+            if not isinstance(ratios, list) or len(ratios) != len(request.ratios):
+                raise ValueError(f"request {i} has {len(request.ratios)} "
+                                 f"ratios and was answered with {ratios!r}")
+            records.append(asked_for.model_record(
+                request, _number(answer["baseline"], f"request {i}'s baseline"),
+                [_number(r, f"request {i}'s ratio {j}")
+                 for j, r in enumerate(ratios)],
+                llm_prior=False,
+                sources=dict.fromkeys(["baseline", *range(len(ratios))], source)))
+        elif set(answer) == {"index", "cells"} and isinstance(answer["cells"], list):
+            rows = asked_for.cells(request, skeletons)
+            seen: set[int] = set()
+            for cell in answer["cells"]:
+                k = _index(cell.get("cell") if isinstance(cell, dict) else None,
+                           len(rows))
+                if k is None or k in seen or set(cell) != {"cell", "value"}:
+                    raise ValueError(f"request {i} is {len(rows)} cells, and "
+                                     f"{cell!r} is not one of them")
+                seen.add(k)
+                records.append(asked_for.cell_record(
+                    skeletons[rows[k]],
+                    _number(cell["value"], f"request {i}'s cell {k}"),
+                    llm_prior=False, source=source))
+        else:
+            raise ValueError(f"request {i} is a table, answered with a "
+                             f"baseline and odds_ratios or with cells, and "
+                             f"not with {sorted(answer)}")
+    return records
+
+
+@app.post("/api/supply")
+def api_supply(req: SupplyRequest):
+    """Numbers the reader has, filled in where the kernel said it is short,
+    and the program run again.
+
+    The reader is asked what a model is asked (``/api/asks``), and the
+    answers become the records a model's would, except that they are the
+    reader's: none is marked a guess, so none is listed for review. What
+    the reader chose is still said — a table stated as a baseline and
+    ratios assumes its conditions do not interact, and that is the
+    reader's line of the assumption ledger. A request left blank stays
+    asked.
+    """
+    if not req.answers:
+        return failure.refused("no_number_supplied")
+    try:
+        skeletons, requests = _asked(req.program)
+    except Exception as exc:
+        return failure.refused("run", exc)
+    if not requests:
+        return failure.refused("nothing_to_supply")
+    source = (req.source or "").strip() or None
+    try:
+        records = _supplied(requests, skeletons, req.answers, source)
+        bundle = {"version": "0.1", "kind": "parameter_fill_bundle",
+                  "skeletons": records}
+        return themis.apply_patch_and_run(req.program, [bundle])
+    except Exception as exc:
+        return failure.refused("supply", exc)
 
 
 @app.post("/api/render")

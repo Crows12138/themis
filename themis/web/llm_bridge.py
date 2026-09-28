@@ -80,6 +80,7 @@ from typing import NamedTuple
 from themis import language
 from themis.output import bounded_view
 
+from . import asked_for
 from .bridge_words import Bridge
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
@@ -525,26 +526,6 @@ def render_reply(
     ).strip()
 
 
-def _atom_label(atom: dict) -> str:
-    """`{"predicate": "veg", "args": [...]}` -> `veg` (args dropped; the
-    prior is per-unit, the predicate name is what the reader weighs)."""
-    return str((atom or {}).get("predicate", "?"))
-
-
-def _prob_key_repr(skeleton: dict) -> str:
-    """Render a probability skeleton as `P(target=v | g1=v1, g2=v2)` for the
-    prompt so the model reasons about a human-readable quantity, not raw JSON."""
-    tgt = skeleton.get("target", {})
-    head = f"{_atom_label(tgt.get('atom', {}))}={tgt.get('value')}"
-    given = skeleton.get("given") or []
-    if not given:
-        return f"P({head})"
-    conds = ", ".join(
-        f"{_atom_label(g.get('atom', {}))}={g.get('value')}" for g in given
-    )
-    return f"P({head} | {conds})"
-
-
 #: What one prior costs a reply, and how many one call carries. On
 #: deepseek-v4-pro (2026-09-27) 52 priors and their reasons came back in 1826
 #: output tokens, about 35 each; 60 leaves room for a longer reason or a
@@ -563,164 +544,10 @@ _PRIOR_CALLS_AT_ONCE = 4
 _PRIOR_CALLS_AT_MOST = 8
 
 
-class _Table(NamedTuple):
-    """Rows of one conditional distribution, asked for as a model.
-
-    ``given`` holds each condition at its reference value and ``ratios``
-    each condition at another, in the order the conditions and their
-    declared values come; ``rows`` are the skeletons it answers, and
-    ``provenance`` the kind of conditional they say they are, where they
-    say one — the same for every row, since it follows from the target and
-    the conditions, which the rows share.
-    """
-    rows: tuple[int, ...]
-    target: dict
-    given: tuple[dict, ...]
-    ratios: tuple[dict, ...]
-    population: str | None
-    provenance: str | None
-
-
-def _numbers(request: "dict | _Table") -> int:
-    """How many numbers a request asks for: a cell is one, a table its
-    baseline and each of its ratios."""
-    return 1 + len(request.ratios) if isinstance(request, _Table) else 1
-
-
-def _valued_label(valued: dict) -> str:
-    return f"{_atom_label(valued.get('atom', {}))}={valued.get('value')}"
-
-
-def _table_repr(t: _Table) -> str:
-    conditions = ", ".join(_atom_label(g.get("atom", {})) for g in t.given)
-    return f"P({_atom_label(t.target.get('atom', {}))} | {conditions})"
-
-
-def _baseline_repr(t: _Table) -> str:
-    return (f"P({_valued_label(t.target)} | "
-            f"{', '.join(_valued_label(g) for g in t.given)})")
-
-
-def _reference_of(t: _Table, ratio: dict) -> dict:
-    return next(g for g in t.given if g.get("atom") == ratio.get("atom"))
-
-
-def _ratio_repr(t: _Table, j: int) -> str:
-    ratio = t.ratios[j]
-    return (f"OR({_valued_label(t.target)} | {_valued_label(ratio)}"
-            f"/{_reference_of(t, ratio).get('value')})")
-
-
-def _reference(domain: list) -> object:
-    """The value a condition's ratios are relative to: its absence where it
-    is a yes-or-no, and otherwise the first value it declares."""
-    return False if any(v is False for v in domain) else domain[0]
-
-
-def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
-    """The rows asked for as tables, keyed by the first row of each.
-
-    One conditional distribution — one target under the same conditions in
-    one population — is asked for as a baseline and an odds ratio for each
-    other value of each condition, rather than cell by cell, when it can
-    be: the model's cells are its rows, because the rows ask one value of
-    the target, or the target takes two values and the other's is the
-    complement; each condition has two values or more to give a ratio
-    between; the program states none of its cells, since a model states
-    every cell and one already written would then be stated twice; and it
-    is fewer numbers than the rows are. The rows are counted by the
-    combinations of conditions they are asked at, which is how many numbers
-    they are when the two values of a target come in one combination, and
-    a table is not asked for at as many numbers or more: the cells say the
-    same without assuming how the conditions combine. With one condition
-    it never is fewer, and a few rows of a large table are fewer cells than
-    the table's numbers.
-
-    A condition's values are the ones it declares, where it declares them,
-    since the model is held to a declaration. Where it declares none, one
-    asked at true or false is a yes-or-no, as an undeclared target is read
-    — which matters for a condition the question sets: the kernel asks the
-    table under do(x) at x's one value, and x is still a condition with
-    two. Otherwise they are the values the kernel asks the table at, which
-    are the values it reads it at.
-
-    That is what a person knows of such a table — how common the target
-    is, and how much each condition moves it — and it is k + 1 numbers
-    where the cells are 2^k. What it assumes is said beside the answer.
-    """
-    statements = [s for s in program.get("statements") or ()
-                  if isinstance(s, dict)]
-    declared = {s.get("predicate"): list(s["domain"]) for s in statements
-                if s.get("kind") == "variable" and s.get("domain")}
-
-    def values(atom: dict, asked: list) -> list:
-        """The values of the condition ``atom``, asked at ``asked``."""
-        predicate = _atom_label(atom)
-        if predicate in declared:
-            return declared[predicate]
-        if asked and all(isinstance(v, bool) for v in asked):
-            return [True, False]
-        return asked
-
-    def asked_at(rows: list[int], atom: object) -> list:
-        return list(dict.fromkeys(
-            g.get("value") for i in rows for g in skeletons[i].get("given") or ()
-            if g.get("atom") == atom))
-
-    def which(record: dict) -> tuple:
-        atom = json.dumps((record.get("target") or {}).get("atom"),
-                          sort_keys=True)
-        given = frozenset(json.dumps(g.get("atom"), sort_keys=True)
-                          for g in record.get("given") or ())
-        return atom, given, record.get("population")
-
-    stated = {which(s) for s in statements
-              if s.get("kind") in ("probability", "probability_model")}
-    groups: dict[tuple, list[int]] = {}
-    for i, sk in enumerate(skeletons):
-        groups.setdefault(which(sk), []).append(i)
-    tables: dict[int, _Table] = {}
-    for key, rows in groups.items():
-        first = skeletons[rows[0]]
-        target = first.get("target") or {}
-        given = list(first.get("given") or ())
-        asked = {json.dumps((skeletons[i].get("target") or {}).get("value"))
-                 for i in rows}
-        target_values = declared.get(_atom_label(target.get("atom", {})))
-        two_valued = (len(target_values) == 2 if target_values is not None
-                      else isinstance(target.get("value"), bool))
-        answered = len(asked) == 1 or two_valued
-        domains = [values(g.get("atom") or {}, asked_at(rows, g.get("atom")))
-                   for g in given]
-        combinations = {
-            frozenset((json.dumps(g.get("atom"), sort_keys=True),
-                       json.dumps(g.get("value")))
-                      for g in skeletons[i].get("given") or ())
-            for i in rows}
-        numbers = 1 + sum(len(d) - 1 for d in domains)
-        if (key in stated or not answered or any(len(d) < 2 for d in domains)
-                or numbers >= len(combinations)):
-            continue
-        references = [_reference(d) for d in domains]
-        tables[rows[0]] = _Table(
-            rows=tuple(rows),
-            target={"atom": target.get("atom"), "value": target.get("value")},
-            given=tuple({"atom": g.get("atom"), "value": ref}
-                        for g, ref in zip(given, references)),
-            ratios=tuple({"atom": g.get("atom"), "value": v}
-                         for g, d, ref in zip(given, domains, references)
-                         for v in d
-                         if not (v == ref and type(v) is type(ref))),
-            population=first.get("population"),
-            provenance=first.get("provenance"),
-        )
-    return tables
-
-
 def _prior_calls(requests: list) -> list[list[int]]:
     """The indices of ``requests``, as the calls they are asked for in.
 
-    A request is a skeleton or a :class:`_Table`. Skeletons are gathered by
+    A request is a skeleton or a :class:`themis.web.asked_for.Table`. Skeletons are gathered by
     the distribution they belong to — one variable under one condition,
     whose values must sum to one — in the order the kernel listed them; a
     table is a distribution of its own. Whole distributions are packed into
@@ -732,21 +559,21 @@ def _prior_calls(requests: list) -> list[list[int]]:
     """
     distributions: dict[tuple, list[int]] = {}
     for i, request in enumerate(requests):
-        if isinstance(request, _Table):
+        if isinstance(request, asked_for.Table):
             key: tuple = ("table", i)
         else:
-            target = _atom_label((request.get("target") or {}).get("atom", {}))
+            target = asked_for.atom_label((request.get("target") or {}).get("atom", {}))
             key = (target, tuple(sorted(
-                (_atom_label(g.get("atom", {})), repr(g.get("value")))
+                (asked_for.atom_label(g.get("atom", {})), repr(g.get("value")))
                 for g in request.get("given") or [])))
         distributions.setdefault(key, []).append(i)
-    total = sum(_numbers(r) for r in requests)
+    total = sum(asked_for.numbers(r) for r in requests)
     parts = -(-total // _PRIORS_PER_CALL)
     size = -(-total // parts) if parts else 0
     calls: list[list[int]] = []
     loads: list[int] = []
     for rows in distributions.values():
-        load = sum(_numbers(requests[i]) for i in rows)
+        load = sum(asked_for.numbers(requests[i]) for i in rows)
         if calls and loads[-1] + load <= size:
             calls[-1].extend(rows)
             loads[-1] += load
@@ -754,20 +581,6 @@ def _prior_calls(requests: list) -> list[list[int]]:
             calls.append(list(rows))
             loads.append(load)
     return calls
-
-
-def _request(i: int, request: "dict | _Table") -> dict:
-    """One request as the model is shown it, under its index."""
-    if isinstance(request, _Table):
-        return {
-            "index": i,
-            "table": _table_repr(request),
-            "baseline": _baseline_repr(request),
-            "ratios": [{"ratio": j, "condition": _valued_label(r),
-                        "against": _valued_label(_reference_of(request, r))}
-                       for j, r in enumerate(request.ratios)],
-        }
-    return {"index": i, "probability": _prob_key_repr(request)}
 
 
 def _number(i: int, entry: object, label: str) -> float:
@@ -809,27 +622,24 @@ def _cell_from(i: int, skeleton: dict, reply: dict | None) -> dict:
     kernel wrote — the key, and the kind of conditional it asked for — is
     kept as written, because the statement that settles an ask is the one
     the kernel keyed it to."""
-    label = _prob_key_repr(skeleton)
+    label = asked_for.cell_label(skeleton)
     value = _number(i, reply, label)
     if not (0.0 <= value <= 1.0):
         raise LLMBridgeError(
             Bridge.A_PRIOR_IS_NOT_A_PROBABILITY, index=i, value=value)
     assert reply is not None  # _number refuses a missing entry
-    out = dict(skeleton)
-    out["value"] = value
-    out["llm_prior"] = True
-    out["annotations"] = {"source": _reason(i, reply, label)}
-    return out
+    return asked_for.cell_record(skeleton, value, llm_prior=True,
+                                 source=_reason(i, reply, label))
 
 
-def _model_from(i: int, table: _Table, reply: dict | None) -> dict:
+def _model_from(i: int, table: asked_for.Table, reply: dict | None) -> dict:
     """The ``probability_model`` a reply to a table states, every
     parameter with its own reason."""
     if reply is None:
         raise LLMBridgeError(Bridge.A_PROBABILITY_GOT_NO_PRIOR,
-                             index=i, probability=_table_repr(table))
+                             index=i, probability=asked_for.table_label(table))
     entry = reply.get("baseline")
-    label = _baseline_repr(table)
+    label = asked_for.baseline_label(table)
     baseline = _number(i, entry, label)
     if not (0.0 < baseline < 1.0):
         raise LLMBridgeError(Bridge.A_BASELINE_IS_AT_AN_END,
@@ -837,30 +647,19 @@ def _model_from(i: int, table: _Table, reply: dict | None) -> dict:
     assert isinstance(entry, dict)  # _number refuses anything else
     given = {r.get("ratio"): r for r in reply.get("odds_ratios") or ()
              if isinstance(r, dict)}
-    ratios = []
-    for j, ratio in enumerate(table.ratios):
-        label_j = _ratio_repr(table, j)
+    ratios: list[float] = []
+    sources: dict[object, str] = {}
+    for j in range(len(table.ratios)):
+        label_j = asked_for.ratio_label(table, j)
         value = _number(i, given.get(j), label_j)
         if not (value > 0.0 and math.isfinite(value)):
             raise LLMBridgeError(Bridge.AN_ODDS_RATIO_IS_NOT_POSITIVE,
                                  index=i, probability=label_j, value=value)
-        ratios.append({**ratio, "odds_ratio": value,
-                       "annotations": {"source": _reason(i, given[j], label_j)}})
-    model = {
-        "kind": "probability_model",
-        "form": "odds_ratios",
-        "llm_prior": True,
-        "target": table.target,
-        "given": list(table.given),
-        "baseline": {"value": baseline,
-                     "annotations": {"source": _reason(i, entry, label)}},
-        "odds_ratios": ratios,
-    }
-    if table.population is not None:
-        model["population"] = table.population
-    if table.provenance is not None:
-        model["provenance"] = table.provenance
-    return model
+        ratios.append(value)
+        sources[j] = _reason(i, given[j], label_j)
+    sources["baseline"] = _reason(i, entry, label)
+    return asked_for.model_record(table, baseline, ratios, llm_prior=True,
+                                  sources=sources)
 
 
 def propose_theta_priors(
@@ -880,7 +679,7 @@ def propose_theta_priors(
     ``annotations.source`` carrying the model's one-line reason, and
     everything else as the kernel wrote it — or, where the skeletons are
     cells of a distribution asked for
-    as a table (:func:`_tables`), one ``probability_model`` in their place,
+    as a table (:func:`themis.web.asked_for.tables`), one ``probability_model`` in their place,
     where the first of them was, every parameter with its own reason.
 
     The disclosure is the kernel's job: every ``llm_prior`` surfaces in
@@ -898,16 +697,12 @@ def propose_theta_priors(
     """
     if not skeletons:
         return []
-    tables = _tables(program, skeletons)
-    tabled = {i for t in tables.values() for i in t.rows}
-    requests: list[dict | _Table] = [
-        tables.get(i, sk) for i, sk in enumerate(skeletons)
-        if i in tables or i not in tabled]
+    requests = asked_for.requests(program, skeletons)
     calls = _prior_calls(requests)
     if len(calls) > _PRIOR_CALLS_AT_MOST:
         raise LLMBridgeError(
             Bridge.TOO_MANY_PRIORS_TO_ASK_FOR,
-            needed=sum(_numbers(r) for r in requests),
+            needed=sum(asked_for.numbers(r) for r in requests),
             most=_PRIORS_PER_CALL * _PRIOR_CALLS_AT_MOST)
     system = _load_system_prompt(_PROMPT_PROPOSE_PRIORS)
     client = _client(api_key)
@@ -921,13 +716,13 @@ def propose_theta_priors(
     )
 
     def ask(rows: list[int]) -> dict[int, dict]:
-        enumerated = [_request(i, requests[i]) for i in rows]
+        enumerated = [asked_for.shown(i, requests[i]) for i in rows]
         user_msg = frame + json.dumps(enumerated, ensure_ascii=False, indent=2)
         msg = _ask_model(
             client,
             model=model,
             max_tokens=_PRIOR_TOKENS_AROUND + _PRIOR_TOKENS_EACH * sum(
-                _numbers(requests[i]) for i in rows),
+                asked_for.numbers(requests[i]) for i in rows),
             system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
@@ -955,7 +750,7 @@ def propose_theta_priors(
     for reply in replies:
         by_index.update(reply)
 
-    return [_model_from(i, r, by_index.get(i)) if isinstance(r, _Table)
+    return [_model_from(i, r, by_index.get(i)) if isinstance(r, asked_for.Table)
             else _cell_from(i, r, by_index.get(i))
             for i, r in enumerate(requests)]
 

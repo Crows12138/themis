@@ -64,6 +64,9 @@ paths work in the production build.
 |---|---|---|
 | `POST /api/run` | `{program}` | run envelope (or 400 `{error, message}`) |
 | `POST /api/clarify` | `{program, picks}` | merged run envelope — fill framing gaps and re-run (apply_patch_and_run) |
+| `POST /api/asks` | `{program}` | `{requests}` — the probabilities the kernel is short of, asked as a model is asked for them (`asked_for.py`): a cell, or a table as a baseline and a ratio per condition, with its own cells. No model |
+| `POST /api/supply` | `{program, answers, source?}` | merged run envelope — the reader's numbers for those requests filled in and re-run; none is marked a guess. No model |
+| `POST /api/assume` | `{program, api_key?}` | merged run envelope — the same requests answered by the model as priors, each disclosed for review |
 | `POST /api/estimate` | `{program, rows}` | run envelope with `numeric_estimate` |
 | `POST /api/audit` | `{program, result}` | `{audits: [{audit, zh, ok, refusal}]}` — every re-check that applies to this artifact, one row each. This is the browser's re-check surface |
 | `POST /api/verify` | `{program, result}` | `{ok}` (result must carry a derivation) — subsumed by `/api/audit`; `app.py`'s `COVERED_BY` says so |

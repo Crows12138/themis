@@ -94,6 +94,11 @@ NEEDS_NO_MODEL = {
     "/api/clarify": ({"program": _program(), "picks": []},
                      "nothing_to_clarify"),
     "/api/estimate": ({"program": _program(), "rows": []}, "empty_data"),
+    # Numbers the reader has: this program is short of none, so the answer
+    # is that there is nothing to fill in — reached by running it.
+    "/api/supply": ({"program": _program(),
+                     "answers": [{"index": 0, "value": 0.5}]},
+                    "nothing_to_supply"),
 }
 
 
