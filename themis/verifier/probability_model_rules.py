@@ -12,7 +12,8 @@ model. Each model is ground over its ``forall`` again, each cell is
 computed again by a different route — the log-odds summed and passed
 through the logistic function, where the kernel multiplies odds — and
 every cell must be in the parameter store with that value: the target's
-value at ``p`` and its other value at ``1 - p``.
+value at ``p`` and, where the target has exactly one other value, that one
+at ``1 - p``.
 
 **Independence pin:** nothing here imports the runtime. The store is read
 by its keys' attributes, as :mod:`themis.verifier.theta_rules` reads it.
@@ -55,17 +56,19 @@ def _stored(atom) -> tuple:
             None if time is None else time.value)
 
 
-def _other(value, domain) -> object:
+def _others(value, domain) -> list:
+    """The target's values besides ``value``: the declared ones, or where
+    none are declared a yes-or-no's other."""
     if domain is not None:
-        return next(v for v in domain if _literal(v) != _literal(value))
-    return not value
+        return [v for v in domain if _literal(v) != _literal(value)]
+    return [not value] if isinstance(value, bool) else []
 
 
 def _cells(stmt: dict, subst: dict, domains: dict):
     """Each cell one ground copy of a model stands for, with its value."""
     atom = _atom(stmt["target"]["atom"], subst)
     value = stmt["target"]["value"]
-    other = _other(value, domains.get(atom[0]))
+    others = _others(value, domains.get(atom[0]))
     # The document has passed the schema by now, which requires each number
     # this reads.
     baseline = float(stmt["baseline"]["value"])
@@ -82,7 +85,10 @@ def _cells(stmt: dict, subst: dict, domains: dict):
                       + math.fsum(shift for _, _, shift in combination))
         given = frozenset((a, _literal(v)) for a, v, _ in combination)
         yield (atom, _literal(value), given, population), p
-        yield (atom, _literal(other), given, population), 1.0 - p
+        # One other value takes the rest of the probability; among two or
+        # more the model does not say how it divides.
+        if len(others) == 1:
+            yield (atom, _literal(others[0]), given, population), 1.0 - p
 
 
 def verify_models_are_their_cells(ast: dict, theta) -> None:

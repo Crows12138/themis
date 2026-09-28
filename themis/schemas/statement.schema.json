@@ -181,7 +181,6 @@
             "model_condition_values",
             "model_condition_without_ratio",
             "model_ratio_without_reference",
-            "model_target_not_two_valued",
             "no_diagram_for_this_target",
             "observation_not_ground",
             "predicate_declared_twice",

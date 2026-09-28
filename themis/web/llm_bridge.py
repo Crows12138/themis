@@ -619,17 +619,26 @@ def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
     One conditional distribution — one target under the same conditions in
     one population — is asked for as a baseline and an odds ratio for each
     other value of each condition, rather than cell by cell, when it can
-    be: its target takes two values, as it declares or, declaring none, as
-    a yes-or-no; it has two conditions or more, since with one the table
-    is as many numbers either way; each condition has two values or more
-    to give a ratio between; and the program states none of its cells,
-    since a model states every cell and one already written would then be
-    stated twice.
+    be: the model's cells are its rows, because the rows ask one value of
+    the target, or the target takes two values and the other's is the
+    complement; each condition has two values or more to give a ratio
+    between; the program states none of its cells, since a model states
+    every cell and one already written would then be stated twice; and it
+    is fewer numbers than the rows are. The rows are counted by the
+    combinations of conditions they are asked at, which is how many numbers
+    they are when the two values of a target come in one combination, and
+    a table is not asked for at as many numbers or more: the cells say the
+    same without assuming how the conditions combine. With one condition
+    it never is fewer, and a few rows of a large table are fewer cells than
+    the table's numbers.
 
-    A condition's values are the ones it declares, where it declares
-    them, since the model is held to a declaration; where it declares
-    none they are the values the kernel asks the table at, which are the
-    values it reads it at.
+    A condition's values are the ones it declares, where it declares them,
+    since the model is held to a declaration. Where it declares none, one
+    asked at true or false is a yes-or-no, as an undeclared target is read
+    — which matters for a condition the question sets: the kernel asks the
+    table under do(x) at x's one value, and x is still a condition with
+    two. Otherwise they are the values the kernel asks the table at, which
+    are the values it reads it at.
 
     That is what a person knows of such a table — how common the target
     is, and how much each condition moves it — and it is k + 1 numbers
@@ -639,6 +648,15 @@ def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
                   if isinstance(s, dict)]
     declared = {s.get("predicate"): list(s["domain"]) for s in statements
                 if s.get("kind") == "variable" and s.get("domain")}
+
+    def values(atom: dict, asked: list) -> list:
+        """The values of the condition ``atom``, asked at ``asked``."""
+        predicate = _atom_label(atom)
+        if predicate in declared:
+            return declared[predicate]
+        if asked and all(isinstance(v, bool) for v in asked):
+            return [True, False]
+        return asked
 
     def asked_at(rows: list[int], atom: object) -> list:
         return list(dict.fromkeys(
@@ -662,13 +680,22 @@ def _tables(program: dict, skeletons: list[dict]) -> dict[int, _Table]:
         first = skeletons[rows[0]]
         target = first.get("target") or {}
         given = list(first.get("given") or ())
+        asked = {json.dumps((skeletons[i].get("target") or {}).get("value"))
+                 for i in rows}
         target_values = declared.get(_atom_label(target.get("atom", {})))
         two_valued = (len(target_values) == 2 if target_values is not None
                       else isinstance(target.get("value"), bool))
-        domains = [declared.get(_atom_label(g.get("atom", {})))
-                   or asked_at(rows, g.get("atom")) for g in given]
-        if (len(given) < 2 or key in stated or not two_valued
-                or any(len(d) < 2 for d in domains)):
+        answered = len(asked) == 1 or two_valued
+        domains = [values(g.get("atom") or {}, asked_at(rows, g.get("atom")))
+                   for g in given]
+        combinations = {
+            frozenset((json.dumps(g.get("atom"), sort_keys=True),
+                       json.dumps(g.get("value")))
+                      for g in skeletons[i].get("given") or ())
+            for i in rows}
+        numbers = 1 + sum(len(d) - 1 for d in domains)
+        if (key in stated or not answered or any(len(d) < 2 for d in domains)
+                or numbers >= len(combinations)):
             continue
         references = [_reference(d) for d in domains]
         tables[rows[0]] = _Table(

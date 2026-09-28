@@ -382,10 +382,11 @@ class ModelParameter:
 class ProbabilityModel:
     """One conditional distribution, stated by one cell and odds ratios.
 
-    A two-valued target's probability under every combination of the
-    conditions' values, written as one cell and a ratio per other value
-    where the table has one cell per combination: ``baseline`` is
-    P(target | given), each condition in ``given`` at its reference value,
+    The probability of one value of a target under every combination of
+    the conditions' values — and, where the target has one other value,
+    that value's by the complement — written as one cell and a ratio per
+    other value where the table has one cell per combination: ``baseline``
+    is P(target | given), each condition in ``given`` at its reference value,
     and each odds ratio names a condition at another value and the factor
     it multiplies the odds by. Written as a probability statement is, so
     every value sits beside its atom. The runtime expands it into the

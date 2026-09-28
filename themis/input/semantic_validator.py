@@ -128,10 +128,9 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         # lists. Every layer past this one reads a domain as those values;
         # a program saying another of one variable says two things of it.
         "values_in_domains",
-        # A probability model has to name one table: a two-valued target,
-        # each condition once, and a ratio for every value but the
-        # reference. Expanded otherwise, it would be cells of a table that
-        # does not exist.
+        # A probability model has to name one table: each condition once,
+        # and a ratio for every value but the reference. Expanded
+        # otherwise, it would be cells of a table that does not exist.
         "probability_models",
     }
 )
@@ -482,16 +481,6 @@ class Malformed(language.Word, vocabulary="malformed_program",
                   "estimated on its own, and a reader can audit it only "
                   "beside its own reason",
         })
-    MODEL_TARGET_NOT_TWO_VALUED = ("model_target_not_two_valued", {
-        "zh": "statements[{index}]：概率模型的目标 {predicate} 要恰好有两个取值，"
-              "另一个取值的概率才是补数；它的取值是 {values}。未声明取值范围时，"
-              "目标值要写成 true 或 false",
-        "en": "statements[{index}]: the target of a probability model, "
-              "{predicate}, has to take exactly two values, so that the "
-              "other value's probability is the complement; its values are "
-              "{values}. Without a declared domain the target value has to be "
-              "true or false",
-    })
     MODEL_CONDITION_TWICE = ("model_condition_twice", {
         "zh": "statements[{index}]：概率模型的 given 把 {predicate} 写了不止一次，"
               "或者把目标本身写成了条件。每个条件在 given 里只出现一次",
@@ -1548,10 +1537,12 @@ def _check_probability_models(program: Program) -> None:
     """A probability model names one table, and every cell of it.
 
     The model is expanded into one cell per combination of its conditions'
-    values, so it has to say what those combinations are. The target takes
-    two values, because a ratio of odds fixes one value's probability and
-    the other's is its complement. Each condition is in ``given`` once, at
-    its reference, and is not the target; each ratio names one of them;
+    values, so it has to say what those combinations are. Nothing is asked
+    of the target's values: a ratio of odds fixes the probability of the
+    value the target names, whatever else the target takes, and where it
+    takes one other value the complement fixes that one too. Each condition
+    is in ``given`` once, at its reference, and is not the target; each
+    ratio names one of them;
     and the values written for a condition — its reference, then one per
     ratio — are distinct and include every value it declares, since the
     parameter store reads a declared domain as the values a variable takes,
@@ -1564,15 +1555,6 @@ def _check_probability_models(program: Program) -> None:
     for idx, stmt in enumerate(program.statements):
         if not isinstance(stmt, ProbabilityModel):
             continue
-        target = stmt.target.atom.predicate
-        declared = domains.get(target)
-        two_valued = (len(declared) == 2 if declared is not None
-                      else isinstance(stmt.target.value, bool))
-        if not two_valued:
-            raise SemanticError(Malformed.MODEL_TARGET_NOT_TWO_VALUED,
-                                index=idx, predicate=target,
-                                values=list(declared) if declared else
-                                [stmt.target.value])
         named: dict[Atom, list] = {}
         for condition in stmt.given:
             if condition.atom in named or condition.atom == stmt.target.atom:

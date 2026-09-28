@@ -8,10 +8,12 @@ is how common the outcome is and how much each cause moves it. So a
 distribution that can be is asked for that way, and comes back as the
 ``probability_model`` the kernel expands (#790):
 
-- a table is a two-valued target with two conditions or more, each with
-  two values or more — declared, or where undeclared the ones the kernel
-  asks the table at — none of whose cells the program states; anything
-  else is asked for cell by cell;
+- a table is the rows of one target value, or of a target with two, under
+  two conditions or more, each with two values or more — declared; where
+  undeclared, a yes-or-no's two if it is asked at true or false, as the
+  kernel asks the condition a question sets; else the ones the kernel asks
+  the table at — none of whose cells the program states; anything else is
+  asked for cell by cell;
 - the model is shown the table, its baseline with every condition at its
   reference — a yes-or-no condition's is its absence — and one numbered
   ratio per other value, each against the reference;
@@ -25,6 +27,7 @@ distribution that can be is asked for that way, and comes back as the
 from __future__ import annotations
 
 import json
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -62,13 +65,15 @@ def _program(*extra, domains=DOMAINS):
                 *extra]}
 
 
-def _table_rows(conditions, target="y"):
-    """The cells of P(target | conditions), one target value each, as the
-    kernel lists them."""
+def _table_rows(conditions, target="y", value=True):
+    """The cells of P(target=value | conditions), as the kernel lists them."""
     rows = [[]]
     for c in conditions:
         rows = [r + [(c, v)] for r in rows for v in DOMAINS[c]]
-    return [_cell(target, True, r) for r in rows]
+    return [_cell(target, value, r) for r in rows]
+
+
+THREE_LEVELS = {**DOMAINS, "y": ["low", "mid", "high"]}
 
 
 class _Model:
@@ -116,21 +121,45 @@ def model(monkeypatch):
     (_program(), _table_rows(["x"]), False),
     (_program(domains={**DOMAINS, "z": None}), _table_rows(["x", "z"]), True),
     (_program(domains={**DOMAINS, "z": None}),
-     [r for r in _table_rows(["x", "z"]) if r["given"][1]["value"]], False),
-    (_program(domains={**DOMAINS, "y": [0, 1, 2]}), _table_rows(["x", "z"]), False),
+     [r for r in _table_rows(["x", "z", "a"]) if r["given"][1]["value"]], True),
+    (_program(domains={**DOMAINS, "z": None}),
+     [_cell("y", True, [("x", x), ("z", "often"), ("a", a)])
+      for x in DOMAINS["x"] for a in DOMAINS["a"]], False),
+    (_program(domains=THREE_LEVELS), _table_rows(["x", "z"], value="high"), True),
+    (_program(domains=THREE_LEVELS),
+     _table_rows(["x", "z"], value="high") + _table_rows(["x", "z"], value="mid"),
+     False),
+    (_program(domains={**DOMAINS, "y": None}),
+     _table_rows(["x", "z"], value="a") + _table_rows(["x", "z"], value="b"),
+     False),
+    (_program(), _table_rows(["x", "z"]) + _table_rows(["x", "z"], value=False),
+     True),
+    (_program(), _table_rows(["x", "z"])[:3], False),
     (_program({"kind": "probability", "value": 0.4,
                "target": {"atom": _atom("y"), "value": True},
                "given": [{"atom": _atom("x"), "value": True},
-                         {"atom": _atom("z"), "value": True}]}),
-     _table_rows(["x", "z"])[1:], False),
+                         {"atom": _atom("z"), "value": True},
+                         {"atom": _atom("a"), "value": "low"}]}),
+     _table_rows(["x", "z", "a"])[1:], False),
 ], ids=["two declared conditions", "one condition",
         "an undeclared condition asked at both values",
-        "an undeclared condition asked at one value",
-        "a three-valued target", "a cell the program states"])
+        "an undeclared condition asked at one yes-or-no value",
+        "an undeclared condition asked at one other value",
+        "a three-valued target asked at one value",
+        "a three-valued target asked at two values",
+        "an undeclared target asked at two values that are not yes-or-no",
+        "a two-valued target asked at both values",
+        "as many numbers as the rows",
+        "a cell the program states"])
 def test_a_table_is_what_can_be_asked_for_as_one(program, rows, tabled):
-    """``None`` drops a declaration, and an undeclared condition's values
-    are the ones the table is asked at; the last program states one cell
-    of the table, and the kernel asks for the other three."""
+    """``None`` drops a declaration. An undeclared condition asked at true
+    or false is a yes-or-no, as an undeclared target is, and one asked at
+    anything else takes the values it is asked at. A model states the
+    target value it names and, where there is one other, that one; so rows
+    of two target values are a table only where those are the target's
+    two. Three rows of a table of two yes-or-no conditions are three
+    numbers either way. The last program states one cell of the table, and
+    the kernel asks for the other eleven."""
     for s in program["statements"]:
         if s.get("domain") is None:
             s.pop("domain", None)
@@ -176,37 +205,53 @@ def test_a_table_comes_back_as_a_model_in_the_place_of_its_rows(model):
          "annotations": {"source": f"effect {c}=True"}} for c in ("x", "z")]
 
 
-def _confounded():
-    """x → y with a common cause z, and no numbers: the kernel asks for
-    P(z), P(x | z) and the table P(y | x, z)."""
+def _confounded(domains=None, outcome=True, confounders=("z",)):
+    """x → y with common causes, and no numbers: the kernel asks for each
+    cause's marginal and the table P(y=outcome | x, causes), at the value
+    do(x) sets x to."""
+    edges = [("x", "y"), *((c, t) for c in confounders for t in ("x", "y"))]
     return _program(
-        {"kind": "cause", "from": _atom("z"), "to": _atom("x"),
-         "annotations": {"source": "llm_proposal"}},
-        {"kind": "cause", "from": _atom("z"), "to": _atom("y"),
-         "annotations": {"source": "llm_proposal"}},
-        {"kind": "cause", "from": _atom("x"), "to": _atom("y"),
-         "annotations": {"source": "llm_proposal"}},
+        *({"kind": "cause", "from": _atom(a), "to": _atom(b),
+           "annotations": {"source": "llm_proposal"}} for a, b in edges),
         {"kind": "query", "id": "q", "query": {
-            "kind": "effect", "target": {"atom": _atom("y"), "value": True},
+            "kind": "effect", "target": {"atom": _atom("y"), "value": outcome},
             "intervention": {"atom": _atom("x"), "value": True}, "given": []}},
-        domains={p: DOMAINS[p] for p in "xyz"})
+        domains=domains or {p: DOMAINS[p] for p in "xyz"})
 
 
-def test_the_kernel_answers_from_the_model_and_the_audit_accepts_it(model):
+CAUSES = ("z", "w", "v")
+YES_OR_NO = [True, False]
+
+
+@pytest.mark.parametrize("domains, outcome", [
+    ({p: YES_OR_NO for p in ("x", "y", *CAUSES)}, True),
+    ({p: YES_OR_NO for p in ("y", *CAUSES)}, True),
+    ({"y": ["low", "mid", "high"], **{p: YES_OR_NO for p in ("x", *CAUSES)}},
+     "high"),
+], ids=["declared", "an exposure declaring no values",
+        "an outcome with three values"])
+def test_the_kernel_answers_from_the_model_and_the_audit_accepts_it(
+        model, domains, outcome):
+    """The kernel asks the table at the one value do(x) sets x to: eight
+    rows over three common causes, where the table is five numbers. An
+    exposure that declares no values is a yes-or-no condition of it all the
+    same; an outcome with three values is asked at the one the question
+    names, and the model is the probability of that value."""
     from themis.web import app as web_app
 
-    program = _confounded()
+    program = _confounded(domains, outcome, CAUSES)
     rows = web_app._probability_skeletons(themis.run(program)["results"][0])
     filled = llm_bridge.propose_theta_priors(program, rows)
+    assert [r["kind"] for r in filled].count("probability_model") == 1
     out = themis.apply_patch_and_run(program, {
         "version": "0.1", "kind": "parameter_fill_bundle", "skeletons": filled})
     result = out["results"][0]
     assert result["status"] == "numerically_solved"
-    # P(y=1 | do(x=1)) = Σ_z P(z) · odds→p(0.2/0.8 · 2 · (2 if z else 1)),
-    # with P(z) = 0.5 from the cell the fake answers.
+    # P(y | do(x)) = Σ_c P(c) · odds→p(0.2/0.8 · 2 · 2^(causes present)),
+    # each cause present with the 0.5 the fake answers a cell with.
     def p(odds):
         return odds / (1 + odds)
-    want = 0.5 * p(0.25 * 2 * 2) + 0.5 * p(0.25 * 2)
+    want = sum(p(0.25 * 2 * 2 ** k) * math.comb(3, k) / 8 for k in range(4))
     assert result["numeric_result"]["value"] == pytest.approx(want, abs=1e-12)
     themis.verify(out["merged_program"], result)
 

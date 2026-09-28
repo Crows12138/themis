@@ -354,7 +354,7 @@
     "probabilityModelStatement": {
       "type": "object",
       "additionalProperties": false,
-      "description": "One conditional distribution of a two-valued target, stated as one of its cells — the baseline, with every condition at a reference value — and an odds ratio for each other value of each condition, rather than cell by cell. The kernel expands it into the probability statements it stands for — one per combination of the conditions' values — before anything reads a parameter, so every consumer of the parameter store sees ordinary cells. The form is an assumption and is disclosed as one: each condition multiplies the odds of the target by its own ratio whatever the others are, so the cells cannot show one condition's effect depending on another's value. With one condition there is no such assumption: the baseline and the ratios fix the cells.",
+      "description": "One conditional distribution, stated as the probability of one value of its target in one of its cells — the baseline, with every condition at a reference value — and an odds ratio for each other value of each condition, rather than cell by cell. The kernel expands it into the probability statements it stands for — one per combination of the conditions' values — before anything reads a parameter, so every consumer of the parameter store sees ordinary cells. The form is an assumption and is disclosed as one: each condition multiplies the odds of the target by its own ratio whatever the others are, so the cells cannot show one condition's effect depending on another's value. With one condition there is no such assumption: the baseline and the ratios fix the cells.",
       "required": [
         "kind",
         "form",
@@ -379,7 +379,7 @@
         },
         "target": {
           "$ref": "atom.schema.json#/$defs/groundedAtom",
-          "description": "The target atom and the value whose probability the model gives. The target's domain has two values; the other value's probability is the complement."
+          "description": "The target atom and the value whose probability the model gives. Where the target has one other value — it declares two, or declares none and the value is true or false — that value's probability is the complement and is stated too; a target with more values has only this one's stated."
         },
         "given": {
           "type": "array",

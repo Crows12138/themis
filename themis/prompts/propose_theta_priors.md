@@ -29,11 +29,11 @@ honest choice, and the reason should say so.
   one of two kinds:
   - a `probability`: a conditional `P(target | given)` or marginal
     `P(target)` over the program's variables;
-  - a `table`: one conditional distribution of a two-valued target over
-    two or more conditions, asked for the way a person knows it rather
-    than cell by cell — its `baseline`, the probability with every
-    condition at a reference value, and numbered `ratios`, one for each
-    other value of each condition.
+  - a `table`: the probability of one value of a target under every
+    combination of two or more conditions, asked for the way a person
+    knows it rather than cell by cell — its `baseline`, that probability
+    with every condition at a reference value, and numbered `ratios`, one
+    for each other value of each condition.
 
 ## What you return
 
@@ -64,8 +64,9 @@ Rules that actually matter:
   the kernel refuses them otherwise; rows under different `given` are
   different distributions and need not.
 - A table's `baseline` is a probability strictly between 0 and 1. Each
-  odds ratio is how many times the odds of the target — `p / (1 − p)` —
-  are multiplied when that one condition takes the named value instead of
+  odds ratio is how many times the odds — `p / (1 − p)`, with `p` the
+  probability of the target value the baseline names — are multiplied
+  when that one condition takes the named value instead of
   its reference, the others staying where they are: 1 is no effect, above
   1 makes the target more likely, below 1 less; it is always positive.
   Give each condition's effect as common knowledge supports it on its own.

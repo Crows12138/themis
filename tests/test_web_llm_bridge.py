@@ -534,9 +534,11 @@ def test_propose_theta_priors_empty_is_noop():
 def test_api_assume_happy_path(monkeypatch):
     """Data-scarce effect query → AI priors → point estimate + disclosure.
     The LLM is mocked to return a valid prior per index — a number for a
-    probability, a baseline and ratios for a table (P(y | x, z) is one); the
-    kernel does the real fill + re-run, so numerically_solved and the
-    disclosure surface are the kernel's, not the mock's."""
+    probability, a baseline and ratios for a table; the kernel does the
+    real fill + re-run, so numerically_solved and the disclosure surface
+    are the kernel's, not the mock's. The kernel asks P(y | x, z) at the
+    x do(x) sets, two cells, which are fewer numbers than a table of two
+    conditions, so every request here is a cell."""
     import json as _json
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_key")
 
@@ -563,8 +565,8 @@ def test_api_assume_happy_path(monkeypatch):
     assert res["status"] == "numerically_solved"
     assert res["numeric_result"]["value"] is not None
     review = res["extensions"]["llm_proposed_review"]
-    assert len(review["probabilities"]) >= 1
-    assert [m["distribution"] for m in review["models"]] == ["P(y | x, z)"]
+    assert len(review["probabilities"]) == 3
+    assert "models" not in review
     assert "summary" not in review  # counted by whoever renders it
 
 

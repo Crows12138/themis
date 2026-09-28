@@ -25,9 +25,9 @@ What is held:
   that its two large distributions are tables (#791), as 18 numbers in one
   call.
 
-The long lists below ask for ``x`` at one value and declare nothing, so
-no condition has a second value to give a ratio between: every row is a
-cell, and the packing is what is under test.
+The long lists below are the marginals of as many variables, each a
+distribution of one row with no condition, so none is a table: every row
+is a cell, and the packing is what is under test.
 """
 from __future__ import annotations
 
@@ -61,10 +61,8 @@ def _row(target, value, given):
 
 
 def _cells(n):
-    """``n`` one-row distributions: P(y=True | x, c = the bits of i)."""
-    return [_row("y", True, [("x", True), *((f"c{b}", bool(i >> b & 1))
-                                            for b in range(10))])
-            for i in range(n)]
+    """``n`` one-row distributions: P(v<i>=True)."""
+    return [_row(f"v{i}", True, []) for i in range(n)]
 
 
 def _rows_in(kwargs):

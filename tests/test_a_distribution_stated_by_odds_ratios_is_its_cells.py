@@ -145,6 +145,37 @@ def test_each_cell_is_the_baseline_odds_times_the_ratios():
         assert cells[(False, (a, x))] == pytest.approx(1 - p, abs=1e-12)
 
 
+@pytest.mark.parametrize("domain", [["low", "mid", "high"], None],
+                         ids=["three declared values", "none declared"])
+def test_a_target_without_one_other_value_is_modelled_at_the_value_it_names(domain):
+    """The model gives the probability of one value of its target. Where
+    the target has one other value, that one's is the complement and is
+    stated too; here it has none, so the model states the cells of the
+    value it names and no others — the cells a question about that value
+    asks for — and the audit's own expansion agrees."""
+    model = _model(THREE, BASELINE)
+    model["target"]["value"] = "high"
+    program = _program([model])
+    declaration = program["statements"][1]
+    if domain is None:
+        del declaration["domain"]
+    else:
+        declaration["domain"] = domain
+    program["statements"][-1]["query"]["target"]["value"] = "high"
+    ground = instantiate(validate_program(validate_ast(program)))
+    cells = {(s.target.value, tuple(va.value for va in s.given)): s.value
+             for s in ground if isinstance(s, ProbabilityStatement)
+             and s.target.atom.predicate == "y"}
+    assert {value for value, _ in cells} == {"high"}
+    assert len(cells) == 2 ** 3
+    for x, z, w in product((True, False), repeat=3):
+        want = _p(BASELINE, [2.0 if x else 1, 1.5 if z else 1, 0.5 if w else 1])
+        assert cells[("high", (x, z, w))] == pytest.approx(want, abs=1e-12)
+    result = _run(program)
+    assert result["status"] == "numerically_solved"
+    themis.verify(program, result)
+
+
 def test_every_value_a_model_names_sits_beside_its_atom():
     """What reads the levels a programme names — so a labelled column is
     not coded out from under them — reads them by shape: a value beside the
@@ -322,12 +353,6 @@ def _refused(program):
     with pytest.raises(SemanticError) as raised:
         themis.run(program)
     return raised.value.species
-
-
-def test_a_target_with_three_values_is_refused():
-    program = _program([_model(THREE, BASELINE)])
-    program["statements"][1]["domain"] = [True, False, "unknown"]
-    assert _refused(program) is Malformed.MODEL_TARGET_NOT_TWO_VALUED
 
 
 def test_a_condition_named_twice_is_refused():

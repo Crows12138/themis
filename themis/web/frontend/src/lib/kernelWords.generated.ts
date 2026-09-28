@@ -2893,10 +2893,6 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: 'statements[{index}]：概率模型有一个优势比说的是 {predicate}，而 given 里没有它。优势比是相对于这个条件的参照值而言的，所以它说到的每个条件都要以参照值出现在 given 里',
     en: 'statements[{index}]: an odds ratio of a probability model names {predicate}, which given does not list. A ratio is relative to the condition\'s reference value, so each condition a ratio names has to be in given at that value',
   },
-  model_target_not_two_valued: {
-    zh: 'statements[{index}]：概率模型的目标 {predicate} 要恰好有两个取值，另一个取值的概率才是补数；它的取值是 {values}。未声明取值范围时，目标值要写成 true 或 false',
-    en: 'statements[{index}]: the target of a probability model, {predicate}, has to take exactly two values, so that the other value\'s probability is the complement; its values are {values}. Without a declared domain the target value has to be true or false',
-  },
   no_diagram_for_this_target: {
     zh: 'statements[{index}]（{query}）：这个查询问的是 target_population={population}，而声明的每个选择节点说的都是 {declared}；这些图描述的不是这个问题所问的那个人群',
     en: 'statements[{index}] ({query}): the query asks about target_population={population} and every declared selection node is about {declared}; the diagrams do not describe the population the question is about',
