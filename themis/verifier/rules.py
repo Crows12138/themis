@@ -8885,41 +8885,57 @@ def _verifier_marginal_independence_lookup(
     graph + bidirected supplied, only return value if target ⊥ extras
     | reduced_given holds structurally."""
     target_atom = missing_key.target_atom
-    target_value = missing_key.target_value
-    base_given = missing_key.given
-    pop = missing_key.population  # Fix 3+4
-    if not base_given:
-        return None
-    from itertools import combinations
-    for n_remove in range(1, len(base_given) + 1):
-        sorted_given = sorted(
-            base_given, key=lambda p: (p[0].predicate, str(p[1])),
-        )
-        for to_remove in combinations(sorted_given, n_remove):
-            reduced = frozenset(
-                p for p in base_given if p not in to_remove
-            )
-            reduced_key = ProbabilityKey(
-                target_atom=target_atom, target_value=target_value,
-                given=reduced, population=pop,
-            )
-            v = theta.entries.get(reduced_key)
-            if v is None:
-                continue
-            if graph is not None and bidirected is not None:
-                conditioning = frozenset(a for a, _ in reduced)
-                extras_atoms = [a for a, _ in to_remove]
-                all_separated = all(
-                    not _verifier_is_m_connected(
-                        graph, bidirected,
-                        target_atom, extra, conditioning,
-                    )
-                    for extra in extras_atoms
+    for reduced_key, to_remove in _verifier_shorter_conditionals(
+            missing_key, theta):
+        if graph is not None and bidirected is not None:
+            conditioning = frozenset(a for a, _ in reduced_key.given)
+            if any(
+                _verifier_is_m_connected(
+                    graph, bidirected, target_atom, extra, conditioning,
                 )
-                if not all_separated:
-                    continue
-            return v
+                for extra, _ in to_remove
+            ):
+                continue
+        return theta.entries[reduced_key]
     return None
+
+
+def _verifier_shorter_conditionals(missing_key: ProbabilityKey, theta) -> list:
+    """The verifier's own search for what the two helpers around it try:
+    each entry theta holds for the key's target, value and population
+    under a conditioning strictly inside the key's, as ``(key, pairs left
+    out)``, fewest left out first and then in the order
+    ``itertools.combinations`` reaches the left-out pairs of the
+    conditioning sorted by predicate and value.
+
+    Taken from theta's entries, not by spelling each of the 2^n subsets
+    of the conditioning and asking theta for it: only an entry theta holds
+    can be a candidate, and a general-ID factor conditions on every
+    predecessor of its target. Each key is rebuilt from the missing key's
+    conditioning, so what is read off it comes in that order.
+    """
+    base_given = missing_key.given
+    ordered = sorted(base_given, key=lambda p: (p[0].predicate, str(p[1])))
+    candidates = []
+    for key in theta.entries:
+        if (key.target_atom != missing_key.target_atom
+                or key.target_value != missing_key.target_value
+                or key.population != missing_key.population
+                or not key.given < base_given):
+            continue
+        left_out = [i for i, pair in enumerate(ordered)
+                    if pair not in key.given]
+        candidates.append((len(left_out), left_out))
+    out = []
+    for _, left_out in sorted(candidates):
+        to_remove = tuple(ordered[i] for i in left_out)
+        out.append((ProbabilityKey(
+            target_atom=missing_key.target_atom,
+            target_value=missing_key.target_value,
+            given=frozenset(p for p in base_given if p not in to_remove),
+            population=missing_key.population,
+        ), to_remove))
+    return out
 
 
 def _verifier_as_asked(
@@ -8996,53 +9012,32 @@ def _verifier_diagnose_marginal_independence_refusal(
     if graph is None or bidirected is None:
         return None
     target_atom = missing_key.target_atom
-    target_value = missing_key.target_value
-    base_given = missing_key.given
-    pop = missing_key.population  # Fix 3+4
-    if not base_given:
-        return None
-    from itertools import combinations
-
-    for n_remove in range(1, len(base_given) + 1):
-        sorted_given = sorted(
-            base_given, key=lambda p: (p[0].predicate, str(p[1])),
-        )
-        for to_remove in combinations(sorted_given, n_remove):
-            reduced = frozenset(
-                p for p in base_given if p not in to_remove
+    for reduced_key, to_remove in _verifier_shorter_conditionals(
+            missing_key, theta):
+        # Sync with runtime _diagnose_marginal_independence_refusal:
+        # a bare marginal (empty conditioning) is not an independence
+        # claim, so its d-sep refusal is missing data, not a
+        # graph-CPT mismatch. Skip so both diagnostics agree.
+        if not reduced_key.given:
+            continue
+        conditioning = frozenset(a for a, _ in reduced_key.given)
+        extras_atoms = tuple(a for a, _ in to_remove)
+        if any(
+            _verifier_is_m_connected(
+                graph, bidirected, target_atom, extra, conditioning,
             )
-            # Sync with runtime _diagnose_marginal_independence_refusal:
-            # a bare marginal (empty conditioning) is not an independence
-            # claim, so its d-sep refusal is missing data, not a
-            # graph-CPT mismatch. Skip so both diagnostics agree.
-            if not reduced:
-                continue
-            reduced_key = ProbabilityKey(
-                target_atom=target_atom, target_value=target_value,
-                given=reduced, population=pop,
-            )
-            if theta.entries.get(reduced_key) is None:
-                continue
-            conditioning = frozenset(a for a, _ in reduced)
-            extras_atoms = tuple(a for a, _ in to_remove)
-            all_separated = all(
-                not _verifier_is_m_connected(
-                    graph, bidirected,
-                    target_atom, extra, conditioning,
-                )
-                for extra in extras_atoms
-            )
-            if not all_separated:
-                return {
-                    "have": format_probability_key(reduced_key),
-                    # "variable" and not "target", as the runtime spells
-                    # it: a slot named like one of the door's own
-                    # parameters would arrive as that parameter instead.
-                    "variable": target_atom.predicate,
-                    "extras": ",".join(a.predicate for a in extras_atoms),
-                    "conditioning": ",".join(
-                        a.predicate for a, _ in reduced) or "∅",
-                }
+            for extra in extras_atoms
+        ):
+            return {
+                "have": format_probability_key(reduced_key),
+                # "variable" and not "target", as the runtime spells
+                # it: a slot named like one of the door's own
+                # parameters would arrive as that parameter instead.
+                "variable": target_atom.predicate,
+                "extras": ",".join(a.predicate for a in extras_atoms),
+                "conditioning": ",".join(
+                    a.predicate for a, _ in reduced_key.given) or "∅",
+            }
     return None
 
 

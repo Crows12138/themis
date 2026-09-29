@@ -691,58 +691,77 @@ def _try_marginal_independence_lookup(
     graph/CPT mismatch.
     """
     target_atom = missing_key.target_atom
-    target_value = missing_key.target_value
-    base_given = missing_key.given
-    pop = missing_key.population  # Fix 3+4: same-population isolation
-    if not base_given:
-        return None
-    # Try removing one atom at a time, then two, etc. Largest subset
-    # = removing fewest atoms = most informative conditioning.
-    for n_remove in range(1, len(base_given) + 1):
-        # Iterate in deterministic order: pick atoms to remove by
-        # sorted predicate name for stability.
-        sorted_given = sorted(
-            base_given, key=lambda p: (p[0].predicate, str(p[1])),
-        )
-        from itertools import combinations
-        for to_remove in combinations(sorted_given, n_remove):
-            reduced = frozenset(
-                p for p in base_given if p not in to_remove
-            )
-            reduced_key = ProbabilityKey(
-                target_atom=target_atom, target_value=target_value,
-                given=reduced, population=pop,
-            )
-            v = theta.entries.get(reduced_key)
-            if v is None:
+    for reduced, removed in _shorter_conditionals(missing_key, theta):
+        # Graph-aware safety guard. When graph + bidirected are
+        # provided, only return the entry if d-separation confirms
+        # target ⊥ extras | reduced — i.e. the user's marginal IS
+        # the right quantity for the demanded conditional. Without
+        # a graph there is nothing to check, so the theta is
+        # trusted.
+        if graph is not None and bidirected is not None:
+            from .structural_solver import m_separated
+            conditioning = tuple(a for a, _ in reduced.given)
+            # target must be m-separated from EVERY extra atom
+            # given the reduced conditioning. Pairwise check is
+            # sufficient for joint d-sep in graph semantics.
+            if not all(
+                m_separated(graph, bidirected, target_atom, extra, conditioning)
+                for extra, _ in removed
+            ):
+                # User-implied independence doesn't hold per
+                # graph structure — refuse to silently return
+                # the marginal. The chain DAG lands here.
                 continue
-            # Graph-aware safety guard. When graph + bidirected are
-            # provided, only return v if d-separation confirms
-            # target ⊥ extras | reduced — i.e. the user's marginal IS
-            # the right quantity for the demanded conditional. Without
-            # a graph there is nothing to check, so the theta is
-            # trusted.
-            if graph is not None and bidirected is not None:
-                from .structural_solver import m_separated
-                conditioning = tuple(a for a, _ in reduced)
-                extras_atoms = [a for a, _ in to_remove]
-                # target must be m-separated from EVERY extra atom
-                # given the reduced conditioning. Pairwise check is
-                # sufficient for joint d-sep in graph semantics.
-                all_separated = all(
-                    m_separated(
-                        graph, bidirected,
-                        target_atom, extra, conditioning,
-                    )
-                    for extra in extras_atoms
-                )
-                if not all_separated:
-                    # User-implied independence doesn't hold per
-                    # graph structure — refuse to silently return
-                    # the marginal. The chain DAG lands here.
-                    continue
-            return v
+        return theta.entries[reduced]
     return None
+
+
+def _shorter_conditionals(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+) -> list[tuple[ProbabilityKey, tuple[tuple[Atom, AtomValue], ...]]]:
+    """The entries theta holds for ``missing_key``'s target, value and
+    population under a conditioning strictly inside the key's, each with
+    the pairs of the key's conditioning it leaves out — in the order the
+    lookup and its diagnosis try them: fewest left out first (the most
+    informative conditioning), then by the places of the left-out pairs
+    in the conditioning sorted by predicate and value, as
+    ``itertools.combinations`` would reach them.
+
+    Read off the entries theta holds, not spelt from every subset of the
+    conditioning and looked up: a subset theta does not hold decides
+    nothing, and there are 2^n of them. A general-ID factor conditions on
+    every predecessor of its target, so on a graph of fifteen variables a
+    walk that spelt them never finished.
+
+    Each shorter key is built from the missing key's own conditioning, as
+    the subset it stands for, so what is read off its conditioning comes
+    in that conditioning's order.
+    """
+    base_given = missing_key.given
+    if not base_given:
+        return []
+    ordered = sorted(base_given, key=lambda p: (p[0].predicate, str(p[1])))
+    place = {pair: i for i, pair in enumerate(ordered)}
+    found = []
+    for key in theta.entries:
+        if (key.target_atom == missing_key.target_atom
+                and key.target_value == missing_key.target_value
+                and key.population == missing_key.population
+                and key.given < base_given):
+            removed = tuple(sorted(place[pair] for pair in base_given - key.given))
+            found.append((len(removed), removed))
+    found.sort()
+    out = []
+    for _, removed in found:
+        left_out = tuple(ordered[i] for i in removed)
+        out.append((ProbabilityKey(
+            target_atom=missing_key.target_atom,
+            target_value=missing_key.target_value,
+            given=frozenset(p for p in base_given if p not in left_out),
+            population=missing_key.population,
+        ), left_out))
+    return out
 
 
 def _diagnose_marginal_independence_refusal(
@@ -762,8 +781,9 @@ def _diagnose_marginal_independence_refusal(
     Themis CONSIDERED and REJECTED, and gets no hint why their declared
     graph and supplied CPTs disagree.
 
-    This helper re-walks the same candidate-search loop as
-    ``_try_marginal_independence_lookup`` and returns the facts that
+    This helper walks the same candidates as
+    ``_try_marginal_independence_lookup`` (:func:`_shorter_conditionals`)
+    and returns the facts that
     distinguish the two — which marginal theta does hold, and which
     independence the graph fails to imply — when a candidate was found
     AND refused by the d-sep guard. It returns ``None`` when no
@@ -779,67 +799,41 @@ def _diagnose_marginal_independence_refusal(
     if graph is None or bidirected is None:
         return None
     target_atom = missing_key.target_atom
-    target_value = missing_key.target_value
-    base_given = missing_key.given
-    pop = missing_key.population  # Fix 3+4
-    if not base_given:
-        return None
-    from itertools import combinations
     from .structural_solver import m_separated
 
-    refused: list[tuple[ProbabilityKey, tuple[Atom, ...]]] = []
-    for n_remove in range(1, len(base_given) + 1):
-        sorted_given = sorted(
-            base_given, key=lambda p: (p[0].predicate, str(p[1])),
-        )
-        for to_remove in combinations(sorted_given, n_remove):
-            reduced = frozenset(
-                p for p in base_given if p not in to_remove
-            )
-            # A bare marginal P(Y) (empty conditioning) asserts NO
-            # conditional independence: supplying a base rate is never a
-            # claim that Y ⊥ {X,Z}. So its d-sep refusal is not a
-            # graph-vs-CPT contradiction — it is plain missing data. Skip
-            # it here → the caller falls through to the generic message →
-            # the classifier emits MISSING_DISTRIBUTION (blocking, names
-            # the demanded conditional P(Y|X,Z)) instead of a downgraded,
-            # backwards "your graph contradicts your CPT, delete an edge"
-            # mismatch. The genuine mismatch case keeps a non-empty
-            # conditioning set (P(C|S) for demanded P(C|S,T)) and is
-            # untouched. Measured on a real-usage probe, 2026-06-15.
-            if not reduced:
-                continue
-            reduced_key = ProbabilityKey(
-                target_atom=target_atom, target_value=target_value,
-                given=reduced, population=pop,
-            )
-            if theta.entries.get(reduced_key) is None:
-                continue
-            conditioning = tuple(a for a, _ in reduced)
-            extras_atoms = tuple(a for a, _ in to_remove)
-            all_separated = all(
-                m_separated(
-                    graph, bidirected,
-                    target_atom, extra, conditioning,
-                )
-                for extra in extras_atoms
-            )
-            if not all_separated:
-                refused.append((reduced_key, extras_atoms))
-    if not refused:
-        return None
-    # Pick the largest-subset (most informative) refused candidate to
-    # quote — same priority order as the lookup helper.
-    reduced_key, extras_atoms = refused[0]
-    return {
-        "have": format_probability_key(reduced_key),
-        # "variable" and not "target": a slot named like one of the door's
-        # own parameters would arrive as that parameter instead.
-        "variable": target_atom.predicate,
-        "extras": ",".join(a.predicate for a in extras_atoms),
-        "conditioning": ",".join(
-            a.predicate for a, _ in reduced_key.given) or "∅",
-    }
+    # The largest-subset (most informative) refused candidate is the one
+    # quoted — the lookup's own priority order, which the search yields.
+    for reduced_key, removed in _shorter_conditionals(missing_key, theta):
+        # A bare marginal P(Y) (empty conditioning) asserts NO
+        # conditional independence: supplying a base rate is never a
+        # claim that Y ⊥ {X,Z}. So its d-sep refusal is not a
+        # graph-vs-CPT contradiction — it is plain missing data. Skip
+        # it here → the caller falls through to the generic message →
+        # the classifier emits MISSING_DISTRIBUTION (blocking, names
+        # the demanded conditional P(Y|X,Z)) instead of a downgraded,
+        # backwards "your graph contradicts your CPT, delete an edge"
+        # mismatch. The genuine mismatch case keeps a non-empty
+        # conditioning set (P(C|S) for demanded P(C|S,T)) and is
+        # untouched. Measured on a real-usage probe, 2026-06-15.
+        if not reduced_key.given:
+            continue
+        conditioning = tuple(a for a, _ in reduced_key.given)
+        extras_atoms = tuple(a for a, _ in removed)
+        if all(
+            m_separated(graph, bidirected, target_atom, extra, conditioning)
+            for extra in extras_atoms
+        ):
+            continue
+        return {
+            "have": format_probability_key(reduced_key),
+            # "variable" and not "target": a slot named like one of the
+            # door's own parameters would arrive as that parameter instead.
+            "variable": target_atom.predicate,
+            "extras": ",".join(a.predicate for a in extras_atoms),
+            "conditioning": ",".join(
+                a.predicate for a, _ in reduced_key.given) or "∅",
+        }
+    return None
 
 
 def _try_derive_via_bayes_inversion(
