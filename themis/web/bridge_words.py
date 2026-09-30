@@ -104,6 +104,13 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
             "en": "the call to `{address}` did not come back with an answer: "
                   "{complaint}",
         })
+    THE_REPLY_RAN_PAST_ITS_BUDGET = ("the_reply_ran_past_its_budget", {
+        "zh": "模型的回复写满了给它的 {budget} 个 token 还没写完，在那里被截断了，"
+              "拿回来的不是完整的回答",
+        "en": "the model's reply used up the {budget} tokens it was given "
+              "before it was finished and was cut off there, so what came "
+              "back is not the whole of it",
+    })
     THE_REPLY_CARRIES_NO_JSON = ("the_reply_carries_no_json", {
         "zh": "模型的回复里没有 JSON：{reply}",
         "en": "there is no JSON in the model's reply: {reply}",

@@ -246,13 +246,24 @@ def _ask_model(client, **kwargs):
     told not to spends the budget on thinking nobody reads and is cut off
     before the answer: DeepSeek's did, and two of five worked examples came
     back with no JSON and two more with an empty reading.
+
+    A reply that reached its budget was cut off there, and is raised here
+    as that rather than read. Read, a program cut off is JSON whose braces
+    never close — taken for a slip and asked for again within the same
+    budget: one question's program came back cut off nine times running on
+    the demo's model, and the person waiting was told the JSON never
+    closed, when what ran out was the budget.
     """
     from anthropic import AnthropicError
 
     try:
-        return client.messages.create(thinking={"type": "disabled"}, **kwargs)
+        msg = client.messages.create(thinking={"type": "disabled"}, **kwargs)
     except AnthropicError as exc:
         raise _unreached(exc, str(client.base_url)) from exc
+    if getattr(msg, "stop_reason", None) == "max_tokens":
+        raise LLMBridgeError(Bridge.THE_REPLY_RAN_PAST_ITS_BUDGET,
+                             budget=kwargs.get("max_tokens"))
+    return msg
 
 
 def _extract_first_json_object(text: str) -> dict:
@@ -441,6 +452,16 @@ def repair_kernel_ast(
     ], api_key=api_key, model=model, max_attempts=max_attempts)
 
 
+#: What a program may run to. 4000 dated from graphs of three or four
+#: variables; drawn from the list of variables to consider, a graph carries
+#: fifteen to twenty, and on deepseek-flash (2026-09-30) its program measured
+#: 2574 to 3905 tokens, one question's running past 4000 on every attempt.
+#: Four times the longest measured, since a program cut off is lost whole;
+#: at about 130 tokens a second that is two minutes, inside the five the
+#: demo's server gives a request.
+_PROGRAM_TOKENS = 16000
+
+
 def _program_from(
     turns: list[dict],
     *,
@@ -465,7 +486,7 @@ def _program_from(
         msg = _ask_model(
             client,
             model=model,
-            max_tokens=4000,
+            max_tokens=_PROGRAM_TOKENS,
             system=system,
             messages=[*fewshot, *turns],
         )
