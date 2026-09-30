@@ -15,6 +15,9 @@ with the edge taken out. A cause spelt without the time index its node
 carries is the ordinary way to write one, and it came back MCAR with the
 door agreeing. The program is refused at input now, the verifier refuses on
 its own side, and the producer treats one reaching it as a broken invariant.
+Since #807 the time-less spelling is refused before the graph is built, as
+one variable written two ways; what reaches the check here is an atom the
+graph has under no spelling.
 """
 from __future__ import annotations
 
@@ -134,19 +137,17 @@ def test_two_times_of_one_variable_have_two_indicators():
     assert set(m.predecessors(before)) == {_node("w", -1)}
 
 
-#: Indicators whose atoms are not nodes as written, and how each is named
-#: back: as an envelope spells it, since the predicate is the half that
+#: Indicators naming an atom the graph has under no spelling, and how each is
+#: named back: as an envelope spells it, since the predicate is the half that
 #: matched.
 STRAYS = {
-    "the missing variable written without its time": (
-        _program(_NOW, _at("x", 0), _at("y", 0), [(_at("y"), [_at("z", 0)])]),
-        ["y(me)"]),
-    "a cause written without its time": (
-        _program(_NOW, _at("x", 0), _at("y", 0), [(_at("y", 0), [_at("z")])]),
-        ["z(me)"]),
     "a missing variable the graph does not have": (
         _program(_NOW, _at("x", 0), _at("y", 0),
                  [(_at("v", 0), [_at("z", 0)])]),
+        ["v(me)@t"]),
+    "a cause the graph does not have": (
+        _program(_NOW, _at("x", 0), _at("y", 0),
+                 [(_at("y", 0), [_at("v", 0)])]),
         ["v(me)@t"]),
 }
 
@@ -160,20 +161,42 @@ def test_an_atom_that_is_not_a_node_refuses_the_program(name):
     assert raised.value.details["atoms"] == atoms
 
 
+#: The ordinary way to write a stray: an atom spelt without the time index
+#: its node carries. That is one variable written two ways, and it is
+#: refused as that before any graph is built, naming the variable.
+UNTIMED = {
+    "the missing variable written without its time": (
+        _program(_NOW, _at("x", 0), _at("y", 0), [(_at("y"), [_at("z", 0)])]),
+        ["y(me)"]),
+    "a cause written without its time": (
+        _program(_NOW, _at("x", 0), _at("y", 0), [(_at("y", 0), [_at("z")])]),
+        ["z(me)"]),
+}
+
+
+@pytest.mark.parametrize("name", sorted(UNTIMED))
+def test_an_atom_written_without_its_time_is_one_variable_written_twice(name):
+    program, variables = UNTIMED[name]
+    with pytest.raises(SemanticError) as raised:
+        themis.run(program)
+    assert raised.value.species is Malformed.ONE_VARIABLE_WITH_AND_WITHOUT_TIME
+    assert raised.value.details["variables"] == variables
+
+
 def test_the_verifier_refuses_an_indicator_that_names_no_node():
-    """The verifier does not run the input check, so an answer handed to it
-    beside such a program has to be refused there too -- here the verdict
-    passing over the cause would have re-derived, beside a program whose
-    cause lost its time index."""
+    """The verifier does not run the graph-level input check, so an answer
+    handed to it beside such a program has to be refused there too -- here
+    the verdict passing over the cause would have re-derived, beside a
+    program whose cause the graph does not have."""
     honest = _program(_NOW, _at("x", 0), _at("y", 0),
                       [(_at("y", 0), [_at("z", 0)])])
     result = _answer(honest)
     assert result["extensions"]["missing_data_recovery"]["mechanism"] == "MAR"
     result["extensions"]["missing_data_recovery"]["mechanism"] = "MCAR"
     loose = _program(_NOW, _at("x", 0), _at("y", 0),
-                     [(_at("y", 0), [_at("z")])])
+                     [(_at("y", 0), [_at("v", 0)])])
     said = _refusal(loose, result)
-    assert said is not None and "z(me) is not a node of the graph" in said
+    assert said is not None and "v(me)@t is not a node of the graph" in said
 
 
 def test_the_producer_does_not_pass_over_a_stray_atom():

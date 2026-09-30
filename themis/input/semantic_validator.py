@@ -112,6 +112,10 @@ SLICE_1_CHECKS: frozenset[str] = frozenset(
         "bidirected_runtime_gate",
         "transport_runtime_gate",
         "temporal_monotonicity",
+        # One variable spelt with a time index in one place and without in
+        # another is two nodes with no edge between them, and every layer
+        # past this one reads them as two variables.
+        "time_index_everywhere_or_nowhere",
         # Fix 3+4 (v0.1.5): an llm_prior demands a non-empty
         # annotations.source so the audit-trail review surface
         # (extensions.llm_proposed_review) has a reason string per
@@ -426,6 +430,22 @@ class Malformed(language.Word, vocabulary="malformed_program",
               "source {source} at t={source_time} is later than the "
               "destination {destination} at t={destination_time}. Causes "
               "cannot run backwards in time",
+    })
+    ONE_VARIABLE_WITH_AND_WITHOUT_TIME = ("one_variable_with_and_without_time", {
+        "zh": "这些变量有的地方带时间下标、有的地方不带：{variables}。"
+              "例如 statements[{untimed_at}] 写的是 {untimed}，"
+              "statements[{timed_at}] 写的是 {timed}。"
+              "同一个变量的两种写法在图里是两个节点，中间没有边——"
+              "连进其中一个的边和从另一个连出去的边永远接不上。"
+              "每个变量出现的每一处，要么都写时间下标，要么都不写",
+        "en": "these variables are written with a time index in some places "
+              "and without one in others: {variables}. For instance "
+              "statements[{untimed_at}] writes {untimed} and "
+              "statements[{timed_at}] writes {timed}. One variable spelt two "
+              "ways is two nodes of the graph with no edge between them, so "
+              "the edges written into one never meet the edges written out "
+              "of the other. Write the time index everywhere each of them "
+              "appears, or nowhere",
     })
 
     # --- a declaration the rest of the program contradicts ------------------
@@ -1496,6 +1516,46 @@ def _check_temporal_monotonicity(program: Program) -> None:
                                 destination_time=dst_ti.value)
 
 
+def _check_time_index_everywhere_or_nowhere(program: Program) -> None:
+    """An atom carries a time index everywhere it is written, or nowhere.
+
+    ``x`` and ``x`` at a time step are two nodes of the graph, and no edge
+    joins them: the edges a program writes into one never meet the edges it
+    writes out of the other. In one program the two spellings are one
+    variable written twice, and nothing past this point can tell that from
+    two variables. The demo's translator wrote a night's sleep at t-1 on the
+    edges out of it, and without a time on the edges into it and on the
+    question, which then asked about a sleep with no path to the exam — and
+    was answered on that graph, with both interventional risks equal and the
+    reader's own numbers refused for contradicting them.
+
+    Two time steps of one variable are two nodes on purpose, and a variable
+    written without a time beside another written with one is two variables;
+    neither is what this refuses. Keyed on the atom as written, arguments
+    included, so a pattern and a constant are not compared.
+
+    Every variable spelt both ways is named at once, with the first of them
+    shown in both spellings: a translator that did it once did it along a
+    whole path, and a refusal naming one variable at a time takes a round
+    of repair for each.
+    """
+    from ..runtime.graph_projection import atom_label
+
+    first: dict[tuple, dict[bool, tuple[int, Atom]]] = {}
+    for idx, stmt in enumerate(program.statements):
+        for atom in _atoms_in_statement(stmt):
+            first.setdefault((atom.predicate, atom.args), {}).setdefault(
+                atom.time_index is not None, (idx, atom))
+    both = [spelt for spelt in first.values() if len(spelt) == 2]
+    if not both:
+        return
+    (untimed_at, untimed), (timed_at, timed) = both[0][False], both[0][True]
+    raise SemanticError(Malformed.ONE_VARIABLE_WITH_AND_WITHOUT_TIME,
+                        variables=[atom_label(spelt[False][1]) for spelt in both],
+                        untimed_at=untimed_at, untimed=atom_label(untimed),
+                        timed_at=timed_at, timed=atom_label(timed))
+
+
 def _check_llm_prior_requires_source(program: Program) -> None:
     """Fix 3+4 §3.1 (v0.1.5): every probability statement tagged
     ``llm_prior`` must carry a non-empty
@@ -1723,6 +1783,7 @@ _CHECK_FUNCS = {
     "bidirected_runtime_gate": _check_bidirected_runtime_gate,
     "transport_runtime_gate": _check_transport_runtime_gate,
     "temporal_monotonicity": _check_temporal_monotonicity,
+    "time_index_everywhere_or_nowhere": _check_time_index_everywhere_or_nowhere,
     "llm_prior_requires_source": _check_llm_prior_requires_source,
     "values_in_domains": _check_values_in_declared_domains,
     "probability_models": _check_probability_models,
@@ -1867,8 +1928,11 @@ def _check_missingness_atoms_in_V(ground_statements, graph) -> None:
     without a word: a cause the graph does not have left the indicator
     without that parent, and a missing variable it does not have left no
     indicator at all, so the verdict was about a program other than the
-    one written. A cause spelt without the time index its node carries is
-    the ordinary way to get here, and it came back MCAR.
+    one written. A cause spelt without the time index its node carries was
+    the ordinary way to get here, and it came back MCAR; that spelling is
+    now refused before the graph is built, as one variable written two ways
+    (``_check_time_index_everywhere_or_nowhere``), and what reaches this
+    check is an atom the graph has under no spelling.
 
     The atoms are named as an envelope spells them, time included, since
     the predicate alone is the half that matched.

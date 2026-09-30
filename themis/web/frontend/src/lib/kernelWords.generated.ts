@@ -2901,6 +2901,10 @@ export const MALFORMED_WORDS: Record<string, Words> = {
     zh: 'statements[{index}]：观测的原子必须是基原子，这里还带着自由变量 {variables}',
     en: 'statements[{index}]: an observation\'s atom has to be ground and this one still carries the free variables {variables}',
   },
+  one_variable_with_and_without_time: {
+    zh: '这些变量有的地方带时间下标、有的地方不带：{variables}。例如 statements[{untimed_at}] 写的是 {untimed}，statements[{timed_at}] 写的是 {timed}。同一个变量的两种写法在图里是两个节点，中间没有边——连进其中一个的边和从另一个连出去的边永远接不上。每个变量出现的每一处，要么都写时间下标，要么都不写',
+    en: 'these variables are written with a time index in some places and without one in others: {variables}. For instance statements[{untimed_at}] writes {untimed} and statements[{timed_at}] writes {timed}. One variable spelt two ways is two nodes of the graph with no edge between them, so the edges written into one never meet the edges written out of the other. Write the time index everywhere each of them appears, or nowhere',
+  },
   predicate_declared_twice: {
     zh: 'statements[{index}]：谓词 {predicate} 在 statements[{first}] 已经声明过了；一个谓词至多只能有一条 variableDeclaration',
     en: 'statements[{index}]: predicate {predicate} is already declared at statements[{first}]; a predicate may have at most one variableDeclaration',

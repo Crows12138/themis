@@ -184,6 +184,7 @@
             "model_ratio_without_reference",
             "no_diagram_for_this_target",
             "observation_not_ground",
+            "one_variable_with_and_without_time",
             "predicate_declared_twice",
             "query_atom_not_in_graph",
             "query_atom_only_bidirected",
