@@ -1771,6 +1771,11 @@ def _check_proximal_sieve_design(program: Program) -> None:
                         moment_width=moment_width)
 
 
+# In the order they run, which is the order a program breaking several rules
+# is told them in: the first to fail is the one it hears. A loop declared
+# between two time steps usually gives one end a time index its variable
+# carries nowhere else, and of the two refusals the loop's is the one that
+# hands back the stronger model, so it comes first.
 _CHECK_FUNCS = {
     "objects": _check_objects,
     "proximal_sieve_design": _check_proximal_sieve_design,
@@ -1981,12 +1986,17 @@ def validate_against_graph(
     Q[S] = ∏ P(V_i | V_{<i}) which factors over topo predecessors
     that may include latent-confounder-linked variables (see wall.md,
     entries iter 150 and iter 165, for the xfail-strict tracker).
+
+    In the order ``_GRAPH_CHECK_FUNCS`` declares, for the reason
+    :func:`validate_program` gives.
     """
     checks = checks if checks is not None else GRAPH_LEVEL_CHECKS
-    for name in checks:
-        func = _GRAPH_CHECK_FUNCS.get(name)
-        if func is None:
-            raise KeyError(f"unknown graph-level check: {name}")
+    unknown = sorted(checks - _GRAPH_CHECK_FUNCS.keys())
+    if unknown:
+        raise KeyError(f"unknown graph-level check: {unknown[0]}")
+    for name, func in _GRAPH_CHECK_FUNCS.items():
+        if name not in checks:
+            continue
         if name == "probability_parents":
             func(ground_statements, graph, bidirected=bidirected)
         else:
@@ -2003,9 +2013,17 @@ def validate_program(ast: dict, checks: frozenset[str] | None = None) -> Program
     ``checks`` selects which semantic rules to run. Defaults to
     SLICE_1_CHECKS. Later slices pass a larger set.
 
-    Raises SemanticError on any violation.
+    Raises SemanticError on any violation. The checks run in the order
+    ``_CHECK_FUNCS`` declares them, and ``checks`` says only which: it is
+    a set of strings, whose order changes with every process's hash seed,
+    so a program breaking two rules was told one of them in one run and
+    the other in the next.
     """
     checks = checks if checks is not None else SLICE_1_CHECKS
+    unknown = sorted(checks - _CHECK_FUNCS.keys())
+    if unknown:
+        # Unknown check name is a programmer error, not user input.
+        raise KeyError(f"unknown semantic check: {unknown[0]}")
 
     program = Program(
         version=ast["version"],
@@ -2015,12 +2033,9 @@ def validate_program(ast: dict, checks: frozenset[str] | None = None) -> Program
         options=ast.get("options"),
     )
 
-    for name in checks:
-        func = _CHECK_FUNCS.get(name)
-        if func is None:
-            # Unknown check name is a programmer error, not user input.
-            raise KeyError(f"unknown semantic check: {name}")
-        func(program)
+    for name, func in _CHECK_FUNCS.items():
+        if name in checks:
+            func(program)
 
     return program
 

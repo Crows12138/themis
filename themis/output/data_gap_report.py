@@ -391,6 +391,7 @@ def compute_data_gap_report(
     gaps.sort(key=_gap_sort_key)
     answer_tier = _compute_answer_tier(
         query_kind, gaps, bounds_results, status, numeric_result, stmt,
+        extensions,
     )
     if answer_tier is AnswerTier.NONE:
         gaps = _withdraw_interval_offers(gaps, query_kind)
@@ -500,6 +501,7 @@ def _compute_answer_tier(
     status: ResultStatus,
     numeric_result=None,
     stmt=None,
+    extensions=None,
 ) -> AnswerTier | None:
     """The strongest answer available, orthogonal to gap severity.
 
@@ -527,12 +529,16 @@ def _compute_answer_tier(
     identifiable-but-missing-θ (a data gap, still a point).
 
     Second, when blocked, an interval in hand makes it INTERVAL; otherwise
-    (nothing, or a trivial [0, 1]) NONE. An interval can arrive by either
-    of two channels and both count: ``bounds_results``, the effect query's
-    Manski / IV floor, and ``numeric_result.interval``, where a bounded
-    counterfactual carries its own Tian-Pearl interval. Reading only the
+    (nothing, or a trivial [0, 1]) NONE. An interval can arrive by any of
+    three channels and all count: ``bounds_results``, the effect query's
+    Manski / IV floor; ``numeric_result.interval``, where a bounded
+    counterfactual carries its own Tian-Pearl interval; and the
+    probabilities of causation, whose ``numeric_result`` is only the
+    headline — PN, one of the three the question asks for. Reading only the
     first reported "no answer available" for counterfactuals that had a
-    perfectly good interval sitting in the envelope.
+    perfectly good interval sitting in the envelope, and reading only the
+    headline did the same to a causation answer whose PN spanned [0, 1]
+    while PS and PNS, printed beside it, excluded most of the line.
 
     The gate is the question: a tier is what the answer to it can be, so a
     question that names no quantity has none. It used to be a list of three
@@ -588,8 +594,16 @@ def _compute_answer_tier(
     ):
         return AnswerTier.INTERVAL
     interval = getattr(numeric_result, "interval", None)
-    if interval is not None and not (
-        interval.low <= 0.0 and interval.high >= 1.0
+    if interval is not None and _excludes_part_of_the_line(
+            interval.low, interval.high):
+        return AnswerTier.INTERVAL
+    causation = (extensions or {}).get(blocks.Block.CAUSATION)
+    if isinstance(causation, dict) and any(
+        isinstance(quantity, dict) and (
+            quantity.get("point") is not None
+            or _excludes_part_of_the_line(quantity.get("lower"),
+                                          quantity.get("upper")))
+        for quantity in (causation.get(name) for name in ("pn", "ps", "pns"))
     ):
         return AnswerTier.INTERVAL
     if (
@@ -606,6 +620,14 @@ def _compute_answer_tier(
         # bounds are out of reach too, and NONE is the honest word.
         return AnswerTier.INTERVAL
     return AnswerTier.NONE
+
+
+def _excludes_part_of_the_line(low, high) -> bool:
+    """Whether a probability's bounds rule anything out. Bounds spanning
+    all of [0, 1] are what is known before any data, so they answer
+    nothing."""
+    return (low is not None and high is not None
+            and not (low <= 0.0 and high >= 1.0))
 
 
 def _rewrite_iv_aware_alternatives(

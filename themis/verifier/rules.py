@@ -256,10 +256,15 @@ def _build_expected_backdoor_formula(
     observed: tuple[ValuedAtom, ...],
     *,
     include_intervention: bool = True,
+    intervention_observed: bool = False,
 ) -> FormulaExpr:
     """Independent reimplementation of the backdoor adjustment formula
     as specified by Pearl. This is the verifier's own statement of the
     theorem — it does NOT call ``formula_builder``.
+
+    ``intervention_observed`` states the chain rule over Z, X and Y in its
+    place — ``P(Y=y, X=x | observed)`` — by one factor more,
+    ``P(X=x | Z, observed)``.
 
     ``include_intervention`` mirrors the producer-independent rule that X
     belongs in the main conditional only when it has a directed path to Y;
@@ -277,7 +282,14 @@ def _build_expected_backdoor_formula(
     """
     cond_prefix = (intervention,) if include_intervention else ()
     if len(adjustment_set) == 0:
-        return ProbabilityRefExpr(target=target, given=cond_prefix + observed)
+        conditional_alone = ProbabilityRefExpr(
+            target=target, given=cond_prefix + observed)
+        if not intervention_observed:
+            return conditional_alone
+        return ProductExpr(terms=(
+            conditional_alone,
+            ProbabilityRefExpr(target=intervention, given=observed),
+        ))
 
     # Bind names — use a deterministic scheme so the same (predicate,
     # args) yields the same bind name each time the verifier runs.
@@ -308,6 +320,9 @@ def _build_expected_backdoor_formula(
     for i, (_, _, z_va) in enumerate(binds):
         prior = z_valueds[:i]
         factors.append(ProbabilityRefExpr(target=z_va, given=prior + observed))
+    if intervention_observed:
+        factors.append(ProbabilityRefExpr(
+            target=intervention, given=z_valueds + observed))
 
     body: FormulaExpr = ProductExpr(terms=(conditional, *factors))
     for z_atom, bind, _ in reversed(binds):
@@ -10221,6 +10236,7 @@ def _counterfactual_joint_xy_for_verifier(
     query: CounterfactualQuery,
     *,
     bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    through: tuple[Atom, ...] | None = None,
     step_index: int,
     rule: str,
 ) -> dict[tuple[bool, bool], float]:
@@ -10237,32 +10253,106 @@ def _counterfactual_joint_xy_for_verifier(
             f"{rule}: target atom must have boolean domain",
             step_index=step_index, rule=rule,
         )
+    return _theta_joint_xy_for_verifier(
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        through=through, step_index=step_index, rule=rule,
+    )
 
+
+def _theta_joint_xy_for_verifier(
+    graph: nx.DiGraph,
+    theta: Theta,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    bidirected: frozenset[frozenset[Atom]],
+    through: tuple[Atom, ...] | None,
+    step_index: int,
+    rule: str,
+) -> dict[tuple[bool, bool], float]:
+    """The four ``P(X, Y)`` cells off theta, by the producer's routes in the
+    producer's order: the ancestors' tables, the two marginals, and — only
+    where a step names the set it read through — the chain rule over that
+    set, X and Y.
+
+    The set is the one thing read off the step rather than theta, and it
+    needs no licence to be read through: the chain rule holds over any set
+    for every distribution, so a set other than the risk's reads the same
+    joint off a theta that is one distribution. What it must not hold is X
+    or Y, which :func:`_joint_through_for_verifier` refuses.
+    """
     factorized = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
-        graph,
-        theta,
-        x_atom=x_atom,
-        y_atom=y_atom,
-        bidirected=bidirected,
-        step_index=step_index,
-        rule=rule,
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        step_index=step_index, rule=rule,
     )
     if factorized is not None:
         return factorized
-
-    joint: dict[tuple[bool, bool], float] = {}
+    try:
+        return {
+            (x_val, y_val): _counterfactual_joint_cell_for_verifier(
+                theta, x_atom=x_atom, x_val=x_val, y_atom=y_atom, y_val=y_val,
+                step_index=step_index, rule=rule,
+            )
+            for x_val in (False, True) for y_val in (False, True)
+        }
+    except RuleCheckFailed:
+        if through is None:
+            raise
+    cells: dict[tuple[bool, bool], float] = {}
     for x_val in (False, True):
         for y_val in (False, True):
-            joint[(x_val, y_val)] = _counterfactual_joint_cell_for_verifier(
-                theta,
-                x_atom=x_atom,
-                x_val=x_val,
-                y_atom=y_atom,
-                y_val=y_val,
-                step_index=step_index,
-                rule=rule,
+            formula = _build_expected_backdoor_formula(
+                ValuedAtom(atom=y_atom, value=y_val),
+                ValuedAtom(atom=x_atom, value=x_val),
+                through, (), intervention_observed=True,
             )
-    return joint
+            try:
+                cells[(x_val, y_val)] = _evaluate_formula(
+                    formula, theta, {}, graph=graph, bidirected=bidirected,
+                )
+            except _NonConcreteValue as e:
+                raise RuleCheckFailed(
+                    f"{rule}: theta does not hold the joint through the "
+                    f"joint_through set ({e})",
+                    step_index=step_index, rule=rule,
+                )
+    return cells
+
+
+def _joint_through_for_verifier(
+    inputs: Mapping,
+    graph: nx.DiGraph,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    step_index: int,
+    rule: str,
+) -> tuple[Atom, ...] | None:
+    """The set a step says it read the observational joint through, or None.
+
+    Read at the top of a rule whichever branch then runs, because an input a
+    step records is one its rule accounts for. Held to being variables of
+    the graph, each once, and neither X nor Y: summing X or Y out of their
+    own joint is not the chain rule, and a set naming them would read a
+    different quantity under the same name.
+    """
+    through = inputs.get("joint_through")
+    if through is None:
+        return None
+    if (
+        not isinstance(through, tuple) or not through
+        or not all(isinstance(a, Atom) for a in through)
+        or len(set(through)) != len(through)
+        or x_atom in through or y_atom in through
+        or not all(a in graph for a in through)
+    ):
+        raise RuleCheckFailed(
+            f"{rule}: joint_through has to name distinct variables of the "
+            f"graph other than {x_atom.predicate} and {y_atom.predicate}, "
+            f"got {through!r}",
+            step_index=step_index, rule=rule,
+        )
+    return through
 
 
 def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
@@ -10813,6 +10903,7 @@ def _expected_counterfactual_numeric_result(
     theta: Theta,
     *,
     bidirected: frozenset[frozenset[Atom]] = frozenset(),
+    through: tuple[Atom, ...] | None = None,
     p_y_do_x_cf: float | None,
     step_index: int,
     rule: str,
@@ -10825,6 +10916,7 @@ def _expected_counterfactual_numeric_result(
         theta,
         query,
         bidirected=bidirected,
+        through=through,
         step_index=step_index,
         rule=rule,
     )
@@ -10908,6 +11000,12 @@ def _rule_counterfactual_cell_bounds(
         inputs, ctx, ctx.query.counterfactual_intervention.value,
         step_index=step_index, rule=rule,
     )
+    through = _joint_through_for_verifier(
+        inputs, ctx.graph,
+        x_atom=ctx.query.observed.atom,
+        y_atom=ctx.query.counterfactual_target.atom,
+        step_index=step_index, rule=rule,
+    )
 
     raw_risk = inputs.get("p_y_do_x_cf")
     risk = None if raw_risk is None else float(raw_risk)
@@ -10929,7 +11027,8 @@ def _rule_counterfactual_cell_bounds(
         # a theorem the producer did not use.
         joint = _counterfactual_joint_xy_for_verifier(
             ctx.graph, ctx.theta, ctx.query,
-            bidirected=ctx.bidirected, step_index=step_index, rule=rule,
+            bidirected=ctx.bidirected, through=through,
+            step_index=step_index, rule=rule,
         )
         _recorded_instrument_table_matches_theta(
             ctx.graph, ctx.theta, inputs,
@@ -10960,6 +11059,7 @@ def _rule_counterfactual_cell_bounds(
             ctx.query,
             ctx.theta,
             bidirected=ctx.bidirected,
+            through=through,
             p_y_do_x_cf=risk,
             step_index=step_index,
             rule=rule,
@@ -11890,6 +11990,7 @@ def _check_causation_over_the_polytope(
     *,
     x_atom: Atom,
     y_atom: Atom,
+    through: tuple[Atom, ...] | None,
     step_index: int,
     rule: str,
 ) -> None:
@@ -11905,7 +12006,7 @@ def _check_causation_over_the_polytope(
     _counterfactual_joint_xy_for_verifier_by_atoms(
         ctx.graph, theta, declared_cells,
         x_atom=x_atom, y_atom=y_atom, bidirected=ctx.bidirected,
-        step_index=step_index, rule=rule,
+        through=through, step_index=step_index, rule=rule,
     )
     _recorded_instrument_table_matches_theta(
         ctx.graph, theta, inputs,
@@ -11982,25 +12083,15 @@ def _counterfactual_joint_xy_for_verifier_by_atoms(
     x_atom: Atom,
     y_atom: Atom,
     bidirected: frozenset[frozenset[Atom]],
+    through: tuple[Atom, ...] | None = None,
     step_index: int,
     rule: str,
 ) -> dict:
     """The four cells recomputed from theta, checked against the declared."""
-    recomputed = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
-        graph, theta,
-        x_atom=x_atom, y_atom=y_atom,
-        bidirected=bidirected, step_index=step_index, rule=rule,
+    recomputed = _theta_joint_xy_for_verifier(
+        graph, theta, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        through=through, step_index=step_index, rule=rule,
     )
-    if recomputed is None:
-        recomputed = {
-            (xv, yv): _counterfactual_joint_cell_for_verifier(
-                theta,
-                x_atom=x_atom, x_val=xv,
-                y_atom=y_atom, y_val=yv,
-                step_index=step_index, rule=rule,
-            )
-            for xv in (False, True) for yv in (False, True)
-        }
     for key, declared in declared_cells.items():
         if abs(declared - recomputed[key]) > _NUMERIC_TOL:
             raise RuleCheckFailed(
@@ -12075,6 +12166,10 @@ def _rule_causation_probability_bounds(
     provenance = _check_risk_provenance(
         inputs, ctx, None, step_index=step_index, rule=rule,
     )
+    through = _joint_through_for_verifier(
+        inputs, ctx.graph, x_atom=x_atom, y_atom=y_atom,
+        step_index=step_index, rule=rule,
+    )
 
     # The two solvers behind this one rule diverge here, and the licence is
     # what says which ran. Tian-Pearl's closed form consumes both arms; the
@@ -12090,7 +12185,8 @@ def _rule_causation_probability_bounds(
                 )
         _check_causation_over_the_polytope(
             ctx, ctx.theta, inputs, claimed_output, declared_cells, monotonic,
-            x_atom=x_atom, y_atom=y_atom, step_index=step_index, rule=rule,
+            x_atom=x_atom, y_atom=y_atom, through=through,
+            step_index=step_index, rule=rule,
         )
         return
 
@@ -12106,30 +12202,13 @@ def _rule_causation_probability_bounds(
             )
 
     # 2. Recompute the joint from theta independently — must match declared.
-    #    Ancestral BN factorization first (measured confounders), local
-    #    chain-rule fallback second; mirrors the producer's recovery.
-    recomputed_joint = _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
-        ctx.graph, ctx.theta,
+    #    The producer's routes in its order: the ancestors' tables, the two
+    #    marginals, the set the step says it read through.
+    _counterfactual_joint_xy_for_verifier_by_atoms(
+        ctx.graph, ctx.theta, declared_cells,
         x_atom=x_atom, y_atom=y_atom, bidirected=ctx.bidirected,
-        step_index=step_index, rule=rule,
+        through=through, step_index=step_index, rule=rule,
     )
-    if recomputed_joint is None:
-        recomputed_joint = {
-            (xv, yv): _counterfactual_joint_cell_for_verifier(
-                ctx.theta,
-                x_atom=x_atom, x_val=xv, y_atom=y_atom, y_val=yv,
-                step_index=step_index, rule=rule,
-            )
-            for xv in (False, True) for yv in (False, True)
-        }
-    for (xv, yv), declared in declared_cells.items():
-        recomputed = recomputed_joint[(xv, yv)]
-        if abs(declared - recomputed) > _NUMERIC_TOL:
-            raise RuleCheckFailed(
-                f"{rule}: declared joint cell ({xv}, {yv})={declared} != "
-                f"theta-recovered {recomputed}",
-                step_index=step_index, rule=rule,
-            )
 
     # 3. Re-derive PN/PS/PNS via the verifier's own Tian-Pearl transcription.
     expected = _tian_pearl_poc_for_verifier(

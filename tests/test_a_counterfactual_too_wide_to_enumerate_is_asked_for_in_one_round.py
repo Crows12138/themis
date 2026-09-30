@@ -9,7 +9,9 @@ and 300 MB to list what was missing and 800 MB to estimate it, past the
 400 MB the demo gives a process.
 
 Past 4,096 rows the route is not taken, and the joint is read off the chain
-rule's two marginals. That route named one factor per round — ``P(X)``, and
+rule — through the derived risk's adjustment set where there is one (pinned
+in ``test_a_joint_read_beside_a_derived_risk_shares_its_factors``), off its
+two marginals otherwise. That route named one factor per round — ``P(X)``, and
 only once it was in, ``P(Y | X)`` — and the door returned at the joint's
 shortfall before asking for the risk's, which its sibling, the probabilities
 of causation, stopped doing when it learned that returning at the first
@@ -28,7 +30,7 @@ Pinned here:
 - the risk is not asked for beside the joint where the cell does not
   depend on it (monotonicity pins it), and not where the joint's shortfall
   is the ancestors' tables, from which it follows;
-- the fourteen-parent shape lists a few dozen items, not thousands.
+- the fourteen-parent shape lists about a hundred items, not thousands.
 """
 from __future__ import annotations
 
@@ -237,9 +239,11 @@ def test_within_the_bound_the_risk_follows_from_the_ancestors_tables():
 
 # --- the shape that raised it ------------------------------------------------
 
-def test_fourteen_parents_of_the_outcome_list_a_few_dozen_items():
+def test_fourteen_parents_of_the_outcome_list_about_a_hundred_items():
     """Five confounders, eight roots and x: the ancestral recovery would
-    list every cell of a table over fourteen parents."""
+    list every cell of a table over fourteen parents. What is listed is the
+    tables over the five — the outcome's at both exposures and the
+    exposure's — and each confounder's own rate."""
     model = _Model(8, 5, seed=3)
     asked = _asked(_run(_program(model, _counterfactual(False, True))))
-    assert 0 < len(asked) <= 2 ** 5 + 5 + 3, len(asked)
+    assert len(asked) == 3 * 2 ** 5 + 5, len(asked)

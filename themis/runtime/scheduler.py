@@ -2018,12 +2018,18 @@ class ObservationalJoint:
     the graph's own account and a risk it identifies is read off them once
     they are in, while the two marginals reach nothing upstream of X and Y,
     so a risk's shortfall is never among theirs.
+
+    ``through`` is the adjustment set the cells were read through, and empty
+    where they were not. It is the one fact about the recovery a verifier
+    cannot re-derive from theta alone — which set a chain rule over some
+    set, X and Y summed over — so a door records it on its step.
     """
 
     cells: dict[tuple[bool, bool], float] | None
     missing: tuple[MissingItem, ...]
     ancestral: AncestralJoint | None
     chain_rule: bool = False
+    through: tuple[Atom, ...] = ()
 
     def __post_init__(self) -> None:
         if (self.cells is None) != bool(self.missing):
@@ -2061,6 +2067,7 @@ def _observational_joint_xy(
     x_atom: Atom,
     y_atom: Atom,
     bidirected: "frozenset[frozenset[Atom]]" = frozenset(),
+    through: "tuple[Atom, ...] | None" = None,
 ) -> ObservationalJoint:
     """The four ``P(X=x, Y=y)`` cells from theta, for every door that wants them.
 
@@ -2089,6 +2096,19 @@ def _observational_joint_xy(
 
     Missing entries surface as ordinary PARAMETER gaps so the existing
     fill-back workflow can recover the query.
+
+    ``through`` is the back-door set a door will adjust over to derive the
+    interventional risk from theta, where it will. Where theta does not
+    hold the two marginals the joint is then read through that set —
+    ``Σ_z P(z)·P(x | z)·P(y | x, z)``, the chain rule over the set, X and Y
+    — and not asked for as the marginals. The marginals and the adjustment
+    are two readings of one distribution, and asked for in one round as
+    separate entries they were guessed separately: the demo's model put the
+    outcome's rate among the unexposed at 0.15 in one and 0.28 in the other,
+    and the probability of necessity it had asked about came back as all of
+    [0, 1]. Read through the set, the joint shares every factor of the risk
+    but ``P(x | z)``, and whatever values the factors are given, the risk
+    lies inside the bounds the joint sets on it.
     """
     for atom in (x_atom, y_atom):
         domain = set(theta.domain_of(atom))
@@ -2129,6 +2149,9 @@ def _observational_joint_xy(
                 short.extend(lacking)
             else:
                 cells[(x_val, y_val)] = cell
+    if short and through:
+        return _joint_through(theta, graph, x_atom=x_atom, y_atom=y_atom,
+                              through=through, bidirected=bidirected)
     if short:
         return ObservationalJoint(None, tuple(
             _missing_parameter_from_key(
@@ -2138,6 +2161,53 @@ def _observational_joint_xy(
             for key in theta_builder.fewest_to_ask(short, theta)
         ), None, chain_rule=True)
     return ObservationalJoint(cells, (), None, chain_rule=True)
+
+
+def _joint_through(
+    theta: Theta,
+    graph: nx.DiGraph,
+    *,
+    x_atom: Atom,
+    y_atom: Atom,
+    through: tuple[Atom, ...],
+    bidirected: "frozenset[frozenset[Atom]]",
+) -> ObservationalJoint:
+    """The four cells read through an adjustment set, or what they lack.
+
+    Each cell is the back-door formula's own sum with ``P(x | z)`` as one
+    factor more, built by the builder that builds the risk's and evaluated
+    by the evaluator that evaluates it, so a factor the two share is one
+    key read one way. ``Y`` is conditioned on ``X`` as the chain rule has
+    it; where the graph says ``Y`` does not depend on ``X`` given the set,
+    the evaluator reads the shorter conditional the risk's formula names.
+    """
+    cells: dict[tuple[bool, bool], float] = {}
+    short: list[ProbabilityKey] = []
+    for x_val in (False, True):
+        for y_val in (False, True):
+            formula = formula_builder.backdoor_formula(
+                target=ValuedAtom(atom=y_atom, value=y_val),
+                intervention=ValuedAtom(atom=x_atom, value=x_val),
+                adjustment_set=through,
+                intervention_observed=True,
+            )
+            try:
+                cells[(x_val, y_val)] = numeric_estimator.estimate_formula(
+                    formula, theta, graph=graph, bidirected=bidirected,
+                )
+            except InsufficientTheta:
+                short.extend(numeric_estimator.collect_missing_keys(
+                    formula, theta, graph=graph, bidirected=bidirected,
+                ))
+    if short:
+        return ObservationalJoint(None, tuple(
+            _missing_parameter_from_key(
+                key, need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
+                graph=graph, bidirected=bidirected,
+                key=format_probability_key(key))
+            for key in theta_builder.fewest_to_ask(short, theta)
+        ), None, chain_rule=True)
+    return ObservationalJoint(cells, (), None, chain_rule=True, through=through)
 
 
 class AncestralJoint(NamedTuple):
@@ -2470,13 +2540,35 @@ def _dispatch_counterfactual(
     orders the same pair the same way.
     """
     q: CounterfactualQuery = stmt.query  # type: ignore[assignment]
+    # The arm whose risk the cell depends on: the counterfactual one, where
+    # it differs from what was observed.
+    x_cf_value = q.counterfactual_intervention.value
+    arm = (x_cf_value if isinstance(x_cf_value, bool)
+           and x_cf_value != q.observed.value else None)
+    supplied = None
+    if arm is not None:
+        supplied = (
+            q.experimental_risk_treated if arm
+            else q.experimental_risk_control
+        )
 
     try:
+        # A cell monotonicity pins does not depend on the risk. Where the
+        # cell does and the risk is to be derived from theta, the joint is
+        # read through the set it adjusts over.
+        pinned = counterfactual.monotone_cell(q)
         recovered = _observational_joint_xy(
             theta, graph,
             x_atom=q.observed.atom,
             y_atom=q.counterfactual_target.atom,
             bidirected=bidirected,
+            through=(
+                _risk_adjustment(stmt, graph, q.observed.atom,
+                                 q.counterfactual_target.atom,
+                                 bidirected=bidirected)
+                if arm is not None and supplied is None and pinned is None
+                else None
+            ),
         )
     except counterfactual.CounterfactualBoundsError as exc:
         return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
@@ -2493,40 +2585,29 @@ def _dispatch_counterfactual(
     # not depend on, and requiring it would manufacture a gap. Fetched even
     # when monotonicity would pin the cell outright, because with the risk in
     # hand the solver can also detect that the two sources contradict.
-    x_obs_value = q.observed.value
-    x_cf_value = q.counterfactual_intervention.value
     risk: float | None = None
     risk_provenance = RiskProvenance.NOT_REQUIRED
     arm_missing: tuple[MissingItem, ...] = ()
-    if isinstance(x_cf_value, bool) and x_cf_value != x_obs_value:
-        supplied = (
-            q.experimental_risk_treated if x_cf_value
-            else q.experimental_risk_control
-        )
+    if arm is not None:
         if supplied is not None:
             risk = float(supplied)
             risk_provenance = RiskProvenance.USER_EXPERIMENTAL
         else:
             risk, arm_missing = _derive_interventional_risk_arm(
                 stmt, graph, theta,
-                q.observed.atom, q.counterfactual_target.atom, x_cf_value,
+                q.observed.atom, q.counterfactual_target.atom, arm,
                 bidirected=bidirected, selection_nodes=selection_nodes,
             )
             if risk is not None:
                 risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
 
     if joint_xy is None:
-        # The chain rule's two marginals, which reach nothing upstream of X
-        # and Y, so the risk's shortfall is never among theirs and is asked
-        # for in the same round — as the causation door asks for its two
-        # inputs, returning at the first having hidden the second until the
-        # first was answered. Not where monotonicity pins the cell, which
-        # then does not depend on the risk.
-        try:
-            pinned = counterfactual.monotone_cell(q)
-        except counterfactual.CounterfactualBoundsError as exc:
-            return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
-                estimator="counterfactual_identification", exc=exc))
+        # The chain rule's shortfall — the two marginals, or the set's
+        # tables — and the risk's are asked for in the same round, as the
+        # causation door asks for its two inputs, returning at the first
+        # having hidden the second until the first was answered; where they
+        # overlap the merge names each once. Not where monotonicity pins the
+        # cell, which then does not depend on the risk.
         return _gap_result(stmt, QueryKind.COUNTERFACTUAL, recovered.missing,
                            arm_missing if pinned is None else ())
 
@@ -2616,6 +2697,8 @@ def _dispatch_counterfactual(
     }
     if risk is not None:
         step_inputs["p_y_do_x_cf"] = risk
+    if recovered.through:
+        step_inputs["joint_through"] = recovered.through
     if instrument_table is not None and instrument_atom is not None:
         # What the verifier re-solves. The levels travel WITH the table
         # because the table's own shape says nothing about which stratum is
@@ -2873,6 +2956,47 @@ def _poc_quantity(lower: float, upper: float, point: "float | None") -> dict:
     return {"lower": lower, "upper": upper, "point": point}
 
 
+def _risk_statement(
+    stmt: QueryStatement, x_atom: Atom, y_atom: Atom, x_val: bool,
+) -> QueryStatement:
+    """The effect question one interventional risk is the answer to."""
+    return QueryStatement(
+        id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
+        query=EffectQuery(
+            target=ValuedAtom(atom=y_atom, value=True),
+            intervention=Intervention(atom=x_atom, value=x_val),
+            given=(),
+        ),
+    )
+
+
+def _risk_adjustment(
+    stmt: QueryStatement,
+    graph: nx.DiGraph,
+    x_atom: Atom,
+    y_atom: Atom,
+    *,
+    bidirected: "frozenset[frozenset[Atom]]",
+) -> "tuple[Atom, ...] | None":
+    """The back-door set a derived risk adjusts over, in the order its
+    formula expands it, or None where the graph offers none.
+
+    Read off the facts the effect cascade reads for the arm, so that it is
+    the set the risk's formula sums over and the joint read through it
+    shares that formula's factors key for key. Both arms adjust over the
+    same set; which value X is set to does not enter the search.
+    """
+    facts = routing.StructuralFacts(
+        q_stmt=_risk_statement(stmt, x_atom, y_atom, True),
+        graph=graph, bidirected=bidirected, feedback=frozenset(),
+    )
+    if not facts.adjustment_sets:
+        return None
+    return tuple(
+        n for n in nx.topological_sort(graph) if n in facts.chosen_adjustment
+    )
+
+
 def _derive_interventional_risk_arm(
     stmt: QueryStatement,
     graph: nx.DiGraph,
@@ -2896,16 +3020,8 @@ def _derive_interventional_risk_arm(
     it was pushed from and the caller pushes once, at the end, over the
     merge.
     """
-    internal = QueryStatement(
-        id=f"{stmt.id}::do_x{'1' if x_val else '0'}",
-        query=EffectQuery(
-            target=ValuedAtom(atom=y_atom, value=True),
-            intervention=Intervention(atom=x_atom, value=x_val),
-            given=(),
-        ),
-    )
     sub = _dispatch_effect(
-        internal, graph, theta,
+        _risk_statement(stmt, x_atom, y_atom, x_val), graph, theta,
         bidirected=bidirected, selection_nodes=selection_nodes,
     )
     if (
@@ -3219,17 +3335,24 @@ def _dispatch_causation(
     # reached the reader as a list of distributions to go and collect. The
     # same graph WITH theta reports it correctly, which is the tell: what
     # changed was not the graph but how far the code got.
+    #
+    # Where the risks are to be derived from theta, the joint is read
+    # through the set they adjust over, so that the two are one reading.
+    supplied = (
+        (q.experimental_risk_treated, q.experimental_risk_control)
+        if q.experimental_risk_treated is not None
+        and q.experimental_risk_control is not None else None
+    )
     recovered = _observational_joint_xy(
         theta, graph, x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
+        through=None if supplied is not None else _risk_adjustment(
+            stmt, graph, x_atom, y_atom, bidirected=bidirected),
     )
     joint, ancestral = recovered.cells, recovered.ancestral
     risk_missing: tuple[MissingItem, ...] = ()
-    if (
-        q.experimental_risk_treated is not None
-        and q.experimental_risk_control is not None
-    ):
-        p_y_do_x1 = float(q.experimental_risk_treated)
-        p_y_do_x0 = float(q.experimental_risk_control)
+    if supplied is not None:
+        p_y_do_x1 = float(supplied[0])
+        p_y_do_x0 = float(supplied[1])
         risk_provenance = RiskProvenance.USER_EXPERIMENTAL
     else:
         risks, risk_missing = _derive_interventional_risks(
@@ -3268,7 +3391,9 @@ def _dispatch_causation(
     # mirror for P(y_{x'})). Infeasible user-supplied experimental risks
     # otherwise make the Tian-Pearl bounds invert (lower > upper) — an empty
     # interval that silently signals the two data sources contradict. Derived
-    # risks are always feasible; the check still guards them defensively.
+    # risks are feasible when the joint was read from the tables they were —
+    # the ancestors', or the adjustment set's — and a joint theta supplies as
+    # two marginals beside them is a second source; the check guards both.
     p_x1 = joint[(True, True)] + joint[(True, False)]
     p_x0 = joint[(False, True)] + joint[(False, False)]
     _TOL = 1e-9
@@ -3363,6 +3488,8 @@ def _dispatch_causation(
                 "p_y_do_x0": p_y_do_x0,
                 "monotonic": q.monotonic,
                 "interventional_risk_provenance": licence,
+                **({"joint_through": recovered.through}
+                   if recovered.through else {}),
             },
             output=envelope,
             label="s1",

@@ -2652,9 +2652,33 @@ def _a_premise_the_caller_withheld_blocks_the_point(
 #: A block whose carrier IS ``numeric_estimate`` is a display copy of
 #: something the shape table already reads, so it is not here — the field
 #: and the copy would count as two answers where there is one.
-_AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR = frozenset({
-    "anderson_rubin_region", "causation", "scm_counterfactual",
-})
+#:
+#: Each is paired with how it says whether it rules anything out, because
+#: each says it in its own words: a region records whether it closed; the
+#: probabilities of causation record each quantity's bounds, and the point
+#: where there is one; a structural counterfactual is a value, which rules
+#: out every other by being there.
+_WHAT_EACH_SAYS_IT_RULES_OUT = {
+    "anderson_rubin_region": lambda block: not (
+        isinstance(block.get("region"), Mapping)
+        and block["region"].get("bounded") is False),
+    "causation": lambda block: any(
+        isinstance(quantity, Mapping) and (
+            quantity.get("point") is not None
+            or _short_of_the_whole_line(quantity.get("lower"),
+                                        quantity.get("upper")))
+        for quantity in (block.get(name) for name in ("pn", "ps", "pns"))),
+    "scm_counterfactual": lambda block: True,
+}
+_AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR = frozenset(
+    _WHAT_EACH_SAYS_IT_RULES_OUT)
+
+
+def _short_of_the_whole_line(low: Any, high: Any) -> bool:
+    """Bounds on a probability that exclude some of [0, 1]. Spanning all of
+    it is what was known before any data, so it is no answer."""
+    return (isinstance(low, (int, float)) and isinstance(high, (int, float))
+            and not (low <= 0.0 and high >= 1.0))
 
 
 def _an_answer_the_point_is_not(result: Mapping) -> bool:
@@ -2669,7 +2693,12 @@ def _an_answer_the_point_is_not(result: Mapping) -> bool:
     The one thing that can make it less than that is the answer saying so.
     A confidence region over a coefficient vector is written whether or not
     it closed, and an open region excludes nothing; it says which it is,
-    and that word is read rather than assumed.
+    and that word is read rather than assumed. The probabilities of
+    causation are written whenever the two risks and the joint are in hand,
+    and three bounds that each span [0, 1] exclude nothing either — so
+    their word is their bounds, all three of them: the headline on
+    ``numeric_result`` is PN alone, and a PN that spans the line beside a
+    PS that does not is still an answer the reader holds.
 
     This channel is why the tier is readable for a whole road at all. The
     region is a set over k coefficients, so ``numeric_estimate`` — one
@@ -2681,15 +2710,10 @@ def _an_answer_the_point_is_not(result: Mapping) -> bool:
     extensions = result.get("extensions")
     if not isinstance(extensions, Mapping):
         return False
-    for key in _AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR:
-        block = extensions.get(key)
-        if not isinstance(block, Mapping):
-            continue
-        region = block.get("region")
-        if isinstance(region, Mapping) and region.get("bounded") is False:
-            continue
-        return True
-    return False
+    return any(
+        isinstance(extensions.get(key), Mapping)
+        and rules_something_out(extensions[key])
+        for key, rules_something_out in _WHAT_EACH_SAYS_IT_RULES_OUT.items())
 
 
 def _an_interval_is_in_hand(result: Mapping) -> bool:
@@ -2700,7 +2724,8 @@ def _an_interval_is_in_hand(result: Mapping) -> bool:
     calls its own width uninformative is not one; the interval a bounded
     counterfactual carries on its numeric result, where one spanning the
     whole of [0, 1] excludes nothing and is not one either; and an answer
-    the estimate's fields had no room for, which says whether it closed.
+    the estimate's fields had no room for, which says whether it rules
+    anything out.
     """
     for row in result.get("bounds_results") or ():
         if isinstance(row, Mapping) and not row.get(
@@ -2709,11 +2734,9 @@ def _an_interval_is_in_hand(result: Mapping) -> bool:
     numeric = result.get("numeric_result")
     interval = numeric.get("interval") if isinstance(numeric, Mapping) \
         else None
-    if isinstance(interval, Mapping):
-        low, high = interval.get("low"), interval.get("high")
-        if (isinstance(low, (int, float)) and isinstance(high, (int, float))
-                and not (low <= 0.0 and high >= 1.0)):
-            return True
+    if isinstance(interval, Mapping) and _short_of_the_whole_line(
+            interval.get("low"), interval.get("high")):
+        return True
     return _an_answer_the_point_is_not(result)
 
 

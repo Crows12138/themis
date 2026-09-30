@@ -60,6 +60,7 @@ def backdoor_formula(
     observed: tuple[ValuedAtom, ...] = (),
     *,
     include_intervention: bool = True,
+    intervention_observed: bool = False,
 ) -> FormulaExpr:
     """Build the standard back-door adjustment formula.
 
@@ -94,11 +95,22 @@ def backdoor_formula(
         The chain-rule factors are emitted as separate probability_ref
         terms inside the innermost product; no joint-target primitive
         is introduced, keeping the v0.1 formula AST unchanged.
+
+    ``intervention_observed`` reads ``P(target, intervention | observed)``
+    in place of ``P(target | do(intervention), observed)``: the same sum
+    with the intervention's own conditional ``P(X=x | Z=z, observed)`` as
+    one factor more — the chain rule over Z, X and the target. Read beside
+    the adjustment, the two share every factor but that one, which is what
+    keeps them consistent with each other whatever values the factors are
+    given.
     """
     cond_prefix = (intervention,) if include_intervention else ()
 
     if len(adjustment_set) == 0:
-        return _conditional(target, cond_prefix + observed)
+        conditional = _conditional(target, cond_prefix + observed)
+        if not intervention_observed:
+            return conditional
+        return ProductExpr(terms=(conditional, _conditional(intervention, observed)))
 
     # Allocate fresh bind names and build one ValuedAtom per Z atom.
     taken: set[str] = set()
@@ -120,6 +132,8 @@ def backdoor_formula(
     for i, (_, _, z_va) in enumerate(binds):
         prior = z_valueds[:i]
         factors.append(_conditional(z_va, prior + observed))
+    if intervention_observed:
+        factors.append(_conditional(intervention, z_valueds + observed))
 
     body: FormulaExpr = ProductExpr(terms=(conditional, *factors))
 
