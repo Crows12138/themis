@@ -122,6 +122,24 @@ def _sort_values(values: set[AtomValue]) -> tuple[AtomValue, ...]:
     return tuple(sorted(values, key=lambda v: (type(v).__name__, str(v))))
 
 
+def _values_met(values: set[AtomValue]) -> tuple[AtomValue, ...]:
+    """The domain of a variable no declaration names, from the values the
+    statements met it at.
+
+    A yes-or-no met only at one of its values is still a yes-or-no. Naming
+    ``True`` is not saying ``False`` cannot happen, and the statements that
+    name only one are the ones the kernel asks for: :func:`fewest_to_ask`
+    leaves out the value completion supplies. Read as a domain of one, the
+    answer to that ask unmade it — completion skipped the group, a sum over
+    the variable ran over a single value, and the ask that followed dropped
+    every cell it had promised completion would fill. A model reads an
+    undeclared yes-or-no the same way (``probability_models.complement_values``).
+    """
+    if all(isinstance(v, bool) for v in values):
+        values = {False, True}
+    return _sort_values(values)
+
+
 def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     """Build a Theta from a fully-ground statement tuple.
 
@@ -160,15 +178,16 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
 
     # Final per-atom domain: declared takes precedence when present;
     # otherwise the values observed across probability + observation
-    # statements. (Theta.domain_of further falls back to (True, False)
-    # for atoms with no information at all.)
+    # statements, a yes-or-no at both of its values (_values_met).
+    # (Theta.domain_of further falls back to (True, False) for atoms with
+    # no information at all.)
     final_domains: dict[Atom, tuple[AtomValue, ...]] = {}
     seen_atoms = set(domains.keys())
     for atom in seen_atoms:
         if atom.predicate in declared_domains:
             final_domains[atom] = declared_domains[atom.predicate]
         else:
-            final_domains[atom] = _sort_values(domains[atom])
+            final_domains[atom] = _values_met(domains[atom])
 
     # Partial-distribution completion via probability
     # axiom. When the user supplies K-1 of K declared-domain values

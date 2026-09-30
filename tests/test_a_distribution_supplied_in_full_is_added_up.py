@@ -142,10 +142,10 @@ def test_a_consistent_pair_given_in_full_answers_as_its_true_cells_do():
 
 
 def test_a_domain_nobody_declared_is_not_read_as_complete():
-    """With no declaration the builder infers ``y``'s domain from the one
-    value the program mentions, and a single value says nothing about
-    what else ``y`` can be — so ``P(y=True|x=True)=0.7`` alone is not a
-    distribution summing to 0.7."""
+    """With no declaration ``y`` is met only at ``True``, which makes it a
+    yes-or-no met at one of its values: its other value is the one
+    completion supplies, not one it lacks — so ``P(y=True|x=True)=0.7``
+    alone is not a distribution summing to 0.7."""
     program = _attribution(*TRUE_CELLS, domains=False)
     themis.run(program)
     verify_theta_is_a_distribution(theta_builder.build_theta_from_program(

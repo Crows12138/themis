@@ -51,8 +51,9 @@ def run():
 def test_theta_populated_from_probability_statements(run):
     _, _, _, theta = run
     # Four distinct entries: two for P(cancer|smokes,stress) and two
-    # for P(stress).
-    assert len(theta.entries) == 4
+    # for P(stress) — and the two cancer cells' complements, cancer being
+    # a yes-or-no the fixture declares no domain for.
+    assert len(theta.entries) == 6
 
 
 def test_effect_is_numerically_solved(run):

@@ -24,6 +24,9 @@ def atom(pred: str, obj: str = "alice") -> Atom:
 
 
 def test_probability_statement_becomes_theta_entry():
+    """Beside it, its complement: ``y`` is a yes-or-no no declaration
+    names, and one of its values under a condition leaves the other to
+    completion."""
     y, x = atom("y"), atom("x")
     stmt = ProbabilityStatement(
         target=ValuedAtom(atom=y, value=True),
@@ -31,12 +34,13 @@ def test_probability_statement_becomes_theta_entry():
         value=0.3,
     )
     theta = build_theta((stmt,))
-    assert len(theta.entries) == 1
-    key = next(iter(theta.entries))
+    assert len(theta.entries) == 2
+    (key,) = [k for k in theta.entries if k.target_value is True]
     assert key.target_atom == y
-    assert key.target_value is True
     assert key.given == frozenset({(x, True)})
     assert theta.entries[key] == 0.3
+    (other,) = [k for k in theta.entries if k.target_value is False]
+    assert theta.entries[other] == pytest.approx(0.7)
 
 
 def test_empty_given_produces_unconditional_entry():
@@ -47,7 +51,7 @@ def test_empty_given_produces_unconditional_entry():
         value=0.6,
     )
     theta = build_theta((stmt,))
-    (key,) = theta.entries
+    (key,) = [k for k in theta.entries if k.target_value is False]
     assert key.given == frozenset()
     assert theta.entries[key] == 0.6
 
@@ -76,7 +80,8 @@ def test_multiple_distinct_statements_accumulate():
         value=0.2,
     )
     theta = build_theta((s1, s2))
-    assert len(theta.entries) == 2
+    # Each with its completed complement.
+    assert len(theta.entries) == 4
 
 
 def test_duplicate_key_with_different_value_raises():
@@ -108,7 +113,8 @@ def test_duplicate_key_with_same_value_is_idempotent():
         value=0.5,
     )
     theta = build_theta((s1, s2))
-    assert len(theta.entries) == 1
+    # One entry and its completed complement.
+    assert len(theta.entries) == 2
 
 
 # A probability statement's value has to be a concrete literal. ``ValuedAtom``
