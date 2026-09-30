@@ -8,7 +8,22 @@ out of a graph biases the answer, and nothing downstream can see that it is
 missing.
 
 Name the exposure (what the question asks about changing or comparing) and
-the outcome. Then list, from common knowledge of the domain:
+the outcome, and say what the evidence of the domain holds about the
+exposure's effect on the outcome, one direction at a time: whether it
+raises the outcome, and whether it lowers it — each yes, no or unsettled —
+with the evidence in one line. Each direction is judged on its own because
+a question usually suspects one of them, and an effect the other way is as
+much an effect: an exposure that does not bring about more of the outcome
+may still bring about less of it.
+
+The judgement is about the effect, not about the association. An
+association that common causes account for is evidence of neither, so a
+direction is no where studies able to detect such an effect have found
+none, or where the only support for it is an association of that kind or a
+belief the evidence has since overturned. It is unsettled where studies
+able to detect it disagree, and yes where the domain holds it established.
+
+Then list, from common knowledge of the domain:
 
 - **common causes**: whatever plausibly influences both the exposure and
   the outcome, measured or not;
@@ -36,7 +51,9 @@ exposure and the outcome are not entries. List what an informed person
 would name, not everything conceivable, with one line on why each belongs.
 
 Return raw JSON, no prose and no code fence, with the keys `exposure` and
-`outcome` (each a short name) and `common_causes`,
+`outcome` (each a short name), `effect_of_exposure` (an object with
+`raises` and `lowers`, each `yes`, `no` or `unsettled`, and `evidence`),
+and `common_causes`,
 `other_causes_of_outcome` and `mediators` (each a list of objects with a
-`name` and a `why`). Write every name and every `why` in the language of
-the question.
+`name` and a `why`). Write every name, every `why` and the evidence in the
+language of the question.

@@ -396,13 +396,13 @@ a behavior people choose, or a condition they come to have, usually
 has several.
 
 **X's own link to Y.** Whether X acts on Y at all is itself a claim the
-graph makes: a path from X to Y says it does, and no path says it has no
+graph makes: a path from X to Y says it may, and no path says it has no
 effect whatever. An edge carries no direction of effect — X raising Y
-and X lowering Y are drawn alike — so draw X's link wherever established
-knowledge of the field holds that X moves Y either way (the bar in §The
-confounding decision), and leave it out where it does not. An association that X's common causes with Y
-explain decides nothing here: those causes are drawn in both cases, and
-X's own link stands or falls on what X itself does.
+and X lowering Y are drawn alike — so leave X's link out only where the
+field holds that X moves Y in neither direction, and draw it otherwise
+(the bar in §The confounding decision). An association that X's common
+causes with Y explain decides nothing here: those causes are drawn in
+both cases, and X's own link stands or falls on what X itself does.
 
 **Mechanism steps and other causes of Y.** Also draw the steps the
 mechanism runs through when domain knowledge names them (`X → M → Y`,
@@ -513,12 +513,12 @@ and Y is drawn around every unit.
     `reciprocal_causation` (see §5a).
 
 11. **Spurious direct edge** *(hazard unit, must-not-infer)*. *Trigger*:
-    surface correlation (seasonal / group-level) where X has no
-    established way of acting on Y at all (ice cream → drowning).
+    surface correlation (seasonal / group-level) where the field holds
+    that X does not act on Y at all (ice cream → drowning).
     *Shape*: common cause `C→X`, `C→Y`; NO direct `X→Y`. A correlation
-    that runs against an effect X is known to have is not this unit: X's
-    link is drawn, beside the common causes that produce the
-    correlation. *Ambiguity*: `confounder_refusal`.
+    beside an effect X has, or may have, is not this unit, whichever
+    way that effect runs: X's link is drawn, beside the common causes
+    that produce the correlation. *Ambiguity*: `confounder_refusal`.
 
 #### The confounding decision: assertion / worry / in-data
 
@@ -589,16 +589,21 @@ link X does have, left out, reads as "no" to a true one.
 Over-proposing confounders is recoverable (the user deletes one), so
 draw them freely; X's own link is held to the bar below.
 
-X's link to Y — direct, or through the steps of its mechanism — is
-justified when established knowledge of the field holds that X acts on
-Y, whichever way it moves it: a published RCT, or a mechanism the field
-teaches as settled (smoking → lung cancer, salt → blood pressure in
-hypertensives, vaccine → immunity). A belief the evidence does not bear
-out, or a mechanism that only sounds plausible, is not enough, and
-neither is "I'm confident" without such an anchor. The direction the
-question suspects plays no part: the bar is whether X acts on Y at all.
-For judgment calls, add an `extensions.ambiguities[kind=confounder_refusal]`
-entry so the user can challenge the choice either way.
+X's link to Y — direct, or through the steps of its mechanism — is left
+out only where the field holds that X acts on Y in neither direction:
+studies able to detect such an effect have found none, or the only
+support for it is an association that common causes account for, or a
+belief the evidence has since overturned. It is drawn where the field
+holds that X acts on Y, whichever way it moves it — a published RCT, or
+a mechanism the field teaches as settled (smoking → lung cancer, salt →
+blood pressure in hypertensives, vaccine → immunity) — and where the
+evidence is unsettled: leaving the link out says X has no effect
+whatever, the stronger of the two claims, while drawing it says only
+that X may move Y, by an amount the numbers then decide. The direction
+the question suspects plays no part: the bar is whether X acts on Y at
+all. For judgment calls, add an
+`extensions.ambiguities[kind=confounder_refusal]` entry so the user can
+challenge the choice either way.
 
 #### Direct mechanism and confounding are not either/or — they coexist
 
@@ -1083,6 +1088,16 @@ outcome, with the direct edge kept where part of the effect plausibly
 bypasses it. Each entry is a variable of this graph, named and declared
 as §2 says, and each of its edges is your proposal (`llm_proposal`),
 since the reader said none of it.
+
+The list also judges the exposure's effect on the outcome as the
+evidence stands, one direction at a time (`effect_of_exposure`: whether
+it raises the outcome and whether it lowers it, each `yes`, `no` or
+`unsettled`), on the evidence about the effect rather than about the
+association the question reports. That is the judgement §3's bar asks
+for: draw X's link — through the mediators
+listed, or directly where none is — unless both directions are `no`,
+and leave it out where both are. Where you hold otherwise, draw what you
+hold and say why in `confounder_refusal`.
 
 What the list does not do is read the question. The query is what §1
 reads from `question`, and what the reader states or denies there stands

@@ -310,6 +310,13 @@ def variables_to_consider(
     the rest of it. A common cause left out of a graph biases the answer,
     and nothing downstream can see what is missing.
 
+    The same call judges the exposure's effect on the outcome, one
+    direction at a time, and the translation draws the exposure's own link
+    by that judgement. Judged by the translation from the question, an
+    effect running against what the question suspects was left out: asked
+    whether doctors cause deaths, it drew doctors with no effect on deaths
+    at all.
+
     Retried on a reply that does not parse, as a program is.
     """
     system = _load_system_prompt(_PROMPT_CONSIDER)

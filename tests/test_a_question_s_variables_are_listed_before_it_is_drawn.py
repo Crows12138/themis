@@ -10,8 +10,9 @@ variables named nine to fourteen. A common cause left out of a graph biases
 the answer, and nothing after the translation can see what is missing.
 
 So the door asks first, under ``prompts/variables_to_consider.md``, for the
-exposure, the outcome, their common causes, the outcome's other causes and
-the mediators the domain's evidence holds, and hands the translation the
+exposure, the outcome, what the domain's evidence holds about the exposure's
+effect one direction at a time, their common causes, the outcome's other
+causes and the mediators the domain's evidence holds, and hands the translation the
 question with that list beside it, as one object whose form the prompt
 explains. Every program written for the question is written from that turn,
 a repair included. A revision is not listed again: the program on the
@@ -42,6 +43,8 @@ SECTION = "When the question comes with variables to consider"
 QUESTION = "吃冰激凌会导致溺水吗"
 LISTED = {
     "exposure": "吃冰激凌", "outcome": "溺水",
+    "effect_of_exposure": {"raises": "no", "lowers": "no",
+                           "evidence": "二者的相关由气温解释，没有证据表明吃冰激凌本身改变溺水风险"},
     "common_causes": [{"name": "气温", "why": "天热时吃冰激凌和游泳的人都多"}],
     "other_causes_of_outcome": [{"name": "游泳技能", "why": "不会游泳的人更容易溺水"}],
     "mediators": [],
@@ -215,3 +218,18 @@ def test_the_listing_prompt_asks_for_an_object():
     prompt asks for one with the roles the section above names."""
     for key in LISTED:
         assert f"`{key}`" in LISTING, key
+
+
+def test_the_list_s_judgement_of_the_effect_is_read_where_the_list_is():
+    """The listing judges the exposure's effect one direction at a time, on
+    the evidence about the effect rather than the association the question
+    reports; the translation, judging it from the question, left out effects
+    that run against what the question suspects. So X's own link is drawn
+    by the listing's judgement, and the section that explains the list
+    names the key the judgement arrives under, and each of its answers."""
+    body = WRITING.split(f"## {SECTION}", 1)[1].split("\n## ", 1)[0]
+    assert "`effect_of_exposure`" in body
+    for key in LISTED["effect_of_exposure"]:
+        assert f"`{key}`" in LISTING, key
+    for answer in ("yes", "no", "unsettled"):
+        assert f"`{answer}`" in LISTING and f"`{answer}`" in body, answer
