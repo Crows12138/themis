@@ -6253,7 +6253,7 @@ false
 },
 "result": {
 "data_gap_report": {
-"answer_tier": "interval",
+"answer_tier": "none",
 "gaps": [
 {
 "blocks": "interpretation",

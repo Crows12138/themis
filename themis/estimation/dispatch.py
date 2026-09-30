@@ -29,6 +29,7 @@ from .. import answers, blocks, refusals
 # fires, so the doubly-robust path answered a refusal with NameError.
 from .. import intervals
 from ..refusals import EstimatorFailure, Refusal
+from ..output.data_gap_report import POINT_OUT_OF_REACH
 from ..output.sample_size import estimate_n_for_target_ci_half_width
 from ..runtime.investigation_pusher import summarise
 from ..types import (
@@ -3566,7 +3567,6 @@ def _try_causation_estimate(
     # only) it is the OUTER band on the identified set (Manski / Balke-Pearl
     # data-bounds convention). One channel, one status — the monotonicity flag
     # only decides whether a headline point is present.
-    is_point = estimate.pn_point is not None
 
     def _quantity(point, lower, upper, pt_ci_lo, pt_ci_hi, band_lo, band_hi):
         # The estimator carries the two under separate names and this is
@@ -3625,6 +3625,13 @@ def _try_causation_estimate(
         "outcome": estimate.effect,
         "probabilities_of_causation": poc_block,
     }
+    # Which of the two answers came out is the shape's to say, and it says
+    # "three points" only where all three pinned. The instrument's response
+    # polytope pins each quantity on its own, and a monotone closed form
+    # leaves a quantity unpinned where its conditioning cell is empty — so
+    # a PN point beside a PS spanning [0, 1] is the bounds answer, with PN's
+    # two bounds equal.
+    is_point = answers.shape_of(numeric_estimate) is answers.CAUSATION_POINTS
     if is_point:
         # Headline = PN (necessity) point + its CI. (numeric_estimate.point is
         # number-only in the schema, so it is OMITTED for the bounds answer.)
@@ -7600,12 +7607,60 @@ def _retier_to_what_came_out(result: dict, *, came_out: AnswerTier) -> None:
     second finaliser had to say otherwise. :mod:`themis.answers` has
     declared the answer's shape since #543 and the tier is a property of
     the shape, so nothing here has to name a species.
+
+    One thing outranks the shape: a report still saying the estimand's
+    point is out of reach. A number that came out there is an estimate
+    under an assumption nobody granted — an instrument's LATE under
+    monotonicity, say — or a bounded probability that happened to pin, and
+    neither makes the point available; what the reader holds is whatever
+    interval the envelope carries, or nothing. This used to be settled by
+    not retiering at all and keeping the tier the identification pass had
+    written before any data arrived, which was right for the LATE and wrong
+    for every answer the data had added an interval to: an instrument's
+    response polytope pinning a counterfactual cell, or pinning PN beside
+    a PS it bounded, reached the reader as "no answer available".
     """
     report = result.get("data_gap_report")
     if not isinstance(report, dict):
         return
-    delivered = answers.tier_delivered(result.get("numeric_estimate"))
-    report["answer_tier"] = (delivered or came_out).value
+    delivered = answers.tier_delivered(result.get("numeric_estimate")) \
+        or came_out
+    if delivered is AnswerTier.POINT and any(
+            gap.get("kind") in _POINT_OUT_OF_REACH
+            for gap in report.get("gaps", ())):
+        delivered = (AnswerTier.INTERVAL if _holds_an_interval(result)
+                     else AnswerTier.NONE)
+    report["answer_tier"] = delivered.value
+
+
+# Compared against the kinds a serialised gap carries, which are strings.
+_POINT_OUT_OF_REACH = frozenset(str(kind) for kind in POINT_OUT_OF_REACH)
+
+
+def _holds_an_interval(result: dict) -> bool:
+    """Whether the envelope, as it now stands, hands a reader an interval.
+
+    Three channels, each read for the answer's own word about itself: a
+    bounds row that does not call its own width uninformative; the range
+    on the headline slot, unless it spans the whole of [0, 1]; and bounds
+    the estimate carries, which :func:`themis.answers.rules_something_out`
+    reads — the channel through which a pinned probability still counts as
+    the interval it is. Read off the finished envelope rather than the
+    identification pass's tier, because the data have replaced the headline
+    slot since that tier was written.
+    """
+    for row in result.get("bounds_results") or ():
+        if isinstance(row, Mapping) and not row.get(
+                "width_when_uninformative", False):
+            return True
+    slot = result.get("numeric_result")
+    interval = slot.get("interval") if isinstance(slot, Mapping) else None
+    if isinstance(interval, Mapping):
+        low, high = interval.get("low"), interval.get("high")
+        if low is not None and high is not None and not (
+                low <= 0.0 and high >= 1.0):
+            return True
+    return answers.rules_something_out(result.get("numeric_estimate"))
 
 
 def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
@@ -7628,13 +7683,12 @@ def _reconcile_gap_report_after_numeric_solve(result: dict) -> None:
     # Gate: when non-parametric point identification FAILED (the
     # ``unidentifiable_no_admissible_set`` gap is present), the attached
     # number is an under-assumption estimate — an IV LATE under
-    # monotonicity, say — and the honest non-parametric answer is still
-    # the interval. Do NOT claim tier='point' or drop the bounds framing;
-    # leave the identification-time report, whose 'interval' tier +
-    # assumption caveat are correct. Reconciling here would make tier
-    # contradict the retained unidentifiable gap.
+    # monotonicity, say — and the gaps and requests it did not answer
+    # stay. The tier is still asked of what came out, which is where the
+    # failed identification is read.
     gap_kinds = {g.get("kind") for g in report.get("gaps", [])}
     if "unidentifiable_no_admissible_set" in gap_kinds:
+        _retier_to_what_came_out(result, came_out=AnswerTier.POINT)
         return
 
     # Drop the satisfied parameter investigation_requests (data supplied),

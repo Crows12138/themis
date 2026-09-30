@@ -494,6 +494,20 @@ def _point_is_premise_blocked(stmt) -> bool:
     return isinstance(query, CausationQuery) and not query.monotonic
 
 
+#: The gap species that put the estimand's point out of reach whatever the
+#: data hold. A refuted declaration blocks it the way an unidentified graph
+#: does, and for the stronger reason: the estimand IS identified, in two
+#: declared selection diagrams that carry it to two numbers. More of the
+#: same distributions reproduces the same contradiction, so there is no
+#: point to be had until one of the declarations is withdrawn — which is not
+#: a data gap. Read here before any data arrive and by the estimation layer
+#: after, where a number that came out anyway is still not that point.
+POINT_OUT_OF_REACH: frozenset[GapKind] = frozenset({
+    GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
+    GapKind.TRANSPORT_SOURCES_DISAGREE,
+})
+
+
 def _compute_answer_tier(
     query_kind: QueryKind,
     gaps: list[DataGap],
@@ -570,17 +584,7 @@ def _compute_answer_tier(
             ResultStatus.NEEDS_ASSUMPTION,
             ResultStatus.COUNTERFACTUAL_BOUNDED,
         )
-        or any(
-            # A refuted declaration blocks the point the way an unidentified
-            # graph does, and for the stronger reason: the estimand IS
-            # identified, in two declared selection diagrams that carry it to
-            # two numbers. More of the same distributions reproduces the same
-            # contradiction, so there is no point to be had until one of the
-            # declarations is withdrawn — which is not a data gap.
-            g.kind in (GapKind.UNIDENTIFIABLE_NO_ADMISSIBLE_SET,
-                       GapKind.TRANSPORT_SOURCES_DISAGREE)
-            for g in gaps
-        )
+        or any(g.kind in POINT_OUT_OF_REACH for g in gaps)
     )
     premise_blocked = _point_is_premise_blocked(stmt)
     if not identification_blocked and not premise_blocked:

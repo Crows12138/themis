@@ -92,6 +92,11 @@ def test_a_counterfactual_cell_cannot_be_given_a_different_answer(
     level in — which is the only reason they were reachable."""
     program, result = _pair("counterfactual_cell_plugin")
     result["numeric_estimate"]["counterfactual_cell"][field] = forged
+    # The stored cell spans [0, 1], which is no answer; a bound moved off
+    # the line makes it an interval, and a forger moves the report's word
+    # with it. Left behind, the tier check refuses first, and this would
+    # say nothing about the leaf.
+    result["data_gap_report"]["answer_tier"] = "interval"
     with pytest.raises(VerificationError, match="two different runs"):
         themis.verify(program, result)
 

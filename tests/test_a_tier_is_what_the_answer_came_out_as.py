@@ -42,7 +42,8 @@ from themis.registry import NoRowDeclared
 from themis.types import AnswerTier
 from themis.verifier.data_gap_rules import (
     _AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR, _A_SINGLE_NUMBER,
-    _THE_THREE_PROBABILITIES, _TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES,
+    _ONE_BOUNDED_PROBABILITY, _THE_THREE_PROBABILITIES,
+    _TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES,
     _an_interval_is_in_hand, _the_tier_the_answer_came_out_as,
 )
 
@@ -115,12 +116,14 @@ def test_the_bounded_half_of_a_bimodal_method_is_an_interval():
     species list got wrong and needed a second finaliser to paper over."""
     bounded = _result({"method": "causation_plugin",
                        "probabilities_of_causation": {
-                           "pn": {"low": 0.1, "high": 0.6}}})
+                           "pn": {"lower": 0.1, "upper": 0.6,
+                                  "point": None}}})
     _retier_to_what_came_out(bounded, came_out=AnswerTier.POINT)
     assert bounded["data_gap_report"]["answer_tier"] == "interval"
 
     sharp = _result({"method": "causation_plugin",
-                     "probabilities_of_causation": {"pn": {"point": 0.4}}})
+                     "probabilities_of_causation": {
+                         name: {"point": 0.4} for name in ("pn", "ps", "pns")}})
     _retier_to_what_came_out(sharp, came_out=AnswerTier.INTERVAL)
     assert sharp["data_gap_report"]["answer_tier"] == "point"
 
@@ -167,18 +170,25 @@ def test_the_restated_block_table_is_the_shape_vocabulary():
     verifier package is — and pinned here so a tenth shape arrives as a red
     suite rather than as a tier the rule cannot see."""
     restated = set(_TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES) | {
-        _A_SINGLE_NUMBER, _THE_THREE_PROBABILITIES}
+        _A_SINGLE_NUMBER, _ONE_BOUNDED_PROBABILITY, _THE_THREE_PROBABILITIES}
     assert restated == {s.lives_in for s in answers.ALL}
     for key, tier in _TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES.items():
         living_there = {s.delivers.value for s in answers.ALL
                         if s.lives_in == key}
         assert living_there == {tier}, key
-    # The two held out are held out because presence is not what decides
-    # them, and both are genuinely ambiguous on presence alone: a point of
-    # ``0.0`` is an answer, and the causation block is on the envelope
-    # whichever way the run went.
+    # The three held out are held out because presence is not what decides
+    # them: a point of ``0.0`` is an answer, and a block of bounds is on
+    # the envelope whether or not its bounds exclude anything — so the
+    # verifier reads those two for what they rule out, and every shape
+    # answering in them says how it reads the same thing.
     assert {s.delivers.value for s in answers.ALL
             if s.lives_in == _THE_THREE_PROBABILITIES} == {"point", "interval"}
+    bounds = [s for s in answers.ALL
+              if s.lives_in in (_ONE_BOUNDED_PROBABILITY,
+                                _THE_THREE_PROBABILITIES)
+              and s.delivers is AnswerTier.INTERVAL]
+    assert len(bounds) == 2
+    assert all(s.rules_out is not None for s in bounds)
 
 
 def test_the_two_readings_agree_on_every_estimate_this_repository_has():

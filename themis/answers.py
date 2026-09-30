@@ -79,14 +79,23 @@ class Shape:
     ``delivers`` is which of the three answer tiers a reader is holding
     once this shape has come out. A shape is a way of answering, and every
     way of answering is a point, an interval, or neither — so the tier is
-    a property of the shape and not of the occasion. It is declared here
-    because the estimation layer used to answer the same question from a
-    hand-written list of gap species: an estimator that produced something
-    other than a number for the estimand said so in a gap, and the tier was
-    read off a set that had to be extended every time a new one did. The
-    list said POINT for the two bimodal methods' bounded halves, which is
-    why the layer needed a second finaliser to say otherwise; the shapes
-    say it once.
+    a property of the shape, not of the gaps the run reported. It is
+    declared here because the estimation layer used to answer the same
+    question from a hand-written list of gap species: an estimator that
+    produced something other than a number for the estimand said so in a
+    gap, and the tier was read off a set that had to be extended every time
+    a new one did. The list said POINT for the two bimodal methods' bounded
+    halves, which is why the layer needed a second finaliser to say
+    otherwise; the shapes say it once.
+
+    ``rules_out`` is where the run's own numbers enter, and only for a
+    shape whose answer is bounds on a probability: whether these bounds
+    exclude any part of [0, 1]. Bounds spanning all of it are an interval
+    with nothing in it — what was known before any data — and deliver no
+    answer. The identification pass reads its intervals that way, while
+    these shapes delivered an interval by being there: across one census
+    of small samples, 37 of 285 counterfactual cells came out as [0, 1]
+    under a tier telling the reader an interval was in hand.
     """
 
     name: str
@@ -98,6 +107,8 @@ class Shape:
     # says why where it is declared.
     detect: Callable[[Estimate], bool] | None = field(compare=False,
                                                       default=None)
+    rules_out: Callable[[Estimate], bool] | None = field(compare=False,
+                                                         default=None)
 
     def __post_init__(self) -> None:
         if self.detect is None:
@@ -108,6 +119,23 @@ class Shape:
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.name
+
+
+def _short_of_the_line(quantity: Any) -> bool:
+    """Whether one bounded probability rules any of [0, 1] out: a point
+    does, and so does a pair of bounds narrower than the line."""
+    if not isinstance(quantity, Mapping):
+        return False
+    if quantity.get("point") is not None:
+        return True
+    lower, upper = quantity.get("lower"), quantity.get("upper")
+    return (lower is not None and upper is not None
+            and not (lower <= 0.0 and upper >= 1.0))
+
+
+def _the_three(estimate: Estimate) -> list[Any]:
+    causation = estimate.get("probabilities_of_causation") or {}
+    return [causation.get(name) for name in ("pn", "ps", "pns")]
 
 
 POINT = Shape(
@@ -151,6 +179,8 @@ COUNTERFACTUAL_CELL_BOUNDS = Shape(
             "which monotonicity would have sharpened to a point",
     lives_in="counterfactual_cell",
     delivers=AnswerTier.INTERVAL,
+    rules_out=lambda estimate: _short_of_the_line(
+        estimate.get("counterfactual_cell")),
 )
 NO_EFFECT_TEST = Shape(
     "no_effect_test",
@@ -169,12 +199,16 @@ CAUSATION_POINTS = Shape(
     lives_in="probabilities_of_causation",
     delivers=AnswerTier.POINT,
     # The block is present either way; what monotonicity buys sits INSIDE
-    # each quantity, so the point is what tells the two modes apart. PN is
-    # asked of all three together: they are identified or bounded as one.
-    detect=lambda estimate: (
-        ((estimate.get("probabilities_of_causation") or {}).get("pn") or {})
-        .get("point") is not None
-    ),
+    # each quantity, so the points are what tell the two modes apart — all
+    # three of them. PN used to be asked for the three, on the reasoning
+    # that they are identified or bounded as one. The closed form behaves
+    # that way only while every conditioning cell has mass, and the
+    # instrument's polytope never does — each of its sets collapses on its
+    # own — so a PN pinned beside a PS spanning [0, 1] came out as three
+    # points.
+    detect=lambda estimate: all(
+        isinstance(quantity, Mapping) and quantity.get("point") is not None
+        for quantity in _the_three(estimate)),
 )
 CAUSATION_BOUNDS = Shape(
     "causation_bounds",
@@ -182,6 +216,10 @@ CAUSATION_BOUNDS = Shape(
             "which monotonicity would have sharpened to points",
     lives_in="probabilities_of_causation",
     delivers=AnswerTier.INTERVAL,
+    # One quantity ruling something out is an interval in hand: the
+    # question asks for all three, and each is an answer to part of it.
+    rules_out=lambda estimate: any(
+        _short_of_the_line(quantity) for quantity in _the_three(estimate)),
 )
 
 ALL: tuple[Shape, ...] = (
@@ -332,7 +370,32 @@ def tier_delivered(estimate: Estimate | None) -> AnswerTier | None:
     if not isinstance(estimate, Mapping):
         return None
     shape = shape_of(estimate)
-    return None if shape is None else shape.delivers
+    if shape is None:
+        return None
+    if shape.rules_out is not None and not shape.rules_out(estimate):
+        return AnswerTier.NONE
+    return shape.delivers
+
+
+def rules_something_out(estimate: Estimate | None) -> bool:
+    """Whether bounds this estimate carries exclude any of [0, 1], in
+    whichever of its method's shapes it came out.
+
+    Asked where the point is out of reach whatever the data, so a point
+    cannot be what the reader holds, and the question is whether an
+    interval is. A bounded probability that pinned is still a pair of
+    bounds, with nothing between them; where the point cannot be claimed,
+    those bounds are the interval the reader holds.
+    """
+    if not isinstance(estimate, Mapping):
+        return False
+    shapes = registry.row_for(
+        SHAPES_OF, estimate.get("method"), named="themis.answers.SHAPES_OF")
+    return any(
+        shape.rules_out is not None
+        and shape.detect(estimate)  # type: ignore[misc]  # filled in
+        and shape.rules_out(estimate)
+        for shape in shapes)
 
 
 def bind(renderers: Mapping[Shape, R]) -> dict[Shape, R]:

@@ -2579,23 +2579,47 @@ _STRONGEST_FIRST = (_TIER_POINT, _TIER_INTERVAL, _TIER_NONE)
 #: :mod:`themis.answers` declares per shape, restated here for the reason
 #: every table in this package is, and pinned to it by a test.
 #:
-#: Two blocks are not read by presence and are not in here. ``point`` is
+#: Three blocks are not read by presence and are not in here. ``point`` is
 #: read for presence rather than truth, because a null effect is an answer
-#: and ``0.0`` is one. ``probabilities_of_causation`` is on the envelope
-#: whichever way the run went, and what monotonicity buys sits INSIDE each
-#: quantity, so the tier turns on the point rather than on the block.
+#: and ``0.0`` is one. The other two are bounds on probabilities — one
+#: counterfactual cell, and the three probabilities of causation — and a
+#: block of bounds is on the envelope whether or not its bounds exclude
+#: anything, so each is read for what its bounds rule out.
 _TIER_OF_A_BLOCK_THE_ESTIMATE_CARRIES = {
     "dose_response_curve": _TIER_POINT,
     "decomposition": _TIER_POINT,
     "controlled_direct_effect": _TIER_POINT,
     "joint_effect": _TIER_POINT,
-    "counterfactual_cell": _TIER_INTERVAL,
     # A test says whether the treatment does anything and no more, so a
     # reader asking how much is holding nothing.
     "no_effect_test": _TIER_NONE,
 }
 _A_SINGLE_NUMBER = "point"
+_ONE_BOUNDED_PROBABILITY = "counterfactual_cell"
 _THE_THREE_PROBABILITIES = "probabilities_of_causation"
+_THE_THREE = ("pn", "ps", "pns")
+
+
+def _pinned_or_narrower_than_the_line(quantity: Any) -> bool:
+    """One bounded probability that rules some of [0, 1] out: pinned to a
+    point, or bounded short of the whole line."""
+    return isinstance(quantity, Mapping) and (
+        quantity.get("point") is not None
+        or _short_of_the_whole_line(quantity.get("lower"),
+                                    quantity.get("upper")))
+
+
+def _the_bounded_probabilities(estimate: Mapping) -> list[Any]:
+    """Every bounded probability the estimate carries, whichever of the two
+    blocks it sits in."""
+    found: list[Any] = []
+    cell = estimate.get(_ONE_BOUNDED_PROBABILITY)
+    if isinstance(cell, Mapping) and cell:
+        found.append(cell)
+    three = estimate.get(_THE_THREE_PROBABILITIES)
+    if isinstance(three, Mapping) and three:
+        found.extend(three.get(name) for name in _THE_THREE)
+    return found
 
 
 def _the_tier_the_answer_came_out_as(result: Mapping) -> str | None:
@@ -2607,6 +2631,13 @@ def _the_tier_the_answer_came_out_as(result: Mapping) -> str | None:
     number elsewhere — so this says only that the shape vocabulary has
     nothing to say here, and the question the caller falls back on is the
     forward-looking one: what could still be got.
+
+    Bounds are read for what they rule out. A pair spanning all of [0, 1]
+    is what was known before any data, and the cell or the three carrying
+    only that hand the reader nothing. The three are a point only where all
+    three pinned, because the question asks for all three: the instrument's
+    response polytope pins each one on its own, and a PN pinned beside a PS
+    it only bounded is an interval answer.
     """
     estimate = result.get("numeric_estimate")
     if not isinstance(estimate, Mapping):
@@ -2615,11 +2646,22 @@ def _the_tier_the_answer_came_out_as(result: Mapping) -> str | None:
                if estimate.get(key)}
     if estimate.get(_A_SINGLE_NUMBER) is not None:
         carried.add(_TIER_POINT)
+    cell = estimate.get(_ONE_BOUNDED_PROBABILITY)
+    if isinstance(cell, Mapping) and cell:
+        carried.add(_TIER_INTERVAL if _pinned_or_narrower_than_the_line(cell)
+                    else _TIER_NONE)
     three = estimate.get(_THE_THREE_PROBABILITIES)
     if isinstance(three, Mapping) and three:
-        sharp = (three.get("pn") or {}).get("point") is not None \
-            if isinstance(three.get("pn"), Mapping) else False
-        carried.add(_TIER_POINT if sharp else _TIER_INTERVAL)
+        quantities = [three.get(name) for name in _THE_THREE]
+        if all(isinstance(quantity, Mapping)
+               and quantity.get("point") is not None
+               for quantity in quantities):
+            carried.add(_TIER_POINT)
+        elif any(_pinned_or_narrower_than_the_line(quantity)
+                 for quantity in quantities):
+            carried.add(_TIER_INTERVAL)
+        else:
+            carried.add(_TIER_NONE)
     for tier in _STRONGEST_FIRST:
         if tier in carried:
             return tier
@@ -2663,11 +2705,8 @@ _WHAT_EACH_SAYS_IT_RULES_OUT = {
         isinstance(block.get("region"), Mapping)
         and block["region"].get("bounded") is False),
     "causation": lambda block: any(
-        isinstance(quantity, Mapping) and (
-            quantity.get("point") is not None
-            or _short_of_the_whole_line(quantity.get("lower"),
-                                        quantity.get("upper")))
-        for quantity in (block.get(name) for name in ("pn", "ps", "pns"))),
+        _pinned_or_narrower_than_the_line(block.get(name))
+        for name in _THE_THREE),
     "scm_counterfactual": lambda block: True,
 }
 _AN_ANSWER_THE_ESTIMATE_HAD_NO_ROOM_FOR = frozenset(
@@ -2719,13 +2758,18 @@ def _an_answer_the_point_is_not(result: Mapping) -> bool:
 def _an_interval_is_in_hand(result: Mapping) -> bool:
     """Whether the envelope carries an interval worth calling one.
 
-    Three channels and each is read for the answer's own word about
+    Four channels and each is read for the answer's own word about
     itself: the bounds rows an effect question gets, where a row that
     calls its own width uninformative is not one; the interval a bounded
     counterfactual carries on its numeric result, where one spanning the
-    whole of [0, 1] excludes nothing and is not one either; and an answer
-    the estimate's fields had no room for, which says whether it rules
-    anything out.
+    whole of [0, 1] excludes nothing and is not one either; the bounded
+    probabilities the estimate carries, where one that pinned is still a
+    pair of bounds with nothing between them; and an answer the estimate's
+    fields had no room for, which says whether it rules anything out.
+
+    The third is only ever decisive where the point is out of reach, which
+    is where a pinned probability stops being a point a reader may claim:
+    what the instrument's polytope pinned there is the interval they hold.
     """
     for row in result.get("bounds_results") or ():
         if isinstance(row, Mapping) and not row.get(
@@ -2736,6 +2780,11 @@ def _an_interval_is_in_hand(result: Mapping) -> bool:
         else None
     if isinstance(interval, Mapping) and _short_of_the_whole_line(
             interval.get("low"), interval.get("high")):
+        return True
+    estimate = result.get("numeric_estimate")
+    if isinstance(estimate, Mapping) and any(
+            _pinned_or_narrower_than_the_line(quantity)
+            for quantity in _the_bounded_probabilities(estimate)):
         return True
     return _an_answer_the_point_is_not(result)
 

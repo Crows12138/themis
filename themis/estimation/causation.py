@@ -124,13 +124,18 @@ class CausationEstimate:
     """Data-based PN/PS/PNS with bootstrap CIs.
 
     ``*_lower`` / ``*_upper`` is always present and is the identified set the
-    route reached. ``*_point`` is present exactly where that set collapses:
-    under a declared monotonicity on the closed form, and essentially never on
-    the instrument route, where the assumption narrows the same interval
-    instead of pinning it. A conditioning cell with zero empirical mass has no
-    point either. ``*_point_ci_*`` is the percentile-bootstrap CI on the point
-    (present only when the point is); ``*_bounds_ci_*`` is the outer band on
-    the interval, which is what the other answer carries instead."""
+    route reached. ``*_point`` is present where the route pins that quantity,
+    and the two routes pin differently. The closed form pins under a declared
+    monotonicity, the second formula — an assumption-free interval that
+    happens to collapse carries no point. The instrument route pins wherever
+    that quantity's interval has collapsed, each quantity on its own; over
+    random population tables that never happens (the module docstring), but
+    a small sample's table is not a random one — in one census of instrument
+    answers from 20 to 2000 rows, 24 of 164 pinned at least one of the three
+    and 1 pinned all three. A conditioning cell with zero empirical mass has
+    no point either. ``*_point_ci_*`` is the percentile-bootstrap CI on the
+    point (present only when the point is); ``*_bounds_ci_*`` is the outer
+    band on the interval, which is what the other answer carries instead."""
 
     # PN — necessity (归因 / liability).
     pn_point: float | None
