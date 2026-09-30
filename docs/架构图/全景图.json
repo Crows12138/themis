@@ -10,7 +10,7 @@
       "url": "https://github.com/Crows12138/themis",
       "provider": "github",
       "link_mode": "local-only",
-      "revision": "719fab16329ed70d453b06d90ba825ffc9e291d0"
+      "revision": "3b02902559301d7490bb268bdc0d64abbb939224"
     },
     "views": [
       {
@@ -410,7 +410,7 @@
       "id": "rules",
       "type": "security",
       "label": "复核规则",
-      "sublabel": "rules.py 14592 行",
+      "sublabel": "rules.py 14607 行",
       "row": 0,
       "col": 6,
       "sources": [

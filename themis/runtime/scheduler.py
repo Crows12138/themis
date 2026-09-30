@@ -2011,11 +2011,19 @@ class ObservationalJoint:
     on that branch nobody reads ``missing`` again. Refusing both at
     construction keeps the failure at the producer, which is the last
     place where what is missing still has a name.
+
+    ``chain_rule`` says the cells, or what they lack, are the local chain
+    rule's — ``P(X)·P(Y|X)`` — rather than the ancestors' tables. It is the
+    one fact a door needs about which route spoke: the ancestors' tables are
+    the graph's own account and a risk it identifies is read off them once
+    they are in, while the two marginals reach nothing upstream of X and Y,
+    so a risk's shortfall is never among theirs.
     """
 
     cells: dict[tuple[bool, bool], float] | None
     missing: tuple[MissingItem, ...]
     ancestral: AncestralJoint | None
+    chain_rule: bool = False
 
     def __post_init__(self) -> None:
         if (self.cells is None) != bool(self.missing):
@@ -2066,7 +2074,9 @@ def _observational_joint_xy(
     X→Y) where ``P(X)`` and ``P(Y|X)`` are not in theta at all and have to be
     summed out of it. The local chain rule second, for the
     confounded-but-experimental case that supplies those two marginals
-    directly and nothing upstream of them.
+    directly and nothing upstream of them — and for a graph whose ancestors
+    of X and Y are too many rows to enumerate, where the ancestral route is
+    not taken (:data:`_ANCESTRAL_ROWS_AT_MOST`).
 
     Which route reports a shortfall is NOT the order they run in. The graph's
     own account being incomplete is the model being incomplete, so its
@@ -2104,29 +2114,30 @@ def _observational_joint_xy(
     if recovery.missing and recovery.licensed:
         return ObservationalJoint(None, recovery.missing, None)
 
-    short: dict[ProbabilityKey, InsufficientTheta] = {}
+    short: list[ProbabilityKey] = []
     cells: dict[tuple[bool, bool], float] = {}
     for x_val in (False, True):
         for y_val in (False, True):
-            try:
-                cells[(x_val, y_val)] = _estimate_counterfactual_joint_cell(
-                    theta,
-                    x_atom=x_atom,
-                    x_val=x_val,
-                    y_atom=y_atom,
-                    y_val=y_val,
-                )
-            except InsufficientTheta as exc:
-                if exc.missing_key is None:
-                    raise
-                short.setdefault(exc.missing_key, exc)
+            cell, lacking = _estimate_counterfactual_joint_cell(
+                theta,
+                x_atom=x_atom,
+                x_val=x_val,
+                y_atom=y_atom,
+                y_val=y_val,
+            )
+            if cell is None:
+                short.extend(lacking)
+            else:
+                cells[(x_val, y_val)] = cell
     if short:
         return ObservationalJoint(None, tuple(
-            _missing_parameter_from_theta(
-                short[key], graph=graph, bidirected=bidirected)
+            _missing_parameter_from_key(
+                key, need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
+                graph=graph, bidirected=bidirected,
+                key=format_probability_key(key))
             for key in theta_builder.fewest_to_ask(short, theta)
-        ), None)
-    return ObservationalJoint(cells, (), None)
+        ), None, chain_rule=True)
+    return ObservationalJoint(cells, (), None, chain_rule=True)
 
 
 class AncestralJoint(NamedTuple):
@@ -2158,6 +2169,19 @@ class _AncestralRecovery(NamedTuple):
     licensed: bool
 
 
+#: How many rows an ancestral recovery may enumerate: one row per assignment
+#: of every ancestor of X and Y, each read through all of their tables. Where
+#: theta lacks those tables every cell of them is an item the answer asks
+#: for, and the envelope is checked item by item on its way out. Measured on
+#: 2026-09-30 on a counterfactual drawn from the list of variables to
+#: consider, the outcome's parents all roots: 2,048 rows took 3 seconds to
+#: ask and 12 to estimate; 8,192 took 13 and 17 and was still short of
+#: numbers after the estimate; 32,768 took a minute and 300 MB to ask and
+#: 800 MB to estimate, past the 400 the demo's server gives a process — a
+#: server about three times slower than the desktop measured.
+_ANCESTRAL_ROWS_AT_MOST = 4096
+
+
 def _ancestral_joint(
     graph: nx.DiGraph,
     theta: Theta,
@@ -2173,6 +2197,11 @@ def _ancestral_joint(
     conditioning set the graph licenses — see
     :func:`_factorization_conditioning` for why a bidirected edge widens that
     set rather than ending the route.
+
+    Up to :data:`_ANCESTRAL_ROWS_AT_MOST` rows. Past it the route is not
+    taken at all and the joint is read off the chain rule's two marginals:
+    a gap of every cell of every ancestor's table, at that size, is not an
+    ask anyone can meet, and listing it cost the demo its process.
     """
     ancestral_nodes = (
         nx.ancestors(graph, x_atom)
@@ -2185,6 +2214,11 @@ def _ancestral_joint(
 
     subgraph = graph.subgraph(ancestral_nodes).copy()
     topo = tuple(nx.topological_sort(subgraph))
+    rows = 1
+    for atom in topo:
+        rows *= len(_counterfactual_factorization_domain(theta, atom))
+    if rows > _ANCESTRAL_ROWS_AT_MOST:
+        return _AncestralRecovery(None, (), licensed)
     conditioning = _factorization_conditioning(
         subgraph, topo, licensed_to_drop_non_parents=licensed,
     )
@@ -2328,7 +2362,7 @@ def _estimate_counterfactual_joint_cell(
     x_val: bool,
     y_atom: Atom,
     y_val: bool,
-) -> float:
+) -> "tuple[float | None, tuple[ProbabilityKey, ...]]":
     """Estimate one P(X=x, Y=y) cell for the narrow counterfactual path.
 
     Local fallback only. Prefer the graph-faithful ancestral recovery
@@ -2337,9 +2371,11 @@ def _estimate_counterfactual_joint_cell(
     - prefer the original chain-rule factorization P(X) * P(Y|X)
     - if that is unavailable, fall back to P(Y) * P(X|Y)
 
-    If both fail, surface the missing key from the canonical
-    X-first attempt so the existing parameter fill-back workflow
-    stays deterministic.
+    Returns ``(cell, ())``, or ``(None, lacking)`` where both fail:
+    whichever factors of the canonical X-first attempt theta lacks, so the
+    parameter fill-back workflow stays deterministic. Both of them where
+    both are absent — naming the first alone had a reader supply ``P(X)``
+    and only then learn that ``P(Y|X)`` was wanted too.
     """
     x_key = ProbabilityKey(
         target_atom=x_atom,
@@ -2354,7 +2390,7 @@ def _estimate_counterfactual_joint_cell(
     p_x = _recover_boolean_theta_value(theta, x_key)
     p_y_given_x = _recover_boolean_theta_value(theta, y_given_x_key)
     if p_x is not None and p_y_given_x is not None:
-        return p_x * p_y_given_x
+        return p_x * p_y_given_x, ()
 
     y_key = ProbabilityKey(
         target_atom=y_atom,
@@ -2369,14 +2405,11 @@ def _estimate_counterfactual_joint_cell(
     p_y = _recover_boolean_theta_value(theta, y_key)
     p_x_given_y = _recover_boolean_theta_value(theta, x_given_y_key)
     if p_y is not None and p_x_given_y is not None:
-        return p_y * p_x_given_y
+        return p_y * p_x_given_y, ()
 
-    missing_key = x_key if p_x is None else y_given_x_key
-    raise InsufficientTheta(
-        missing_key,
-        need=gaps.Need.COUNTERFACTUAL_BOUND_NEEDS_ENTRY,
-        key=format_probability_key(missing_key),
-    )
+    return None, tuple(key for key, value in ((x_key, p_x),
+                                              (y_given_x_key, p_y_given_x))
+                       if value is None)
 
 
 def _recover_boolean_theta_value(
@@ -2449,16 +2482,11 @@ def _dispatch_counterfactual(
         return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
             estimator="counterfactual_identification", exc=exc))
     joint_xy, ancestral = recovered.cells, recovered.ancestral
-    if joint_xy is None:
-        return QueryResult(
-            status=ResultStatus.NEEDS_INVESTIGATION,
-            query_kind=QueryKind.COUNTERFACTUAL,
-            query_id=stmt.id,
-            missing_information=recovered.missing,
-            investigation_requests=investigation_pusher.push(
-                recovered.missing
-            ),
-        )
+    if joint_xy is None and not recovered.chain_rule:
+        # The ancestors' tables, and a risk the graph identifies is read off
+        # them once they are in; asking for its own tables beside them would
+        # be two numbers for one quantity.
+        return _gap_result(stmt, QueryKind.COUNTERFACTUAL, recovered.missing)
 
     # The interventional risk for the counterfactual arm. Fetched only for the
     # arm actually asked about — the other one is information this answer does
@@ -2486,6 +2514,21 @@ def _dispatch_counterfactual(
             )
             if risk is not None:
                 risk_provenance = RiskProvenance.DERIVED_IDENTIFICATION
+
+    if joint_xy is None:
+        # The chain rule's two marginals, which reach nothing upstream of X
+        # and Y, so the risk's shortfall is never among theirs and is asked
+        # for in the same round — as the causation door asks for its two
+        # inputs, returning at the first having hidden the second until the
+        # first was answered. Not where monotonicity pins the cell, which
+        # then does not depend on the risk.
+        try:
+            pinned = counterfactual.monotone_cell(q)
+        except counterfactual.CounterfactualBoundsError as exc:
+            return _refused(stmt, QueryKind.COUNTERFACTUAL, refusals.relayed(
+                estimator="counterfactual_identification", exc=exc))
+        return _gap_result(stmt, QueryKind.COUNTERFACTUAL, recovered.missing,
+                           arm_missing if pinned is None else ())
 
     instrument_table: "InstrumentTable | None" = None
     instrument_atom: "Atom | None" = None
@@ -2539,19 +2582,13 @@ def _dispatch_counterfactual(
                 # same in every language and a note is not.
                 note=note or "",
             )
-            merged = tuple(arm_missing) + (escape,)
-            return QueryResult(
-                status=ResultStatus.NEEDS_INVESTIGATION,
-                query_kind=QueryKind.COUNTERFACTUAL,
-                query_id=stmt.id,
-                missing_information=merged,
-                # Over the merge, as the causation door does over its own.
-                # This carried the requests the sub-dispatch had pushed —
-                # from the arm's items alone — so the escape reached the
-                # reader as an ask with no entry to act on, on the door
-                # whose whole point is to answer where its sibling does.
-                investigation_requests=investigation_pusher.push(merged),
-            )
+            # Pushed over the merge, as the causation door pushes over its
+            # own. This carried the requests the sub-dispatch had pushed —
+            # from the arm's items alone — so the escape reached the reader
+            # as an ask with no entry to act on, on the door whose whole
+            # point is to answer where its sibling does.
+            return _gap_result(
+                stmt, QueryKind.COUNTERFACTUAL, arm_missing, (escape,))
         low, high = values["cell"]
         interval = NumericInterval(low=low, high=high)
         instrument_table = route.table
@@ -2961,18 +2998,18 @@ under the same name, so either of them names it.
 """
 
 
-def _causation_gap(
+def _gap_result(
     stmt: QueryStatement,
-    *,
-    joint_missing: "tuple[MissingItem, ...]",
-    risk_missing: "tuple[MissingItem, ...]",
+    kind: QueryKind,
+    *shortfalls: "tuple[MissingItem, ...]",
 ) -> QueryResult:
-    """One needs_investigation result for both of the causation inputs.
+    """One needs_investigation result for every input an answer is short of.
 
-    Deduplicated by name and pushed once rather than concatenated: the two
+    Deduplicated by name and pushed once rather than concatenated: the
     shortfalls overlap (the ancestral factorization and the back-door
-    adjustment ask theta for many of the same conditionals), and two
-    request tuples would give the reader the same group twice.
+    adjustment ask theta for many of the same conditionals, and the chain
+    rule's ``P(Y|X)`` is the risk's own where nothing confounds X and Y),
+    and two request tuples would give the reader the same group twice.
 
     The statements the reader pastes back ride on the items themselves, so
     merging the two sides merges them too. This used to take a third
@@ -2982,7 +3019,7 @@ def _causation_gap(
     """
     merged: list[MissingItem] = []
     seen: set[str] = set()
-    for item in tuple(joint_missing) + tuple(risk_missing):
+    for item in (item for shortfall in shortfalls for item in shortfall):
         if item.name in seen:
             continue
         seen.add(item.name)
@@ -2990,7 +3027,7 @@ def _causation_gap(
 
     return QueryResult(
         status=ResultStatus.NEEDS_INVESTIGATION,
-        query_kind=QueryKind.CAUSATION,
+        query_kind=kind,
         query_id=stmt.id,
         missing_information=tuple(merged),
         investigation_requests=investigation_pusher.push(tuple(merged)),
@@ -3041,15 +3078,11 @@ def _causation_over_the_instrument(
         ),
     )
     if values is None:
-        return _causation_gap(
-            stmt,
-            joint_missing=(),
-            risk_missing=tuple(
-                replace(item, words={**item.words, "note": note})
-                if note and item.name == CAUSATION_RISK_ESCAPE else item
-                for item in risk_missing
-            ),
-        )
+        return _gap_result(stmt, QueryKind.CAUSATION, tuple(
+            replace(item, words={**item.words, "note": note})
+            if note and item.name == CAUSATION_RISK_ESCAPE else item
+            for item in risk_missing
+        ))
 
     assert route.instrument is not None and route.table is not None
     licence = stamp(
@@ -3226,11 +3259,8 @@ def _dispatch_causation(
             x_atom=x_atom, y_atom=y_atom, bidirected=bidirected,
         )
     if joint is None or risk_missing:
-        return _causation_gap(
-            stmt,
-            joint_missing=recovered.missing,
-            risk_missing=risk_missing,
-        )
+        return _gap_result(
+            stmt, QueryKind.CAUSATION, recovered.missing, risk_missing)
 
     # 4b. Feasibility: the interventional risks must be consistent with the
     # observational joint. By consistency P(y_x) = P(x, y) + P(y_x, x') with

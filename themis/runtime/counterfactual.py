@@ -279,6 +279,25 @@ def monotonicity_pins(query: CounterfactualQuery) -> dict[bool, float]:
     )
 
 
+def monotone_cell(query: CounterfactualQuery) -> float | None:
+    """The requested cell where monotonicity pins it outright, else None.
+
+    With the factual ``y`` known and the declared order forcing the other
+    world (:func:`monotonicity_pins`), ``P(Y_{x'}=y* | X=x, Y=y)`` is 0 or
+    1 and no interventional risk enters it. Read by the solver when it has
+    no risk to use, and by the door deciding whether to ask for one — two
+    readings of it would be two places for "does this cell need a risk" to
+    come apart.
+    """
+    factual_y = query.factual_target_known
+    if not isinstance(factual_y, bool):
+        return None
+    pinned = monotonicity_pins(query).get(factual_y)
+    if pinned is None:
+        return None
+    return pinned if query.counterfactual_target.value else 1.0 - pinned
+
+
 def _require_binary(value: object, role: str) -> bool:
     """Narrow one query value to the boolean the S.C.3 program is written in.
 
@@ -442,11 +461,10 @@ def counterfactual_cell_interval(
     pins = monotonicity_pins(query)
 
     if p_y_do_x_cf is None:
-        if factual_y is not None and factual_y in pins:
-            pinned = pins[factual_y]
-            value = pinned if y_star else 1.0 - pinned
-            return NumericInterval(low=value, high=value)
-        raise InterventionalRiskRequired(intervention=x_cf)
+        pinned_cell = monotone_cell(query)
+        if pinned_cell is None:
+            raise InterventionalRiskRequired(intervention=x_cf)
+        return NumericInterval(low=pinned_cell, high=pinned_cell)
 
     if not (0.0 <= p_y_do_x_cf <= 1.0):
         raise CounterfactualBoundsError(

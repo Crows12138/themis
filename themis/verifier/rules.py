@@ -10305,6 +10305,13 @@ def _counterfactual_joint_xy_via_ancestral_factorization_for_verifier(
     return cells
 
 
+#: The producer's bound on an ancestral recovery, restated: past it the
+#: producer does not read the ancestors' tables at all and answers from the
+#: chain rule's two marginals, and a verifier that read past it would audit
+#: the answer against a recovery the producer never made.
+_ANCESTRAL_ROWS_AT_MOST_FOR_VERIFIER = 4096
+
+
 def _ancestral_joint_for_verifier(
     graph: nx.DiGraph,
     theta: Theta,
@@ -10322,6 +10329,9 @@ def _ancestral_joint_for_verifier(
     recovery here as they do on the producer's side. Reducing to the cells
     first would leave the table with nothing to be checked against except the
     producer's own copy of it.
+
+    ``None`` past :data:`_ANCESTRAL_ROWS_AT_MOST_FOR_VERIFIER` rows too, as
+    for a theta that lacks the factors.
     """
     ancestral_nodes = (
         nx.ancestors(graph, x_atom)
@@ -10333,6 +10343,11 @@ def _ancestral_joint_for_verifier(
 
     subgraph = graph.subgraph(ancestral_nodes).copy()
     topo = tuple(nx.topological_sort(subgraph))
+    rows = 1
+    for atom in topo:
+        rows *= len(_counterfactual_factorization_domain_for_verifier(theta, atom))
+    if rows > _ANCESTRAL_ROWS_AT_MOST_FOR_VERIFIER:
+        return None
     may_drop_non_parents = not any(
         pair & ancestral_nodes for pair in bidirected
     )
