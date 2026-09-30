@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from collections import deque
 from itertools import combinations, product
 from typing import Any, Callable, Iterator, Mapping, NoReturn
 
@@ -9849,32 +9850,83 @@ def _verifier_is_m_connected(
     Independently reimplemented — mirror of structural_solver.is_m_connected
     but verifier-local (never imports from runtime).
     """
-    if left == right:
+    return _verifier_open_walk_reaches(graph, bidirected, left, right,
+                                       conditioning, back_door=False)
+
+
+def _verifier_open_walk_reaches(
+    graph: nx.DiGraph,
+    bidirected: frozenset[frozenset[Atom]],
+    source: Atom,
+    sink: Atom,
+    conditioning: frozenset[Atom],
+    *,
+    back_door: bool,
+) -> bool:
+    """Whether an open walk leads from ``source`` to ``sink``, passing
+    through neither end — with ``back_door``, one that leaves ``source``
+    along an edge with its arrowhead there.
+
+    Written apart from the runtime's search and to the same rules: a node
+    passed through blocks when it is conditioned on, unless both edges
+    beside it point into it; then it blocks unless it or a descendant is
+    conditioned on. An open walk shortens to an open path and a path is a
+    walk, so this is the path question; asked by listing simple paths it
+    cost the number of paths, which grows exponentially with the graph,
+    and it is asked once per row of a sum over a confounder table.
+    """
+    everywhere = set(graph.nodes())
+    for pair in bidirected:
+        everywhere |= pair
+    if source == sink or source not in everywhere or sink not in everywhere:
         return False
-    mg = _verifier_build_admg_multigraph(graph, bidirected)
-    if left not in mg or right not in mg:
-        return False
-    for edge_path in nx.all_simple_edge_paths(mg, left, right):
-        nodes: list[Atom] = [left]
-        for u, w, _k in edge_path:
-            nodes.append(w if nodes[-1] == u else u)
-        open_path = True
-        for i in range(1, len(nodes) - 1):
-            v = nodes[i]
-            ahead_prev = _verifier_has_arrowhead_at(mg, edge_path[i - 1], v)
-            ahead_next = _verifier_has_arrowhead_at(mg, edge_path[i], v)
-            is_collider = ahead_prev and ahead_next
-            if is_collider:
-                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
-                if activated.isdisjoint(conditioning):
-                    open_path = False
-                    break
-            else:
-                if v in conditioning:
-                    open_path = False
-                    break
-        if open_path:
+    bows: dict[Atom, set[Atom]] = {}
+    for pair in bidirected:
+        one, other = tuple(pair)
+        bows.setdefault(one, set()).add(other)
+        bows.setdefault(other, set()).add(one)
+    held = set(conditioning)
+    colliders_open = set(held)
+    for node in held:
+        if node in graph:
+            colliders_open |= nx.ancestors(graph, node)
+
+    def steps(node: Atom) -> Iterator[tuple[Atom, bool, bool]]:
+        """Each edge at ``node``: where it goes, whether it points into
+        ``node``, whether it points into where it goes."""
+        if node in graph:
+            for child in graph.successors(node):
+                yield child, False, True
+            for parent in graph.predecessors(node):
+                yield parent, True, False
+        for sibling in bows.get(node, ()):
+            yield sibling, True, True
+
+    queue: deque[tuple[Atom, bool]] = deque()
+    reached: set[tuple[Atom, bool]] = set()
+    for there, into_source, into_there in steps(source):
+        if back_door and not into_source:
+            continue
+        if there == sink:
             return True
+        if there != source:
+            reached.add((there, into_there))
+            queue.append((there, into_there))
+    while queue:
+        here, came_in = queue.popleft()
+        for there, goes_out_in, into_there in steps(here):
+            collider = came_in and goes_out_in
+            if collider and here not in colliders_open:
+                continue
+            if not collider and here in held:
+                continue
+            if there == source:
+                continue
+            if there == sink:
+                return True
+            if (there, into_there) not in reached:
+                reached.add((there, into_there))
+                queue.append((there, into_there))
     return False
 
 
@@ -9886,42 +9938,8 @@ def _verifier_is_admg_backdoor_connected(
     conditioning: frozenset[Atom],
 ) -> bool:
     """True iff an open m-path goes from src to dst with arrowhead at src."""
-    if src == dst:
-        return False
-    mg = _verifier_build_admg_multigraph(graph, bidirected)
-    if src not in mg or dst not in mg:
-        return False
-    for edge_path in nx.all_simple_edge_paths(mg, src, dst):
-        first = edge_path[0]
-        fu, fw, fk = first
-        data = mg.edges[fu, fw, fk]
-        if data["kind"] == "bidirected":
-            first_arrowhead_at_src = True
-        else:
-            first_arrowhead_at_src = (data["dst"] == src)
-        if not first_arrowhead_at_src:
-            continue
-        nodes: list[Atom] = [src]
-        for u, w, _k in edge_path:
-            nodes.append(w if nodes[-1] == u else u)
-        open_path = True
-        for i in range(1, len(nodes) - 1):
-            v = nodes[i]
-            ahead_prev = _verifier_has_arrowhead_at(mg, edge_path[i - 1], v)
-            ahead_next = _verifier_has_arrowhead_at(mg, edge_path[i], v)
-            is_collider = ahead_prev and ahead_next
-            if is_collider:
-                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
-                if activated.isdisjoint(conditioning):
-                    open_path = False
-                    break
-            else:
-                if v in conditioning:
-                    open_path = False
-                    break
-        if open_path:
-            return True
-    return False
+    return _verifier_open_walk_reaches(graph, bidirected, src, dst,
+                                       conditioning, back_door=True)
 
 
 def _verifier_backdoor_holds(

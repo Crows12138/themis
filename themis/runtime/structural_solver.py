@@ -701,48 +701,10 @@ def _is_admg_backdoor_connected(
     in the ADMG sense)?
 
     An edge has an arrowhead at ``src`` iff it is a bidirected edge
-    incident to ``src`` or a directed edge ``pred → src``. Enumerate
-    simple m-paths and filter by the first-edge condition.
+    incident to ``src`` or a directed edge ``pred → src``.
     """
-    if src == dst:
-        return False
-
-    mg = _build_admg_path_graph(graph, bidirected)
-    if src not in mg or dst not in mg:
-        return False
-
-    for edge_path in nx.all_simple_edge_paths(mg, src, dst):
-        first_u, first_w, first_k = edge_path[0]
-        data = mg.edges[first_u, first_w, first_k]
-        if data["kind"] == "bidirected":
-            first_arrowhead_at_src = True
-        else:
-            first_arrowhead_at_src = (data["dst"] == src)
-        if not first_arrowhead_at_src:
-            continue
-
-        nodes: list[Atom] = [src]
-        for u, w, _k in edge_path:
-            nodes.append(w if nodes[-1] == u else u)
-
-        open_path = True
-        for i in range(1, len(nodes) - 1):
-            v = nodes[i]
-            ahead_prev = _has_arrowhead_at(mg, edge_path[i - 1], v)
-            ahead_next = _has_arrowhead_at(mg, edge_path[i], v)
-            is_collider = ahead_prev and ahead_next
-            if is_collider:
-                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
-                if activated.isdisjoint(conditioning):
-                    open_path = False
-                    break
-            else:
-                if v in conditioning:
-                    open_path = False
-                    break
-        if open_path:
-            return True
-    return False
+    return _m_connected_from(graph, bidirected, src, dst, conditioning,
+                             leaving_start_into_it=True)
 
 
 def minimal_adjustment_sets(
@@ -1941,39 +1903,84 @@ def is_m_connected(
     When ``bidirected`` is empty, the answer must agree with
     ``is_d_connected`` — verified in the S2 regression tests.
     """
-    if left == right:
+    return _m_connected_from(graph, bidirected, left, right, conditioning)
+
+
+def _m_connected_from(
+    graph: nx.DiGraph,
+    bidirected: BidirectedEdgeSet,
+    start: Atom,
+    end: Atom,
+    conditioning: "frozenset[Atom] | tuple[Atom, ...]",
+    *,
+    leaving_start_into_it: bool = False,
+) -> bool:
+    """Whether an open m-path joins ``start`` to ``end`` given
+    ``conditioning`` — with ``leaving_start_into_it``, one whose first edge
+    has its arrowhead at ``start``, which is a back-door path.
+
+    A search over (node, whether the edge it was reached by points into
+    it), not an enumeration of paths. The two answer one question: a walk
+    open under the rules above — a non-collider not conditioned on, a
+    collider conditioned on or with a conditioned descendant — shortens to
+    an open path, and every open path is such a walk (the reachability
+    algorithm of Koller & Friedman 2009, §3.3.3; Richardson 2003 for the
+    bidirected edges). Each state is visited once, so the cost is the size
+    of the graph. The enumeration cost the number of paths, which grows
+    exponentially with the graph: on the nineteen variables a translator
+    drew for one question it took seconds a call, and a formula summed over
+    a confounder table asked once per row.
+
+    The two ends are never passed through, as on a path.
+    """
+    known = set(graph.nodes()).union(*bidirected)
+    if start == end or start not in known or end not in known:
         return False
+    # (neighbour, arrowhead at this node, arrowhead at the neighbour)
+    adjacent: dict[Atom, list[tuple[Atom, bool, bool]]] = {}
+    for tail, head in graph.edges():
+        adjacent.setdefault(tail, []).append((head, False, True))
+        adjacent.setdefault(head, []).append((tail, True, False))
+    for pair in bidirected:
+        a, b = tuple(pair)
+        adjacent.setdefault(a, []).append((b, True, True))
+        adjacent.setdefault(b, []).append((a, True, True))
+    held = frozenset(conditioning)
+    # A collider is open where it or one of its descendants is held: the
+    # held nodes and their ancestors.
+    opens = set(held)
+    stack = [node for node in held if node in graph]
+    while stack:
+        for parent in graph.predecessors(stack.pop()):
+            if parent not in opens:
+                opens.add(parent)
+                stack.append(parent)
 
-    mg = _build_admg_path_graph(graph, bidirected)
-    if left not in mg or right not in mg:
-        return False
-
-    c_set = frozenset(conditioning)
-
-    for edge_path in nx.all_simple_edge_paths(mg, left, right):
-        nodes: list[Atom] = [left]
-        for u, w, _k in edge_path:
-            nodes.append(w if nodes[-1] == u else u)
-
-        open_path = True
-        for i in range(1, len(nodes) - 1):
-            v = nodes[i]
-            ahead_from_prev = _has_arrowhead_at(mg, edge_path[i - 1], v)
-            ahead_from_next = _has_arrowhead_at(mg, edge_path[i], v)
-            is_collider = ahead_from_prev and ahead_from_next
-            if is_collider:
-                activated = {v} | nx.descendants(graph, v) if v in graph else {v}
-                if activated.isdisjoint(c_set):
-                    open_path = False
-                    break
-            else:
-                if v in c_set:
-                    open_path = False
-                    break
-
-        if open_path:
+    seen: set[tuple[Atom, bool]] = set()
+    frontier: list[tuple[Atom, bool]] = []
+    for onward, into_start, into_onward in adjacent.get(start, ()):
+        if leaving_start_into_it and not into_start:
+            continue
+        if onward == end:
             return True
-
+        if onward != start and (onward, into_onward) not in seen:
+            seen.add((onward, into_onward))
+            frontier.append((onward, into_onward))
+    while frontier:
+        node, arrived_into = frontier.pop()
+        for onward, leaves_into, into_onward in adjacent.get(node, ()):
+            if arrived_into and leaves_into:
+                if node not in opens:
+                    continue
+            elif node in held:
+                continue
+            if onward == start:
+                continue
+            if onward == end:
+                return True
+            if (onward, into_onward) not in seen:
+                seen.add((onward, into_onward))
+                frontier.append((onward, into_onward))
     return False
 
 
