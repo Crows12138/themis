@@ -398,9 +398,9 @@ has several.
 **X's own link to Y.** Whether X acts on Y at all is itself a claim the
 graph makes: a path from X to Y says it does, and no path says it has no
 effect whatever. An edge carries no direction of effect — X raising Y
-and X lowering Y are drawn alike — so draw X's link wherever domain
-knowledge holds that X moves Y either way, and leave it out only where
-it holds that X does not. An association that X's common causes with Y
+and X lowering Y are drawn alike — so draw X's link wherever established
+knowledge of the field holds that X moves Y either way (the bar in §The
+confounding decision), and leave it out where it does not. An association that X's common causes with Y
 explain decides nothing here: those causes are drawn in both cases, and
 X's own link stands or falls on what X itself does.
 
@@ -513,9 +513,12 @@ and Y is drawn around every unit.
     `reciprocal_causation` (see §5a).
 
 11. **Spurious direct edge** *(hazard unit, must-not-infer)*. *Trigger*:
-    surface correlation (seasonal / group-level) with no real mechanism
-    (ice cream → drowning). *Shape*: common cause `C→X`, `C→Y`; NO
-    direct `X→Y`. *Ambiguity*: `confounder_refusal`.
+    surface correlation (seasonal / group-level) where X has no
+    established way of acting on Y at all (ice cream → drowning).
+    *Shape*: common cause `C→X`, `C→Y`; NO direct `X→Y`. A correlation
+    that runs against an effect X is known to have is not this unit: X's
+    link is drawn, beside the common causes that produce the
+    correlation. *Ambiguity*: `confounder_refusal`.
 
 #### The confounding decision: assertion / worry / in-data
 
@@ -580,19 +583,22 @@ Right: variables include `high_temperature`; edges are
 `high_temperature → drowning_incidents` (both `llm_proposal`); no
 direct ice_cream → drowning edge.
 
-When uncertain, bias toward the confounder structure. Over-proposing
-confounders is recoverable (user deletes). Emitting a false direct
-causal edge is **not** recoverable through the response layer — it
-reads as "yes" to a false claim.
+Both mistakes are made in the graph, and the response layer can undo
+neither: a link X does not have reads as "yes" to a false claim, and a
+link X does have, left out, reads as "no" to a true one.
+Over-proposing confounders is recoverable (the user deletes one), so
+draw them freely; X's own link is held to the bar below.
 
-A direct edge is only justified when you can name a published RCT
-that established it, or when the link is part of standard medical /
-scientific curriculum (smoking → lung cancer, salt → blood pressure
-in hypertensives, vaccine → immunity). "I'm confident" without a
-citable anchor is not enough — bias toward the confounder structure.
-For judgment calls between the two, add an
-`extensions.ambiguities[kind=confounder_refusal]` entry so the user
-can challenge.
+X's link to Y — direct, or through the steps of its mechanism — is
+justified when established knowledge of the field holds that X acts on
+Y, whichever way it moves it: a published RCT, or a mechanism the field
+teaches as settled (smoking → lung cancer, salt → blood pressure in
+hypertensives, vaccine → immunity). A belief the evidence does not bear
+out, or a mechanism that only sounds plausible, is not enough, and
+neither is "I'm confident" without such an anchor. The direction the
+question suspects plays no part: the bar is whether X acts on Y at all.
+For judgment calls, add an `extensions.ambiguities[kind=confounder_refusal]`
+entry so the user can challenge the choice either way.
 
 #### Direct mechanism and confounding are not either/or — they coexist
 
