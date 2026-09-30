@@ -8757,6 +8757,36 @@ def _resolve(value, subs: dict):
     return value
 
 
+def _verifier_conditions_that_close_onto_an_entry(
+    missing_key: ProbabilityKey,
+    theta,
+    *,
+    steps_left: int,
+) -> set:
+    """Each (atom, value) that an entry for the missing key's own target,
+    value and population carries beyond the missing key's conditions,
+    where the entry carries all of those and no more than ``steps_left``
+    besides.
+
+    An outer factor keeps the target and gains one condition, and is read
+    off theta only when its conditions are an entry's; within the steps
+    left, those entries are the only places a derivation can end.
+    """
+    closing: set = set()
+    wanted = missing_key.given
+    for key in theta.entries:
+        if (key.target_atom, key.target_value, key.population) != (
+                missing_key.target_atom, missing_key.target_value,
+                missing_key.population):
+            continue
+        beyond = key.given - wanted
+        if len(key.given) - len(beyond) != len(wanted):
+            continue  # it lacks one of the missing key's conditions
+        if 1 <= len(beyond) <= steps_left:
+            closing.update(beyond)
+    return closing
+
+
 def _verifier_derive_via_marginalization(
     missing_key: ProbabilityKey,
     theta,
@@ -8778,6 +8808,11 @@ def _verifier_derive_via_marginalization(
     marginalization byte-for-byte semantics; the two implementations
     must agree on every concrete value, which is what makes R7
     meaningful.
+
+    Z is tried only where one of its values closes onto an entry
+    (:func:`_verifier_conditions_that_close_onto_an_entry`) for each of
+    them: every other Z fails at every depth below it, and following them
+    all was minutes of work on a graph of fifteen variables.
     """
     if _depth > 3:
         return None
@@ -8785,6 +8820,10 @@ def _verifier_derive_via_marginalization(
     target_value = missing_key.target_value
     base_given = missing_key.given
     pop = missing_key.population  # Fix 3+4: same-population isolation
+    closing = _verifier_conditions_that_close_onto_an_entry(
+        missing_key, theta, steps_left=4 - _depth)
+    if not closing:
+        return None
 
     candidates = []
     seen: set = set()
@@ -8808,6 +8847,8 @@ def _verifier_derive_via_marginalization(
             continue
         domain = theta.domain_of(z)
         if not domain:
+            continue
+        if any((z, v) not in closing for v in domain):
             continue
         outer_values: dict = {}
         ok = True

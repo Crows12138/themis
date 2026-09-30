@@ -930,6 +930,37 @@ def _try_derive_via_bayes_inversion(
     return None
 
 
+def _conditions_entries_add(
+    missing_key: ProbabilityKey,
+    theta: Theta,
+    depth: int,
+) -> frozenset[tuple[Atom, AtomValue]]:
+    """The conditions an entry of theta adds to ``missing_key``'s, among
+    the entries a derivation at ``depth`` can still end at.
+
+    A derivation ends at entries only through its outer factors, and each
+    of those keeps the target, its value and its population and adds one
+    condition; it is found when its conditions are an entry's exactly, at
+    this depth or one of the three below it. So the entry holds every
+    condition of the missing key and adds at least one and at most one for
+    each depth left. A candidate Z none of whose values is among the
+    conditions such an entry adds cannot supply the outer factor however
+    far it is followed; and where there is no such entry, nothing is
+    derived.
+    """
+    room = 4 - depth
+    base = missing_key.given
+    added: set[tuple[Atom, AtomValue]] = set()
+    for key in theta.entries:
+        if (key.target_atom == missing_key.target_atom
+                and key.target_value == missing_key.target_value
+                and key.population == missing_key.population
+                and base < key.given
+                and len(key.given) - len(base) <= room):
+            added |= key.given - base
+    return frozenset(added)
+
+
 def _try_derive_via_marginalization(
     missing_key: ProbabilityKey,
     theta: Theta,
@@ -972,6 +1003,13 @@ def _try_derive_via_marginalization(
     order of appearance, picks the first that fully evaluates. The
     inner P(Z|given) factor is attempted via theta lookup; it is not
     chain-rule expanded.
+
+    A candidate is tried only where theta holds an entry its outer
+    factors could end at (:func:`_conditions_entries_add`); the others
+    fail whatever is tried below them, and trying them anyway is what
+    made this search the cost of an answer — 244,352 calls, each walking
+    theta, for a graph of fifteen variables whose tables a model had
+    filled, two minutes on a desktop and nearly seven on the demo's server.
     """
     if _depth > 3:
         return None
@@ -979,6 +1017,9 @@ def _try_derive_via_marginalization(
     target_value = missing_key.target_value
     base_given = missing_key.given
     pop = missing_key.population  # Fix 3+4: same-population isolation
+    addable = _conditions_entries_add(missing_key, theta, _depth)
+    if not addable:
+        return None
 
     candidates: list[Atom] = []
     seen: set[Atom] = set()
@@ -1005,6 +1046,8 @@ def _try_derive_via_marginalization(
             continue
         domain = theta.domain_of(z)
         if not domain:
+            continue
+        if not all((z, v) in addable for v in domain):
             continue
         outer_values: dict = {}
         ok = True
