@@ -96,10 +96,11 @@ _UNUSED_OUT_OF_RANGE = (
 )
 
 #: The same disagreement on a column the answer does stand on: z is the
-#: back-door adjustment set.
+#: back-door adjustment set, declared discrete over {0, 1} and supplied
+#: with a 2.
 _ADJUSTMENT_OUT_OF_RANGE = (
     (),
-    None,
+    {"z": lambda rng, n: rng.integers(0, 3, n)},
 )
 
 
@@ -149,14 +150,18 @@ def test_the_remedies_are_the_same_because_they_are_the_programs():
 # --------------------------------------------------- and still blocks on it
 
 
-def test_a_column_the_answer_stands_on_still_blocks_the_estimate():
-    variables, _ = _ADJUSTMENT_OUT_OF_RANGE
+def _adjustment_case():
+    variables, columns = _ADJUSTMENT_OUT_OF_RANGE
     program = _program(variables)
     for stmt in program["statements"]:
         if stmt.get("kind") == "variable" and stmt["predicate"] == "z":
             stmt["scale"] = "discrete"
-            stmt["domain"] = [True]          # supplied column carries False too
-    result = _reconciled(program, _frame())
+            stmt["domain"] = [0, 1]
+    return _reconciled(program, _frame(columns))
+
+
+def test_a_column_the_answer_stands_on_still_blocks_the_estimate():
+    result = _adjustment_case()
     gap = _mismatch_gaps(result)[0]
     assert "z" in _names_this_result_stands_on(result)
     assert gap["signature"] == "domain_violated"
@@ -213,13 +218,7 @@ def test_the_verifier_refuses_a_program_finding_dressed_as_this_answers():
 
 
 def test_the_verifier_refuses_this_answers_cost_downgraded():
-    variables, _ = _ADJUSTMENT_OUT_OF_RANGE
-    program = _program(variables)
-    for stmt in program["statements"]:
-        if stmt.get("kind") == "variable" and stmt["predicate"] == "z":
-            stmt["scale"] = "discrete"
-            stmt["domain"] = [True]
-    tampered = _reconciled(program, _frame())
+    tampered = _adjustment_case()
     gap = _mismatch_gaps(tampered)[0]
     gap["severity"] = "informational"
     gap["blocks"] = "interpretation"

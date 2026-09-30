@@ -1154,7 +1154,9 @@
         },
         "domain": {
           "type": "array",
-          "description": "Enumerated value domain, e.g. [true, false] or [\"low\",\"mid\",\"high\"]. Used only for framing; the runtime still reads actual domains from observed values.",
+          "description": "Enumerated value domain, e.g. [true, false] or [\"low\",\"mid\",\"high\"]: the values the variable takes, which the runtime sums over wherever it sums over the variable. At least two distinct values — a list of none sums to zero and a list of one leaves every other value's share out of the sum, and either answers as a number. A variable whose values are not an enumeration omits the field.",
+          "minItems": 2,
+          "uniqueItems": true,
           "items": {
             "type": ["boolean", "integer", "number", "string"]
           }
