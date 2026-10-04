@@ -26,7 +26,7 @@ import {
   type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { programToFlow, reaches, type NodeRole } from '../lib/graph'
+import { graphShape, programToFlow, reaches, type NodeRole } from '../lib/graph'
 import { absent, fill, say, type Lang, type Words, useLang } from '../lib/language'
 import { ButtonEdge, FloatingConnectionLine } from './ButtonEdge'
 
@@ -171,6 +171,9 @@ export interface CausalCanvasProps {
   seedEditable?: boolean
   /** Reactive variable-name list, for a parent's query dropdowns. */
   onVarsChange?: (names: string[]) => void
+  /** What the graph on the canvas says (`graphShape`), each time that changes
+   *  — so a parent showing a result can tell when the graph has moved on. */
+  onShapeChange?: (shape: string) => void
   /** Parent action buttons (re-run / restore, or clear) shown right-aligned in
    *  the toolbar. */
   toolbarExtra?: ReactNode
@@ -190,7 +193,7 @@ export interface CausalCanvasProps {
  * query bar), which they layer on via `toolbarExtra` and the ref.
  */
 export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(function CausalCanvas(
-  { seedProgram, seedEditable = false, onVarsChange, toolbarExtra, label, emptyHint, height = 320 },
+  { seedProgram, seedEditable = false, onVarsChange, onShapeChange, toolbarExtra, label, emptyHint, height = 320 },
   ref,
 ) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NData>>([])
@@ -231,6 +234,20 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
     const key = names.join('')
     if (key !== lastVars.current) { lastVars.current = key; onVarsChange?.(names) }
   }, [nodes, onVarsChange])
+
+  // And what the graph says, for a parent holding a result computed from an
+  // earlier one. Compared as a string for the same reason: a drag re-renders
+  // every frame and changes nothing the kernel was told.
+  const lastShape = useRef<string | null>(null)
+  useEffect(() => {
+    // The canvas mounts empty and is seeded an effect later. That first empty
+    // frame is not a graph anybody drew, and reporting it would tell a parent
+    // its result had been edited away from before the result's own graph
+    // arrived.
+    if (seedProgram && lastShape.current === null && nodes.length === 0) return
+    const shape = graphShape(nodes, edges)
+    if (shape !== lastShape.current) { lastShape.current = shape; onShapeChange?.(shape) }
+  }, [nodes, edges, onShapeChange, seedProgram])
 
   const addVariable = useCallback(() => {
     setNodes((ns) => {

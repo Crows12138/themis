@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { graphToProgram } from '../lib/graph'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { graphShape, graphToProgram, programToFlow } from '../lib/graph'
 import { fill, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
 
@@ -20,26 +20,40 @@ const SAYS = {
  * === `original` by reference (canvas edited but never re-run), onRerun alone
  * wouldn't change state, so the seed effect wouldn't fire and the edits would
  * survive the restore.
+ *
+ * Between an edit and its re-run the page holds a graph and a result that are
+ * not about each other. `onEdited` says when: the canvas no longer says what
+ * the program the result was computed from says.
  */
 export function ResultGraph({
   program,
   original,
   busy,
   onRerun,
+  onEdited,
 }: {
   program: Record<string, unknown>
   original: Record<string, unknown>
   busy: boolean
   onRerun: (prog: Record<string, unknown>) => void
+  onEdited?: (edited: boolean) => void
 }) {
   const ref = useRef<CausalCanvasHandle>(null)
   const lang = useLang()
+  const computedFrom = useMemo(() => {
+    const seeded = programToFlow(program)
+    return graphShape(seeded.nodes, seeded.edges)
+  }, [program])
+  const [shape, setShape] = useState<string | null>(null)
+  const edited = shape !== null && shape !== computedFrom
+  useEffect(() => { onEdited?.(edited) }, [edited, onEdited])
   return (
     <div className="dagview">
       <CausalCanvas
         ref={ref}
         seedProgram={program}
         label={fill(SAYS.label, lang)}
+        onShapeChange={setShape}
         toolbarExtra={
           <>
             <button
@@ -51,7 +65,7 @@ export function ResultGraph({
               {fill(SAYS.restore, lang)}
             </button>
             <button
-              className="btn"
+              className={edited ? 'btn btn--due' : 'btn'}
               disabled={busy}
               onClick={() => { if (ref.current) onRerun(graphToProgram(program, ref.current.getNodes(), ref.current.getEdges())) }}
             >

@@ -88,6 +88,29 @@ export function programToFlow(program: Record<string, unknown> | undefined): { n
   return { nodes, edges }
 }
 
+/**
+ * What a graph on the canvas says, as one comparable string: its variables
+ * and its edges, by name, in no particular order. Where a node sits is not
+ * part of it, so dragging one changes nothing here.
+ *
+ * Whether a cause edge is still the model's proposal IS part of it: deleting
+ * a proposed edge and drawing it again makes it the reader's own, which
+ * re-runs to a different ledger.
+ */
+export function graphShape(
+  nodes: { id: string; data: { label?: unknown } }[],
+  edges: { source?: string | null; target?: string | null; data?: { kind?: string; proposed?: boolean } }[],
+): string {
+  const label = new Map(nodes.map((n) => [n.id, String(n.data.label ?? '').trim()]))
+  const name = (id?: string | null) => label.get(id ?? '') ?? ''
+  const said = edges.map((e) => {
+    const a = name(e.source), b = name(e.target)
+    if (e.data?.kind === 'bidirected') return ['bidirected', ...[a, b].sort()].join('\u0000')
+    return [e.data?.proposed ? 'proposed' : 'cause', a, b].join('\u0000')
+  })
+  return JSON.stringify([[...label.values()].sort(), said.sort()])
+}
+
 type AnyStmt = Record<string, any>
 const CANON_KINDS = ['variable', 'cause', 'bidirected']
 

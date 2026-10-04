@@ -408,6 +408,12 @@ button { font-family: inherit; cursor: pointer; }
 .btn { border: 1px solid var(--accent); background: var(--accent); color: var(--paper); font-size: var(--text-sm); font-weight: 500; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm); transition: background 0.15s; }
 .btn:hover { background: var(--accent-press); }
 .btn--ghost { background: transparent; color: var(--ink-soft); border-color: var(--line-strong); }
+/* The one action a stale result is waiting on. */
+.btn--due { box-shadow: 0 0 0 3px color-mix(in oklch, var(--tier-interval) 45%, transparent); }
+/* The graph was edited and not re-run: what is below is about the graph as it
+   was. Said in the caution tone, and the result under it dimmed. */
+.staleline { margin: var(--space-md) 0 0; padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); color: oklch(0.46 0.09 73); background: var(--tier-interval-bg); border: 1px solid color-mix(in oklch, var(--tier-interval) 28%, var(--line)); border-radius: var(--radius-sm); }
+.result__rest--stale { opacity: 0.45; filter: grayscale(0.6); }
 .btn--ghost:hover { background: var(--surface-sunk); color: var(--ink); }
 .keypanel__note { font-size: var(--text-xs); color: var(--ink-ghost); margin-top: var(--space-sm); }
 

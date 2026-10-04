@@ -78,6 +78,10 @@ const SAYS = {
   toBuild: { zh: '在画布上重画 / 改结构', en: 'Redraw it / change the structure' },
   rawEnvelope: { zh: '查看这份结果的原始信封（JSON）', en: 'See the raw envelope for this result (JSON)' },
   save: { zh: '保存这个结果（下载文件）', en: 'Save this result (download a file)' },
+  graphEdited: {
+    zh: '因果图已改动，下面还是改动前的结果。点图上方的「用改后的图重跑」更新，或点「还原原图」撤销改动。',
+    en: 'The graph has been edited, and what is below is still the result for the graph as it was. Re-run with the edited graph to update it, or restore the original to undo the edit.',
+  },
   savedAt: {
     zh: '这是 {when} 保存的结果，从文件打开，没有重新计算。',
     en: 'Saved on {when} and opened from a file; nothing here was computed again.',
@@ -114,6 +118,9 @@ export function ResultView({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [question, setQuestion] = useState<Words | null>(null)
+  // Whether the graph on the canvas has moved on from the one this result
+  // was computed from (ResultGraph says).
+  const [graphEdited, setGraphEdited] = useState(false)
 
   // The reading follows the result on the screen: a re-run with an edited
   // graph, a clarification or priors can each change which question is
@@ -236,8 +243,16 @@ export function ResultView({
         <Correction revision={payload.revision} program={program} onRevise={onRevise} onBack={onBack} />
       ) : null}
 
-      {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} /> : null}
+      {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} onEdited={setGraphEdited} /> : null}
 
+      {/* Between an edit to the graph and its re-run, everything below is
+          about the graph as it was. It is said, dimmed, and not operable:
+          each action down there runs the program the result came from and
+          would replace the edited graph with it. */}
+      {graphEdited ? (
+        <p className="staleline" role="status">{fill(SAYS.graphEdited, lang)}</p>
+      ) : null}
+      <div className={graphEdited ? 'result__rest result__rest--stale' : 'result__rest'} inert={graphEdited}>
       <Verdict result={result} naive={naive} />
 
       {review ? <ProposedReview review={review} models={result.extensions?.probability_models?.models} /> : null}
@@ -319,6 +334,7 @@ export function ResultView({
       <Foldout summary={fill(SAYS.rawEnvelope, lang)}>
         <pre className="rawenv mono">{JSON.stringify(result, null, 2)}</pre>
       </Foldout>
+      </div>
 
       {error ? <div className="errbox" role="alert"><p className="errbox__msg">{error}</p></div> : null}
 
