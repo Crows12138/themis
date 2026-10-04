@@ -408,7 +408,7 @@ def test_an_answer_that_assumes_less_rests_on_less():
     assert claimed - weaker == {"monotonicity_refutable_x_never_prevents_y"}
 
     n_inval = sum(1 for e in weak if e["severity"] == "invalidating")
-    assert f"{n_inval} 条一旦不成立" in ledger.summary(weak, "zh")
+    assert f"{n_inval} 条支撑结论" in ledger.summary(weak, "zh")
     assert n_inval == sum(
         1 for e in strong if e["severity"] == "invalidating") - 1
 

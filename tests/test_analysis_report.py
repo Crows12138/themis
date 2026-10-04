@@ -98,8 +98,8 @@ def test_numeric_report_shows_severity_ranked_assumptions(numeric_env):
     prog, env = numeric_env
     md = build_analysis_report(env["results"][0], program=prog)
     assert "## 假设" in md
-    assert "作废级" in md            # invalidating identification assumptions
-    assert "扭曲级" in md            # functional-form (distorting)
+    assert "支撑结论" in md          # invalidating identification assumptions
+    assert "影响数值" in md          # functional-form (distorting)
 
 
 def test_stamp_reflects_a_passed_audit_set(numeric_env):

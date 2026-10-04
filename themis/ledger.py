@@ -149,9 +149,12 @@ class Severity(EnvelopeName):
         sev.words = words
         return sev
 
-    INVALIDATING = ("invalidating", 0, {"zh": "作废级", "en": "invalidating"})
-    DISTORTING = ("distorting", 1, {"zh": "扭曲级", "en": "distorting"})
-    CONFIDENCE_ONLY = ("confidence_only", 2, {"zh": "仅影响置信",
+    # The words name what the assumption does to the answer, because the
+    # label is printed beside the assumption: 作废级 there read as "this
+    # assumption is void" when it meant the conclusion is, if this is false.
+    INVALIDATING = ("invalidating", 0, {"zh": "支撑结论", "en": "invalidating"})
+    DISTORTING = ("distorting", 1, {"zh": "影响数值", "en": "distorting"})
+    CONFIDENCE_ONLY = ("confidence_only", 2, {"zh": "影响精度",
                                               "en": "affects the interval only"})
 
 
@@ -740,11 +743,11 @@ SUMMARY: Words = {
           "{audit}",
 }
 SUMMARY_INVALIDATING: Words = {
-    "zh": "{n} 条一旦不成立、整条因果结论作废",
+    "zh": "{n} 条支撑结论，不成立则因果结论不成立",
     "en": "{n} of them take the whole causal conclusion with them if false",
 }
 SUMMARY_OTHER: Words = {
-    "zh": "{n} 条影响形状 / 量级或置信度",
+    "zh": "{n} 条影响数值或精度",
     "en": "{n} bear on the shape, the magnitude or the confidence",
 }
 #: How the lead line ends, and the reason it is a hole.

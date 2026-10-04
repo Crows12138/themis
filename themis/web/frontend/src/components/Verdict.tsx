@@ -77,7 +77,7 @@ const SAYS = {
   // beside it counted — so this surface printed one language's sentence
   // into whichever language it was rendering.
   ledgerSummary: {
-    zh: '{total} 条，其中 {invalidating} 条一旦不成立、整条结论作废',
+    zh: '{total} 条，其中 {invalidating} 条支撑结论，不成立则结论不成立',
     en: '{total} in all, {invalidating} of which take the conclusion with them if false',
   },
   provenance: { zh: '来源 {who}', en: 'from {who}' },

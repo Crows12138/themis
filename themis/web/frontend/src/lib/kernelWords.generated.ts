@@ -925,15 +925,15 @@ export const LEDGER_PROVENANCE_WORDS: Record<string, Words> = {
 
 export const ASSUMPTION_SEVERITY_WORDS: Record<string, Words> = {
   confidence_only: {
-    zh: '仅影响置信',
+    zh: '影响精度',
     en: 'affects the interval only',
   },
   distorting: {
-    zh: '扭曲级',
+    zh: '影响数值',
     en: 'distorting',
   },
   invalidating: {
-    zh: '作废级',
+    zh: '支撑结论',
     en: 'invalidating',
   },
 }
