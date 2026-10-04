@@ -123,8 +123,9 @@ def test_every_stored_answer_heads_with_exactly_those_lines(lang):
             assert head == [], (name, head)
             continue
         with_premises += 1
-        expected = [line for a in chosen
-                    for line in analysis_report._ledger_rows([a], lang=lang)]
+        # As the ledger prints them, which puts lines making one claim of
+        # several things into one row (#812).
+        expected = analysis_report._ledger_rows(chosen, lang=lang)
         assert head[0] == language.fill(analysis_report._WITH_THE_VERDICT,
                                         lang), name
         assert head[1:] == expected, name

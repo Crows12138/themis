@@ -5997,7 +5997,11 @@ def _ledger_rows(entries, *, lang: language.Lang | str) -> list[str]:
     # three used to reach the reader as the identifier the kernel writes, so
     # a line ended `（assumption／来源 inherent／不可检验）`: an assumption said
     # to be an assumption, from a source called inherent.
-    for a in entries:
+    for group in ledger_vocab.grouped(entries):
+        # Lines making one claim of several things are one row: everything
+        # printed about them but the thing itself is the same, by the
+        # grouping's own definition, so the first speaks for the rest.
+        a = group[0]
         checked = a.get("checked") or {}
         meta = []
         if a.get("layer"):
@@ -6013,11 +6017,21 @@ def _ledger_rows(entries, *, lang: language.Lang | str) -> list[str]:
         if not checked:
             meta.append(language.fill(
                 _TESTABLE if a.get("testable") else _UNTESTABLE, lang))
+        several = len(group) > 1
+        spelling = str(a["claim"][0].get("token")) if several else ""
         out.append(language.fill(
             _ASSUMPTION_ROW, lang,
             severity=ledger_vocab.severity_word(a.get("severity", ""), lang),
-            claim=language.spoken(a.get("claim"), lang),
+            claim=(language.fill(ledger_vocab.SEVERAL_LEAD[spelling], lang,
+                                 n=len(group))
+                   if several else language.spoken(a.get("claim"), lang)),
             meta=language.fill(_META_SEPARATOR, lang).join(meta)))
+        if several:
+            out.extend(
+                "  - " + language.assemble(
+                    ledger_vocab.SEVERAL_ITEM[spelling],
+                    one["claim"][0].get("said"), lang=lang)
+                for one in group)
         if checked:
             out.append(language.fill(
                 _ASSUMPTION_CHECKED, lang,

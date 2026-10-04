@@ -1,5 +1,5 @@
 import type { LedgerEntry, QueryResult } from '../types'
-import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict, unreachedTarget } from '../lib/verdict'
+import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict, ledgerGrouped, ledgerSeveralLead, ledgerSeveralItem, unreachedTarget } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Lang, type Words } from '../lib/language'
 import { Foldout } from './Foldout'
@@ -211,7 +211,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
         <div className="verdict__premises">
           <span className="figure__cap">{fill(SAYS.withTheVerdict, lang)}</span>
           <ul className="ledger__list">
-            {premises.map((a, i) => <LedgerLine a={a} lang={lang} key={i} />)}
+            {ledgerGrouped(premises).map((group, i) => <LedgerLine group={group} lang={lang} key={i} />)}
           </ul>
         </div>
       ) : null}
@@ -566,7 +566,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 <div className="ledger">
                   <span className="figure__cap">{fill(SAYS.ledgerCap, lang)} · {fill(SAYS.ledgerSummary, lang, { total: ledger.assumptions.length, invalidating: ledger.assumptions.filter((a) => a.severity === 'invalidating').length })}</span>
                   <ul className="ledger__list">
-                    {ledger.assumptions.map((a, i) => <LedgerLine a={a} lang={lang} key={i} />)}
+                    {ledgerGrouped(ledger.assumptions).map((group, i) => <LedgerLine group={group} lang={lang} key={i} />)}
                   </ul>
                 </div>
               ) : null}
@@ -582,7 +582,13 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
 // the foldout, and the lines the verdict cannot be read without, beside it. A
 // line rendered two ways is one a reader has to compare to find out it is the
 // same line.
-function LedgerLine({ a, lang }: { a: LedgerEntry; lang: Lang }) {
+//
+// A line is one assumption, or several making one claim of different things
+// (`ledgerGrouped`): those share every tag by the grouping's own definition,
+// so the first speaks for the rest and what differs is listed under it.
+function LedgerLine({ group, lang }: { group: LedgerEntry[]; lang: Lang }) {
+  const a = group[0]
+  const several = group.length > 1
   return (
     // Five closed vocabularies on one line: how badly it dies, which part of
     // the answer it holds up, who put it there, and — where this run tested
@@ -594,14 +600,20 @@ function LedgerLine({ a, lang }: { a: LedgerEntry; lang: Lang }) {
         {a.severity ? assumptionSeverityLabel(a.severity, lang) : ''}
       </span>
       <span className="ledger__claim">
-        {sentences((a.claim ?? []).map(
-          (one) => stated(one, lang)), lang)}
+        {several
+          ? ledgerSeveralLead(group, lang)
+          : sentences((a.claim ?? []).map((one) => stated(one, lang)), lang)}
       </span>
       {a.layer ? <span className="ledger__tag">{ledgerLayerLabel(a.layer, lang)}</span> : null}
       {a.provenance ? (
         <span className="ledger__tag">{fill(SAYS.provenance, lang, { who: ledgerProvenanceLabel(a.provenance, lang) })}</span>
       ) : null}
       {a.testable === false ? <span className="ledger__tag">{fill(SAYS.untestable, lang)}</span> : null}
+      {several ? (
+        <ul className="ledger__several">
+          {group.map((one, i) => <li key={i}>{ledgerSeveralItem(one, lang)}</li>)}
+        </ul>
+      ) : null}
       {a.checked ? (
         <div className={`ledger__checked ledger__checked--${a.checked.verdict}`}>
           {fill(SAYS.checkedBy, lang, {

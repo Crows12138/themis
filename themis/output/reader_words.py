@@ -613,6 +613,21 @@ GLOSSED: dict[str, Glossed] = {
         browser_table="STATED_FORM_CLAIM_WORDS",
         members=lambda: _stated("themis.output.result_orchestrator.Form"),
     ),
+    # And the two a claim takes when several ledger lines make it of
+    # different things: the sentence said once, and what each line is listed
+    # as under it. Not on any envelope — the ledger carries a line per
+    # assumption and both surfaces put them together where they render — so
+    # the tables are the only declaration, keyed by the claim's own token.
+    "ledger_several_lead": Glossed(
+        gloss="themis.ledger.SEVERAL_LEAD",
+        browser_table="LEDGER_SEVERAL_LEAD",
+        members=lambda: frozenset(_resolve("themis.ledger.SEVERAL_LEAD")),
+    ),
+    "ledger_several_item": Glossed(
+        gloss="themis.ledger.SEVERAL_ITEM",
+        browser_table="LEDGER_SEVERAL_ITEM",
+        members=lambda: frozenset(_resolve("themis.ledger.SEVERAL_ITEM")),
+    ),
 
     # --- and the four the two recovery verdicts are made of -----------------
     #

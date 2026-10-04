@@ -206,6 +206,54 @@ export function goesWithTheVerdict(a: LedgerEntry): boolean {
     || generated.LEADING_VERDICTS.includes(a.checked?.verdict ?? '')
 }
 
+// Ledger lines that make one claim of several things, put together — the
+// same grouping as themis.ledger.grouped, over the tables the kernel
+// generates. The envelope carries a line per assumption; a reader was shown
+// the whole sentence and its tags once per edge the model drew. Two lines go
+// together where everything shown about them is the same but what the claim
+// is about, and only for a claim the kernel has a said-once sentence for.
+const LEDGER_SEVERAL_LEAD = generated.LEDGER_SEVERAL_LEAD
+const LEDGER_SEVERAL_ITEM = generated.LEDGER_SEVERAL_ITEM
+function saidWith(a: LedgerEntry): string | null {
+  const claim = a.claim ?? []
+  if (claim.length !== 1) return null
+  const one = claim[0] as { vocabulary?: unknown; token?: unknown; words?: unknown }
+  const token = String(one.token ?? '')
+  if (one.words || !(token in LEDGER_SEVERAL_LEAD)) return null
+  return JSON.stringify([
+    a.severity, a.layer, a.provenance, Boolean(a.testable),
+    a.checked?.verdict ?? null, a.checked?.by ?? null,
+    String(one.vocabulary ?? ''), token,
+  ])
+}
+
+export function ledgerGrouped(entries: readonly LedgerEntry[]): LedgerEntry[][] {
+  const out: LedgerEntry[][] = []
+  const where = new Map<string, number>()
+  for (const a of entries) {
+    const key = saidWith(a)
+    const at = key === null ? undefined : where.get(key)
+    if (at !== undefined) {
+      out[at].push(a)
+    } else {
+      if (key !== null) where.set(key, out.length)
+      out.push([a])
+    }
+  }
+  return out
+}
+
+// The sentence several lines share, and what one of them is listed as.
+export function ledgerSeveralLead(group: readonly LedgerEntry[], lang: Lang = DEFAULT_LANG): string {
+  const token = String((group[0].claim[0] as { token?: unknown }).token ?? '')
+  return fill(LEDGER_SEVERAL_LEAD[token], lang, { n: group.length })
+}
+
+export function ledgerSeveralItem(a: LedgerEntry, lang: Lang = DEFAULT_LANG): string {
+  const one = a.claim[0] as Occasion & { token?: unknown }
+  return assembled(String(one.token ?? ''), one, LEDGER_SEVERAL_ITEM, lang)
+}
+
 // What a partial-identification interval brackets. Two numbers about the
 // wrong quantity read exactly like two numbers about the right one, and this
 // surface used to print neither the numbers nor their name — only the method
@@ -2482,6 +2530,10 @@ export const VOCABULARIES: Record<string, Record<string, unknown>> = {
   assumption_claim: ASSUMPTION_CLAIM_WORDS,
   theta_prior_claim: THETA_PRIOR_CLAIM_WORDS,
   stated_form_claim: STATED_FORM_CLAIM_WORDS,
+  // And the two a claim takes when several ledger lines make it of
+  // different things: the sentence said once, and what each is listed as.
+  ledger_several_lead: LEDGER_SEVERAL_LEAD,
+  ledger_several_item: LEDGER_SEVERAL_ITEM,
   // And what a discovery run says about itself. It rides on the same
   // carrier from a kernel_ast's `discovery_metadata` and from a
   // `notears_fit`, which is why this surface needs it even though no

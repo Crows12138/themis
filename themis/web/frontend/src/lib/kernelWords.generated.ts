@@ -2808,6 +2808,36 @@ export const LATE_CAVEAT_WORDS: Record<string, Words> = {
   },
 }
 
+export const LEDGER_SEVERAL_ITEM: Record<string, Words> = {
+  a_commonsense_prior: {
+    zh: '{key} = {value}',
+    en: '{key} = {value}',
+  },
+  no_interaction: {
+    zh: '{distribution}',
+    en: '{distribution}',
+  },
+  the_edge_is_an_llm_proposal: {
+    zh: '`{edge}`',
+    en: '`{edge}`',
+  },
+}
+
+export const LEDGER_SEVERAL_LEAD: Record<string, Words> = {
+  a_commonsense_prior: {
+    zh: '这 {n} 个数是 LLM 给的常识 prior',
+    en: 'these {n} numbers are commonsense priors from the language model',
+  },
+  no_interaction: {
+    zh: '这 {n} 张表各由一个基线概率和每个条件各自的优势比合成：假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）',
+    en: 'each of these {n} tables is composed from a baseline and one odds ratio per condition, assuming each condition\'s effect on the odds is the same whatever the others are (no interaction)',
+  },
+  the_edge_is_an_llm_proposal: {
+    zh: '结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边。当前回答相当于复述这些假设，而非独立验证。',
+    en: 'these {n} edges on the route to the structural answer are hypotheses the upstream LLM proposed (annotations.source = llm_proposal), not edges evidence supports. The answer as it stands restates those hypotheses rather than verifying them.',
+  },
+}
+
 export const MALFORMED_WORDS: Record<string, Words> = {
   bridge_under_determined: {
     zh: '近端 {bridge}：矩条件只有 {moments} 个，未知数有 {unknowns} 个。方程比未知数少，那不是病态求解，是欠定——加惩罚项也只是从无穷多个解里挑一个出来，而不是把它定下来',

@@ -785,3 +785,88 @@ def summary(entries, lang: Lang | str = DEFAULT) -> str:
              else fill(AUDIT_ALL_OF_THEM, lang))
     return fill(SUMMARY, lang, total=len(entries),
                 parts=statements(*parts, lang=lang), audit=audit)
+
+
+# --- several lines said once ---------------------------------------------------
+
+#: The sentence a claim takes when several lines make it of different things.
+#:
+#: A ledger holds one line per assumption, which is what a verifier holds
+#: each of to its source. A reader does not need the sentence once per line:
+#: across the answers the live model has produced, a ledger of 3 to 33 lines
+#: is 1 to 3 of these — one per edge the model drew, one per number it
+#: guessed, one per table it composed — and each line repeated its whole
+#: sentence, and its three tags, around the one thing that differed.
+#:
+#: Keyed by the claim's own token. A claim with no entry here is said line
+#: by line, as before; so is one made of more than one statement.
+SEVERAL_LEAD: dict[str, Words] = {
+    "the_edge_is_an_llm_proposal": {
+        "zh": "结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设"
+              "（annotations.source = llm_proposal），不是经证据支持的边。"
+              "当前回答相当于复述这些假设，而非独立验证。",
+        "en": "these {n} edges on the route to the structural answer are "
+              "hypotheses the upstream LLM proposed (annotations.source = "
+              "llm_proposal), not edges evidence supports. The answer as it "
+              "stands restates those hypotheses rather than verifying them.",
+    },
+    "a_commonsense_prior": {
+        "zh": "这 {n} 个数是 LLM 给的常识 prior",
+        "en": "these {n} numbers are commonsense priors from the language "
+              "model",
+    },
+    "no_interaction": {
+        "zh": "这 {n} 张表各由一个基线概率和每个条件各自的优势比合成："
+              "假设每个条件对优势的作用不随其他条件的取值而变（无交互作用）",
+        "en": "each of these {n} tables is composed from a baseline and one "
+              "odds ratio per condition, assuming each condition's effect on "
+              "the odds is the same whatever the others are (no interaction)",
+    },
+}
+
+#: And what one of the several is listed as under that sentence: the part
+#: of the claim that differed, in the holes its own sentence has for it.
+SEVERAL_ITEM: dict[str, Words] = {
+    "the_edge_is_an_llm_proposal": {"zh": "`{edge}`", "en": "`{edge}`"},
+    "a_commonsense_prior": {"zh": "{key} = {value}", "en": "{key} = {value}"},
+    "no_interaction": {"zh": "{distribution}", "en": "{distribution}"},
+}
+
+
+def _said_with(entry) -> tuple | None:
+    """What a line shares with every line it can be said together with, or
+    ``None`` where it is said alone."""
+    claim = list(entry.get("claim") or [])
+    if len(claim) != 1 or claim[0].get("words"):
+        return None
+    spelling = str(claim[0].get("token"))
+    if spelling not in SEVERAL_LEAD:
+        return None
+    verdict = entry.get("checked") or {}
+    return (str(entry.get("severity")), str(entry.get("layer")),
+            str(entry.get("provenance")), bool(entry.get("testable")),
+            str(verdict.get("verdict")), str(verdict.get("by")),
+            str(claim[0].get("vocabulary")), spelling)
+
+
+def grouped(entries) -> list[list]:
+    """The ledger's lines, with those making one claim of several things
+    put together, in the order the first of each was met.
+
+    Two lines go together where everything a reader is told about them is
+    the same except what the claim is about: the grade, the layer, who put
+    it there, whether it can be tested, what a check concluded, and the
+    sentence. A group of one is a line said as it always was.
+    """
+    out: list[list] = []
+    where: dict[tuple, int] = {}
+    for entry in entries or ():
+        key = _said_with(entry)
+        if key is None:
+            out.append([entry])
+        elif key in where:
+            out[where[key]].append(entry)
+        else:
+            where[key] = len(out)
+            out.append([entry])
+    return out

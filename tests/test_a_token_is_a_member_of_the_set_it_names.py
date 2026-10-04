@@ -296,6 +296,12 @@ def test_a_member_may_be_spelled_the_way_another_set_spells_one():
         if sum(token in ms for ms in members.values()) > 1
     }
     assert shared == {
+        # Shared on purpose (#812): what a claim is said as of several
+        # ledger lines is keyed by the claim's own token.
+        "a_commonsense_prior": ["ledger_several_item", "ledger_several_lead",
+                                "theta_prior_claim"],
+        "no_interaction": ["ledger_several_item", "ledger_several_lead",
+                           "stated_form_claim"],
         "binary": ["four_way_mediator_scale", "measurement_scale"],
         "continuous": ["four_way_mediator_scale", "measurement_scale"],
         "exposure": ["measurement_correction_side", "query_role"],
