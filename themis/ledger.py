@@ -802,13 +802,13 @@ def summary(entries, lang: Lang | str = DEFAULT) -> str:
 #: by line, as before; so is one made of more than one statement.
 SEVERAL_LEAD: dict[str, Words] = {
     "the_edge_is_an_llm_proposal": {
-        "zh": "结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设"
-              "（annotations.source = llm_proposal），不是经证据支持的边。"
+        "zh": "结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设，"
+              "不是经证据支持的边。"
               "当前回答相当于复述这些假设，而非独立验证。",
         "en": "these {n} edges on the route to the structural answer are "
-              "hypotheses the upstream LLM proposed (annotations.source = "
-              "llm_proposal), not edges evidence supports. The answer as it "
-              "stands restates those hypotheses rather than verifying them.",
+              "hypotheses the upstream LLM proposed, not edges evidence "
+              "supports. The answer as it stands restates those hypotheses "
+              "rather than verifying them.",
     },
     "a_commonsense_prior": {
         "zh": "这 {n} 个数是 LLM 给的常识 prior",

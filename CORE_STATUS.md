@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-32246 passed / 535 skipped, warning-clean
+32251 passed / 535 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,18 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #814 说「这条边是模型提出的假设」时不再带内部字段名（2026-10-05）
+
+**来历**：台账里那句「边 `X → Y` 是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边」，括号里是程序里记这件事的字段地址。用户看结果页时确认去掉。
+
+- **做法**：
+  - `themis/gaps.py` 单条边的句子、`themis/ledger.py` 的 `SEVERAL_LEAD`（#812 归并后多条边的领句），中英两种都去掉括号。
+  - 字段地址没有丢：台账条目的 `source_path` 仍然是 `program:cause:X->Y:annotations.source`，给程序和审计用。
+  - 网页词表 `kernelWords.generated.ts` 重新生成。
+- **核实**：新测试 `test_a_proposed_edge_is_said_without_the_field_that_records_it.py`，5 例。全量只挂 1 例（1 failed / 32250 passed）：`test_a2_cause_annotations.py` 里有一句从渲染出的提示里读 `llm_proposal` 这个词，改成读读者看到的那句话；改后只单独重跑了该文件（25 passed），没有再跑第二遍全量。
+
+**基线**：32251 passed / 535 skipped。台账里「这条边是模型提出的假设」一句去掉括号里的内部字段名（单条与归并两种说法、中英文）；新测试 5 例
 
 ### #813 因果图改了还没重跑时，下面的结果标明是旧的（2026-10-05）
 

@@ -265,7 +265,9 @@ def test_unverified_proposal_edge_emits_informational_gap():
     # so a renderer cannot leave it to the bottom of a list.
     assert "running" in caveats.text(result)
     assert "belly_fat_loss" in caveats.text(result)
-    assert "llm_proposal" in caveats.text(result)
+    # Said as what it is, not by the field that records it (#814).
+    assert "LLM 提出的假设" in caveats.text(result)
+    assert "llm_proposal" not in caveats.text(result)
 
 
 def test_evidence_backed_edge_does_not_emit_proposal_gap():

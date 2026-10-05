@@ -1732,8 +1732,8 @@ export const GAP_DESCRIBES: Record<string, Words> = {
     en: 'Formula (5)\'s answer is a contrast — what `{outcome}` would be under one level of `{treatment}` minus what it would be under another — and `{treatment}` has {levels} levels here, so there is no one pair for it to be the contrast between. The channel itself is sound; what does not fit is the shape of the answer.',
   },
   the_edge_is_an_llm_proposal: {
-    zh: '结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。',
-    en: 'the edge `{edge}` on the route to the structural answer is a hypothesis the upstream LLM proposed (annotations.source = llm_proposal), not an edge evidence supports. The answer as it stands restates that hypothesis rather than verifying it.',
+    zh: '结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设，不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。',
+    en: 'the edge `{edge}` on the route to the structural answer is a hypothesis the upstream LLM proposed, not an edge evidence supports. The answer as it stands restates that hypothesis rather than verifying it.',
   },
   the_edge_survived_this_share_of_resamples: {
     zh: '自助法稳定度 {confidence}（该边在此比例的数据重采样中重现；越低越可能是采样噪声，越应复核）。',
@@ -2833,8 +2833,8 @@ export const LEDGER_SEVERAL_LEAD: Record<string, Words> = {
     en: 'each of these {n} tables is composed from a baseline and one odds ratio per condition, assuming each condition\'s effect on the odds is the same whatever the others are (no interaction)',
   },
   the_edge_is_an_llm_proposal: {
-    zh: '结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设（annotations.source = llm_proposal），不是经证据支持的边。当前回答相当于复述这些假设，而非独立验证。',
-    en: 'these {n} edges on the route to the structural answer are hypotheses the upstream LLM proposed (annotations.source = llm_proposal), not edges evidence supports. The answer as it stands restates those hypotheses rather than verifying them.',
+    zh: '结构性回答途径上的这 {n} 条边是上游 LLM 提出的假设，不是经证据支持的边。当前回答相当于复述这些假设，而非独立验证。',
+    en: 'these {n} edges on the route to the structural answer are hypotheses the upstream LLM proposed, not edges evidence supports. The answer as it stands restates those hypotheses rather than verifying them.',
   },
 }
 

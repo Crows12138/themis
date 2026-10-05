@@ -3758,11 +3758,11 @@ DESCRIBES: dict[str, language.Words] = {
               "PC: 忠实性 + 因果充足性；LiNGAM: 线性 + 非高斯）为前提。"},
     "the_edge_is_an_llm_proposal": {
         "en": "the edge `{edge}` on the route to the structural answer is a "
-              "hypothesis the upstream LLM proposed (annotations.source = "
-              "llm_proposal), not an edge evidence supports. The answer as it "
-              "stands restates that hypothesis rather than verifying it.",
-        "zh": "结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设（annotations.source = "
-              "llm_proposal），不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。"},
+              "hypothesis the upstream LLM proposed, not an edge evidence "
+              "supports. The answer as it stands restates that hypothesis "
+              "rather than verifying it.",
+        "zh": "结构性回答途径上的边 `{edge}` 是上游 LLM 提出的假设，"
+              "不是经证据支持的边。当前回答相当于复述这条假设，而非独立验证。"},
     "the_edge_survived_this_share_of_resamples": {
         "en": "bootstrap stability {confidence} (the share of resamples the "
               "edge reappears in; the lower it is the more likely it is "
