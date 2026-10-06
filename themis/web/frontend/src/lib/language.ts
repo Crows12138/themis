@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { named } from './names'
 
 // Which language this surface is answering the reader in.
 //
@@ -218,7 +219,12 @@ export function fill(
     if (!(name in slots)) {
       throw new Error(`this sentence has a {${name}} and nothing filled it`)
     }
-    return String(slots[name])
+    // What fills a hole is where a sentence names the program's variables —
+    // an edge, a key, a formula, written in identifiers by whoever produced
+    // it. A reader is shown each by the name the program gives it (names.ts);
+    // the words of the sentence itself are this build's and are left alone.
+    const value = slots[name]
+    return typeof value === 'string' ? named(value) : String(value)
   })
 }
 

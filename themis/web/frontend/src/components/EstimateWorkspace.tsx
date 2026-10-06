@@ -3,6 +3,7 @@ import Papa from 'papaparse'
 import { errorText, estimate } from '../api'
 import { BIOMED_PROGRAM, biomedSampleRows, naiveDiff, queryXY, rowsToCsv } from '../lib/biomed'
 import { fill, useLang, type Words } from '../lib/language'
+import { rowsAsWritten } from '../lib/names'
 import { DagBuilder } from './DagBuilder'
 import { ResultView, type ResultPayload } from './ResultView'
 
@@ -91,10 +92,14 @@ export function EstimateWorkspace({
     setBusy(true)
     setError(null)
     try {
-      const env = await estimate(program, data.rows)
+      // A column headed by a variable's name is that variable's column
+      // (names.ts): the canvas shows names, so that is what a reader types
+      // into a header.
+      const rows = rowsAsWritten(data.rows, program)
+      const env = await estimate(program, rows)
       const r = env.results?.[0]
       const { x, y } = queryXY(program)
-      const naive = x && y ? naiveDiff(data.rows, x, y) : null
+      const naive = x && y ? naiveDiff(rows, x, y) : null
       if (r) setPayload({ asked: fill(SAYS.asked, lang, { name: data.name, n: data.rows.length }), result: r, program, naive })
       else setError(fill(SAYS.noResult, lang))
     } catch (e) {

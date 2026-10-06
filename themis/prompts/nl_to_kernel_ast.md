@@ -240,6 +240,14 @@ measurement schedule, SUTVA concerns.
 ### 2. Predicates
 
 - **English snake_case** names; predicates only (not class names).
+  The predicate is an identifier: it is what every formula, key and
+  data column is written in, and it is not what the user reads. So each
+  `variable` declaration also carries `name` — the same variable in the
+  words the user would use for it, keyed by the language tag of the
+  language their question is written in. The graph and every sentence
+  shown to them say the variable by that name, so it is a short noun
+  phrase a person would say, not a translation of the identifier's
+  parts.
 - Single subject — use object name `"me"` if the user refers to
   themselves (`我`, `你`) or no subject is stated.
 - Predicates are bool (`domain: [true, false]`) **except** when the
@@ -1146,8 +1154,8 @@ answer:
   "domain": {"objects": [{"kind": "object", "name": "me"}]},
   "options": {"strict_framing": false},
   "statements": [
-    {"kind": "variable", "predicate": "some_cause",  "domain": [true, false]},
-    {"kind": "variable", "predicate": "some_effect", "domain": [true, false]},
+    {"kind": "variable", "predicate": "some_cause",  "domain": [true, false], "name": {"en": "some cause"}},
+    {"kind": "variable", "predicate": "some_effect", "domain": [true, false], "name": {"en": "some effect"}},
 
     { "kind": "cause",
       "from": {"predicate": "some_cause",  "args": [{"type": "const", "name": "me"}]},
@@ -1168,8 +1176,10 @@ answer:
 **Format notes** (this block is the concrete format anchor):
 
 - A `variable` declaration is a **bare predicate** —
-  `{"kind": "variable", "predicate": "...", "domain": [...]}` plus the
-  framing fields the user stated (§2), and nothing else. It is not an
+  `{"kind": "variable", "predicate": "...", "domain": [...]}` plus its
+  `name` and the framing fields the user stated (§2), and nothing else.
+  `name` is keyed by the language of the question — the skeleton is
+  written in English, so its key is `en`. It is not an
   atom, so it has **no `args`**: every predicate appearing **inside an
   edge or a query** is an **atom** and carries
   `args: [{"type": "const", "name": "me"}]`. It has **no `annotations`**

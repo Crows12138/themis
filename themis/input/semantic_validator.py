@@ -966,6 +966,7 @@ def _to_statement(d: dict):
             state_vs_event=d.get("state_vs_event"),
             scale=d.get("scale"),
             censoring=_censoring(d.get("censoring")),
+            name=tuple(sorted((d.get("name") or {}).items())),
         )
     raise TypeError(f"unknown statement kind: {k}")
 

@@ -4,6 +4,7 @@ import {
   severityLabel, stated,
 } from '../lib/verdict'
 import { fill, useLang, type Lang, type Words } from '../lib/language'
+import { named } from '../lib/names'
 import { Clamp } from './Clamp'
 import { Foldout } from './Foldout'
 
@@ -138,7 +139,7 @@ function Table({ row, lang }: { row: Row; lang: Lang }) {
     <>
       <Top g={row.gaps[0]} lang={lang} />
       <p className="gap__desc">
-        <span className="mono">{row.distribution}</span>
+        <span className="mono">{row.distribution ? named(row.distribution) : null}</span>
         {fill(SAYS.table, lang, { n: row.gaps.length })}
       </p>
       {said[0].map((line, i) => (shared[i] ? <Said key={i} line={line} lang={lang} /> : null))}

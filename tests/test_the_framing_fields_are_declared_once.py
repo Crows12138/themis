@@ -56,6 +56,10 @@ NOT_FRAMING = {
         "question to every variable in every program, when what it is "
         "true of is a follow-up time"
     ),
+    "name": (
+        "what a reader calls the variable, by language: how it is SAID, "
+        "not what it means. Nothing computes from it and no gap reads it"
+    ),
 }
 
 

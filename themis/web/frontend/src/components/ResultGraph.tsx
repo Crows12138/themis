@@ -67,7 +67,7 @@ export function ResultGraph({
             <button
               className={edited ? 'btn btn--due' : 'btn'}
               disabled={busy}
-              onClick={() => { if (ref.current) onRerun(graphToProgram(program, ref.current.getNodes(), ref.current.getEdges())) }}
+              onClick={() => { if (ref.current) onRerun(graphToProgram(program, ref.current.getNodes(), ref.current.getEdges(), lang)) }}
             >
               {fill(busy ? SAYS.rerunning : SAYS.rerun, lang)}
             </button>

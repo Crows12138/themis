@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { asks, errorText, type Asked, type AskedTable, type SupplyAnswer } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
+import { named } from '../lib/names'
 import { HOW_AN_ODDS_RATIO_READS } from '../lib/oddsRatio'
 import { Foldout } from './Foldout'
 
@@ -131,7 +132,7 @@ function Field({
   const lang = useLang()
   return (
     <label className="supply__row">
-      <span className="supply__label mono">{label}</span>
+      <span className="supply__label mono">{named(label)}</span>
       <input
         className="framefield__input supply__input mono"
         inputMode="decimal"
@@ -212,7 +213,7 @@ export function SupplyNumbers({
           ) : (
             <div className="framevar" key={a.index}>
               <div className="framevar__top">
-                <span className="framevar__name mono">{a.table}</span>
+                <span className="framevar__name mono">{named(a.table)}</span>
                 <button className="linklike" onClick={() => setByCells((b) => ({ ...b, [a.index]: !b[a.index] }))}>
                   {fill(byCells[a.index] ? SAYS.byRatios : SAYS.byCells, lang, { n: a.cells.length })}
                 </button>

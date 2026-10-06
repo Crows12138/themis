@@ -165,6 +165,13 @@ def _merge_two_decls(a: dict, b: dict, predicate: str) -> dict:
     if named:
         out["defaulted"] = sorted(named)
 
+    # ``name`` is what a reader calls the variable, by language. It is not
+    # a claim about the variable, so two documents wording it differently
+    # is not a conflict: each language keeps the first wording it was given.
+    said = {**(b.get("name") or {}), **(a.get("name") or {})}
+    if said:
+        out["name"] = dict(sorted(said.items()))
+
     return out
 
 

@@ -28,10 +28,11 @@ the three the questions actually turn on. Every other listing in the
 system is a projection of this table, and the tests say which — including
 the two that cannot import Python and are held to it from outside.
 
-``scale`` and ``defaulted`` are on the declaration and are not here.
-``scale`` answers a question about the DATA (what the column holds), not
-about what the variable means; ``defaulted`` names members of this table
-rather than being one.
+``scale``, ``defaulted`` and ``name`` are on the declaration and are not
+here. ``scale`` answers a question about the DATA (what the column holds),
+not about what the variable means; ``defaulted`` names members of this
+table rather than being one; ``name`` is what a reader calls the variable,
+which is how it is SAID and not what it means.
 """
 from __future__ import annotations
 

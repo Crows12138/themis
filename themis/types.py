@@ -1237,6 +1237,13 @@ class VariableDeclaration:
     # column is min(event, end of follow-up), and averaging it understates
     # the effect by however much of the tail nobody watched.
     censoring: "Censoring | None" = None
+    # 2026-10-07. What a reader calls the variable, as (language tag, text)
+    # pairs in tag order. ``predicate`` is the identifier every formula and
+    # key is written in; this is the same variable in a reader's words, for
+    # a surface that draws or says it. Nothing here computes from it and no
+    # gap reads it. Pairs rather than a mapping because a declaration is
+    # hashable, and by language because the reader's page can be switched.
+    name: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

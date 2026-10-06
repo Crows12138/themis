@@ -37,7 +37,11 @@ def _code(path: pathlib.Path) -> str:
 def test_what_a_graph_says_is_its_names_and_edges_and_not_where_they_sit():
     shape = web_source.chunks(_code(GRAPH))["graphShape"]
     assert "position" not in shape
-    assert "data.label" in shape
+    # By the identifier each node is written as (#815), not the text on it:
+    # a variable shown under its name in one language and another is the
+    # same variable, and switching language is not an edit.
+    assert "written(nodes, DEFAULT_LANG)" in shape
+    assert "as.get(n.id)?.predicate" in shape
     # A latent confounder has no direction, so its two ends are sorted; a
     # cause keeps its order.
     assert "[a, b].sort()" in shape

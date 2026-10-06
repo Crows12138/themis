@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FRAMING_FIELDS } from '../lib/verdict'
 import { fill, useLang, type Words } from '../lib/language'
+import { nameOf } from '../lib/names'
 import type { ClarifyPick } from '../api'
 import { Foldout } from './Foldout'
 
@@ -51,7 +52,7 @@ export function FramingFill({ vars, busy, onSubmit }: { vars: string[]; busy: bo
         {vars.map((v) => (
           <div className="framevar" key={v}>
             <div className="framevar__top">
-              <span className="framevar__name mono">{v}</span>
+              <span className="framevar__name mono">{nameOf(v)}</span>
               <button className="linklike" onClick={() => setOpen((o) => ({ ...o, [v]: !o[v] }))}>
                 {fill(open[v] ? SAYS.shut : SAYS.open, lang)}
               </button>

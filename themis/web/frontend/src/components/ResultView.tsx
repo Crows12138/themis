@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, supply, type ClarifyPick, type MergedEnvelope, type SupplyAnswer } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
+import { named, nameOf, namesOf, showNames } from '../lib/names'
 import { useOffers } from '../lib/offers'
 import { saveResult, whenSaved } from '../lib/saved'
 import { framingVariables, framingDefaultsInProgram, framingFieldLabel } from '../lib/verdict'
@@ -122,6 +123,13 @@ export function ResultView({
   // was computed from (ResultGraph says).
   const [graphEdited, setGraphEdited] = useState(false)
 
+  // The names this program gives its variables are in force for everything
+  // drawn below, from this render on (names.ts): said here rather than in an
+  // effect, because the sentences below are filled while this renders.
+  const names = useMemo(() => namesOf(program, lang), [program, lang])
+  showNames(names)
+  useEffect(() => () => showNames(null), [])
+
   // The reading follows the result on the screen: a re-run with an edited
   // graph, a clarification or priors can each change which question is
   // answered, and a line left over from the last one would say otherwise.
@@ -236,7 +244,7 @@ export function ResultView({
       ) : null}
       {question ? (
         <p className="askedline">
-          <b>{fill(SAYS.readAs, lang)}</b> {fill(question, lang)}
+          <b>{fill(SAYS.readAs, lang)}</b> {named(fill(question, lang))}
         </p>
       ) : null}
       {program && (onRevise || payload.revision) ? (
@@ -263,7 +271,7 @@ export function ResultView({
             <p className="assume__body">
               {defaultedVars.map((d) => (
                 <span key={d.predicate} className="assume__var">
-                  <b className="mono">{d.predicate}</b>
+                  <b className="mono">{nameOf(d.predicate)}</b>
                   {fill(SAYS.defaultedVar, lang, {
                     fields: d.fields
                       .map((f) => framingFieldLabel(f, lang))

@@ -2,6 +2,7 @@ import type { LedgerEntry, QueryResult } from '../types'
 import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict, ledgerGrouped, ledgerSeveralLead, ledgerSeveralItem, unreachedTarget } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Lang, type Words } from '../lib/language'
+import { named } from '../lib/names'
 import { Foldout } from './Foldout'
 
 const SEGS = [0, 1, 2]
@@ -255,7 +256,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                 {shaped.rows.map((r, i) => (
                   <div className="boundsexpr__row" key={i}>
                     <span className="boundsexpr__k">{r.label}</span>
-                    <span className="boundsexpr__v mono">{r.value}</span>
+                    <span className="boundsexpr__v mono">{named(r.value)}</span>
                   </div>
                 ))}
               </div>
@@ -285,7 +286,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     {s.rows.map((r, j) => (
                       <div className="boundsexpr__row" key={j}>
                         <span className="boundsexpr__k">{r.label}</span>
-                        <span className="boundsexpr__v mono">{r.value}</span>
+                        <span className="boundsexpr__v mono">{named(r.value)}</span>
                       </div>
                     ))}
                   </div>
@@ -376,7 +377,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                       <div className="pathchain" key={i}>
                         {p.map((node, j) => (
                           <span className="pathchain__seg" key={j}>
-                            <span className="pathnode mono">{cleanPathNode(node)}</span>
+                            <span className="pathnode mono">{named(cleanPathNode(node))}</span>
                             {j < p.length - 1 ? <span className="pathchain__arrow" aria-hidden>→</span> : null}
                           </span>
                         ))}
@@ -389,7 +390,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               {formula ? (
                 <div className="figure">
                   <span className="figure__cap">{fill(SAYS.idFormula, lang)}</span>
-                  <span className="formula mono">{formula}</span>
+                  <span className="formula mono">{named(formula)}</span>
                 </div>
               ) : null}
 

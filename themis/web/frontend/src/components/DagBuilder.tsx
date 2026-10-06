@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { parseQuery } from '../lib/graph'
+import { parseQuery, written } from '../lib/graph'
 import { fill, say, useLang, type Words } from '../lib/language'
 import { CausalCanvas, type CausalCanvasHandle } from './CausalCanvas'
 
@@ -51,7 +51,12 @@ export interface DagBuilderProps {
  */
 export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initialProgram }: DagBuilderProps) {
   const ref = useRef<CausalCanvasHandle>(null)
-  const [varNames, setVarNames] = useState<string[]>([])
+  // The query's two ends are held as node ids, not as the text on the
+  // node: the text is the reader's to retype and follows the language,
+  // and the variable asked about is the same one throughout. A node that
+  // came from a program has its predicate for an id, which is what
+  // `parseQuery` hands over below.
+  const [vars, setVars] = useState<{ id: string; label: string }[]>([])
   const [qx, setQx] = useState('')
   const [qy, setQy] = useState('')
   const [qkind, setQkind] = useState<'effect' | 'identify' | 'counterfactual'>('effect')
@@ -75,11 +80,20 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     if (names.length < 2) return { refused: REFUSES.tooFew }
     if (new Set(names).size !== names.length) return { refused: REFUSES.duplicate }
     if (names.some((n) => !n)) return { refused: REFUSES.blank }
-    if (!qx || !qy) return { refused: REFUSES.noQuery }
-    if (qx === qy) return { refused: REFUSES.sameVar }
+    // The text on a node is the reader's; the identifier each is written
+    // as, and the name it carries, are read off it here.
+    const as = written(ns, lang)
+    const x = as.get(qx)?.predicate
+    const y = as.get(qy)?.predicate
+    if (!x || !y) return { refused: REFUSES.noQuery }
+    if (x === y) return { refused: REFUSES.sameVar }
+    if (new Set([...as.values()].map((v) => v.predicate)).size !== ns.length) return { refused: REFUSES.duplicate }
 
-    const labelOf = new Map(ns.map((n) => [n.id, (n.data.label as string).trim()]))
-    const statements: Record<string, unknown>[] = names.map((n) => ({ kind: 'variable', predicate: n, domain: [true, false] }))
+    const labelOf = new Map(ns.map((n) => [n.id, as.get(n.id)?.predicate ?? '']))
+    const statements: Record<string, unknown>[] = ns.map((n) => {
+      const { predicate, name } = as.get(n.id) ?? { predicate: '' }
+      return { kind: 'variable', predicate, domain: [true, false], ...(name && Object.keys(name).length ? { name } : {}) }
+    })
     for (const e of es) {
       const a = labelOf.get(e.source) ?? e.source
       const b = labelOf.get(e.target) ?? e.target
@@ -88,10 +102,10 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
     }
 
     let query: Record<string, unknown>
-    if (qkind === 'identify') query = { kind: 'identify', intervention: { atom: atom(qx), value: true }, target: atom(qy), given: [] }
+    if (qkind === 'identify') query = { kind: 'identify', intervention: { atom: atom(x), value: true }, target: atom(y), given: [] }
     else if (qkind === 'counterfactual')
-      query = { kind: 'counterfactual', observed: { atom: atom(qx), value: false }, counterfactual_intervention: { atom: atom(qx), value: true }, counterfactual_target: { atom: atom(qy), value: true } }
-    else query = { kind: 'effect', intervention: { atom: atom(qx), value: true }, target: { atom: atom(qy), value: true }, given: [] }
+      query = { kind: 'counterfactual', observed: { atom: atom(x), value: false }, counterfactual_intervention: { atom: atom(x), value: true }, counterfactual_target: { atom: atom(y), value: true } }
+    else query = { kind: 'effect', intervention: { atom: atom(x), value: true }, target: { atom: atom(y), value: true }, given: [] }
     statements.push({ kind: 'query', id: 'q', query })
 
     return { program: { version: '0.1', domain: { objects: [{ kind: 'object', name: 'me' }] }, statements } }
@@ -116,7 +130,7 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
         seedProgram={initialProgram}
         seedEditable
         height={440}
-        onVarsChange={setVarNames}
+        onVarsChange={setVars}
         emptyHint={
           <>
             <p>{fill(SAYS.emptyCanvas, lang)}</p>
@@ -124,7 +138,7 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
           </>
         }
         toolbarExtra={
-          varNames.length > 0 ? (
+          vars.length > 0 ? (
             <button className="btn btn--ghost" onClick={() => { ref.current?.clear(); setQx(''); setQy('') }}>{fill(SAYS.clear, lang)}</button>
           ) : null
         }
@@ -134,9 +148,9 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
 
       <div className="querybar">
         <span className="querybar__q">{fill(SAYS.query, lang)}</span>
-        <Select label={fill(SAYS.doX, lang)} value={qx} onChange={setQx} options={varNames} />
+        <Select label={fill(SAYS.doX, lang)} value={qx} onChange={setQx} options={vars} />
         <span className="querybar__arrow">)→</span>
-        <Select label={fill(SAYS.outcome, lang)} value={qy} onChange={setQy} options={varNames} />
+        <Select label={fill(SAYS.outcome, lang)} value={qy} onChange={setQy} options={vars} />
         <select className="qselect" value={qkind} onChange={(e) => setQkind(e.target.value as typeof qkind)} aria-label={fill(SAYS.queryKind, lang)}>
           <option value="effect">{fill(SAYS.effect, lang)}</option>
           <option value="identify">{fill(SAYS.identify, lang)}</option>
@@ -156,14 +170,14 @@ export function DagBuilder({ submitLabel, onSubmit, busy, banner, intro, initial
   )
 }
 
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { id: string; label: string }[] }) {
   return (
     <label className="qfield">
       <span className="qfield__label">{label}</span>
       <select className="qselect" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
+          <option key={o.id} value={o.id}>{o.label}</option>
         ))}
       </select>
     </label>

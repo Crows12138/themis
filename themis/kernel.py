@@ -1041,6 +1041,8 @@ def _statement_to_dict(s) -> dict:
                 **({} if s.censoring.horizon is None
                    else {"horizon": s.censoring.horizon}),
             }
+        if s.name:
+            d["name"] = dict(s.name)
         return d
     if isinstance(s, ObservationStatement):
         d = {

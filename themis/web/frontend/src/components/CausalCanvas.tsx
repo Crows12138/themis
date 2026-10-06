@@ -26,11 +26,11 @@ import {
   type OnConnectStart,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { graphShape, programToFlow, reaches, type NodeRole } from '../lib/graph'
+import { graphShape, programToFlow, reaches, type NodeRole, type VarData } from '../lib/graph'
 import { absent, fill, say, type Lang, type Words, useLang } from '../lib/language'
 import { ButtonEdge, FloatingConnectionLine } from './ButtonEdge'
 
-type NData = { label: string; editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
+type NData = VarData & { editing?: boolean; role?: NodeRole; rename?: (id: string, label: string) => void }
 
 // Textbook structural roles, relative to the query (exposure X, outcome Y).
 // Colour groups by what it means for adjustment: exposure/outcome carry the
@@ -129,7 +129,11 @@ function GraphNode({ id, data, selected }: NodeProps<Node<NData>>) {
           className="gnode__input nodrag mono"
           value={data.label}
           spellCheck={false}
-          onChange={(e) => data.rename?.(id, e.target.value.replace(/[^a-zA-Z0-9_]/g, '_'))}
+          // Whatever the reader types, in their own language. Which
+          // identifier the variable is written as is `written`'s to decide
+          // when the graph is read back; turning each other character into
+          // an underscore here was asking a reader to name things in ASCII.
+          onChange={(e) => data.rename?.(id, e.target.value)}
           aria-label={fill(SAYS.varName, lang)}
         />
       ) : (
@@ -169,8 +173,9 @@ export interface CausalCanvasProps {
   /** Whether seeded variables are renamable. Result graph: false (renaming a
    *  query-referenced name breaks the kernel). Build canvas: true. */
   seedEditable?: boolean
-  /** Reactive variable-name list, for a parent's query dropdowns. */
-  onVarsChange?: (names: string[]) => void
+  /** The variables on the canvas, for a parent's query dropdowns: each node's
+   *  id (which does not change as its text is typed) and the text on it. */
+  onVarsChange?: (vars: { id: string; label: string }[]) => void
   /** What the graph on the canvas says (`graphShape`), each time that changes
    *  — so a parent showing a result can tell when the graph has moved on. */
   onShapeChange?: (shape: string) => void
@@ -209,12 +214,17 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
     [setNodes],
   )
 
+  // Read through a ref by `seedFrom`, so that switching language does not
+  // make it a new function and re-seed the canvas over the reader's edits.
+  const langNow = useRef(lang)
+  langNow.current = lang
+
   const seedFrom = useCallback(
     (prog: Record<string, unknown>) => {
-      const { nodes: sn, edges: se } = programToFlow(prog)
+      const { nodes: sn, edges: se } = programToFlow(prog, langNow.current)
       setNodes(sn.map((n) => {
-        const d = n.data as { label: string; role?: NodeRole }
-        return { ...n, type: 'plain', data: { label: d.label, editing: seedEditable, role: d.role, rename } }
+        const d = n.data as unknown as VarData & { role?: NodeRole }
+        return { ...n, type: 'plain', data: { ...d, editing: seedEditable, rename } }
       }))
       setEdges(se)
       setNote(null)
@@ -225,14 +235,27 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   // (Re)seed whenever the seed program changes (e.g. after a re-run).
   useEffect(() => { if (seedProgram) seedFrom(seedProgram) }, [seedProgram, seedFrom])
 
-  // Reactive variable names for a parent query bar — only when the name SET
+  // A variable that came from a program is shown by the name the program
+  // gives it in the reader's language, so the text follows the language —
+  // for the nodes whose text is still the one they were given. One the
+  // reader has retyped is theirs and stays as typed.
+  useEffect(() => {
+    setNodes((ns) => ns.map((n) => {
+      const d = n.data
+      if (!d.predicate || d.label !== (d.shownAs ?? d.predicate)) return n
+      const shown = d.said?.[lang]?.trim() || d.predicate
+      return shown === d.label ? n : { ...n, data: { ...d, label: shown, shownAs: shown } }
+    }))
+  }, [lang, setNodes])
+
+  // The variables for a parent query bar — only when an id or a text
   // changes, so dragging a node (which mutates positions every frame) doesn't
   // storm the parent with re-renders.
   const lastVars = useRef('')
   useEffect(() => {
-    const names = nodes.map((n) => n.data.label)
-    const key = names.join('')
-    if (key !== lastVars.current) { lastVars.current = key; onVarsChange?.(names) }
+    const vars = nodes.map((n) => ({ id: n.id, label: n.data.label }))
+    const key = JSON.stringify(vars)
+    if (key !== lastVars.current) { lastVars.current = key; onVarsChange?.(vars) }
   }, [nodes, onVarsChange])
 
   // And what the graph says, for a parent holding a result computed from an

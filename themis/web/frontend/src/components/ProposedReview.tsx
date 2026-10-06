@@ -1,5 +1,6 @@
 import type { LlmProposedReview, StatedModel } from '../types'
 import { fill, useLang, type Words } from '../lib/language'
+import { named } from '../lib/names'
 import { HOW_AN_ODDS_RATIO_READS } from '../lib/oddsRatio'
 import { Foldout } from './Foldout'
 
@@ -62,7 +63,7 @@ export function ProposedReview({ review, models = [] }: { review: LlmProposedRev
             <div className="proposed__table">
               {probs.map((p, i) => (
                 <div className="proposed__row" key={i}>
-                  <span className="proposed__key mono">{p.key}</span>
+                  <span className="proposed__key mono">{named(p.key)}</span>
                   <span className="proposed__val mono">{p.value}</span>
                   <span className="proposed__reason">{p.reason}</span>
                 </div>
@@ -77,7 +78,7 @@ export function ProposedReview({ review, models = [] }: { review: LlmProposedRev
             <div className="proposed__edges">
               {edges.map((e, i) => (
                 <span className="proposed__edge mono" key={i}>
-                  {e.from} → {e.to}
+                  {named(e.from)} → {named(e.to)}
                 </span>
               ))}
             </div>
