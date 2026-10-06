@@ -517,11 +517,14 @@ def render_reply(
 ) -> str:
     """Turn a ``themis.run`` envelope into a reply in the reader's language.
 
-    The reader's language is a parameter of the request, not a property of
-    the prompt: one document renders every language, and this is the single
-    place that says which one. It is named by its own endonym, because an
-    instruction to answer in one language should not first have to be read
-    in another.
+    The reader is a parameter of the request, not a property of the prompt:
+    one document renders every language and every channel, and this is the
+    single place that says who is reading. Their language is named by its
+    own endonym, because an instruction to answer in one language should
+    not first have to be read in another. And this channel's reader is on
+    the page: they never see the program, so a word that is an address into
+    it — a predicate, a field name, a token — is not one they can use, and
+    the prompt is told so.
     """
     system = _load_system_prompt(_PROMPT_RENDER)
     client = _client(api_key)
@@ -532,6 +535,9 @@ def render_reply(
         user_msg += f"The user asked: {nl}\n\n"
     user_msg += (
         f"Write the reply in {language.endonym(lang)}.\n\n"
+        "The reader is on a web page, reading this beside the graph and the "
+        "itemized result. They do not hold the program: they never see it or "
+        "this JSON, and the page shows each variable by its declared `name`.\n\n"
         "Below is the themis.run envelope (program / merged_program / "
         "results), with any part too large to send folded into a marker. "
         "Render it as the prompt describes.\n\n"

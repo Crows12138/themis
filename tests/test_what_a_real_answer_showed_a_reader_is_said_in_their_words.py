@@ -57,15 +57,16 @@ def test_a_sums_index_is_the_variable_after_the_underscore():
     assert "token.slice(0, token.length - bare.length) + under" in named
 
 
-def test_a_yes_or_no_is_said_in_the_readers_language_beside_a_name():
+def test_a_yes_or_no_is_said_in_the_readers_language_with_the_names_in_force():
     names = _code("lib", "names.ts")
     assert "zh: { yes: '是', no: '否' }" in names
     assert "en: { yes: 'yes', no: 'no' }" in names
     named = web_source.chunks(names)["named"]
-    # Only in a string a name was found in, and only for the names in force:
-    # a string nobody named anything in comes back untouched.
-    assert "if (!changed) return text" in named
+    # Only for the names in force, whose language is known — and not only
+    # in a string an identifier was found in: a model writing the reading
+    # has already said the variable by name and leaves the literal.
     assert "if (!inLang || names !== inForce) return out" in named
+    assert "changed" not in named
     # The language is said with the names.
     assert "showNames(names, lang)" in _code("components", "ResultView.tsx")
 
@@ -78,7 +79,7 @@ def test_a_yes_or_no_is_said_in_the_readers_language_beside_a_name():
     ("Verdict.tsx", '<dd className="estmeta__v">{shown(r.value)}</dd>'),
     ("Verdict.tsx", '<span className="boundsexpr__v">{shown(said)}</span>'),
     ("GapReport.tsx", "{named(line.text)}"),
-    ("ResultView.tsx", '<p className="reply__body">{named(reply)}</p>'),
+    ("ResultView.tsx", "{named(reply)}</Markdown>"),
 ])
 def test_a_row_a_real_answer_printed_an_identifier_in_is_said_by_name(
         component, printed):

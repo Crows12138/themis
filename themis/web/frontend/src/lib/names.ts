@@ -77,32 +77,28 @@ export function showNames(names: Named | null, lang: Lang | null = null): void {
 // A string as a reader is shown it: each identifier that is a variable with
 // a name, said by that name. Everything else is left exactly as it was.
 //
-// Three things about how the kernel writes a variable ride along, each only
-// where a name was found — a string nobody named anything in comes back
-// untouched:
+// Three things about how the kernel writes a variable ride along:
 //
 //   - the objects an atom is about are dropped with its identifier
 //     (`sleep(me)` is 睡眠, not 睡眠(me)): this page asks about one subject,
-//     and the reader never named it;
+//     and the reader never named it. Only for a variable that has a name;
 //   - a sum's index is written against the sign, `Σ_sleep`, which reads as
 //     one token `_sleep`; the variable is the part after the underscore;
 //   - a yes-or-no value is said in the reader's language (=是, not =True),
 //     since a named variable beside a Python literal is half a translation.
+//     Wherever the names in force are the ones shown — a model writing the
+//     reading has already said the variable by name, and leaves the literal.
 export function named(text: string, names: Named = inForce): string {
   if (names.size === 0) return text
-  let changed = false
   const out = text
     .replace(ATOM, (whole, token: string) => (names.has(token) ? token : whole))
     .replace(IDENTIFIER, (token) => {
       const said = names.get(token)
-      if (said !== undefined) { changed = true; return said }
+      if (said !== undefined) return said
       const bare = token.replace(/^_+/, '')
       const under = bare === token ? undefined : names.get(bare)
-      if (under === undefined) return token
-      changed = true
-      return token.slice(0, token.length - bare.length) + under
+      return under === undefined ? token : token.slice(0, token.length - bare.length) + under
     })
-  if (!changed) return text
   if (!inLang || names !== inForce) return out
   const words = YES_OR_NO_SAID[inLang]
   return out.replace(YES_OR_NO, (_, value: string) => `=${value.toLowerCase() === 'true' ? words.yes : words.no}`)

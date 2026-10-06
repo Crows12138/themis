@@ -337,7 +337,24 @@ button { font-family: inherit; cursor: pointer; }
 .reply__head { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
 .reply__head h3 { font-size: var(--text-md); font-weight: 600; color: var(--ink); }
 .reply__rule { flex: 1; height: 1px; background: var(--line); }
-.reply__body { font-size: var(--text-md); line-height: 1.78; color: var(--ink); max-width: var(--measure); white-space: pre-wrap; }
+.reply__body { font-size: var(--text-md); line-height: 1.78; color: var(--ink); max-width: var(--measure); }
+.reply__body > :first-child { margin-top: 0; }
+.reply__body > :last-child { margin-bottom: 0; }
+.reply__body p, .reply__body ul, .reply__body ol, .reply__body pre, .reply__body blockquote { margin: 0 0 var(--space-md); }
+.reply__body h1, .reply__body h2, .reply__body h3, .reply__body h4 { font-family: var(--font-display); font-weight: 600; color: var(--ink); line-height: 1.3; margin: var(--space-lg) 0 var(--space-sm); }
+.reply__body h1 { font-size: var(--text-lg); }
+.reply__body h2 { font-size: var(--text-md); }
+.reply__body h3, .reply__body h4 { font-size: var(--text-base); }
+.reply__body ul, .reply__body ol { padding-left: 1.4em; }
+.reply__body li { margin: 0 0 var(--space-xs); }
+.reply__body li > p { margin: 0; }
+.reply__body code { font-family: var(--font-mono); font-size: 0.88em; background: var(--surface-sunk); border-radius: var(--radius-sm); padding: 0.08em 0.35em; }
+.reply__body pre { font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6; background: var(--surface-sunk); border: 1px solid var(--line-soft); border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md); overflow-x: auto; white-space: pre-wrap; }
+.reply__body pre code { background: none; padding: 0; font-size: inherit; }
+.reply__body blockquote { border-left: 3px solid var(--line-strong); color: var(--ink-soft); padding-left: var(--space-md); }
+.reply__body hr { border: 0; border-top: 1px solid var(--line); margin: var(--space-lg) 0; }
+.reply__body table { border-collapse: collapse; font-size: var(--text-sm); margin: 0 0 var(--space-md); }
+.reply__body th, .reply__body td { border: 1px solid var(--line); padding: var(--space-xs) var(--space-sm); text-align: left; }
 
 /* ============================================================ gaps */
 

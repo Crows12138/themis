@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import Markdown from 'react-markdown'
 import type { QueryResult } from '../types'
 import { assume, clarify, errorText, getApiKey, questionOf, render, runProgram, supply, type ClarifyPick, type MergedEnvelope, type SupplyAnswer } from '../api'
 import { fill, useLang, type Words } from '../lib/language'
@@ -34,6 +35,13 @@ export interface ResultPayload {
 }
 
 export type Workspace = 'ask' | 'build' | 'estimate'
+
+// The reading a model writes is Markdown, and is shown as such: it has a
+// headline, lists and a fenced formula, which read as noise when printed as
+// text. What it cannot do is put something on the page that is not its own
+// words — a link is a place to go that nobody checked, an image is content
+// from somewhere else. Both are unwrapped to their text.
+const NOT_FROM_A_MODEL = ['a', 'img']
 
 const SAYS = {
   askAnother: { zh: '← 再问一个', en: '← Ask another' },
@@ -307,7 +315,9 @@ export function ResultView({
             <h3>{fill(SAYS.answer, lang)}</h3>
             <span className="reply__rule" />
           </div>
-          <p className="reply__body">{named(reply)}</p>
+          <div className="reply__body">
+            <Markdown disallowedElements={NOT_FROM_A_MODEL} unwrapDisallowed>{named(reply)}</Markdown>
+          </div>
         </section>
       ) : program && offers?.llm ? (
         <div className="renderrow">
