@@ -2,7 +2,7 @@ import type { LedgerEntry, QueryResult } from '../types'
 import { tierMeta, statusLabel, statusBlurb, fmtNum, structuralReadout, cleanPathNode, answerRows, answerBlockRows, routeRows, derivationRows, numericDetailRows, citations, refusalKind, refusalSaid, stated, remedyRoutes, assumptionSeverityLabel, ledgerLayerLabel, ledgerProvenanceLabel, ledgerVerdictLabel, ledgerCheckLabel, estimateMeta, boundsEstimandLabel, boundsContrastLabel, listing, sentences, tightnessLabel, tightnessAdvice, intervalWidthAdvice, evalueBandLabel, evalueBandBasisLabel, goesWithTheVerdict, ledgerGrouped, ledgerSeveralLead, ledgerSeveralItem, unreachedTarget } from '../lib/verdict'
 import { fmtFormula } from '../lib/formula'
 import { fill, useLang, type Lang, type Words } from '../lib/language'
-import { named } from '../lib/names'
+import { named, shown } from '../lib/names'
 import { Foldout } from './Foldout'
 
 const SEGS = [0, 1, 2]
@@ -188,9 +188,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
         ) : null}
 
         <div className="verdict__status">
-          <span className="statuschip">
+          {/* The token is what a result says in the envelope, and somebody
+              reading the JSON beside this page looks a status up by it. It
+              is kept for them, on hover, and not printed at a reader. */}
+          <span className="statuschip" title={result.status}>
             {statusLabel(result.status, lang)}
-            <span className="mono">{result.status}</span>
           </span>
           {statusBlurb(result.status, lang) ? <p className="verdict__blurb">{statusBlurb(result.status, lang)}</p> : null}
         </div>
@@ -310,7 +312,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               {meta.map((r, i) => (
                 <div className="estmeta__row" key={i}>
                   <dt className="estmeta__k">{r.label}</dt>
-                  <dd className="estmeta__v">{r.value}</dd>
+                  <dd className="estmeta__v">{shown(r.value)}</dd>
                 </div>
               ))}
             </dl>
@@ -320,8 +322,8 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
               not WHY no number came out but what to do about it, and that is
               the kind — five of them, and this row used to print the species
               instead: one identifier standing in for five different
-              instructions. The species stays as the quiet mono annotation
-              the status chip and the gap list already use. */}
+              instructions. The species is kept on hover, as the status chip
+              and the gap list keep theirs. */}
           {result.estimator_failure ? (
             <div className="boundsexpr">
               <div className="boundsexpr__row">
@@ -330,9 +332,8 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                     ? fill(SAYS.alsoMissing, lang)
                     : refusal ? refusal.lead : fill(SAYS.noNumber, lang)}
                 </span>
-                <span className="boundsexpr__v">
+                <span className="boundsexpr__v" title={result.estimator_failure.failure_type}>
                   {refusal ? refusal.head : fill(SAYS.estimatorRefused, lang)}
-                  <span className="mono"> {result.estimator_failure.failure_type}</span>
                 </span>
               </div>
               <p className="boundsexpr__note">
@@ -361,7 +362,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   {r.rows.map((row, j) => (
                     <div className="boundsexpr__row" key={j}>
                       <span className="boundsexpr__k">{row.label}</span>
-                      <span className="boundsexpr__v">{row.value}</span>
+                      <span className="boundsexpr__v">{shown(row.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -404,7 +405,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   {d.rows.map((row, j) => (
                     <div className="boundsexpr__row" key={j}>
                       <span className="boundsexpr__k">{row.label}</span>
-                      <span className="boundsexpr__v">{row.value}</span>
+                      <span className="boundsexpr__v">{shown(row.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -420,7 +421,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   {chain.rows.map((row, i) => (
                     <div className="boundsexpr__row" key={`chain-${i}`}>
                       <span className="boundsexpr__k">{row.label}</span>
-                      <span className="boundsexpr__v">{row.value}</span>
+                      <span className="boundsexpr__v">{shown(row.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -435,7 +436,7 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   <span className="figure__cap">{fill(SAYS.sources, lang)}</span>
                   {cites.map((said, i) => (
                     <div className="boundsexpr__row" key={`cite-${i}`}>
-                      <span className="boundsexpr__v">{said}</span>
+                      <span className="boundsexpr__v">{shown(said)}</span>
                     </div>
                   ))}
                 </div>
@@ -489,11 +490,11 @@ export function Verdict({ result, naive }: { result: QueryResult; naive?: number
                   ) : null}
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">{fill(SAYS.lower, lang)}</span>
-                    <span className="boundsexpr__v">{b.lower_expression}</span>
+                    <span className="boundsexpr__v">{named(b.lower_expression)}</span>
                   </div>
                   <div className="boundsexpr__row">
                     <span className="boundsexpr__k">{fill(SAYS.upper, lang)}</span>
-                    <span className="boundsexpr__v">{b.upper_expression}</span>
+                    <span className="boundsexpr__v">{named(b.upper_expression)}</span>
                   </div>
                   {/* Neither of these reached this surface at all, which
                       is how the facts locked inside them stayed locked:

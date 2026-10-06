@@ -209,7 +209,7 @@ def test_a_hole_is_filled_with_the_names_in_force():
 def test_a_name_replaces_an_identifier_only_where_it_stands_whole():
     names = _code("lib", "names.ts")
     assert "const IDENTIFIER = /[A-Za-z_][A-Za-z0-9_]*/g" in names
-    assert "names.get(token) ?? token" in names
+    assert "const said = names.get(token)" in names
     # No name in the reader's language is no name: the identifier shows,
     # and a name in another language does not stand in for it.
     assert "(s.name as Record<string, unknown> | undefined)?.[lang]" in names
@@ -218,7 +218,7 @@ def test_a_name_replaces_an_identifier_only_where_it_stands_whole():
 def test_the_result_says_whose_names_are_in_force_as_it_renders():
     view = _code("components", "ResultView.tsx")
     assert "namesOf(program, lang)" in view
-    assert "showNames(names)" in view
+    assert "showNames(names, lang)" in view
     assert "() => showNames(null)" in view
     assert "named(fill(question, lang))" in view
 

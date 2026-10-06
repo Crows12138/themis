@@ -72,7 +72,7 @@ function lines(g: DataGap, lang: Lang): Line[] {
 
 function Said({ line, lang }: { line: Line; lang: Lang }) {
   return line.text ? (
-    <p className="gap__needs"><b>{fill(line.caption, lang)}</b> {line.text}</p>
+    <p className="gap__needs"><b>{fill(line.caption, lang)}</b> {named(line.text)}</p>
   ) : null
 }
 
@@ -113,8 +113,7 @@ function Top({ g, lang }: { g: DataGap; lang: Lang }) {
         <span className="sev__mark" aria-hidden />
         {severityLabel(g.severity, lang)}
       </span>
-      <span className="gap__kindtitle">{gapTitle(g.kind, lang)}</span>
-      <span className="gap__kind">{g.kind}</span>
+      <span className="gap__kindtitle" title={g.kind}>{gapTitle(g.kind, lang)}</span>
     </div>
   )
 }

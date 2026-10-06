@@ -365,7 +365,6 @@ button { font-family: inherit; cursor: pointer; }
 .sev--informational { color: var(--ink-faint); background: var(--surface-sunk); }
 .sev--informational .sev__mark { background: var(--ink-ghost); }
 .gap__kindtitle { font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
-.gap__kind { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-ghost); }
 .gap__desc { font-size: var(--text-sm); color: var(--ink-soft); line-height: 1.55; }
 .gap__needs { font-size: var(--text-xs); color: var(--ink-faint); margin-top: var(--space-2xs); }
 .gap__needs b { color: var(--ink-soft); font-weight: 600; }

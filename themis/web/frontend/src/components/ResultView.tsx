@@ -127,7 +127,7 @@ export function ResultView({
   // drawn below, from this render on (names.ts): said here rather than in an
   // effect, because the sentences below are filled while this renders.
   const names = useMemo(() => namesOf(program, lang), [program, lang])
-  showNames(names)
+  showNames(names, lang)
   useEffect(() => () => showNames(null), [])
 
   // The reading follows the result on the screen: a re-run with an edited
@@ -307,7 +307,7 @@ export function ResultView({
             <h3>{fill(SAYS.answer, lang)}</h3>
             <span className="reply__rule" />
           </div>
-          <p className="reply__body">{reply}</p>
+          <p className="reply__body">{named(reply)}</p>
         </section>
       ) : program && offers?.llm ? (
         <div className="renderrow">
