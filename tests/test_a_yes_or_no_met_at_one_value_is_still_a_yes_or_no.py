@@ -32,7 +32,7 @@ import themis
 from themis import kernel
 from themis.runtime import theta_builder
 from themis.runtime.instantiation import instantiate
-from themis.runtime.numeric_estimator import ProbabilityKey
+from themis.runtime.numeric_estimator import ProbabilityKey, RangeReadShort
 from themis.types import Atom
 
 
@@ -116,8 +116,18 @@ def test_a_boolean_met_only_in_a_condition_has_both():
 def test_a_category_met_at_one_value_keeps_what_it_was_met_at():
     """Nothing says what else a category takes; a yes-or-no is two values
     whichever of them was named."""
-    theta = _built(_p("w", "high", [], 0.4))
+    theta = _built(_p("w", "high", [], 1.0))
     assert theta.domain_of(W) == ("high",)
+
+
+def test_a_category_met_at_one_value_with_part_of_the_mass_has_no_range():
+    """0.4 at the only value named is the numbers saying there are others.
+    The store keeps what was met and refuses to enumerate it: the range is
+    not known, and a sum over the one value would be 0.4 of an answer."""
+    theta = _built(_p("w", "high", [], 0.4))
+    assert W in theta.short
+    with pytest.raises(RangeReadShort):
+        theta.domain_of(W)
 
 
 def test_a_declaration_wins_over_the_values_met():

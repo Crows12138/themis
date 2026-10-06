@@ -1665,6 +1665,10 @@ def _premises_of(program: dict | str | bytes, result: dict):
     # them is the one this context was rebuilt by.
     from .verifier.probability_model_rules import verify_models_are_their_cells
     verify_models_are_their_cells(ast, theta)
+    # Nor which values a variable ranges over, which every sum below reads
+    # off the same store: the program says, and the store is held to it.
+    from .verifier.domain_rules import verify_domains_are_the_programs
+    verify_domains_are_the_programs(ground, graph.nodes, theta)
     # Phase 2.latent S4: thread bidirected edge set into verification
     # context so backdoor_criterion / front_door_criterion /
     # m_separation_witness rules can independently re-check ADMG

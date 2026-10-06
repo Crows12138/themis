@@ -16,13 +16,18 @@ welded to the site. A slot whose text IS the language is what
 a Chinese sentence puts an English phrase in it, which is why the half is
 :class:`Half` below rather than a string the site passes.
 
-**Four species, two classes, and that is not a mismatch.** A caller
+**Five species, three classes, and that is not a mismatch.** A caller
 catches the CHANNEL and reads the SPECIES off the exception, which are
 different questions: ``ConflictingThetaEntry`` is one channel and carries
 three species — two statements that disagree about one key, a
 distribution supplied in full that does not sum to one, and one supplied
 in part whose mass leaves no room for the rest. All three are "your
 numbers cannot all be true at once"; only one of them is a duplicate.
+The fifth species rides a channel of its own, raised by the store rather
+than the builder (``numeric_estimator.RangeReadShort``): a variable
+nothing declares, whose range was read off the values met and whose
+numbers say that reading is short, is refused when something enumerates
+its values and not before — reading one of its cells is sound.
 Keying the vocabulary on the catch channel would have made those one
 sentence with a hole for which kind of contradiction, which is a hole no
 reader can be told the meaning of.
@@ -99,4 +104,22 @@ class Refuses(language.Word, vocabulary="theta_refusal",
             "en": "the values of {distribution} that were supplied sum to "
                   "{total}, which is outside [0, 1], and leaves no "
                   "probability for {missing}",
+        })
+    #: The range of a variable nothing declares is read off the values the
+    #: statements meet it at. A group met at every one of those values
+    #: whose mass falls short of one is the numbers refuting that reading:
+    #: the variable has values the program never wrote, and a sum over the
+    #: written ones alone would be that much of an answer. Said when the
+    #: values are enumerated, which is the use that needs all of them.
+    THE_VALUES_MET_DO_NOT_EXHAUST_THE_RANGE = (
+        "the_values_met_do_not_exhaust_the_range", {
+            "zh": "这个问题要对变量 `{variable}` 的全部取值求和，但它没有声明取值"
+                  "范围，程序里提到它的取值只有 {values}；而 {distribution} 在这些"
+                  "取值上的概率加起来只有 {total}，说明它还有别的取值没写出来。"
+                  "请在变量声明里用 domain 列出全部取值",
+            "en": "this question sums over every value of `{variable}`, which "
+                  "declares no range; the program meets it only at {values}, "
+                  "and {distribution} over those values sums to only {total}, "
+                  "so it has values that were never written down. List every "
+                  "value in the declaration's domain",
         })

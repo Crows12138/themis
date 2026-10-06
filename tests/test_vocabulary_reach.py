@@ -1669,10 +1669,12 @@ _ROWS: dict[str, Vocabulary] = {
                      "of `kernel.run` and nothing between there and the "
                      "caller catches these, so the caller IS the reader — "
                      "the same arrangement `extraction_refusal` has one "
-                     "layer up. Three species over two exception classes, "
+                     "layer up. Five species over three exception classes, "
                      "which is a caller catching the CHANNEL and reading "
-                     "the SPECIES: one class carries both contradictions "
-                     "and only one of them is a duplicate.",
+                     "the SPECIES: one class carries the three "
+                     "contradictions and only one of them is a duplicate; "
+                     "the fifth is raised by the store when a range the "
+                     "numbers showed to be short is enumerated.",
     ),
     "bridge_refusal": Vocabulary(
         declares="themis.web.bridge_words.Bridge",

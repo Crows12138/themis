@@ -56,11 +56,12 @@ from .theta_words import Half, Refuses
 class ConflictingThetaEntry(language.Voiced, ValueError):
     """The caller's numbers cannot all be true at once.
 
-    A CHANNEL, carrying two of the species in
+    A CHANNEL, carrying three of the species in
     :class:`themis.runtime.theta_words.Refuses`: two statements that
-    disagree about one key, and a group whose supplied mass leaves no
-    room for its complement. One is a duplicate and the other is not,
-    and a caller catching this class reads which off ``species``.
+    disagree about one key, a group supplied in full that does not sum to
+    one, and a group whose supplied mass leaves no room for its
+    complement. One is a duplicate and the others are not, and a caller
+    catching this class reads which off ``species``.
     """
 
 
@@ -198,10 +199,11 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
     # supplied entries (sum > 1 + ε or implied complement < -ε) rather
     # than clamp silently. Closes CLadder dry-run finding 2026-05-14
     # (Q8706 marginal).
-    entries = _complete_partial_distributions(entries, final_domains)
+    entries, short = _complete_partial_distributions(
+        entries, final_domains, declared=frozenset(declared_domains))
 
     return Theta(entries=entries, domains=final_domains,
-                 declared=declared_domains)
+                 declared=declared_domains, short=short)
 
 
 def fewest_to_ask(
@@ -263,10 +265,12 @@ def _complete_partial_distributions(
     entries: dict[ProbabilityKey, float],
     final_domains: dict[Atom, tuple[AtomValue, ...]],
     *,
+    declared: frozenset[str] = frozenset(),
     tolerance: float = 1e-9,
-) -> dict[ProbabilityKey, float]:
+) -> tuple[dict[ProbabilityKey, float], dict[Atom, tuple[str, float]]]:
     """Augment ``entries`` so each (target_atom, given) group covers the
-    full declared domain of ``target_atom``.
+    full declared domain of ``target_atom``, and name the atoms whose
+    range is known to be short.
 
     Group the existing entries by ``(target_atom, given)``. For each
     group:
@@ -276,7 +280,17 @@ def _complete_partial_distributions(
       probability axiom alone is insufficient).
 
     Raises ``ConflictingThetaEntry`` from :func:`_hold_the_axiom`, which
-    every group passes through whether or not it is completed.
+    every group passes through whether or not it is completed — a group
+    over one value too. That one used to be skipped as having nothing to
+    complete, and a variable no declaration names, met at one value with
+    P(z=low) = 0.4, was then summed over that value alone: the number
+    reported was 0.4 of an answer. ``declared`` names the variables whose
+    range is the program's word; for the others the range is read off the
+    values met, and a full group whose mass falls short of one is the
+    numbers saying that reading is incomplete. Such an atom is returned as
+    SHORT rather than refused here: reading one of its cells is still
+    sound (an outcome is only ever read), and the store refuses the
+    enumeration when something asks for it (:class:`Theta`).
     """
     # Group entries by (target_atom, frozenset given, population).
     # Fix 3+4: completion is per-population — P(X=true | given, pop=source)
@@ -292,18 +306,25 @@ def _complete_partial_distributions(
         groups.setdefault(group_key, {})[key.target_value] = value
 
     completed = dict(entries)
+    short: dict[Atom, tuple[str, float]] = {}
     for (target_atom, given, pop), value_map in groups.items():
         # Declared domain wins; if target_atom isn't in final_domains
         # (which only includes atoms seen somewhere), default to the
         # boolean fallback consistent with Theta.domain_of.
         domain = final_domains.get(target_atom, (True, False))
-        if len(domain) <= 1:
-            continue
         seen_values = set(value_map.keys())
         missing = [v for v in domain if v not in seen_values]
         total_supplied = sum(value_map.values())
+        if (not missing and target_atom.predicate not in declared
+                and total_supplied < 1.0 - tolerance):
+            short.setdefault(target_atom, (format_probability_key(ProbabilityKey(
+                target_atom=target_atom, target_value="*", given=given,
+                population=pop)), total_supplied))
+            continue
         _hold_the_axiom(target_atom, given, pop, missing, total_supplied,
                         tolerance)
+        if len(domain) <= 1:
+            continue
         if len(missing) != 1:
             # Either complete or under-specified by more than one
             # entry. The probability axiom alone determines the
@@ -321,7 +342,7 @@ def _complete_partial_distributions(
             population=pop,
         )
         completed[new_key] = complement
-    return completed
+    return completed, short
 
 
 def _hold_the_axiom(

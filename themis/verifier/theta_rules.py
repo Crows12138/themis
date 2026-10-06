@@ -44,7 +44,10 @@ def verify_theta_is_a_distribution(theta) -> None:
                     f"theta: {named} gives {atom.predicate}={value!r} the "
                     f"value {p!r}, which is not a probability")
         total = math.fsum(cells.values())
-        domain = tuple(theta.domain_of(atom))
+        # A variable whose range nobody knows (``theta.short``, held to the
+        # program by the domain rule) has no full distribution to add up;
+        # what is present still has to be at most one, checked below.
+        domain = () if atom in theta.short else tuple(theta.domain_of(atom))
         covers = len(domain) > 1 and set(domain) <= set(cells)
         if covers and not abs(total - 1.0) <= TOLERANCE:
             raise VerificationError(

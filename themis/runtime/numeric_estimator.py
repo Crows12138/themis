@@ -41,7 +41,8 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Mapping
 
-from .. import gaps
+from .. import gaps, language
+from . import theta_words
 from ..types import (
     Atom,
     ConstantExpr,
@@ -90,6 +91,22 @@ class ProbabilityKey:
     population: str | None = None
 
 
+class RangeReadShort(language.Voiced, ValueError):
+    """The values a variable ranges over were asked for, and the program
+    does not say.
+
+    A channel for one species of :class:`themis.runtime.theta_words
+    .Refuses`: a variable nothing declares, whose range the builder read
+    off the values the statements met it at, and whose numbers say that
+    reading is incomplete — met in full at those values, with mass short
+    of one. Reading one of its cells is fine, and that is what a formula
+    does with an outcome. Enumerating its values is not, and that is what
+    a sum does with a confounder: a sum over the written values alone was
+    0.4 of an answer, reported as one. Raised where the enumeration is
+    asked for, so a program is refused by what it is used for.
+    """
+
+
 @dataclass
 class Theta:
     """Model parameter store.
@@ -97,11 +114,15 @@ class Theta:
     entries: maps canonical ProbabilityKey to a conditional probability.
     domains: per-atom allowed values, for the atoms the data mentions.
     declared: each declared variable's values, by predicate.
+    short: the atoms whose ``domains`` entry was read off the values met
+        and is known to be incomplete — see :class:`RangeReadShort` — each
+        with the distribution that showed it and that distribution's mass.
     """
 
     entries: dict[ProbabilityKey, float] = field(default_factory=dict)
     domains: dict[Atom, tuple[AtomValue, ...]] = field(default_factory=dict)
     declared: dict[str, tuple[AtomValue, ...]] = field(default_factory=dict)
+    short: dict[Atom, tuple[str, float]] = field(default_factory=dict)
 
     def get(self, key: ProbabilityKey) -> float | None:
         return self.entries.get(key)
@@ -116,7 +137,18 @@ class Theta:
         declared low/mid/high was then asked for at True and at False —
         values it does not take — and the verifier refused the kernel's
         own ask.
+
+        Raises :class:`RangeReadShort` for an atom in ``short``: every
+        caller of this enumerates the values, and for that atom nobody
+        knows them.
         """
+        if atom in self.short:
+            distribution, total = self.short[atom]
+            raise RangeReadShort(
+                theta_words.Refuses.THE_VALUES_MET_DO_NOT_EXHAUST_THE_RANGE,
+                variable=atom.predicate,
+                values=", ".join(str(v) for v in self.domains.get(atom, ())),
+                distribution=distribution, total=total)
         found = self.domains.get(atom)
         if found is not None:
             return found
