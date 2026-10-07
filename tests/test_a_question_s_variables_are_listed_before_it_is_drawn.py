@@ -49,7 +49,7 @@ LISTED = {
     "other_causes_of_outcome": [{"name": "游泳技能", "why": "不会游泳的人更容易溺水"}],
     "mediators": [],
 }
-ASKED = {"question": QUESTION, "variables_to_consider": LISTED}
+ASKED = {"question": QUESTION, "language": "zh", "variables_to_consider": LISTED}
 
 
 def _atom(p):
@@ -72,7 +72,8 @@ def _program(*variables):
 
 
 def _variable(p, **extra):
-    return {"kind": "variable", "predicate": p, "domain": [True, False], **extra}
+    return {"kind": "variable", "predicate": p, "domain": [True, False],
+            "name": {"zh": {"ice_cream": "吃冰激凌", "drowning": "溺水"}[p]}, **extra}
 
 
 GOOD = _program(_variable("ice_cream"), _variable("drowning"))
@@ -209,7 +210,7 @@ def test_the_prompt_says_what_a_turn_of_that_form_is():
     every key the bridge writes into it is named in the section that
     explains it."""
     body = WRITING.split(f"## {SECTION}", 1)[1].split("\n## ", 1)[0]
-    for key in json.loads(llm_bridge._question(QUESTION, LISTED)):
+    for key in json.loads(llm_bridge._question(QUESTION, LISTED, "zh")):
         assert f"`{key}`" in body, key
 
 

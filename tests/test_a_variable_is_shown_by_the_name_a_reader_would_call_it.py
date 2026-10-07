@@ -182,16 +182,21 @@ def test_two_documents_wording_one_variable_differently_do_not_conflict():
 
 # ---------------------------------------------------- the model is told to
 
-def test_the_translation_prompt_asks_for_it_in_the_questions_language():
+def test_the_translation_prompt_asks_for_it_in_the_readers_language():
+    """Keyed by the `language` the question arrives with (the door sends
+    it, since a model left to infer the key copied the skeleton's — see
+    the test named for that), and by the question's own where none does."""
     prompt = PROMPT.read_text(encoding="utf-8")
     section = prompt[prompt.index("### 2. Predicates"):]
     section = section[:section.index("When to omit `domain`")]
     assert "`name`" in section
-    assert "language their question is written in" in " ".join(section.split())
+    flat = " ".join(section.split())
+    assert "the `language` the question arrives with" in flat
+    assert "the language the question is written in" in flat
     # The format anchor shows where it goes, and says the key is the
-    # question's language rather than the skeleton's.
+    # reader's language rather than the skeleton's.
     assert '"name": {"en": "some cause"}' in prompt
-    assert "keyed by the language of the question" in " ".join(prompt.split())
+    assert "keyed by the reader's language" in " ".join(prompt.split())
 
 
 # ------------------------------------------------------------ the page shows it

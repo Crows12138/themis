@@ -125,6 +125,16 @@ class Bridge(language.Word, vocabulary="bridge_refusal",
         "en": "the JSON in the model's reply would not parse ({complaint}): "
               "{payload}",
     })
+    A_VARIABLE_HAS_NO_NAME_IN_THE_READERS_LANGUAGE = (
+        "a_variable_has_no_name_in_the_readers_language", {
+            "zh": "变量 {variables} 的声明里没有 `{language}` 这种语言的 `name`。"
+                  "读者是用这种语言读页面的，图和每一句话都按 `name` 称呼变量；"
+                  "请给每个变量的声明补上这种语言的 `name`",
+            "en": "the declaration of {variables} carries no `name` in "
+                  "`{language}`, the language the reader reads the page in; "
+                  "the graph and every sentence say a variable by its `name`. "
+                  "Give every variable declaration a `name` in that language",
+        })
     THE_MODEL_DECLINED_THE_QUESTION = ("the_model_declined_the_question", {
         "zh": "模型没有把这个问题变成因果图，它给出的理由是：{reason}",
         "en": "the model did not turn this question into a causal graph, and "

@@ -243,11 +243,13 @@ measurement schedule, SUTVA concerns.
   The predicate is an identifier: it is what every formula, key and
   data column is written in, and it is not what the user reads. So each
   `variable` declaration also carries `name` — the same variable in the
-  words the user would use for it, keyed by the language tag of the
-  language their question is written in. The graph and every sentence
-  shown to them say the variable by that name, so it is a short noun
-  phrase a person would say, not a translation of the identifier's
-  parts.
+  words the user would use for it, keyed by the tag of the language
+  they read in: the `language` the question arrives with, or, where it
+  arrives with none, the language the question is written in. The
+  graph and every sentence shown to them say the variable by that name,
+  so it is a short noun phrase a person would say, not a translation of
+  the identifier's parts. A declaration without a name in that language
+  is shown to them as its identifier, and is handed back to you.
 - Single subject — use object name `"me"` if the user refers to
   themselves (`我`, `你`) or no subject is stated.
 - Predicates are bool (`domain: [true, false]`) **except** when the
@@ -1083,10 +1085,12 @@ Two distinctions decide which statement is right:
 ## When the question comes with variables to consider
 
 The question may arrive as an object rather than as text: `question` is
-the reader's question as they wrote it, and `variables_to_consider` is a
-list an earlier step drew up from domain knowledge — not the reader. It
-names the exposure and the outcome and lists candidates by the role each
-would play: common causes, other causes of the outcome, mediators.
+the reader's question as they wrote it; `language` is the tag of the
+language they read in, which every variable's `name` is keyed by (§2);
+and `variables_to_consider` is a list an earlier step drew up from
+domain knowledge — not the reader. It names the exposure and the outcome
+and lists candidates by the role each would play: common causes, other
+causes of the outcome, mediators.
 
 The list is the brainstorm §3 asks for, begun ahead of you: draw every
 entry in the role it is listed under. A common cause gets an edge into
@@ -1120,12 +1124,14 @@ Sometimes the exchange does not end at the question. A turn after a
 program you wrote comes from one of two speakers, and its form says
 which.
 
-A JSON object whose one key is `kernel_refused` is the kernel's. The
-program did not pass its checks as written, and nothing was run; the
-value says where (a path such as `statements/2`) and what is wrong
-there. It is not a new question and it is not a correction to the
-reading: the reading stands, and what the refusal names is a slip in
-how it was written.
+A JSON object whose one key is `kernel_refused` is from the checks the
+program is held to — the kernel's, or the page's, which holds it to
+naming every variable in the reader's language. The program did not
+pass as written, and nothing was run; the value says where (a path such
+as `statements/2`, or the variables concerned) and what is wrong there.
+It is not a new question and it is not a correction to the reading: the
+reading stands, and what the refusal names is a slip in how it was
+written.
 
 Any other turn is the reader's reply after seeing what the program asks
 and the graph it draws. It is not a new question either: it says where
@@ -1178,8 +1184,8 @@ answer:
 - A `variable` declaration is a **bare predicate** —
   `{"kind": "variable", "predicate": "...", "domain": [...]}` plus its
   `name` and the framing fields the user stated (§2), and nothing else.
-  `name` is keyed by the language of the question — the skeleton is
-  written in English, so its key is `en`. It is not an
+  `name` is keyed by the reader's language (§2), which is the skeleton's
+  only because its question is in English. It is not an
   atom, so it has **no `args`**: every predicate appearing **inside an
   edge or a query** is an **atom** and carries
   `args: [{"type": "const", "name": "me"}]`. It has **no `annotations`**

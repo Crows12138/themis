@@ -36,6 +36,9 @@ def _atom(p):
     return {"predicate": p, "args": [{"type": "const", "name": "me"}]}
 
 
+NAMED = {"smoking": "吸烟", "lung_cancer": "肺癌", "genetic_predisposition": "遗传易感性"}
+
+
 def _program(*confounders):
     names = ["smoking", "lung_cancer", *confounders]
     edges = [("smoking", "lung_cancer"),
@@ -44,7 +47,8 @@ def _program(*confounders):
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
         "statements": [
-            *({"kind": "variable", "predicate": n, "domain": [True, False]}
+            *({"kind": "variable", "predicate": n, "domain": [True, False],
+               "name": {"zh": NAMED[n]}}
               for n in names),
             *({"kind": "cause", "from": _atom(a), "to": _atom(b)}
               for a, b in edges),

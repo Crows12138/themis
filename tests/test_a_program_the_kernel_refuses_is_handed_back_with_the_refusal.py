@@ -53,7 +53,8 @@ def _atom(p):
 
 
 def _variable(p, **extra):
-    return {"kind": "variable", "predicate": p, "domain": [True, False], **extra}
+    return {"kind": "variable", "predicate": p, "domain": [True, False],
+            "name": {"zh": {"smoking": "吸烟", "lung_cancer": "肺癌"}[p]}, **extra}
 
 
 def _program(*variables, query=None):
@@ -120,7 +121,7 @@ LISTING = llm_bridge._PROMPT_CONSIDER.read_text(encoding="utf-8")
 LISTED = {"exposure": "吸烟", "outcome": "肺癌", "common_causes": [],
           "other_causes_of_outcome": [], "mediators": []}
 #: The turn a program for :data:`QUESTION` is written from at the door.
-ASKED = {"question": QUESTION, "variables_to_consider": LISTED}
+ASKED = {"question": QUESTION, "language": "zh", "variables_to_consider": LISTED}
 
 
 class _Model:

@@ -27,11 +27,11 @@ the prompt, and no prompt says a language of its own — that is what lets
 one document render every language, and it is why a frame written in the
 document's language is not a text owed a translation.
 
-Nothing in ``themis.web.app`` passes ``lang`` yet: the browser holds the
-reader's choice locally and renders the kernel's words itself, so no
-request body carries it and both LLM surfaces run at
-:data:`themis.language.DEFAULT` whoever is asking. That is a wiring gap on
-the endpoints rather than a fact about this module.
+The request body carries the reader's language, and ``themis.web.app``
+passes it to every call that produces reader text — and to the call that
+writes a program, not because a program has a language but because its
+variables' names are keyed by one, and the door holds the program to
+carrying a name in the reader's (:func:`names_for_the_reader`).
 
 Routing is declared by whoever deploys this, and read in one place,
 :func:`_endpoint`:
@@ -113,7 +113,7 @@ class LLMBridgeError(language.Voiced, RuntimeError):
     A CHANNEL, carrying every species in
     :class:`themis.web.bridge_words.Bridge`. It stays one class because
     what a caller does about it is one thing — this step produced nothing
-    usable — and which of the eleven it was is read off ``species`` by the
+    usable — and which species it was is read off ``species`` by the
     surface that words it for a reader.
 
     Distinct from the semantic errors ``themis.run`` raises, and now
@@ -121,6 +121,45 @@ class LLMBridgeError(language.Voiced, RuntimeError):
     their own sentence, so the web edge hands both to a reader in the
     reader's language instead of one as a sentence and one as a diagnostic.
     """
+
+
+class UnreadableProgram(LLMBridgeError):
+    """A program a model wrote that its reader cannot read.
+
+    The one species a caller does something else about: the program is
+    there and well formed, and what it lacks — a variable's name in the
+    reader's language — is the model's to mend. So the door hands it back
+    with the program, as it does the kernel's refusals of a program as
+    written, rather than asking for a new reading.
+    """
+
+
+def names_for_the_reader(program: dict, lang: language.Lang | str) -> None:
+    """Every variable of ``program`` carries a name in ``lang``, or raise.
+
+    The graph and every sentence on the page say a variable by the name
+    its declaration gives in the reader's language, and a declaration
+    without one is shown as its identifier. The kernel does not hold the
+    program to this: it does not know who is reading. The door does, so
+    the door asks, before the program is run and after a model mends it.
+    """
+    tag = language.Lang(lang).value
+    unnamed = []
+    for s in program.get("statements", ()):
+        # Only what is a variable declaration in form; whether the rest of
+        # the program is well formed is the kernel's question, asked next.
+        if not isinstance(s, dict) or s.get("kind") != "variable":
+            continue
+        if not isinstance(s.get("predicate"), str):
+            continue
+        name = s.get("name")
+        said = name.get(tag) if isinstance(name, dict) else None
+        if not isinstance(said, str) or not said.strip():
+            unnamed.append(s["predicate"])
+    if unnamed:
+        raise UnreadableProgram(
+            Bridge.A_VARIABLE_HAS_NO_NAME_IN_THE_READERS_LANGUAGE,
+            variables=unnamed, language=tag)
 
 
 def _load_system_prompt(path: Path) -> str:
@@ -346,32 +385,47 @@ def variables_to_consider(
     raise last_parse_err  # type: ignore[misc]  # set once the loop ran ≥1 time
 
 
-def _question(nl: str, considered: dict | None) -> str:
+def _question(nl: str, considered: dict | None,
+              lang: language.Lang | str | None = None) -> str:
     """The turn a program is written from: the question, and beside it the
-    variables to consider where a list was drawn up — as one object, so
-    that the prompt can tell the reader's words from the list by the
-    turn's form (its section "When the question comes with variables to
-    consider")."""
-    if considered is None:
+    variables to consider where a list was drawn up, and the language the
+    reader reads the page in where a door knows it — as one object, so
+    that the prompt can tell the reader's words from what is beside them
+    by the turn's form (its section "When the question comes with
+    variables to consider").
+
+    The language is sent because a variable's ``name`` is keyed by it,
+    and a model left to infer the key from the question reads the
+    prompt's own skeleton, which is in English, and keys by that: two
+    programs in twelve on the demo's model, each shown to a Chinese
+    reader as identifiers."""
+    if considered is None and lang is None:
         return nl
-    return json.dumps({"question": nl, "variables_to_consider": considered},
-                      ensure_ascii=False)
+    turn: dict = {"question": nl}
+    if lang is not None:
+        turn["language"] = language.Lang(lang).value
+    if considered is not None:
+        turn["variables_to_consider"] = considered
+    return json.dumps(turn, ensure_ascii=False)
 
 
 def nl_to_kernel_ast(
     nl: str,
     *,
     considered: dict | None = None,
+    lang: language.Lang | str | None = None,
     api_key: str | None = None,
     model: str | None = None,
     max_attempts: int = 3,
 ) -> dict:
     """Turn one NL question into a kernel_ast dict via the project's
     canonical prompt, with ``considered`` — what
-    :func:`variables_to_consider` listed — beside it where there is one.
+    :func:`variables_to_consider` listed — beside it where there is one,
+    and ``lang`` — the language the reader reads the page in, which the
+    variables' names are keyed by — where the caller knows it.
     Returns the dict the LLM emits — caller runs ``themis.run`` on it.
     """
-    return _program_from([{"role": "user", "content": _question(nl, considered)}],
+    return _program_from([{"role": "user", "content": _question(nl, considered, lang)}],
                          api_key=api_key, model=model, max_attempts=max_attempts)
 
 
@@ -416,15 +470,17 @@ def repair_kernel_ast(
     refusal: BaseException,
     *,
     considered: dict | None = None,
+    lang: language.Lang | str | None = None,
     api_key: str | None = None,
     model: str | None = None,
     max_attempts: int = 3,
 ) -> dict:
-    """The program ``nl`` was read as, with what the kernel refused mended.
+    """The program ``nl`` was read as, with what was refused mended.
 
     The exchange opens with the turn the program was written from, the
-    list beside the question included, so that the model mends the reading
-    it made rather than one of a shorter question.
+    list and the reader's language beside the question included, so that
+    the model mends the reading it made rather than one of a shorter
+    question.
 
     A program the kernel refuses was a reading with a slip in its form — a
     key a declaration does not take, a statement of no kind the language
@@ -433,17 +489,19 @@ def repair_kernel_ast(
     had; handed the program and the refusal, it has one thing to mend.
 
     The refusal is the kernel's turn in the same exchange a reader's
-    correction takes, and it is sent as data under ``kernel_refused`` so
-    that the prompt can tell the two speakers apart by the turn's form — see
-    its section "When a program is followed by another turn". Its words are
-    the kernel's own, said in the language the prompt is written in: the
-    reader of this turn is the model, not the person who asked.
+    correction takes — or the door's, where what the program lacks is a
+    name the reader can read — and it is sent as data under
+    ``kernel_refused`` so that the prompt can tell the speakers apart by
+    the turn's form — see its section "When a program is followed by
+    another turn". Its words are the refuser's own, said in the language
+    the prompt is written in: the reader of this turn is the model, not
+    the person who asked.
     """
     said = (language.assemble(refusal.species.words, refusal.said,
                               refusal.words, lang=language.Lang.EN)
             if isinstance(refusal, language.Voiced) else str(refusal))
     return _program_from([
-        {"role": "user", "content": _question(nl, considered)},
+        {"role": "user", "content": _question(nl, considered, lang)},
         {"role": "assistant",
          "content": json.dumps(program, ensure_ascii=False)},
         {"role": "user",
@@ -804,15 +862,18 @@ def ask(
     ``themis.run`` propagate as the original exception so the caller
     can distinguish bridge bugs from kernel rejection.
 
-    Only the reply takes a language. The kernel_ast does not — a program
-    is the same program whoever reads it, and the envelope carries no
-    language for the same reason.
+    The program carries no language — it is the same program whoever
+    reads it, and the envelope carries none for the same reason — but its
+    variables' names are keyed by one, so the call that writes it is told
+    ``lang`` as the key. The web door also holds the program to carrying
+    them (:func:`names_for_the_reader`) and hands one short of them back
+    to be mended; this call returns what the model wrote.
     """
     import themis
 
     considered = variables_to_consider(nl, api_key=api_key, model=model)
-    kernel_ast = nl_to_kernel_ast(nl, considered=considered, api_key=api_key,
-                                  model=model)
+    kernel_ast = nl_to_kernel_ast(nl, considered=considered, lang=lang,
+                                  api_key=api_key, model=model)
     envelope = themis.run(kernel_ast)
     reply = render_reply(envelope, nl=nl, lang=lang, api_key=api_key,
                          model=model)

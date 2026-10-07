@@ -44,13 +44,15 @@ def _a(name):
 
 def _program(z_domain=None):
     """z confounds x and y; no numbers anywhere."""
-    z = {"kind": "variable", "predicate": "z"}
+    z = {"kind": "variable", "predicate": "z", "name": {"zh": "丙"}}
     if z_domain is not None:
         z["domain"] = z_domain
     return {"version": "0.1", "domain": {"objects": [{"kind": "object", "name": "me"}]},
             "statements": [
-                {"kind": "variable", "predicate": "x", "domain": [True, False]},
-                {"kind": "variable", "predicate": "y", "domain": [True, False]},
+                {"kind": "variable", "predicate": "x", "domain": [True, False],
+                 "name": {"zh": "甲"}},
+                {"kind": "variable", "predicate": "y", "domain": [True, False],
+                 "name": {"zh": "乙"}},
                 z,
                 {"kind": "cause", "from": _a("z"), "to": _a("x")},
                 {"kind": "cause", "from": _a("z"), "to": _a("y")},

@@ -33,8 +33,10 @@ def _trivial_program():
         "version": "0.1",
         "domain": {"objects": [{"kind": "object", "name": "me"}]},
         "statements": [
-            {"kind": "variable", "predicate": "x", "domain": [True, False]},
-            {"kind": "variable", "predicate": "y", "domain": [True, False]},
+            {"kind": "variable", "predicate": "x", "domain": [True, False],
+             "name": {"zh": "甲"}},
+            {"kind": "variable", "predicate": "y", "domain": [True, False],
+             "name": {"zh": "乙"}},
             {"kind": "cause", "from": _atom("x"), "to": _atom("y")},
             {"kind": "query", "id": "q",
              "query": {"kind": "cause",

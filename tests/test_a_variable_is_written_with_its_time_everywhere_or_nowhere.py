@@ -52,9 +52,13 @@ def _at(name, t=None):
     return atom
 
 
+NAMED = {"anxiety": "焦虑", "sleep": "睡眠", "focus": "专注", "exam": "考试发挥"}
+
+
 def _program(edges, cause, effect):
     names = sorted({a["predicate"] for edge in edges for a in edge})
-    statements = [{"kind": "variable", "predicate": n, "domain": [True, False]}
+    statements = [{"kind": "variable", "predicate": n, "domain": [True, False],
+                   "name": {"zh": NAMED[n]}}
                   for n in names]
     statements += [{"kind": "cause", "from": u, "to": v} for u, v in edges]
     statements.append({"kind": "query", "id": "q", "query": {

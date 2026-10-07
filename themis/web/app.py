@@ -32,6 +32,7 @@ from themis.input.syntactic_validator import SyntacticError
 from themis.runtime.graph_projection import CyclicGraphError
 
 from . import asked_for, failure
+from .llm_bridge import UnreadableProgram
 
 #: Whether this deployment has a model behind it.
 #:
@@ -363,7 +364,7 @@ def api_ask(req: AskRequest):
 
     return _read_run_and_reply(
         lambda: nl_to_kernel_ast(req.nl, considered=considered,
-                                 api_key=req.api_key),
+                                 lang=req.lang, api_key=req.api_key),
         stage="nl_to_kernel_ast", nl=req.nl, lang=req.lang,
         api_key=req.api_key, considered=considered)
 
@@ -400,7 +401,13 @@ def api_revise(req: ReviseRequest):
 #: standing in for. Measured on the live site, two questions in ten
 #: came back with one, and each was re-read three times from the
 #: question alone into the same loop.
-_THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError, CyclicGraphError)
+#:
+#: And one refusal is this door's rather than the kernel's: a variable
+#: with no name in the reader's language. The kernel cannot ask it — it
+#: does not know who is reading — and the page shows such a variable as
+#: its identifier. The model that wrote the declaration can mend it.
+_THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError, CyclicGraphError,
+                           UnreadableProgram)
 
 
 def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
@@ -414,14 +421,15 @@ def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
     variables ``read`` wrote its program with, if it had one, which a
     repair is written with too.
     """
-    from .llm_bridge import render_reply, repair_kernel_ast
+    from .llm_bridge import names_for_the_reader, render_reply, repair_kernel_ast
 
     # Up to three programs. A failure to write one (a transient LLM or
     # network error, a reply that is not JSON) is met by writing again. A
-    # program the kernel refuses as written is met by handing it back with
+    # program refused as written — by this door, for a variable the reader
+    # has no name for, or by the kernel — is met by handing it back with
     # the refusal, so the next attempt mends that slip in that reading
     # rather than drawing a new reading that may slip elsewhere; a repair
-    # the kernel refuses in turn is handed back with its own refusal.
+    # refused in turn is handed back with its own refusal.
     # The AST and the envelope are bound together or not at all — a pair,
     # not two variables that happen to be assigned in the same block, so
     # that the guard below speaks for both of them.
@@ -435,14 +443,15 @@ def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,
         try:
             a = write()
             last_ast = a
-            last_stage = "themis_run"  # the program is written; a failure now is the kernel's
+            last_stage = "themis_run"  # the program is written; a failure now is about it
+            names_for_the_reader(a, lang=lang)
             ran = (a, themis.run(a))
             break
         except Exception as exc:  # noqa: BLE001 — retry on any bridge/kernel error
             last = exc
             if last_stage == "themis_run" and isinstance(exc, _THE_PROGRAM_AS_WRITTEN):
                 write = functools.partial(repair_kernel_ast, nl, a, exc,
-                                          considered=considered,
+                                          considered=considered, lang=lang,
                                           api_key=api_key)
     if ran is None:
         # Attribute the failure to where it actually happened, by position —
