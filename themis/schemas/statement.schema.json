@@ -44,6 +44,7 @@
       "type": "string",
       "description": "Every closed set this build declares, by the name it answers to on an envelope. Held equal to `themis.language.VOCABULARIES` by a test, since that registry is filled when a vocabulary's class body runs and this is the record of it a reader's surface can hold without running anything.",
       "enum": [
+        "asking_refusal",
         "assumption_claim", "bound_side", "bounds_note", "bridge_refusal",
         "bridge_side", "consistency_constraint", "data_contract_warning",
         "described_population", "discovery_asks", "discovery_note",

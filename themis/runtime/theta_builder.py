@@ -50,6 +50,7 @@ from ..types import (
 from .. import language
 from .instantiation import instantiate
 from .numeric_estimator import ProbabilityKey, Theta, format_probability_key
+from .scheduler_words import Asks
 from .theta_words import Half, Refuses
 
 
@@ -206,6 +207,32 @@ def build_theta(ground_statements: tuple[Statement, ...]) -> Theta:
                  declared=declared_domains, short=short)
 
 
+#: How many cells a question may be short of before the kernel stops
+#: writing them out. Each is a gap, an investigation request and a line
+#: of the missing list, and the envelope is held to its schema on the
+#: way out, which is where the time goes: measured on the demo server
+#: (one core, 400 MB), x -> y with k yes-or-no common causes of both
+#: asks 2^k + k cells — k = 8 asks 264 and takes 2 s, k = 10 asks 1034
+#: and takes 9 s for a 2.9 MB envelope, k = 11 would ask 2059 and take
+#: about 18 s for 6 MB, k = 12 asks 4108 and takes 36 s for 13 MB. The
+#: web's own fill route stops at 400 numbers. Past this many the list is
+#: not what anybody fills in, and the refusal names what is. Set so that
+#: k = 11 is admitted and k = 12 refused: the counterfactual bound's
+#: ancestral factorisation (#799) asks up to 2060 cells at its own edge,
+#: and that edge was reached before this one was drawn.
+CELLS_ASKED_AT_MOST = 4096
+
+
+class TooManyCellsToAsk(language.Voiced, ValueError):
+    """The question is short of more cells than the kernel writes out.
+
+    One species, :class:`themis.runtime.scheduler_words.Asks`; raised by
+    :func:`fewest_to_ask`, which every road that asks a reader for cells
+    goes through, so the envelope that would have carried them is never
+    built.
+    """
+
+
 def fewest_to_ask(
     keys: Iterable[ProbabilityKey],
     theta: Theta,
@@ -213,6 +240,8 @@ def fewest_to_ask(
     keep: Iterable[ProbabilityKey] = (),
 ) -> tuple[ProbabilityKey, ...]:
     """The fewest of ``keys`` a reader must supply for every one to resolve.
+
+    Raises :class:`TooManyCellsToAsk` past :data:`CELLS_ASKED_AT_MOST`.
 
     The other half of :func:`_complete_partial_distributions`. Completion
     reads one variable's values under one condition in one population as a
@@ -258,7 +287,11 @@ def fewest_to_ask(
             continue
         place = {value: i for i, value in enumerate(domain)}
         left_out.add(max(droppable, key=lambda k: place[k.target_value]))
-    return tuple(k for k in ordered if k not in left_out)
+    asked = tuple(k for k in ordered if k not in left_out)
+    if len(asked) > CELLS_ASKED_AT_MOST:
+        raise TooManyCellsToAsk(Asks.MORE_CELLS_THAN_ANYONE_FILLS_IN,
+                                cells=len(asked), budget=CELLS_ASKED_AT_MOST)
+    return asked
 
 
 def _complete_partial_distributions(

@@ -7,9 +7,15 @@
     <meta name="description" content="Themis — 因果断言验证器：它不替你编数字，而是告诉你这个因果问题能不能算、还缺什么数据。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Loaded without holding the page: a stylesheet for print is not
+         render-blocking, and becomes the screen's once it arrives. Where
+         the font server cannot be reached the page shows in the fallback
+         fonts at once instead of after the request times out. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Noto+Serif+SC:wght@500;600&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
     <title>Themis · 因果验证器</title>
   </head>

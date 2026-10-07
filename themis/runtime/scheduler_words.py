@@ -59,6 +59,32 @@ class Tried(language.Word, vocabulary="instrument_route_note",
 
 
 @unique
+class Asks(language.Word, vocabulary="asking_refusal",
+           between=language.BETWEEN_STATEMENTS):
+    """Why the kernel did not write out what a question is short of.
+
+    A question whose answer is one number short of nothing is answered by
+    naming the number; one short of every cell of a table with thousands
+    of cells is not answered by naming the thousands. The list is what a
+    person was going to fill in, and past some length nobody fills it in —
+    what fills it is data rows, or a graph with fewer direct causes of the
+    outcome. Said by the kernel, because it is the kernel that knows how
+    many cells the identification formula reads.
+    """
+
+    MORE_CELLS_THAN_ANYONE_FILLS_IN = ("more_cells_than_anyone_fills_in", {
+        "zh": "按识别公式，这个问题还缺 {cells} 个概率才能算出数，超过了逐格列出"
+              "的上限 {budget}；这么多格子不是靠一格一格填的。请提供数据行，"
+              "或者减少图里结果的直接原因、把多值变量合并成少数几档",
+        "en": "by the identification formula this question is {cells} "
+              "probabilities short of a number, past the {budget} the kernel "
+              "lists cell by cell; that many cells are not filled in one at "
+              "a time. Supply data rows, or give the outcome fewer direct "
+              "causes and fold many-valued variables into a few levels",
+    })
+
+
+@unique
 class Feasibility(language.Word, vocabulary="consistency_constraint",
                   between=language.BETWEEN_STATEMENTS):
     """Which consistency inequality a supplied interventional risk broke.

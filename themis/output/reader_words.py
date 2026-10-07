@@ -815,6 +815,10 @@ GLOSSED: dict[str, Glossed] = {
     # up, so the surface fills the sentence without holding the set.
     "theta_refusal": Glossed(
         gloss="themis.runtime.theta_words.Refuses.said"),
+    # Why the kernel did not write out what a question is short of: the
+    # same failure body, from the same door.
+    "asking_refusal": Glossed(
+        gloss="themis.runtime.scheduler_words.Asks.said"),
     "probability_statement_half": Glossed(
         gloss="themis.runtime.theta_words.Half.said"),
     # And why the bridge to a language model came back with nothing this

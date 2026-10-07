@@ -4125,6 +4125,7 @@ export const PROPOSED_PROVENANCES: readonly string[] = [
 ]
 
 export const SEAMS: Record<string, Words> = {
+  asking_refusal: BETWEEN_STATEMENTS,
   assumption_claim: BETWEEN_STATEMENTS,
   bound_side: BETWEEN_ITEMS,
   bounds_note: BETWEEN_SENTENCES,

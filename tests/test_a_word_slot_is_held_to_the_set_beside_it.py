@@ -220,14 +220,15 @@ def test_the_sets_this_rule_is_the_only_holder_of_are_these():
     declared with no enumeration the carrier can reach joins it and is held
     once, here. Either is a deliberate edit and neither should be invisible.
 
-    Twenty-two, and they fall into three families that the two rosters
+    Twenty-three, and they fall into three families that the two rosters
     below separate: six write their sentences for species this build
-    declares in the gap and refusal layers; sixteen belong to artifacts
+    declares in the gap and refusal layers; seventeen belong to artifacts
     other than a query result, and their members are enumerated in their
     own artifact's schema at the field each sits at — which is the same
     reach this round is about, one artifact over.
     """
     assert _only_this_rule_holds() == frozenset({
+        "asking_refusal",
         "bridge_refusal", "discovery_asks", "discovery_note",
         "estimation_refusal", "extraction_refusal", "gap_describes",
         "gap_if_provided", "gap_routes", "gap_says",
@@ -244,12 +245,14 @@ def test_the_sets_this_rule_is_the_only_holder_of_are_these():
 #:
 #: The corpus is answer SHAPES, and a query result is one artifact of
 #: several: a discovery result, an orientation session, a bridge or
-#: extraction refusal, a workflow's, a theta refusal each carry their own.
-#: What is missing is a row to demonstrate on, which is a fact about the
-#: corpus and not about the rule — the walk is total over whatever envelope
-#: it is handed. Written down because a gate that quietly parametrizes over
-#: fewer sets each round is a gate that stops measuring without failing.
+#: extraction refusal, a workflow's, a theta refusal, a refusal to ask for
+#: more cells than anyone fills in each carry their own. What is missing is
+#: a row to demonstrate on, which is a fact about the corpus and not about
+#: the rule — the walk is total over whatever envelope it is handed.
+#: Written down because a gate that quietly parametrizes over fewer sets
+#: each round is a gate that stops measuring without failing.
 NO_SLOT_IN_THIS_CORPUS = frozenset({
+    "asking_refusal",
     "bridge_refusal", "discovery_asks", "estimation_refusal",
     "extraction_refusal", "lagged_discovery_says",
     "latent_lagged_discovery_says", "markov_blanket_says",

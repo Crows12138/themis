@@ -3,12 +3,21 @@ import type { AskResponse, Envelope, ExampleItem, QueryResult } from './types'
 
 const KEY_STORAGE = 'themis.anthropic.key'
 
-// The one sentence this module writes itself. Everything else it raises came
+// The sentences this module writes itself. Everything else it raises came
 // from the server or from the platform, and neither is this file's to word.
+// A gateway status is the one the server never wrote: the reverse proxy
+// gave up waiting for it, or could not reach it, and sent a page instead
+// of a reply. What a reader can do about it is the size of what they asked.
 const SAYS = {
   requestFailed: { zh: '请求失败（{status}）', en: 'Request failed ({status})' },
+  notAnswered: {
+    zh: '服务器没有在时限内回答（{status}）。图越大算得越久；减少变量后再试，或稍后再试。',
+    en: 'The server did not answer within its time limit ({status}). A larger graph takes longer; try with fewer variables, or again later.',
+  },
   diagnostic: { zh: '诊断信息：{detail}', en: 'Diagnostic: {detail}' },
 } satisfies Record<string, Words>
+
+const GATEWAY = new Set([502, 503, 504])
 
 export function getApiKey(): string {
   return localStorage.getItem(KEY_STORAGE) ?? ''
@@ -78,7 +87,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     throw new KernelError(data.diagnostic || `request failed (${res.status})`, {
       stage: data.stage,
       errorType: data.error,
-      words: data.words ?? SAYS.requestFailed,
+      words: data.words ?? (GATEWAY.has(res.status) ? SAYS.notAnswered : SAYS.requestFailed),
       slots: data.words ? data.slots : { status: res.status },
       diagnostic: data.words ? data.diagnostic : undefined,
     })

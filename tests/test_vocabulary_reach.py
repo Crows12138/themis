@@ -1731,6 +1731,15 @@ _ROWS: dict[str, Vocabulary] = {
                      "positive case is a structured BLOCK, which is how "
                      "the negative came to be one string.",
     ),
+    "asking_refusal": Vocabulary(
+        declares="themis.runtime.scheduler_words.Asks",
+        off_envelope="Why the kernel did not write out what a question is "
+                     "short of: more cells than anybody fills in one at a "
+                     "time. Raised where the cells are counted, before the "
+                     "envelope that would have carried them is built, so it "
+                     "reaches the caller as an exception like the theta "
+                     "refusals do.",
+    ),
     "consistency_constraint": Vocabulary(
         sites=(_closed("consistency_constraint"),),
         declares="themis.runtime.scheduler_words.Feasibility",
