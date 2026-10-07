@@ -819,6 +819,9 @@ GLOSSED: dict[str, Glossed] = {
     # same failure body, from the same door.
     "asking_refusal": Glossed(
         gloss="themis.runtime.scheduler_words.Asks.said"),
+    # And why the cause statements do not make a graph: the same body.
+    "graph_refusal": Glossed(
+        gloss="themis.runtime.graph_projection.Closed.said"),
     "probability_statement_half": Glossed(
         gloss="themis.runtime.theta_words.Half.said"),
     # And why the bridge to a language model came back with nothing this

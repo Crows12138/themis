@@ -1,4 +1,5 @@
 import { fill, type Lang, type Words } from './lib/language'
+import { named, namesOf } from './lib/names'
 import type { AskResponse, Envelope, ExampleItem, QueryResult } from './types'
 
 const KEY_STORAGE = 'themis.anthropic.key'
@@ -36,6 +37,12 @@ export class KernelError extends Error {
   // renderer's question, so `errorText` below is where the two meet.
   words?: Words
   slots?: Record<string, string | number>
+  // The program the failure is about, when it is about one: a program the
+  // kernel refused as written names its variables, and a sentence that
+  // mentions them says them by those names, as every sentence beside a
+  // result does. No result holds this program, so nothing else has said
+  // whose names are in force.
+  program?: Record<string, unknown>
   // Not the sentence: the exception's own text, for whoever diagnoses this.
   // It reaches the screen labelled as such rather than in place of the
   // sentence — see themis/web/failure.py, which draws that line server-side.
@@ -47,6 +54,7 @@ export class KernelError extends Error {
       errorType?: string
       words?: Words
       slots?: Record<string, string | number>
+      program?: Record<string, unknown>
       diagnostic?: string
     } = {},
   ) {
@@ -55,6 +63,7 @@ export class KernelError extends Error {
     this.errorType = opts.errorType
     this.words = opts.words
     this.slots = opts.slots
+    this.program = opts.program
     this.diagnostic = opts.diagnostic
   }
 }
@@ -72,7 +81,11 @@ export class KernelError extends Error {
 // report; a person who hit a refusal has already been told what happened.
 export function errorText(e: unknown, lang: Lang): string {
   const err = e as KernelError
-  const said = err?.words ? fill(err.words, lang, err.slots ?? {}) : String(err?.message ?? e)
+  const names = namesOf(err?.program, lang)
+  const slots = Object.fromEntries(
+    Object.entries(err?.slots ?? {}).map(([k, v]) => [k, typeof v === 'string' ? named(v, names) : v]),
+  )
+  const said = err?.words ? fill(err.words, lang, slots) : String(err?.message ?? e)
   return err?.diagnostic ? `${said}\n${fill(SAYS.diagnostic, lang, { detail: err.diagnostic })}` : said
 }
 
@@ -89,6 +102,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
       errorType: data.error,
       words: data.words ?? (GATEWAY.has(res.status) ? SAYS.notAnswered : SAYS.requestFailed),
       slots: data.words ? data.slots : { status: res.status },
+      program: data.kernel_ast ?? undefined,
       diagnostic: data.words ? data.diagnostic : undefined,
     })
   }

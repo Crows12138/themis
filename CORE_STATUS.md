@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-32357 passed / 536 skipped, warning-clean
+32374 passed / 537 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,18 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #820 边连成环的图交还模型修补，拒绝句说该写什么（2026-10-07）
+
+**来历**：第 5 项「用真实问题在线上再跑一轮」——#818 部署后问了 10 个真实问题，8 个答出，2 个没答：「看电视多的孩子户外时间少吗」和「考试前喝咖啡会不会影响发挥」。两题模型都把暴露和一个邻居画成了双向（看电视⇄户外时间、咖啡⇄焦虑），内核的投影对有环的图抛 `CyclicGraphError`。这条异常不在 `_THE_PROGRAM_AS_WRITTEN` 里，所以 `/api/ask` 的三次重试每次都从问题重新翻译、每次画出同一个环，最后读者看到的是「这份程序没能跑完」加一行英文的环。
+
+- **根因**：有环是「程序照它写的那样」的毛病——边是作者画的，而且语言本来就有两种写法对应「互为因果」：保留问题要问的方向、另一方向用 `feedback` 语句声明；或者先后发生的写成时间片之间的边（提示词 §5a 讲的就是这个）。模型画双向，是把问题没定的事替读者定了，交还它一次就能改。原来的 `CyclicGraphError(ValueError)` 既不带句子、也不在交还集合里，所以走的是「内核自己出了问题」那条路。
+- **改法**：`graph_projection` 新词表 `Closed`（`graph_refusal`，一种：`THE_EDGES_CLOSE_A_LOOP`，槽 `count`、`cycles`），中英两句都说环在哪、以及两种代替写法；`CyclicGraphError` 改成 `Voiced` 子类，`cycles` 属性保留。`app.py` 的 `_THE_PROGRAM_AS_WRITTEN` 加入它，于是交还流程与 #789 的语法/语义拒绝完全一样：模型拿到问题、它写的程序、`kernel_refused` 里的英文句子，改一处。词表照例登进 `reader_words`、`statement.schema.json` 的 `declaredVocabulary`、`test_vocabulary_reach` 和词槽测试的两份名单，`kernelWords.generated.ts` 重生成。
+- **网页**：模型三次都没改好时，句子到读者面前带的是 `coffee(me) -> anxiety(me) -> coffee(me)`。结果页按程序声明的 `name` 显示变量（#815），但拒绝时没有结果页、没人宣告「谁的名字生效」；`KernelError` 现在带上服务器已经随失败发回的 `kernel_ast`，`errorText` 用它声明的名字填槽，读者看到的是「焦虑 → 考前喝咖啡 → 焦虑」。
+- **没做的**：`feedback` 语句本身在网页画布上没有专门的显示，本来就如此；提示词没改——§5a 已经讲清两种写法，这次是把内核的拒绝接到它面前。线上复验（把那两题再问一遍）在部署后做，计入花费。
+- **核实**：新测试 `test_a_graph_whose_edges_close_a_loop_is_handed_back_to_be_mended.py`，6 例（拒绝带物种和环；中英句子都提 `feedback` 和环；门把有环的程序连拒绝一起交回、修好的那份答出；三次不改时读者按自己的语言看到句子、程序随行；网页源码三处）。原 `test_graph_projection.py` 的 6 例不动，`str(exc)` 仍含环。
+
+**基线**：32374 passed / 537 skipped。边连成环的拒绝带句子（新词表 graph_refusal）、进交还模型修补的集合；三次不改时读者看到的句子按程序声明的名字说变量；新测试 6 例
 
 ### #819 一个问题逐格问的数有上限；网关超时按意思说；字体不再阻塞页面（2026-10-07）
 

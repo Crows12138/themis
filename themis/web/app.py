@@ -29,6 +29,7 @@ import themis
 from themis import framing, language
 from themis.input.semantic_validator import SemanticError
 from themis.input.syntactic_validator import SyntacticError
+from themis.runtime.graph_projection import CyclicGraphError
 
 from . import asked_for, failure
 
@@ -394,7 +395,12 @@ def api_revise(req: ReviseRequest):
 #: program to. A model that wrote the program can mend these. Anything else
 #: a run raises is about what the kernel did with a program it accepted,
 #: and handing that back would ask the model to mend the kernel.
-_THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError)
+#: A loop among the cause edges is the program's too: the edges are the
+#: author's, and the language has two statements for what a loop was
+#: standing in for. Measured on the live site, two questions in ten
+#: came back with one, and each was re-read three times from the
+#: question alone into the same loop.
+_THE_PROGRAM_AS_WRITTEN = (SyntacticError, SemanticError, CyclicGraphError)
 
 
 def _read_run_and_reply(read, *, stage: str, nl: str, lang: language.Lang,

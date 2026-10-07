@@ -1731,6 +1731,15 @@ _ROWS: dict[str, Vocabulary] = {
                      "positive case is a structured BLOCK, which is how "
                      "the negative came to be one string.",
     ),
+    "graph_refusal": Vocabulary(
+        declares="themis.runtime.graph_projection.Closed",
+        off_envelope="Why the cause statements handed in do not make a "
+                     "graph: their edges close a loop. Raised by the "
+                     "projection, which runs at the top of `kernel.run`, "
+                     "so it reaches the caller as an exception like the "
+                     "theta refusals do — and the web hands it back to the "
+                     "model with the program, as it does the validators'.",
+    ),
     "asking_refusal": Vocabulary(
         declares="themis.runtime.scheduler_words.Asks",
         off_envelope="Why the kernel did not write out what a question is "

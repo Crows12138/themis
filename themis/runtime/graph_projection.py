@@ -25,8 +25,11 @@ influence in both directions and diverge from the semantics.
 """
 from __future__ import annotations
 
+from enum import unique
+
 import networkx as nx
 
+from .. import language
 from ..types import (
     Atom,
     BidirectedStatement,
@@ -39,15 +42,42 @@ from ..types import (
 )
 
 
-class CyclicGraphError(ValueError):
-    """Raised when the projected graph contains a directed cycle.
+@unique
+class Closed(language.Word, vocabulary="graph_refusal",
+             between=language.BETWEEN_STATEMENTS):
+    """Why the cause statements handed in do not make a graph.
 
-    Attribute ``cycles`` lists the detected cycles (each as a tuple
-    of Atom nodes) for easier debugging.
+    Addressed to whoever wrote the program — a model, most often, which
+    is handed this back with the program to mend. The sentence says what
+    the language offers in place of the loop, because a model that drew
+    both directions was told something the question did not settle, and
+    the prompt's two statements for that are what it should have used.
     """
 
-    def __init__(self, message: str, cycles: tuple[tuple[Atom, ...], ...]):
-        super().__init__(message)
+    THE_EDGES_CLOSE_A_LOOP = ("the_edges_close_a_loop", {
+        "zh": "图里的因果边连成了 {count} 个环：{cycles}。因果图不能有环。两个变量"
+              "互为因果时，只保留问题要问的那个方向的 cause 边，另一方向用 feedback "
+              "语句声明那一对；如果其实是先后发生，用时间下标写成两个时刻之间的边",
+        "en": "the cause edges close {count} loop(s): {cycles}. A causal graph "
+              "has none. Where two variables cause each other, keep the cause "
+              "edge the question asks about and declare the pair in a feedback "
+              "statement; where one in fact comes before the other, write the "
+              "edges between time slices",
+    })
+
+
+class CyclicGraphError(language.Voiced, ValueError):
+    """Raised when the projected graph contains a directed cycle.
+
+    A refusal of the program as written — the edges are the author's —
+    so it carries its sentence the way the validators' refusals do, and
+    the web hands it back to the model with the program. Attribute
+    ``cycles`` lists the detected cycles (each as a tuple of Atom nodes).
+    """
+
+    def __init__(self, cycles: tuple[tuple[Atom, ...], ...]):
+        super().__init__(Closed.THE_EDGES_CLOSE_A_LOOP, count=len(cycles),
+                         cycles="; ".join(_format_cycle(c) for c in cycles))
         self.cycles = cycles
 
 
@@ -131,10 +161,5 @@ def project(statements: tuple[Statement, ...]) -> nx.DiGraph:
             graph.add_node(atom, atom=atom)
 
     if not nx.is_directed_acyclic_graph(graph):
-        cycles = tuple(tuple(c) for c in nx.simple_cycles(graph))
-        rendered = "; ".join(_format_cycle(c) for c in cycles)
-        raise CyclicGraphError(
-            f"projected graph contains {len(cycles)} cycle(s): {rendered}",
-            cycles,
-        )
+        raise CyclicGraphError(tuple(tuple(c) for c in nx.simple_cycles(graph)))
     return graph

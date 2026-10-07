@@ -4146,6 +4146,7 @@ export const SEAMS: Record<string, Words> = {
   gap_if_provided: BETWEEN_STATEMENTS,
   gap_routes: BETWEEN_STATEMENTS,
   gap_says: BETWEEN_STATEMENTS,
+  graph_refusal: BETWEEN_STATEMENTS,
   instrument_route_note: BETWEEN_SENTENCES,
   iv_required_assumption: BETWEEN_STATEMENTS,
   lagged_discovery_says: BETWEEN_SENTENCES,
