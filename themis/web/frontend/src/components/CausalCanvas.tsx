@@ -21,6 +21,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useStore,
   type Node,
   type Edge,
   type Connection,
@@ -125,14 +126,21 @@ function Tools({ canvas, lang }: { canvas: RefObject<HTMLDivElement | null>; lan
   const { zoomIn, zoomOut, fitView } = useReactFlow()
   const [full, setFull] = useState(false)
   useEffect(() => {
-    const onChange = () => {
-      setFull(document.fullscreenElement === canvas.current)
-      // The box has just changed size; fit the graph to the size it has now.
-      requestAnimationFrame(() => { void fitView(FIT) })
-    }
+    const onChange = () => setFull(document.fullscreenElement === canvas.current)
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [canvas, fitView])
+  }, [canvas])
+  // The graph is fitted to the box when the box's size changes — as the
+  // library measures it, not as the fullscreen event reports it: the event
+  // fires before the library has measured the new box, and a fit then is a
+  // fit to the old one, which is what a reader saw as "not centred". Full
+  // screen the margin is smaller, since the box is the whole screen.
+  const width = useStore((s) => s.width)
+  const height = useStore((s) => s.height)
+  const padding = full ? 0.08 : FIT.padding
+  useEffect(() => {
+    if (width > 0 && height > 0) void fitView({ padding })
+  }, [width, height, padding, fitView])
   const toggleFull = () => {
     if (document.fullscreenElement) void document.exitFullscreen()
     else void canvas.current?.requestFullscreen()
@@ -445,6 +453,13 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
           deleteKeyCode={DELETE_KEYS}
           fitView
           fitViewOptions={FIT}
+          // The library will not zoom out past 0.5, and a fit that cannot
+          // zoom out enough leaves the graph clipped by the box with
+          // nothing to say so: twenty variables in the 320 px box were
+          // shown at 0.5, twice the box's height, with the outcome off the
+          // bottom. Fitting is the point of the box, so the floor is low;
+          // what is small there is read full screen.
+          minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={18} color="var(--line-soft)" />

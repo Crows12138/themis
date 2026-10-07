@@ -35,7 +35,22 @@ def test_the_canvas_can_be_taken_full_screen_and_back():
 
 
 def test_the_graph_is_fitted_to_the_box_once_the_box_changes_size():
-    assert "requestAnimationFrame(() => { void fitView(FIT) })" in CANVAS
+    """#823: as the library measures the box, not as the fullscreen event
+    reports it — the event fires before the new size is measured, and a
+    fit then is a fit to the old box, which a reader saw as the graph not
+    centred nor filling the screen."""
+    assert "const width = useStore((s) => s.width)" in CANVAS
+    assert "const height = useStore((s) => s.height)" in CANVAS
+    assert "if (width > 0 && height > 0) void fitView({ padding })" in CANVAS
+    assert "}, [width, height, padding, fitView])" in CANVAS
+    assert "requestAnimationFrame" not in CANVAS
+    assert "const padding = full ? 0.08 : FIT.padding" in CANVAS
+
+
+def test_a_fit_may_zoom_out_far_enough_to_fit():
+    """The library's floor of 0.5 left twenty variables clipped by the box
+    with nothing saying so (#823)."""
+    assert "minZoom={0.1}" in CANVAS
 
 
 def test_every_control_is_titled_in_the_readers_language():
