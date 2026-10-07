@@ -6,10 +6,12 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import {
   ReactFlow,
   Background,
+  ControlButton,
   Controls,
   ConnectionMode,
   Handle,
@@ -102,7 +104,68 @@ const SAYS = {
   causeHint: { zh: '接下来画的边 ＝ 实线箭头：先拖的是「因」、后接的是「果」', en: 'The next edge you draw is a solid arrow: what you drag from is the cause, what you drop on is the effect' },
   bidirectedHint: { zh: '接下来画的边 ＝ 虚线双箭头：两者有未测到的共同原因（混杂，无方向）', en: 'The next edge you draw is a dashed double-headed arrow: the two share an unmeasured common cause (confounding, no direction)' },
   proposedLegend: { zh: '带 ? 的边 ＝ AI 提议（未验证）—— 点边选中后可 ✓ 确认或 × 删除', en: 'An edge marked ? was proposed by the AI and is unverified — click it to ✓ vouch for it or × delete it' },
+  zoomIn: { zh: '放大', en: 'Zoom in' },
+  zoomOut: { zh: '缩小', en: 'Zoom out' },
+  fitAll: { zh: '把整张图放进框里', en: 'Fit the whole graph in the box' },
+  fullscreen: { zh: '全屏看图', en: 'View the graph full screen' },
+  leaveFullscreen: { zh: '退出全屏', en: 'Leave full screen' },
 } satisfies Record<string, Words>
+
+const FIT = { padding: 0.25 }
+
+/** The canvas's own controls, in the reader's language.
+ *
+ *  The library's were three English-titled buttons, and the third — fit the
+ *  graph into the box, drawn as ⛶ — reads as "make it bigger". It cannot: the
+ *  box is a fixed height, so a graph taller than it is fitted by shrinking,
+ *  and a reader with twenty variables asked for the opposite. What can grow
+ *  is the box, so the fourth button takes the canvas full screen (and back),
+ *  and the graph is fitted to whichever size it is in. */
+function Tools({ canvas, lang }: { canvas: RefObject<HTMLDivElement | null>; lang: Lang }) {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const [full, setFull] = useState(false)
+  useEffect(() => {
+    const onChange = () => {
+      setFull(document.fullscreenElement === canvas.current)
+      // The box has just changed size; fit the graph to the size it has now.
+      requestAnimationFrame(() => { void fitView(FIT) })
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [canvas, fitView])
+  const toggleFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void canvas.current?.requestFullscreen()
+  }
+  const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+  return (
+    <Controls showZoom={false} showFitView={false} showInteractive={false}>
+      <ControlButton title={fill(SAYS.zoomIn, lang)} aria-label={fill(SAYS.zoomIn, lang)} onClick={() => { void zoomIn() }}>
+        <svg viewBox="0 0 16 16" {...stroke}><path d="M8 3v10M3 8h10" /></svg>
+      </ControlButton>
+      <ControlButton title={fill(SAYS.zoomOut, lang)} aria-label={fill(SAYS.zoomOut, lang)} onClick={() => { void zoomOut() }}>
+        <svg viewBox="0 0 16 16" {...stroke}><path d="M3 8h10" /></svg>
+      </ControlButton>
+      <ControlButton title={fill(SAYS.fitAll, lang)} aria-label={fill(SAYS.fitAll, lang)} onClick={() => { void fitView(FIT) }}>
+        <svg viewBox="0 0 16 16" {...stroke}><rect x="2" y="2" width="12" height="12" rx="1.5" /><circle cx="8" cy="8" r="2" /></svg>
+      </ControlButton>
+      {typeof document !== 'undefined' && document.fullscreenEnabled ? (
+        <ControlButton
+          title={fill(full ? SAYS.leaveFullscreen : SAYS.fullscreen, lang)}
+          aria-label={fill(full ? SAYS.leaveFullscreen : SAYS.fullscreen, lang)}
+          aria-pressed={full}
+          onClick={toggleFull}
+        >
+          {full ? (
+            <svg viewBox="0 0 16 16" {...stroke}><path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" /></svg>
+          ) : (
+            <svg viewBox="0 0 16 16" {...stroke}><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4" /></svg>
+          )}
+        </ControlButton>
+      ) : null}
+    </Controls>
+  )
+}
 
 /** A variable node: a read-only label or an input (data.editing), tagged with
  *  its query role (exposure / outcome) when it has one, with a delete "×" that
@@ -207,6 +270,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
   const [note, setNote] = useState<string | null>(null)
   const lang = useLang()
   const connectFrom = useRef<string | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const rename = useCallback(
     (id: string, label2: string) =>
@@ -364,7 +428,7 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
         {toolbarExtra ? <><span className="dagview__spacer" />{toolbarExtra}</> : null}
       </div>
 
-      <div className="dagview__canvas dagview__canvas--edit" style={{ height }}>
+      <div ref={canvasRef} className="dagview__canvas dagview__canvas--edit" style={{ height }}>
         {label ? <span className="dagview__label">{label}</span> : null}
         {nodes.length === 0 && emptyHint ? <div className="canvas__empty">{emptyHint}</div> : null}
         <ReactFlow
@@ -380,11 +444,11 @@ export const CausalCanvas = forwardRef<CausalCanvasHandle, CausalCanvasProps>(fu
           connectionLineComponent={FloatingConnectionLine}
           deleteKeyCode={DELETE_KEYS}
           fitView
-          fitViewOptions={{ padding: 0.25 }}
+          fitViewOptions={FIT}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={18} color="var(--line-soft)" />
-          <Controls showInteractive={false} />
+          <Tools canvas={canvasRef} lang={lang} />
         </ReactFlow>
       </div>
 

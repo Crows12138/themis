@@ -493,6 +493,11 @@ button { font-family: inherit; cursor: pointer; }
 .dagview__canvas { position: relative; height: 220px; margin-top: var(--space-xs); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); transition: height 0.2s var(--ease-out); }
 .dagview__label { position: absolute; top: var(--space-xs); left: var(--space-sm); z-index: 5; font-family: var(--font-display); font-size: var(--text-md); font-weight: 600; color: var(--ink-soft); pointer-events: none; }
 .dagview__canvas--edit { height: 320px; border-color: var(--line-strong); }
+/* Full screen, the box is the screen: the browser sizes it, and the graph is
+   fitted to that size (CausalCanvas's Tools). The page's own surface colour,
+   since the full-screen backdrop is otherwise black. */
+.dagview__canvas:fullscreen { border: none; border-radius: 0; background: var(--surface); }
+.dagview__canvas .react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
 .gnode { position: relative; background: var(--surface-raise); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-sm); box-shadow: var(--shadow-soft); }
 .gnode__label { font-size: var(--text-sm); color: var(--ink); }
 .gnode__input { border: none; outline: none; background: transparent; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink); width: 92px; text-align: center; }

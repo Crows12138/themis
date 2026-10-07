@@ -32,7 +32,7 @@ DAG 内核，而是：
 当前全量验证基线：
 
 ```text
-32390 passed / 537 skipped, warning-clean
+32395 passed / 537 skipped, warning-clean
 ```
 
 **统一分析报告（build_analysis_report，2026-07-11）**：借鉴 Causal-Copilot
@@ -1558,6 +1558,17 @@ docstring 里都出现，文本搜索既会高估也会低估）；②词表里�
 一条判据」把全量扫一遍，denominator 常常大一个量级**——#334 登记的是一种 kind，实测
 是六种、14 份报告；(56) 的「先数分母」在这里换了个形态：分母不是「表有几行」，是
 **「这条判据在真实语料上被违反了几次」**，而那要跑起来才知道。
+
+### #822 图比框大时放大的是框，不是把图缩小（2026-10-07）
+
+**来历**：用户打开那份 20 个变量的收入反事实结果（#819 的实例），按图上那个 ⛶ 按钮想把图放大看，图反而缩小了。原话：「它应该把显示区域放大而不是把图缩小」。
+
+- **根因假设**：现象是按钮「不起作用」；根因是那个按钮根本不是放大——它是 React Flow 自带的「fit view」，把整张图按比例塞进当前的框。框是固定 320 像素高（`.dagview__canvas--edit`，结果页没传 `height`），一张 20 个节点的图比框高，「塞进去」只能是缩小。读者看到 ⛶ 的理解是对的：该变大的是显示区域，而页面没有任何把框变大的办法——不是按钮坏了，是缺一个功能，而且自带按钮的 title 全是英文（zoom in / zoom out / fit view），本来就不该出现在读者面前。
+- **改法**：`CausalCanvas` 自己出一组控件 `Tools`（`<Controls showZoom={false} showFitView={false} showInteractive={false}>` 加四个 `ControlButton`），标题走读者语言：放大、缩小、「把整张图放进框里」、「全屏看图／退出全屏」。全屏用 Fullscreen API 把画布的 div 本身 `requestFullscreen()`；浏览器把它撑满屏幕后，`fullscreenchange` 里用 `fitView` 把图按新尺寸重新放一次（退出时同样）。浏览器不支持全屏（`document.fullscreenEnabled` 为假）时不显示那个按钮。样式：`:fullscreen` 下去掉边框圆角、底色用页面自己的 surface（否则全屏背景是黑的）；控件图标放大到 14px。结果页、建图页、估计页共用这一个画布，三处一起有。
+- **没做的**：全屏时画布上方的工具栏（加变量、边类型）不在全屏元素里，所以全屏下只能拖节点、画边、删边，不能加变量——全屏是看图用的，先这样。节点自动布局本身没动，20 个变量的图在全屏里仍是 `programToFlow` 排的那个形状。
+- **核实**：无头 Edge 实测（scratchpad `see822.py`）：打开 4403 格那份结果，20 个节点，四个按钮标题都是中文；点第四个按钮后 `document.fullscreenElement` 是画布、框从 320px 高变成整个视口、视口变换矩阵随之改变（重新 fit 了）；再点一次退回 320px。新测试 `test_a_graph_too_big_for_its_box_is_shown_in_a_bigger_box.py`，5 例（自带按钮不再出现；进出全屏两个调用和不支持时隐藏；尺寸变了之后重新 fit；五个标题都有两种语言且都经 `fill`；全屏样式）。
+
+**基线**：32395 passed / 537 skipped。画布自己的四个控件（读者语言）：放大/缩小/整图放进框/全屏看图；全屏用 Fullscreen API 放大画布并重新 fit；无头 Edge 实测 320px→整个视口；新测试 5 例
 
 ### #821 变量要有读者所读语言的名字，没有就交还模型补（2026-10-07）
 
