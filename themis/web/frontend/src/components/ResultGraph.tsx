@@ -28,12 +28,20 @@ const SAYS = {
 export function ResultGraph({
   program,
   original,
+  draft,
   busy,
   onRerun,
   onEdited,
 }: {
   program: Record<string, unknown>
   original: Record<string, unknown>
+  // A program the kernel refused to run — a revision the reader asked for
+  // in a sentence, revised as asked and then refused. It goes on the canvas
+  // in place of the graph the result came from, so the reader sees where
+  // their words landed and can go on editing there; the result below is
+  // then the old one, and says so, by the same edit-detection as any other
+  // change to the canvas.
+  draft?: Record<string, unknown>
   busy: boolean
   onRerun: (prog: Record<string, unknown>) => void
   onEdited?: (edited: boolean) => void
@@ -47,6 +55,7 @@ export function ResultGraph({
   const [shape, setShape] = useState<string | null>(null)
   const edited = shape !== null && shape !== computedFrom
   useEffect(() => { onEdited?.(edited) }, [edited, onEdited])
+  useEffect(() => { if (draft) ref.current?.reseed(draft) }, [draft])
   return (
     <div className="dagview">
       <CausalCanvas

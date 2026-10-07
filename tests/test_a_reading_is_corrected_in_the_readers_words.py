@@ -183,6 +183,7 @@ def test_what_changed_is_read_off_the_two_programs():
     graph can be edited after a correction, and those edits are not what
     the correction changed."""
     said = web_source.read(web_source.SRC / "components" / "Correction.tsx")
-    assert "changeBetween(revision.before, revision.after)" in said
+    assert "whatChanged(revision.before, revision.after, lang)" in said
+    assert "const change = changeBetween(before, after)" in said
     ask = web_source.read(web_source.SRC / "components" / "AskWorkspace.tsx")
     assert "revision: { said, before: program, after: res.kernel_ast }" in ask

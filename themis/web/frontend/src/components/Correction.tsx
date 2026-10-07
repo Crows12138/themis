@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { errorText } from '../api'
+import { errorText, type KernelError } from '../api'
 import { BETWEEN_ITEMS, BETWEEN_STATEMENTS } from '../lib/kernelWords.generated'
-import { fill, useLang, type Words } from '../lib/language'
+import { fill, useLang, type Lang, type Words } from '../lib/language'
 import { changeBetween } from '../lib/reading'
 
 const SAYS = {
@@ -29,6 +29,11 @@ const SAYS = {
   },
   unchanged: { zh: '什么都没有改，程序和之前一样', en: 'nothing; the program is the same as before' },
   back: { zh: '← 退回上一步', en: '← Back to the previous reading' },
+  refused: { zh: '但内核算不出改后的图：', en: 'But the kernel could not compute the revised graph:' },
+  onCanvas: {
+    zh: '改后的图已经放到上面的画布上，下面还是改动前的结果。可以在图上继续改，再点「用改后的图重跑」；或点「还原原图」放弃这次修改。',
+    en: 'The revised graph is on the canvas above, and the result below is still the one from before. Go on editing it there and press "Re-run with this graph", or "Restore the original" to drop this revision.',
+  },
 } satisfies Record<string, Words>
 
 // One correction: what the reader said, and the program before and after it.
@@ -36,6 +41,20 @@ export interface Revision {
   said: string
   before: Record<string, unknown>
   after: Record<string, unknown>
+}
+
+// What a revision changed, as one sentence's clauses — or the one sentence
+// for nothing, or for a change the graph and the question do not show.
+function whatChanged(before: Record<string, unknown>, after: Record<string, unknown>, lang: Lang): string {
+  const change = changeBetween(before, after)
+  const items = fill(BETWEEN_ITEMS, lang)
+  const clauses: string[] = []
+  for (const key of ['addedVariables', 'removedVariables', 'addedEdges', 'removedEdges'] as const)
+    if (change[key].length) clauses.push(fill(SAYS[key], lang, { names: change[key].join(items) }))
+  if (change.questionChanged) clauses.push(fill(SAYS.questionChanged, lang))
+  return clauses.length
+    ? clauses.join(fill(BETWEEN_STATEMENTS, lang))
+    : fill(change.unchanged ? SAYS.unchanged : SAYS.elsewhere, lang)
 }
 
 /**
@@ -48,41 +67,48 @@ export function Correction({
   revision,
   program,
   onRevise,
+  onRefused,
   onBack,
 }: {
   revision?: Revision
   // The program on the screen now, which is what a further correction revises.
   program: Record<string, unknown>
   onRevise?: (said: string, program: Record<string, unknown>) => Promise<void>
+  // A revision made as asked and then refused by the kernel: the program
+  // the kernel would not run, for the canvas to show.
+  onRefused?: (program: Record<string, unknown>) => void
   onBack?: () => void
 }) {
   const lang = useLang()
   const [said, setSaid] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The revision the kernel refused, with why — shown as a revision is,
+  // since it IS one: the reader's words landed, and the program they
+  // landed on was refused. Without this, a refused revision was one red
+  // line under the input, the old graph and the old result, and a reader
+  // who had just pressed the button saw nothing happen.
+  const [refused, setRefused] = useState<(Revision & { why: string }) | null>(null)
 
   async function submit() {
     const text = said.trim()
     if (!text || busy || !onRevise) return
     setBusy(true)
     setError(null)
+    setRefused(null)
     try {
       await onRevise(text, program)
       setSaid('')
     } catch (e) {
-      setError(errorText(e, lang))
+      const after = (e as KernelError)?.program
+      if (after) {
+        setRefused({ said: text, before: program, after, why: errorText(e, lang) })
+        onRefused?.(after)
+        setSaid('')
+      } else setError(errorText(e, lang))
     } finally {
       setBusy(false)
     }
-  }
-
-  const change = revision ? changeBetween(revision.before, revision.after) : null
-  const items = fill(BETWEEN_ITEMS, lang)
-  const clauses: string[] = []
-  if (change) {
-    for (const key of ['addedVariables', 'removedVariables', 'addedEdges', 'removedEdges'] as const)
-      if (change[key].length) clauses.push(fill(SAYS[key], lang, { names: change[key].join(items) }))
-    if (change.questionChanged) clauses.push(fill(SAYS.questionChanged, lang))
   }
 
   return (
@@ -90,13 +116,16 @@ export function Correction({
       {revision ? (
         <div className="correction__last">
           <p><b>{fill(SAYS.said, lang)}</b> {revision.said}</p>
-          <p>
-            <b>{fill(SAYS.changed, lang)}</b>{' '}
-            {clauses.length
-              ? clauses.join(fill(BETWEEN_STATEMENTS, lang))
-              : fill(change?.unchanged ? SAYS.unchanged : SAYS.elsewhere, lang)}
-          </p>
+          <p><b>{fill(SAYS.changed, lang)}</b> {whatChanged(revision.before, revision.after, lang)}</p>
           {onBack ? <button className="linklike" onClick={onBack} disabled={busy}>{fill(SAYS.back, lang)}</button> : null}
+        </div>
+      ) : null}
+      {refused ? (
+        <div className="correction__last correction__refused" role="alert">
+          <p><b>{fill(SAYS.said, lang)}</b> {refused.said}</p>
+          <p><b>{fill(SAYS.changed, lang)}</b> {whatChanged(refused.before, refused.after, lang)}</p>
+          <p><b>{fill(SAYS.refused, lang)}</b> {refused.why}</p>
+          <p className="correction__hint">{fill(SAYS.onCanvas, lang)}</p>
         </div>
       ) : null}
       {onRevise ? (

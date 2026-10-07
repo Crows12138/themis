@@ -152,12 +152,18 @@ export function ResultView({
     return () => { current = false }
   }, [program, result])
 
+  // A revision the kernel refused: revised as the reader asked, and not run.
+  // It goes on the canvas (ResultGraph) and the result below is then the old
+  // one; a new payload — a revision that ran, a step back — clears it.
+  const [draft, setDraft] = useState<Record<string, unknown> | undefined>(undefined)
+
   useEffect(() => {
     setResult(payload.result)
     setProgram(payload.program)
     setReply(payload.reply)
     setNaive(payload.naive)
     setError(null)
+    setDraft(undefined)
   }, [payload])
 
   const gaps = result.data_gap_report?.gaps ?? []
@@ -256,10 +262,10 @@ export function ResultView({
         </p>
       ) : null}
       {program && (onRevise || payload.revision) ? (
-        <Correction revision={payload.revision} program={program} onRevise={onRevise} onBack={onBack} />
+        <Correction revision={payload.revision} program={program} onRevise={onRevise} onRefused={setDraft} onBack={onBack} />
       ) : null}
 
-      {program ? <ResultGraph program={program} original={payload.program ?? program} busy={busy} onRerun={doRunJson} onEdited={setGraphEdited} /> : null}
+      {program ? <ResultGraph program={program} original={payload.program ?? program} draft={draft} busy={busy} onRerun={doRunJson} onEdited={setGraphEdited} /> : null}
 
       {/* Between an edit to the graph and its re-run, everything below is
           about the graph as it was. It is said, dimmed, and not operable:

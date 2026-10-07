@@ -230,6 +230,10 @@ button { font-family: inherit; cursor: pointer; }
 .correction__input { flex: 1 1 16rem; min-width: 0; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); }
 .correction__input:focus { outline: none; border-color: var(--accent); }
 .correction__error { color: var(--tier-none); margin-top: var(--space-xs); white-space: pre-line; }
+/* A revision made and refused: said like one that ran, with why it did not. */
+.correction__refused { padding: var(--space-sm) var(--space-md); background: var(--tier-none-bg); border: 1px solid color-mix(in oklch, var(--tier-none) 30%, var(--line)); border-radius: var(--radius-sm); }
+.correction__refused b { color: var(--tier-none); }
+.correction__hint { color: var(--ink-soft); font-size: var(--text-sm); }
 
 .verdict {
   background: var(--surface-raise); border: 1px solid var(--line);
