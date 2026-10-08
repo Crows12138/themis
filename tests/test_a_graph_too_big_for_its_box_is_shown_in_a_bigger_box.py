@@ -63,6 +63,15 @@ def test_every_control_is_titled_in_the_readers_language():
     assert tools.count("<ControlButton") == tools.count("title={fill(") == 4
 
 
+def test_the_control_icons_are_strokes_and_the_library_s_fill_is_undone():
+    """#825: the library fills every control icon with the text colour, and
+    a stylesheet rule outranks the SVG's own fill="none", so the box drawn
+    for "fit the graph" showed as a solid square until a stylesheet rule
+    undid it."""
+    rule = STYLES.split(".dagview__canvas .react-flow__controls-button svg {", 1)[1].split("}", 1)[0]
+    assert "fill: none" in rule
+
+
 def test_full_screen_the_box_is_the_page_s_surface():
     assert ".dagview__canvas:fullscreen" in STYLES
     assert "background: var(--surface)" in STYLES.split(".dagview__canvas:fullscreen", 1)[1].split("\n", 1)[0]

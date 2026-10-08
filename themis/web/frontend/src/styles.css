@@ -501,7 +501,11 @@ button { font-family: inherit; cursor: pointer; }
    fitted to that size (CausalCanvas's Tools). The page's own surface colour,
    since the full-screen backdrop is otherwise black. */
 .dagview__canvas:fullscreen { border: none; border-radius: 0; background: var(--surface); }
-.dagview__canvas .react-flow__controls-button svg { max-width: 14px; max-height: 14px; }
+/* The icons are drawn in strokes; the library's stylesheet fills every
+   control icon with the text colour, which turned the fit-the-graph box
+   into a solid square. A stylesheet rule outranks the SVG's own
+   attribute, so the fill is undone here, in a stylesheet. */
+.dagview__canvas .react-flow__controls-button svg { max-width: 14px; max-height: 14px; fill: none; }
 .gnode { position: relative; background: var(--surface-raise); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: var(--space-2xs) var(--space-sm); box-shadow: var(--shadow-soft); }
 .gnode__label { font-size: var(--text-sm); color: var(--ink); }
 .gnode__input { border: none; outline: none; background: transparent; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink); width: 92px; text-align: center; }
