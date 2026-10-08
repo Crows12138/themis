@@ -87,6 +87,7 @@ const SAYS = {
   toBuild: { zh: '在画布上重画 / 改结构', en: 'Redraw it / change the structure' },
   rawEnvelope: { zh: '查看这份结果的原始信封（JSON）', en: 'See the raw envelope for this result (JSON)' },
   save: { zh: '保存这个结果（下载文件）', en: 'Save this result (download a file)' },
+  rerunRefused: { zh: '重跑了，内核算不出这张图：', en: 'Re-run, and the kernel could not compute this graph:' },
   graphEdited: {
     zh: '因果图已改动，下面还是改动前的结果。点图上方的「用改后的图重跑」更新，或点「还原原图」撤销改动。',
     en: 'The graph has been edited, and what is below is still the result for the graph as it was. Re-run with the edited graph to update it, or restore the original to undo the edit.',
@@ -225,9 +226,17 @@ export function ResultView({
     }
   }
 
-  async function doRunJson(prog: Record<string, unknown>) {
+  // A program run from the screen and refused is said where it was run
+  // from — under the graph for the canvas's re-run button, under the JSON
+  // editor for its own. The result view's error box sits below everything,
+  // after thousands of gap rows on a large result; a reader who pressed
+  // the re-run button and read the next lines saw nothing happen.
+  const [runRefused, setRunRefused] = useState<{ at: 'graph' | 'json'; said: string } | null>(null)
+
+  async function doRunJson(prog: Record<string, unknown>, at: 'graph' | 'json') {
     setBusy(true)
     setError(null)
+    setRunRefused(null)
     try {
       const env = await runProgram(prog)
       const r = env.results?.[0]
@@ -236,9 +245,9 @@ export function ResultView({
         setProgram(prog)
         setReply(undefined)
         setNaive(undefined)
-      } else setError(fill(SAYS.noResult, lang))
+      } else setRunRefused({ at, said: fill(SAYS.noResult, lang) })
     } catch (e) {
-      setError(errorText(e, lang))
+      setRunRefused({ at, said: errorText(e, lang) })
     } finally {
       setBusy(false)
     }
@@ -265,8 +274,13 @@ export function ResultView({
         <Correction revision={payload.revision} program={program} onRevise={onRevise} onRefused={setDraft} onBack={onBack} />
       ) : null}
 
-      {program ? <ResultGraph program={program} original={payload.program ?? program} draft={draft} busy={busy} onRerun={doRunJson} onEdited={setGraphEdited} /> : null}
+      {program ? <ResultGraph program={program} original={payload.program ?? program} draft={draft} busy={busy} onRerun={(p) => doRunJson(p, 'graph')} onEdited={setGraphEdited} /> : null}
 
+      {runRefused?.at === 'graph' ? (
+        <p className="staleline staleline--refused" role="alert">
+          <b>{fill(SAYS.rerunRefused, lang)}</b> {runRefused.said}
+        </p>
+      ) : null}
       {/* Between an edit to the graph and its re-run, everything below is
           about the graph as it was. It is said, dimmed, and not operable:
           each action down there runs the program the result came from and
@@ -354,7 +368,10 @@ export function ResultView({
           a reader — what this surface still owes is listed in types.ts, and a
           JSON blob discharges nothing on that list. */}
       {program ? <Recheck result={result} program={program} /> : null}
-      {program ? <JsonEditor program={program} busy={busy} onRun={doRunJson} /> : null}
+      {program ? <JsonEditor program={program} busy={busy} onRun={(p) => doRunJson(p, 'json')} /> : null}
+      {runRefused?.at === 'json' ? (
+        <div className="errbox" role="alert"><p className="errbox__msg"><b>{fill(SAYS.rerunRefused, lang)}</b> {runRefused.said}</p></div>
+      ) : null}
       <Foldout summary={fill(SAYS.rawEnvelope, lang)}>
         <pre className="rawenv mono">{JSON.stringify(result, null, 2)}</pre>
       </Foldout>
